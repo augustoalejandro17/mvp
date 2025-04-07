@@ -1,0 +1,54 @@
+# Dependencias
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Compilación y distribución
+/dist
+/build
+
+# Logs
+logs
+*.log
+
+# Variables de entorno
+.env
+.env.*
+!.env.example
+
+# Directorios y archivos del sistema
+.DS_Store
+
+# Cachés
+.npm
+.eslintcache
+
+# Tests
+/coverage
+/.nyc_output
+
+# IDEs y editores
+/.idea
+/.vscode
+*.code-workspace
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# Archivos temporales
+/.sass-cache
+/connect.lock
+/libpeerconnection.log
+npm-debug.log
+testem.log
+/typings
+/reports
+/src/generated/*
+*.tsbuildinfo
+
+# Específicos de NestJS
+/nest-cli.json.bak 

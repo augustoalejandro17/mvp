@@ -1,0 +1,252 @@
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.main {
+  min-height: 100vh;
+  padding: 2rem 0;
+}
+
+.loading, .error {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 50vh;
+  font-size: 1.2rem;
+  color: #666;
+}
+
+.error {
+  color: #e53e3e;
+}
+
+.schoolHeader {
+  display: flex;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #eaeaea;
+}
+
+.schoolLogo, .schoolLogoPlaceholder {
+  width: 120px;
+  height: 120px;
+  border-radius: 8px;
+  margin-right: 2rem;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.schoolLogo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.schoolLogoPlaceholder {
+  background-color: #4a5568;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 2.5rem;
+  font-weight: bold;
+}
+
+.schoolInfo {
+  flex: 1;
+}
+
+.title {
+  font-size: 2.2rem;
+  margin: 0 0 0.5rem 0;
+  color: #2d3748;
+}
+
+.description {
+  font-size: 1.1rem;
+  color: #4a5568;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.public, .private {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.public {
+  background-color: #c6f6d5;
+  color: #276749;
+}
+
+.private {
+  background-color: #fed7d7;
+  color: #9b2c2c;
+}
+
+.adminInfo {
+  color: #718096;
+  font-size: 0.95rem;
+}
+
+.sectionTitle {
+  font-size: 1.5rem;
+  margin: 2rem 0 1rem;
+  color: #2d3748;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.card {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s, box-shadow 0.3s;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.cardImage, .cardImagePlaceholder {
+  height: 160px;
+  overflow: hidden;
+}
+
+.cardImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cardImagePlaceholder {
+  background-color: #4a5568;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.card h3 {
+  padding: 1rem 1rem 0.5rem;
+  margin: 0;
+  font-size: 1.25rem;
+  color: #2d3748;
+}
+
+.card p {
+  padding: 0 1rem;
+  margin: 0 0 1rem;
+  color: #4a5568;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.cardFooter {
+  padding: 0.75rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #eaeaea;
+  background-color: #fafafa;
+}
+
+.teacher {
+  font-size: 0.875rem;
+  color: #4a5568;
+}
+
+.noResults {
+  text-align: center;
+  padding: 2rem;
+  color: #718096;
+  font-size: 1.1rem;
+}
+
+.adminActions {
+  margin: 2rem 0;
+  display: flex;
+  justify-content: center;
+}
+
+.createButton {
+  background-color: #3182ce;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.createButton:hover {
+  background-color: #2c5282;
+}
+
+.backLink {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.backLink a {
+  color: #3182ce;
+  text-decoration: none;
+  font-size: 1rem;
+}
+
+.backLink a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .schoolHeader {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  
+  .schoolLogo, .schoolLogoPlaceholder {
+    margin-right: 0;
+    margin-bottom: 1rem;
+  }
+  
+  .meta {
+    justify-content: center;
+  }
+  
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .title {
+    font-size: 1.8rem;
+  }
+  
+  .grid {
+    grid-template-columns: 1fr;
+  }
+} 

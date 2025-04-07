@@ -1,0 +1,64 @@
+# Dependencias
+node_modules/
+**/node_modules/
+
+# Archivos de construcción
+dist/
+build/
+**/dist/
+**/build/
+
+# Next.js
+**/.next/
+**/out/
+
+# NestJS
+**/dist/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Variables de entorno (considerar mantener .env.example)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Directorios y archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Archivos temporales
+*.swp
+*.swo
+.tmp/
+.temp/
+
+# Cachés
+.npm
+.eslintcache
+
+# Archivos de configuración IDE y editores
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Archivos de test y cobertura
+coverage/
+.nyc_output/
+
+# Archivos de respaldo
+*.bak
+*.backup
+*~
+
+# Directorios específicos para Docker
+.docker/
+data/
+mongodb/ 

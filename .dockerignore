@@ -1,0 +1,81 @@
+# Dependencias
+node_modules/
+**/node_modules/
+
+# Control de versiones
+.git/
+.gitignore
+**/.git
+**/.gitignore
+
+# Archivos de construcción
+**/dist
+**/build
+**/.next
+**/out
+
+# Variables de entorno (considerar mantener .env.example)
+.env
+**/.env
+**/.env.*
+!**/.env.example
+
+# Documentación
+README.md
+**/README.md
+CHANGELOG.md
+**/CHANGELOG.md
+docs/
+**/docs/
+
+# Archivos de sistema
+.DS_Store
+**/.DS_Store
+Thumbs.db
+**/Thumbs.db
+
+# Archivos de logs
+logs/
+**/logs/
+**/*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Tests y cobertura
+**/coverage/
+**/.nyc_output/
+**/test/
+**/*.spec.ts
+**/*.test.ts
+**/*.spec.js
+**/*.test.js
+
+# Configuración de IDE y editores
+.idea/
+.vscode/
+**/.idea/
+**/.vscode/
+
+# Datos locales
+data/
+mongodb/
+
+# Archivos de Docker (excepto el Dockerfile y .dockerignore)
+docker-compose*.yml
+.docker/
+
+# Otros archivos que no son necesarios en la imagen
+*.md
+**/*.md
+!README.md
+*.log
+**/*.log
+.editorconfig
+**/.editorconfig
+.eslintrc*
+**/.eslintrc*
+.prettierrc*
+**/.prettierrc*
+tsconfig.tsbuildinfo
+**/tsconfig.tsbuildinfo 
