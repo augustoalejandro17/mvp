@@ -16,6 +16,17 @@ export class Class {
   @Prop({ required: true })
   videoUrl: string;
 
+  @Prop()
+  videoKey: string;
+
+  @Prop({ type: Object })
+  videoMetadata: {
+    name: string;
+    size: number;
+    mimeType: string;
+    duration?: number;
+  };
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   teacher: User;
 

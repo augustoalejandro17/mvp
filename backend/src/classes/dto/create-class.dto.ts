@@ -1,4 +1,5 @@
-import { IsString, IsUrl, MinLength, IsNotEmpty, IsMongoId, IsOptional, IsNumber } from 'class-validator';
+import { IsString, MinLength, IsNotEmpty, IsMongoId, IsOptional, IsNumber, IsBoolean } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 
 export class CreateClassDto {
   @IsString()
@@ -11,18 +12,21 @@ export class CreateClassDto {
   @MinLength(10, { message: 'La descripción debe tener al menos 10 caracteres' })
   description: string;
 
-  @IsUrl({}, { message: 'Debe proporcionar una URL válida para el video' })
-  @IsNotEmpty({ message: 'La URL del video es obligatoria' })
-  videoUrl: string;
-
   @IsMongoId({ message: 'El ID del curso debe ser un ID válido' })
   @IsNotEmpty({ message: 'El ID del curso es obligatorio' })
   courseId: string;
 
   @IsNumber()
   @IsOptional()
+  @Type(() => Number)
   order?: number;
 
   @IsOptional()
+  @Type(() => Boolean)
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
   isPublic?: boolean;
 } 

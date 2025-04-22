@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger, InternalServerErrorException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -6,6 +6,7 @@ import * as argon2 from 'argon2';
 import { User, UserRole } from './schemas/user.schema';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
@@ -70,27 +71,25 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    this.logger.log(`Intento de login para usuario: ${loginDto.email}`);
+    const { email, password } = loginDto;
     
     try {
-      const user = await this.userModel.findOne({ email: loginDto.email });
+      const user = await this.userModel.findOne({ email });
       
       if (!user) {
-        this.logger.warn(`Intento de login con email no registrado: ${loginDto.email}`);
+        this.logger.warn(`Intento de login con email inexistente: ${email}`);
         throw new UnauthorizedException('Credenciales inválidas');
       }
-
-      // Verificar la contraseña con argon2
-      const isPasswordValid = await argon2.verify(user.password, loginDto.password);
+      
+      // Usar argon2 para verificar la contraseña, ya que el registro usa argon2
+      const isPasswordValid = await argon2.verify(user.password, password);
       
       if (!isPasswordValid) {
-        this.logger.warn(`Contraseña incorrecta para el usuario: ${loginDto.email}`);
+        this.logger.warn(`Contraseña incorrecta para usuario: ${email}`);
         throw new UnauthorizedException('Credenciales inválidas');
       }
-
-      this.logger.log(`Login exitoso para el usuario: ${user._id} (${user.email})`);
-
-      const payload = { 
+      
+      const payload = {
         sub: user._id,
         email: user.email,
         name: user.name,
@@ -99,9 +98,8 @@ export class AuthService {
       
       const token = this.jwtService.sign(payload);
       
-      this.logger.log(`Token JWT generado para el usuario: ${user._id}`);
-      this.logger.debug(`Payload del token: ${JSON.stringify(payload)}`);
-
+      this.logger.log(`Usuario ${user.email} ha iniciado sesión`);
+      
       return {
         user: {
           id: user._id,
@@ -112,8 +110,14 @@ export class AuthService {
         token,
       };
     } catch (error) {
-      this.logger.error(`Error durante el login: ${error.message}`, error.stack);
-      throw error;
+      this.logger.error(`Error al intentar login para email ${email}: ${error.message}`, error.stack);
+      
+      // No exponer errores internos, solo rethrow si es un error de autenticación
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      
+      throw new InternalServerErrorException('Error al procesar la autenticación');
     }
   }
 } 

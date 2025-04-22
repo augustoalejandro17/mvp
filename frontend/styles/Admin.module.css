@@ -243,6 +243,22 @@
   background-color: #bee3f8;
 }
 
+.actionButton {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  text-decoration: none;
+  color: #805ad5;
+  border: 1px solid #805ad5;
+  transition: all 0.2s;
+  margin-left: 0.5rem;
+}
+
+.actionButton:hover {
+  background-color: #805ad5;
+  color: white;
+}
+
 .loading, .error {
   display: flex;
   justify-content: center;

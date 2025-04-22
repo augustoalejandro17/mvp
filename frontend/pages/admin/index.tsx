@@ -38,6 +38,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('schools');
+  const [classes, setClasses] = useState<any[]>([]);
 
   useEffect(() => {
     const token = Cookies.get('token');
@@ -108,6 +109,18 @@ export default function AdminDashboard() {
       );
       
       setCourses(coursesResponse.data);
+
+      // Obtener clases (si son profesor o admin)
+      const classesResponse = await axios.get(
+        `${apiUrl}/api/classes`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      
+      setClasses(classesResponse.data);
     } catch (error: any) {
       console.error('Error fetching data:', error);
       setError('Error al cargar los datos. Por favor, intenta de nuevo.');
@@ -158,6 +171,12 @@ export default function AdminDashboard() {
           >
             Cursos
           </button>
+          <button 
+            className={`${styles.tabButton} ${activeTab === 'classes' ? styles.active : ''}`}
+            onClick={() => setActiveTab('classes')}
+          >
+            Clases
+          </button>
           {user.role === 'admin' && (
             <button 
               className={`${styles.tabButton} ${activeTab === 'users' ? styles.active : ''}`}
@@ -177,6 +196,11 @@ export default function AdminDashboard() {
           {activeTab === 'courses' && (
             <Link href="/course/create" className={styles.createButton}>
               Nuevo Curso
+            </Link>
+          )}
+          {activeTab === 'classes' && (
+            <Link href="/class/create" className={styles.createButton}>
+              Nueva Clase
             </Link>
           )}
         </div>
@@ -254,6 +278,52 @@ export default function AdminDashboard() {
                         Ver detalles
                       </Link>
                       <Link href={`/course/edit/${course._id}`} className={styles.editButton}>
+                        Editar
+                      </Link>
+                      <Link href={`/class/create?courseId=${course._id}`} className={styles.actionButton}>
+                        Añadir Clase
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'classes' && (
+          <div className={styles.contentSection}>
+            <h2 className={styles.sectionTitle}>Mis Clases</h2>
+            {classes.length === 0 ? (
+              <p className={styles.emptyMessage}>No tienes clases creadas. ¡Crea una ahora!</p>
+            ) : (
+              <div className={styles.grid}>
+                {classes.map((classItem) => (
+                  <div key={classItem._id} className={styles.card}>
+                    <div className={styles.cardHeader}>
+                      <div className={styles.coverContainer}>
+                        {classItem.thumbnailUrl ? (
+                          <img src={classItem.thumbnailUrl} alt={classItem.title} className={styles.cover} />
+                        ) : (
+                          <div className={styles.coverPlaceholder}>{classItem.title.charAt(0)}</div>
+                        )}
+                      </div>
+                      <div className={styles.statusBadge}>
+                        {getStatusBadge(classItem.isPublic)}
+                      </div>
+                    </div>
+                    <div className={styles.cardBody}>
+                      <h3 className={styles.cardTitle}>{classItem.title}</h3>
+                      <p className={styles.cardDescription}>{classItem.description.substring(0, 100)}...</p>
+                      {classItem.course && typeof classItem.course === 'object' && (
+                        <p className={styles.schoolName}>Curso: {classItem.course.title}</p>
+                      )}
+                    </div>
+                    <div className={styles.cardFooter}>
+                      <Link href={`/class/${classItem._id}`} className={styles.viewButton}>
+                        Ver detalles
+                      </Link>
+                      <Link href={`/class/edit/${classItem._id}`} className={styles.editButton}>
                         Editar
                       </Link>
                     </div>

@@ -39,7 +39,7 @@ export default function CreateSchool() {
       const decoded = jwtDecode<DecodedToken>(token);
       console.log('Token decodificado:', decoded);
       if (decoded.role !== 'admin' && decoded.role !== 'teacher') {
-        router.push('/dashboard');
+        router.push('/');
         return;
       }
       setUserId(decoded.sub);
@@ -100,7 +100,7 @@ export default function CreateSchool() {
       
       // Redirigir al listado de escuelas después de 2 segundos
       setTimeout(() => {
-        router.push('/dashboard');
+        router.push('/');
       }, 2000);
       
     } catch (error: any) {

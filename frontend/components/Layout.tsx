@@ -46,9 +46,6 @@ export default function Layout({
             {isLoggedIn ? (
               <>
                 <li className={styles.navItem}>
-                  <Link href="/dashboard">Dashboard</Link>
-                </li>
-                <li className={styles.navItem}>
                   <button onClick={handleLogout} className={styles.logoutBtn}>
                     Cerrar Sesión
                   </button>

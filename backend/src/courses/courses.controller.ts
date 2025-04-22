@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, UseGuards, Req, Logger, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, UseGuards, Req, Logger, Query, Delete } from '@nestjs/common';
 import { CoursesService } from './courses.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -127,6 +127,24 @@ export class CoursesController {
       return result;
     } catch (error) {
       this.logger.error(`Error al eliminar estudiante: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  async remove(@Param('id') id: string, @Req() req) {
+    const userId = req.user.sub || req.user._id?.toString();
+    
+    this.logger.log(`Procesando solicitud para eliminar curso con ID: ${id}`);
+    this.logger.log(`Usuario autenticado: ${userId}, Rol: ${req.user.role}`);
+    
+    try {
+      const result = await this.coursesService.remove(id, userId);
+      this.logger.log(`Curso eliminado con éxito`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Error al eliminar curso: ${error.message}`, error.stack);
       throw error;
     }
   }

@@ -121,10 +121,7 @@ const Navigation = () => {
           {isAuthenticated ? (
             <>
               {/* Enlaces comunes para usuarios autenticados */}
-              <Link href="/dashboard">
-                <a className={router.pathname === '/dashboard' ? styles.active : ''}>Dashboard</a>
-              </Link>
-
+              
               {/* Enlaces específicos por rol */}
               {userRole === 'admin' && (
                 <div className={`${styles.dropdown} ${activeDropdown === 'admin' ? styles.open : ''}`}>

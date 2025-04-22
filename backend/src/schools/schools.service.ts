@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { School } from './schemas/school.schema';
@@ -431,6 +431,94 @@ export class SchoolsService {
       return result;
     } catch (error) {
       this.logger.error(`Error al añadir curso a escuela: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async removeCourse(schoolId: string, courseId: string): Promise<School> {
+    this.logger.log(`Eliminando curso ${courseId} de escuela ${schoolId}`);
+    
+    try {
+      const school = await this.schoolModel.findById(schoolId);
+      
+      if (!school) {
+        this.logger.warn(`Escuela con ID ${schoolId} no encontrada`);
+        throw new NotFoundException(`Escuela con ID ${schoolId} no encontrada`);
+      }
+
+      if (!school.courses || !school.courses.some(c => c.toString() === courseId)) {
+        this.logger.debug(`El curso ${courseId} no existe en la escuela ${schoolId}`);
+        return school;
+      }
+      
+      const result = await this.schoolModel.findByIdAndUpdate(
+        schoolId,
+        { $pull: { courses: courseId } },
+        { new: true }
+      );
+      
+      if (!result) {
+        throw new NotFoundException(`No se pudo actualizar la escuela con ID ${schoolId}`);
+      }
+      
+      this.logger.log(`Curso ${courseId} eliminado exitosamente de escuela ${schoolId}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Error al eliminar curso de escuela: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async remove(id: string, userId: string) {
+    this.logger.log(`Eliminando escuela con ID: ${id}`);
+    try {
+      const school = await this.schoolModel.findById(id);
+      
+      if (!school) {
+        this.logger.warn(`Escuela con ID ${id} no encontrada`);
+        throw new NotFoundException(`Escuela con ID ${id} no encontrada`);
+      }
+      
+      // Verificar permisos (admin de la escuela o admin del sistema)
+      const isSchoolAdmin = school.admin.toString() === userId;
+      
+      if (!isSchoolAdmin) {
+        const user = await this.userModel.findById(userId);
+        if (!user || user.role !== UserRole.ADMIN) {
+          this.logger.warn(`Usuario ${userId} no tiene permisos para eliminar la escuela ${id}`);
+          throw new UnauthorizedException('No tiene permisos para eliminar esta escuela');
+        }
+      }
+      
+      // Remover las referencias a la escuela de todos los usuarios (admin, profesores, estudiantes)
+      const adminId = school.admin.toString();
+      await this.userModel.findByIdAndUpdate(adminId, {
+        $pull: { schools: id }
+      });
+      
+      // Remover la escuela de los profesores
+      if (school.teachers && school.teachers.length > 0) {
+        await this.userModel.updateMany(
+          { _id: { $in: school.teachers } },
+          { $pull: { schools: id } }
+        );
+      }
+      
+      // Remover la escuela de los estudiantes
+      if (school.students && school.students.length > 0) {
+        await this.userModel.updateMany(
+          { _id: { $in: school.students } },
+          { $pull: { schools: id } }
+        );
+      }
+      
+      // Eliminar la escuela
+      await this.schoolModel.findByIdAndDelete(id);
+      
+      this.logger.log(`Escuela eliminada exitosamente: ${id}`);
+      return { success: true, message: 'Escuela eliminada exitosamente' };
+    } catch (error) {
+      this.logger.error(`Error al eliminar escuela ${id}: ${error.message}`, error.stack);
       throw error;
     }
   }

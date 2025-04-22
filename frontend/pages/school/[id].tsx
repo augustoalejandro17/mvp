@@ -4,6 +4,7 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../../styles/School.module.css';
+import { FaTrashAlt, FaEdit } from 'react-icons/fa';
 
 interface School {
   _id: string;
@@ -113,8 +114,48 @@ export default function SchoolDetail() {
     
     if (user.role === 'admin') return true;
     
-    return school.teachers.some(teacher => teacher._id === user.id) || 
-           school.admin._id === user.id;
+    return school.teachers?.some(teacher => teacher._id === user.id) || 
+           school.admin?._id === user.id;
+  };
+
+  const isSchoolAdmin = () => {
+    if (!user || !school) return false;
+    
+    if (user.role === 'admin') return true;
+    
+    return school.admin?._id === user.id;
+  };
+  
+  const handleDeleteSchool = async () => {
+    if (!confirm('¿Estás seguro de que deseas eliminar esta escuela? Esta acción no se puede deshacer.')) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const token = Cookies.get('token');
+      
+      if (!token) {
+        setError('Debes iniciar sesión para realizar esta acción');
+        setLoading(false);
+        return;
+      }
+      
+      const headers = { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
+      
+      await axios.delete(`${apiUrl}/api/schools/${id}`, { headers });
+      
+      // Redirigir a la página principal después de eliminar
+      router.push('/');
+    } catch (error) {
+      console.error('Error al eliminar la escuela:', error);
+      setError('No se pudo eliminar la escuela. Verifica que tienes los permisos necesarios.');
+      setLoading(false);
+    }
   };
 
   if (loading) {
@@ -204,6 +245,23 @@ export default function SchoolDetail() {
             >
               Crear Nuevo Curso
             </button>
+            
+            {isSchoolAdmin() && (
+              <>
+                <button 
+                  className={`${styles.actionButton} ${styles.editButton}`}
+                  onClick={() => router.push(`/school/edit/${school._id}`)}
+                >
+                  <FaEdit /> Editar Escuela
+                </button>
+                <button 
+                  className={`${styles.actionButton} ${styles.deleteButton}`}
+                  onClick={handleDeleteSchool}
+                >
+                  <FaTrashAlt /> Eliminar Escuela
+                </button>
+              </>
+            )}
           </div>
         )}
         

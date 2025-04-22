@@ -345,4 +345,45 @@ export class CoursesService {
     
     return result;
   }
+
+  async remove(id: string, userId: string) {
+    this.logger.log(`Eliminando curso con ID: ${id}`);
+    try {
+      const course = await this.courseModel.findById(id);
+      
+      if (!course) {
+        this.logger.warn(`Curso con ID ${id} no encontrado`);
+        throw new NotFoundException(`Curso con ID ${id} no encontrado`);
+      }
+      
+      // Verificar permisos (profesor del curso o admin)
+      const isTeacher = course.teacher.toString() === userId;
+      
+      if (!isTeacher) {
+        const user = await this.userModel.findById(userId);
+        if (!user || user.role !== UserRole.ADMIN) {
+          this.logger.warn(`Usuario ${userId} no tiene permisos para eliminar el curso ${id}`);
+          throw new UnauthorizedException('No tiene permisos para eliminar este curso');
+        }
+      }
+      
+      // Eliminar el curso
+      await this.courseModel.findByIdAndDelete(id);
+      
+      // Eliminar la referencia del curso en la escuela
+      try {
+        const schoolId = course.school.toString();
+        await this.schoolsService.removeCourse(schoolId, id);
+      } catch (error) {
+        this.logger.error(`Error al eliminar referencia del curso en la escuela: ${error.message}`, error.stack);
+        // No lanzamos excepción para no interrumpir la eliminación del curso
+      }
+      
+      this.logger.log(`Curso eliminado exitosamente: ${id}`);
+      return { success: true, message: 'Curso eliminado exitosamente' };
+    } catch (error) {
+      this.logger.error(`Error al eliminar curso ${id}: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
 } 

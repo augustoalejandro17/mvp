@@ -184,9 +184,9 @@ export default function CreateCourse() {
       setSuccess(true);
       setDebugInfo(debugInfo + `\n\nRespuesta: ${JSON.stringify(response.data, null, 2)}`);
       
-      // Redirigir al panel de administración después de 2 segundos
+      // Redirigir al dashboard después de 2 segundos
       setTimeout(() => {
-        router.push('/admin');
+        router.push('/');
       }, 2000);
       
     } catch (error: any) {

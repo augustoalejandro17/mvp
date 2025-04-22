@@ -1,37 +1,38 @@
-import { Injectable, Logger, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Class } from './schemas/class.schema';
+import { Class, ClassDocument } from './schemas/class.schema';
 import { CreateClassDto } from './dto/create-class.dto';
 import { CoursesService } from '../courses/courses.service';
+import { S3Service } from '../services/s3.service';
 import { User, UserRole } from '../auth/schemas/user.schema';
+import { CloudFrontService } from '../services/cloudfront.service';
 
 @Injectable()
 export class ClassesService {
   private readonly logger = new Logger(ClassesService.name);
 
   constructor(
-    @InjectModel(Class.name) private classModel: Model<Class>,
+    @InjectModel(Class.name) private classModel: Model<ClassDocument>,
     @InjectModel(User.name) private userModel: Model<User>,
     private coursesService: CoursesService,
+    private s3Service: S3Service,
+    private cloudFrontService: CloudFrontService,
   ) {}
 
-  async create(createClassDto: CreateClassDto, teacherId: string): Promise<Class> {
-    this.logger.log(`Creando clase: ${JSON.stringify(createClassDto)} para profesor: ${teacherId}`);
-    console.log(`Intentando crear clase con ID de profesor: ${teacherId} y ID de curso: ${createClassDto.courseId}`);
-    
-    // Validación adicional de campos
-    if (!teacherId) {
-      this.logger.error('Error al crear clase: ID de profesor no proporcionado');
-      throw new BadRequestException('ID de profesor requerido');
-    }
-    
-    if (!this.isValidYoutubeUrl(createClassDto.videoUrl)) {
-      this.logger.warn(`URL de video no válida: ${createClassDto.videoUrl}`);
-      throw new BadRequestException('La URL proporcionada no es una URL de YouTube válida');
-    }
-    
+  async create(createClassDto: CreateClassDto, teacherId: string, videoFile: Express.Multer.File): Promise<Class> {
     try {
+      this.logger.log(`Iniciando creación de clase por profesor ID: ${teacherId}`);
+      
+      // Validación de datos requeridos
+      if (!teacherId) {
+        throw new BadRequestException('Se requiere ID del profesor');
+      }
+
+      if (!videoFile) {
+        throw new BadRequestException('Se requiere un archivo de video');
+      }
+      
       const course = await this.coursesService.findOne(createClassDto.courseId);
       
       if (!course) {
@@ -42,144 +43,59 @@ export class ClassesService {
       let teacherIdFromCourse = 'null';
       if (course.teacher) {
         if (typeof course.teacher === 'object' && course.teacher !== null) {
-          // Si es un objeto (documento poblado), extraer el _id
-          // Usamos 'as any' para evitar errores de typescript
           const teacherObj = course.teacher as any;
           teacherIdFromCourse = teacherObj._id ? 
             String(teacherObj._id) : 
             'objeto sin id';
         } else {
-          // Si es una referencia directa (string/ObjectId)
           teacherIdFromCourse = String(course.teacher);
         }
       }
       
-      const courseInfo = {
-        id: String(course._id),
-        title: course.title,
-        teacherId: teacherIdFromCourse,
-        requestingTeacherId: teacherId
-      };
-      
-      console.log('Curso encontrado:', courseInfo);
-      console.log('Tipo de course.teacher:', typeof course.teacher);
-      
-      if (typeof course.teacher === 'object' && course.teacher !== null) {
-        console.log('Propiedades de course.teacher:', Object.keys(course.teacher));
-        const teacherObj = course.teacher as any;
-        if (teacherObj._id) {
-          console.log('course.teacher._id:', teacherObj._id);
+      // Verificar que el profesor que crea la clase sea el profesor del curso o un admin
+      if (teacherIdFromCourse !== teacherId) {
+        const user = await this.userModel.findById(teacherId);
+        if (!user || user.role !== 'admin') {
+          this.logger.warn(`Profesor ${teacherId} no autorizado para crear clase en curso ${course._id}`);
+          throw new BadRequestException('No tienes permisos para crear clases en este curso');
         }
       }
-      
-      this.logger.debug(`Verificando permisos para el curso ${createClassDto.courseId} - profesor solicitante: ${teacherId}`);
-      
-      // Convertimos IDs a string para comparación segura
-      let courseTeacherId = '';
-      
-      if (course.teacher) {
-        if (typeof course.teacher === 'object' && course.teacher !== null) {
-          // Si es un objeto poblado, extraemos su _id como string
-          const teacherObj = course.teacher as any;
-          if (teacherObj._id) {
-            courseTeacherId = String(teacherObj._id);
-          }
-        } else {
-          // Si es directamente un ObjectId o string
-          courseTeacherId = String(course.teacher);
-        }
-      }
-      
-      const requestingTeacherId = String(teacherId);
-      
-      console.log(`Comparando courseTeacherId=${courseTeacherId} con requestingTeacherId=${requestingTeacherId}`);
-      
-      // Verificar si el profesor es el dueño del curso
-      const isTeacherOwner = courseTeacherId === requestingTeacherId;
-      
-      // Verificar si es administrador del sistema
-      const teacher = await this.userModel.findById(teacherId);
-      const isSystemAdmin = teacher && teacher.role === UserRole.ADMIN;
-      
-      console.log('Verificando permisos - datos de comparación:', {
-        courseTeacherId,
-        requestingTeacherId,
-        isTeacherOwner,
-        isSystemAdmin,
-        teacherRole: teacher ? teacher.role : 'usuario no encontrado'
-      });
-      
-      // Si el profesor no es el dueño del curso ni es administrador, denegar el acceso
-      if (!isTeacherOwner && !isSystemAdmin) {
-        console.log(`ACCESO DENEGADO: Usuario ${teacherId} no es el profesor del curso ${createClassDto.courseId}`);
-        this.logger.warn(`Acceso denegado: Usuario ${teacherId} no es el profesor del curso ${createClassDto.courseId}`);
-        throw new UnauthorizedException('You are not authorized to add classes to this course');
-      }
-      
-      console.log(`ACCESO CONCEDIDO: Usuario ${teacherId} tiene permisos en el curso como ${
-        isTeacherOwner ? 'profesor del curso' : 
-        isSystemAdmin ? 'administrador del sistema' : 'desconocido'
-      }`);
-      
-      const createdClass = new this.classModel({
-        ...createClassDto,
-        course: createClassDto.courseId,
-        teacher: teacherId,
-      });
-      
-      console.log('Datos de la clase a guardar:', JSON.stringify(createdClass));
-      
-      const result = await createdClass.save();
-      
-      console.log('Clase guardada exitosamente:', JSON.stringify(result));
-      
-      // Añadir la clase al curso
-      await this.coursesService.addClass(createClassDto.courseId, String(result._id));
-      
-      this.logger.log(`Clase guardada exitosamente con ID: ${result._id}`);
-      return result;
-    } catch (error) {
-      this.logger.error(`Error creating class: ${error.message}`, error.stack);
-      console.error('Stack error completo:', error.stack);
-      
-      if (error.name === 'ValidationError') {
-        this.logger.warn(`Error de validación: ${JSON.stringify(error.errors)}`);
-        throw new BadRequestException(`Error de validación: ${this.formatMongooseErrors(error)}`);
-      }
-      
-      throw error;
-    }
-  }
 
-  // Función auxiliar para validar URLs de YouTube
-  private isValidYoutubeUrl(url: string): boolean {
-    if (!url) return false;
-    
-    try {
-      const parsedUrl = new URL(url);
-      const hostname = parsedUrl.hostname;
+      // Subir el video a S3
+      try {
+        this.logger.log(`Subiendo video: ${videoFile.originalname} (${videoFile.size} bytes)`);
+        
+        // Usar el servicio de S3 para subir el archivo
+        const uploadResult = await this.s3Service.uploadVideo(videoFile);
+        
+        // Crear y guardar la nueva clase
+        const newClass = new this.classModel({
+          ...createClassDto,
+          videoUrl: uploadResult,
+          videoFileName: videoFile.originalname,
+          videoFileSize: videoFile.size,
+          videoMimeType: videoFile.mimetype,
+          teacher: teacherId,
+          course: createClassDto.courseId,
+        });
+        
+        const savedClass = await newClass.save();
+        
+        this.logger.log(`Clase creada exitosamente: ${savedClass._id}`);
+        return savedClass;
+      } catch (uploadError) {
+        this.logger.error(`Error al subir video: ${uploadError.message}`, uploadError.stack);
+        throw new InternalServerErrorException(`Error al subir el video: ${uploadError.message}`);
+      }
       
-      // Verificar dominios de YouTube
-      const youtubeHosts = [
-        'youtube.com',
-        'www.youtube.com',
-        'youtu.be',
-        'www.youtu.be'
-      ];
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       
-      return youtubeHosts.some(host => hostname.endsWith(host));
-    } catch (e) {
-      return false;
+      this.logger.error(`Error al crear clase: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(`Error al crear la clase: ${error.message}`);
     }
-  }
-  
-  // Función para formatear errores de Mongoose
-  private formatMongooseErrors(error: any): string {
-    if (!error.errors) return error.message;
-    
-    return Object.keys(error.errors)
-      .map(key => error.errors[key].message)
-      .join('; ');
   }
 
   async findAll(userId?: string, role?: UserRole, courseId?: string) {
@@ -215,31 +131,88 @@ export class ClassesService {
         .populate('course', 'title')
         .sort({ order: 1 });
       
-      this.logger.log(`Se encontraron ${classes.length} clases`);
-      return classes;
+      // Generar URLs firmadas para todos los videos
+      const classesWithSignedUrls = [];
+      for (const classItem of classes) {
+        try {
+          if (classItem.videoUrl) {
+            const signedUrl = await this.s3Service.getSignedUrl(classItem.videoUrl);
+            const classObj = classItem.toObject();
+            classObj.videoUrl = signedUrl;
+            classesWithSignedUrls.push(classObj);
+          } else {
+            classesWithSignedUrls.push(classItem.toObject());
+          }
+        } catch (error) {
+          this.logger.error(`Error al generar URL firmada para clase ${classItem._id}: ${error.message}`);
+          classesWithSignedUrls.push(classItem.toObject());
+        }
+      }
+      
+      this.logger.log(`Se encontraron ${classes.length} clases y se generaron URLs firmadas`);
+      return classesWithSignedUrls;
     } catch (error) {
       this.logger.error(`Error al buscar clases: ${error.message}`, error.stack);
       throw error;
     }
   }
 
-  async findOne(id: string) {
+  // Método para obtener la URL para streaming de video
+  private async getVideoStreamingUrl(videoKey: string): Promise<string> {
+    try {
+      // Priorizar siempre CloudFront para videos
+      if (this.cloudFrontService) {
+        try {
+          // Generamos una URL firmada que expire en 24 horas
+          const cloudFrontUrl = await this.cloudFrontService.getSignedUrl(videoKey, 86400);
+          this.logger.log(`URL de CloudFront generada para ${videoKey}`);
+          return cloudFrontUrl;
+        } catch (cloudFrontError) {
+          this.logger.warn(`CloudFront no disponible: ${cloudFrontError.message}. Usando S3.`);
+          // Si hay error con CloudFront, continuamos con S3
+        }
+      } else {
+        this.logger.warn('CloudFrontService no inicializado correctamente. Usando S3 directamente.');
+      }
+      
+      // S3 como fallback
+      const s3Url = await this.s3Service.getSignedUrl(videoKey, 3600);
+      this.logger.log(`URL de S3 generada para ${videoKey}`);
+      return s3Url;
+      
+    } catch (error) {
+      this.logger.error(`Error al generar URL de streaming: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(`Error al generar URL de streaming: ${error.message}`);
+    }
+  }
+
+  async findOne(id: string): Promise<Class> {
     this.logger.log(`Buscando clase con ID: ${id}`);
     try {
-      const classItem = await this.classModel.findById(id)
+      const classItem = await this.classModel
+        .findById(id)
         .populate('teacher', 'name email')
-        .populate('course', 'title');
+        .exec();
       
       if (!classItem) {
-        this.logger.warn(`Clase con ID ${id} no encontrada`);
         throw new NotFoundException(`Clase con ID ${id} no encontrada`);
       }
       
-      this.logger.log(`Clase encontrada: ${classItem.title}`);
+      // Si la clase tiene una clave de video guardada, generar una URL firmada actualizada
+      // Esto asegura que siempre tendremos una URL de reproducción válida
+      if (classItem.videoKey) {
+        const streamingUrl = await this.getVideoStreamingUrl(classItem.videoKey);
+        // No modificamos el documento en la base de datos, solo el objeto que se devuelve
+        classItem.videoUrl = streamingUrl;
+      }
+      
       return classItem;
     } catch (error) {
-      this.logger.error(`Error al buscar clase ${id}: ${error.message}`, error.stack);
-      throw error;
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(`Error al buscar clase: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(`Error al buscar la clase: ${error.message}`);
     }
   }
 
@@ -259,11 +232,6 @@ export class ClassesService {
         if (!user || user.role !== UserRole.ADMIN) {
           throw new BadRequestException('No tiene permisos para actualizar esta clase');
         }
-      }
-      
-      // Si se está actualizando la URL del video, validarla
-      if (updateClassDto.videoUrl && !this.isValidYoutubeUrl(updateClassDto.videoUrl)) {
-        throw new BadRequestException('La URL proporcionada no es una URL de YouTube válida');
       }
       
       const updatedClass = await this.classModel.findByIdAndUpdate(
@@ -298,12 +266,99 @@ export class ClassesService {
         }
       }
       
+      // Eliminar el video de S3
+      if (classItem.videoUrl) {
+        await this.s3Service.deleteVideo(classItem.videoUrl);
+      }
+      
       await this.classModel.findByIdAndDelete(id);
       
       this.logger.log(`Clase eliminada exitosamente: ${id}`);
       return { success: true };
     } catch (error) {
       this.logger.error(`Error al eliminar clase ${id}: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async getVideoDownloadUrl(videoUrl: string): Promise<string> {
+    this.logger.log(`Generando URL de descarga para video: ${videoUrl}`);
+    
+    try {
+      // Extraer el nombre del archivo de la URL
+      const key = this.s3Service.getKeyFromUrl(videoUrl);
+      const fileName = key.split('/').pop() || 'video.mov';
+      
+      // Generar una URL firmada con parámetro de descarga
+      const downloadUrl = await this.s3Service.getDownloadUrl(videoUrl);
+      
+      this.logger.log(`URL de descarga generada exitosamente para ${fileName}`);
+      return downloadUrl;
+    } catch (error) {
+      this.logger.error(`Error al generar URL de descarga: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async getSignedUrlForStreaming(videoUrl: string): Promise<string> {
+    this.logger.log(`Generando URL de streaming para video: ${videoUrl}`);
+    
+    try {
+      // Intentar usar CloudFront si está disponible
+      if (this.cloudFrontService) {
+        try {
+          const key = this.s3Service.getKeyFromUrl(videoUrl);
+          // Generar URL firmada de CloudFront con mayor tiempo de expiración
+          const cloudFrontUrl = await this.cloudFrontService.getSignedUrl(key, 86400); // 24 horas
+          this.logger.log(`URL de CloudFront generada para streaming`);
+          return cloudFrontUrl;
+        } catch (cloudFrontError) {
+          this.logger.warn(`CloudFront no disponible: ${cloudFrontError.message}. Fallback a S3.`);
+        }
+      }
+      
+      // Fallback a S3 si CloudFront no está disponible
+      const streamUrl = await this.s3Service.getSignedUrl(videoUrl, 3600); // 1 hora
+      this.logger.log(`URL de S3 generada para streaming`);
+      return streamUrl;
+    } catch (error) {
+      this.logger.error(`Error al generar URL de streaming: ${error.message}`, error.stack);
+      // En caso de error, devolver la URL original
+      return videoUrl;
+    }
+  }
+
+  async updateVideoUrl(id: string, videoFile: Express.Multer.File): Promise<Class> {
+    try {
+      // Verificar que exista la clase
+      const classItem = await this.classModel.findById(id);
+      if (!classItem) {
+        throw new NotFoundException(`Clase con ID ${id} no encontrada`);
+      }
+
+      // Subir el nuevo video a S3
+      const uploadResult = await this.s3Service.uploadFile(
+        videoFile.buffer,
+        videoFile.originalname,
+        videoFile.mimetype
+      );
+
+      // Actualizar la información del video
+      classItem.videoUrl = uploadResult.url;
+      classItem.videoKey = uploadResult.key;
+      classItem.videoMetadata = {
+        name: videoFile.originalname,
+        size: videoFile.size,
+        mimeType: videoFile.mimetype
+      };
+
+      // Guardar los cambios
+      await classItem.save();
+      this.logger.log(`URL de video actualizada para la clase ${id}`);
+      
+      return classItem;
+    } catch (error) {
+      this.logger.error(`Error actualizando URL de video para clase ${id}: ${error.message}`, error.stack);
       throw error;
     }
   }

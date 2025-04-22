@@ -1,38 +1,37 @@
+version: '3.8'
+
 services:
   backend:
     build: ./backend
     container_name: backend
     ports:
-      - "4000:4000"
-    env_file: .env
-    depends_on:
-      - mongo
+      - "${PORT:-4000}:4000"
+    env_file: 
+      - .env
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=${MONGODB_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - PORT=4000
     networks:
       - dance-network
 
   frontend:
-    build: ./frontend
+    build: 
+      context: ./frontend
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     container_name: frontend
     ports:
       - "3000:3000"
-    env_file: .env
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     depends_on:
       - backend
     networks:
       - dance-network
-
-  mongo:
-    image: mongo:latest
-    container_name: mongo
-    ports:
-      - "27018:27017"
-    volumes:
-      - mongo-data:/data/db
-    networks:
-      - dance-network
-
-volumes:
-  mongo-data:
 
 networks:
   dance-network:

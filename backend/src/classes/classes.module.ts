@@ -7,6 +7,10 @@ import { AuthModule } from '../auth/auth.module';
 import { CoursesModule } from '../courses/courses.module';
 import { UsersModule } from '../users/users.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { S3Service } from '../services/s3.service';
+import { ConfigModule } from '@nestjs/config';
+import awsConfig from '../config/aws.config';
+import { CloudFrontService } from '../services/cloudfront.service';
 
 @Module({
   imports: [
@@ -16,10 +20,15 @@ import { User, UserSchema } from '../users/schemas/user.schema';
     ]),
     AuthModule,
     CoursesModule,
-    UsersModule
+    UsersModule,
+    ConfigModule.forFeature(awsConfig),
   ],
   controllers: [ClassesController],
-  providers: [ClassesService],
+  providers: [
+    ClassesService, 
+    S3Service, 
+    CloudFrontService
+  ],
   exports: [ClassesService],
 })
 export class ClassesModule {} 

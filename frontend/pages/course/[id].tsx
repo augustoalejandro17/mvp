@@ -4,6 +4,8 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../../styles/Course.module.css';
+import { FaPlus, FaLock, FaLockOpen, FaTrashAlt } from 'react-icons/fa';
+import { useSession } from 'next-auth/react';
 
 interface Course {
   _id: string;
@@ -43,6 +45,9 @@ export default function CourseDetail() {
   const [error, setError] = useState('');
   const [user, setUser] = useState<any>(null);
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingClassId, setDeletingClassId] = useState<string | null>(null);
+  const session = useSession();
 
   useEffect(() => {
     const checkAuth = () => {
@@ -108,25 +113,88 @@ export default function CourseDetail() {
   };
   
   const isTeacherOrAdmin = () => {
-    if (!user || !course) return false;
+    if (!session || !course) return false;
     
-    if (user.role === 'admin') return true;
+    // Usando el acceso seguro a los datos del usuario como están estructurados en la aplicación
+    const userId = user?.id;
+    if (!userId) return false;
     
-    return course.teacher._id === user.id;
+    const isTeacher = course.teacher && course.teacher._id === userId;
+    const isAdmin = user?.role === 'admin';
+    
+    return isTeacher || isAdmin;
   };
   
-  const getYouTubeEmbedUrl = (videoUrl: string) => {
-    if (!videoUrl) return '';
-    
-    // Extraer el ID del video de YouTube desde diferentes formatos de URL
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = videoUrl.match(regExp);
-    
-    if (match && match[2].length === 11) {
-      return `https://www.youtube.com/embed/${match[2]}`;
+  const handleDeleteCourse = async () => {
+    if (!confirm('¿Estás seguro de que deseas eliminar este curso? Esta acción no se puede deshacer.')) {
+      return;
     }
     
-    return '';
+    setIsDeleting(true);
+    
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const token = Cookies.get('token');
+      
+      if (!token) {
+        setError('Debes iniciar sesión para realizar esta acción');
+        setIsDeleting(false);
+        return;
+      }
+      
+      const headers = { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
+      
+      await axios.delete(`${apiUrl}/api/courses/${id}`, { headers });
+      
+      // Redirigir a la página principal después de eliminar
+      router.push('/');
+    } catch (error) {
+      console.error('Error al eliminar curso:', error);
+      setError('Error al eliminar el curso. Por favor intenta de nuevo.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteClass = async (classId: string) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar esta clase? Esta acción no se puede deshacer.')) {
+      return;
+    }
+    
+    setDeletingClassId(classId);
+    
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const token = Cookies.get('token');
+      
+      if (!token) {
+        setError('Debes iniciar sesión para realizar esta acción');
+        return;
+      }
+      
+      const headers = { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
+      
+      await axios.delete(`${apiUrl}/api/classes/${classId}`, { headers });
+      
+      // Actualizar la lista de clases
+      setClasses(classes.filter(c => c._id !== classId));
+      
+      // Si la clase eliminada era la seleccionada, deseleccionarla
+      if (selectedClass && selectedClass._id === classId) {
+        setSelectedClass(null);
+      }
+    } catch (error) {
+      console.error('Error al eliminar la clase:', error);
+      setError('Error al eliminar la clase. Por favor intenta de nuevo.');
+    } finally {
+      setDeletingClassId(null);
+    }
   };
 
   if (loading) {
@@ -186,19 +254,49 @@ export default function CourseDetail() {
                   <div 
                     key={classItem._id} 
                     className={`${styles.classItem} ${selectedClass && selectedClass._id === classItem._id ? styles.selectedClass : ''}`}
-                    onClick={() => handleClassClick(classItem)}
                   >
-                    <div className={styles.classNumber}>{classItem.order}</div>
-                    <div className={styles.classInfo}>
-                      <h3>{classItem.title}</h3>
-                      {classItem.duration && (
-                        <span className={styles.duration}>
-                          {Math.floor(classItem.duration / 60)}:{(classItem.duration % 60).toString().padStart(2, '0')}
-                        </span>
+                    <div 
+                      className={styles.classContent}
+                      onClick={() => handleClassClick(classItem)}
+                    >
+                      <div className={styles.classNumber}>{classItem.order}</div>
+                      <div className={styles.classInfo}>
+                        <h3>{classItem.title}</h3>
+                        {classItem.duration && (
+                          <span className={styles.duration}>
+                            {Math.floor(classItem.duration / 60)}:{(classItem.duration % 60).toString().padStart(2, '0')}
+                          </span>
+                        )}
+                      </div>
+                      {!classItem.isPublic && (
+                        <div className={styles.lockIcon}>🔒</div>
                       )}
                     </div>
-                    {!classItem.isPublic && (
-                      <div className={styles.lockIcon}>🔒</div>
+                    
+                    {isTeacherOrAdmin() && (
+                      <div className={styles.classActions}>
+                        <button 
+                          className={styles.classActionBtn}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/class/${classItem._id}`);
+                          }}
+                          title="Ver detalles"
+                        >
+                          👁️
+                        </button>
+                        <button 
+                          className={styles.classActionBtn}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClass(classItem._id);
+                          }}
+                          disabled={deletingClassId === classItem._id}
+                          title="Eliminar clase"
+                        >
+                          {deletingClassId === classItem._id ? "⏳" : <FaTrashAlt />}
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -211,7 +309,14 @@ export default function CourseDetail() {
                   className={styles.createButton}
                   onClick={() => router.push(`/class/create?courseId=${course._id}`)}
                 >
-                  Agregar Clase
+                  <FaPlus /> Agregar Clase
+                </button>
+                <button 
+                  onClick={handleDeleteCourse} 
+                  className={styles.deleteButton}
+                  disabled={isDeleting}
+                >
+                  <FaTrashAlt /> {isDeleting ? 'Eliminando...' : 'Eliminar Curso'}
                 </button>
               </div>
             )}
@@ -221,13 +326,46 @@ export default function CourseDetail() {
             {selectedClass ? (
               <>
                 <div className={styles.videoContainer}>
-                  <iframe
-                    src={getYouTubeEmbedUrl(selectedClass.videoUrl)}
-                    title={selectedClass.title}
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  ></iframe>
+                  {selectedClass && (
+                    <>
+                      <video
+                        src={selectedClass.videoUrl}
+                        controls
+                        playsInline
+                        className={styles.videoPlayer}
+                        poster="/video-placeholder.jpg"
+                        crossOrigin="anonymous"
+                        autoPlay={false}
+                        onLoadStart={() => console.log('Iniciando carga del video:', selectedClass.videoUrl)}
+                        onError={(e) => {
+                          console.error('Error al cargar el video:', e);
+                          console.log('URL problemática:', selectedClass.videoUrl);
+                          
+                          // Intentar abrir el video directamente si está en el curso
+                          const videoContainer = document.querySelector(`.${styles.videoContainer}`);
+                          if (videoContainer) {
+                            videoContainer.innerHTML = `
+                              <div style="padding: 20px; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #000;">
+                                <p style="color: white; margin-bottom: 20px;">No se pudo cargar el video en el reproductor.</p>
+                                <a 
+                                  href="${selectedClass.videoUrl}" 
+                                  target="_blank" 
+                                  style="background: #3182ce; color: white; padding: 10px 15px; border-radius: 4px; text-decoration: none; font-weight: bold;"
+                                >
+                                  Abrir video en nueva pestaña
+                                </a>
+                              </div>
+                            `;
+                          }
+                        }}
+                      >
+                        <source src={selectedClass.videoUrl} type="video/mp4" />
+                        <source src={selectedClass.videoUrl} type="video/webm" />
+                        <source src={selectedClass.videoUrl} type="video/quicktime" />
+                        Tu navegador no soporta la reproducción de videos.
+                      </video>
+                    </>
+                  )}
                 </div>
                 <div className={styles.classDetails}>
                   <h2>{selectedClass.title}</h2>

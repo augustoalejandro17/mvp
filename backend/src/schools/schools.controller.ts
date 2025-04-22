@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, UseGuards, Req, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, UseGuards, Req, Logger, Delete } from '@nestjs/common';
 import { SchoolsService } from './schools.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -97,6 +97,24 @@ export class SchoolsController {
       return result;
     } catch (error) {
       this.logger.error(`Error al añadir estudiante: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  async remove(@Param('id') id: string, @Req() req) {
+    const userId = req.user.sub || req.user._id?.toString();
+    
+    this.logger.log(`Procesando solicitud para eliminar escuela con ID: ${id}`);
+    this.logger.log(`Usuario autenticado: ${userId}`);
+    
+    try {
+      const result = await this.schoolsService.remove(id, userId);
+      this.logger.log(`Escuela eliminada con éxito`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Error al eliminar escuela: ${error.message}`, error.stack);
       throw error;
     }
   }
