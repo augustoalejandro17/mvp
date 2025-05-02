@@ -4,7 +4,7 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../../styles/Course.module.css';
-import { FaPlus, FaTrashAlt } from 'react-icons/fa';
+import { FaPlus, FaTrashAlt, FaEye } from 'react-icons/fa';
 import { jwtDecode } from 'jwt-decode';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import ImageFallback from '../../components/ImageFallback';
@@ -304,30 +304,35 @@ export default function CourseDetail() {
               <p className={styles.noResults}>Este curso aún no tiene clases disponibles.</p>
             ) : (
               <div className={styles.classesList}>
-                {classes.map((classItem) => (
-                  <div 
-                    key={classItem._id} 
-                    className={`${styles.classItem} ${selectedClass && selectedClass._id === classItem._id ? styles.selectedClass : ''}`}
-                  >
+                {classes.map((classItem) => {
+                  // Comprobar si el usuario puede modificar esta clase específica
+                  const canDelete = user?.role === 'admin' || 
+                                   user?.role === 'super_admin' || 
+                                   (user?.role === 'teacher' && user?.id === course.teacher._id);
+                  
+                  return (
                     <div 
-                      className={styles.classContent}
-                      onClick={() => handleClassClick(classItem)}
+                      key={classItem._id} 
+                      className={`${styles.classItem} ${selectedClass && selectedClass._id === classItem._id ? styles.selectedClass : ''}`}
                     >
-                      <div className={styles.classNumber}>{classItem.order}</div>
-                      <div className={styles.classInfo}>
-                        <h3>{classItem.title}</h3>
-                        {classItem.duration && (
-                          <span className={styles.duration}>
-                            {Math.floor(classItem.duration / 60)}:{(classItem.duration % 60).toString().padStart(2, '0')}
-                          </span>
+                      <div 
+                        className={styles.classContent}
+                        onClick={() => handleClassClick(classItem)}
+                      >
+                        <div className={styles.classNumber}>{classItem.order}</div>
+                        <div className={styles.classInfo}>
+                          <h3>{classItem.title}</h3>
+                          {classItem.duration && (
+                            <span className={styles.duration}>
+                              {Math.floor(classItem.duration / 60)}:{(classItem.duration % 60).toString().padStart(2, '0')}
+                            </span>
+                          )}
+                        </div>
+                        {!classItem.isPublic && (
+                          <div className={styles.lockIcon}>🔒</div>
                         )}
                       </div>
-                      {!classItem.isPublic && (
-                        <div className={styles.lockIcon}>🔒</div>
-                      )}
-                    </div>
-                    
-                    {canModifyClassItem(classItem.createdBy?._id) && (
+                      
                       <div className={styles.classActions}>
                         <button 
                           className={styles.classActionBtn}
@@ -337,23 +342,25 @@ export default function CourseDetail() {
                           }}
                           title="Ver detalles"
                         >
-                          👁️
+                          <FaEye />
                         </button>
-                        <button 
-                          className={styles.classActionBtn}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteClass(classItem._id);
-                          }}
-                          disabled={deletingClassId === classItem._id}
-                          title="Eliminar clase"
-                        >
-                          {deletingClassId === classItem._id ? "⏳" : <FaTrashAlt />}
-                        </button>
+                        {canDelete && (
+                          <button 
+                            className={styles.classActionBtn}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteClass(classItem._id);
+                            }}
+                            disabled={deletingClassId === classItem._id}
+                            title="Eliminar clase"
+                          >
+                            {deletingClassId === classItem._id ? "⏳" : <FaTrashAlt />}
+                          </button>
+                        )}
                       </div>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
             
