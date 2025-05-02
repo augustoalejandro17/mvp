@@ -1,7 +1,10 @@
-import { Controller, Post, Body, HttpStatus, HttpCode, Logger } from '@nestjs/common';
+import { Controller, Post, Body, HttpStatus, HttpCode, Logger, Patch, Param, UseGuards, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { Permission, RequirePermissions, PermissionsGuard } from './guards/permissions.guard';
+import { UserRole } from './schemas/user.schema';
 
 @Controller('auth')
 export class AuthController {
@@ -12,7 +15,7 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async register(@Body() registerDto: RegisterDto) {
-    this.logger.log(`Procesando solicitud de registro para: ${registerDto.email}, rol: ${registerDto.role}`);
+    this.logger.log(`Procesando solicitud de registro para: ${registerDto.email}`);
     
     try {
       const result = await this.authService.register(registerDto);
@@ -35,6 +38,27 @@ export class AuthController {
       return result;
     } catch (error) {
       this.logger.error(`Error durante el login: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Patch('users/:id/role')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.MANAGE_ADMINS)
+  async updateUserRole(
+    @Param('id') userId: string,
+    @Body('role') role: UserRole,
+    @Req() req
+  ) {
+    this.logger.log(`Actualizando rol de usuario ${userId} a ${role}`);
+    const adminId = req.user.sub || req.user._id?.toString();
+    
+    try {
+      const result = await this.authService.updateUserRole(userId, role, adminId);
+      this.logger.log(`Rol actualizado exitosamente para usuario: ${userId}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Error al actualizar rol: ${error.message}`, error.stack);
       throw error;
     }
   }

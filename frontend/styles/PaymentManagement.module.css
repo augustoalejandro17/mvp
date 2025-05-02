@@ -1,0 +1,153 @@
+.container {
+  padding: 2rem;
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.title {
+  font-size: 2rem;
+  color: #333;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.formGroup {
+  margin-bottom: 1.5rem;
+}
+
+.formGroup label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+}
+
+.select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  background-color: white;
+}
+
+.error {
+  background-color: #ffebee;
+  color: #c62828;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  border-left: 4px solid #c62828;
+}
+
+.success {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  border-left: 4px solid #2e7d32;
+}
+
+.loading {
+  text-align: center;
+  padding: 1rem;
+  font-style: italic;
+  color: #666;
+}
+
+.message {
+  text-align: center;
+  padding: 1rem;
+  color: #666;
+  background-color: #fff;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.enrollmentsContainer {
+  background-color: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.enrollmentsContainer h2 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.enrollmentsTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.enrollmentsTable th,
+.enrollmentsTable td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.enrollmentsTable th {
+  background-color: #f9f9f9;
+  font-weight: bold;
+}
+
+.actionsContainer {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.paidButton,
+.unpaidButton {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s;
+}
+
+.paidButton {
+  background-color: #4caf50;
+  color: white;
+}
+
+.paidButton:hover {
+  background-color: #388e3c;
+}
+
+.unpaidButton {
+  background-color: #f44336;
+  color: white;
+}
+
+.unpaidButton:hover {
+  background-color: #d32f2f;
+}
+
+.paid {
+  background-color: rgba(76, 175, 80, 0.05);
+}
+
+.unpaid {
+  background-color: rgba(244, 67, 54, 0.05);
+}
+
+@media (max-width: 768px) {
+  .enrollmentsTable {
+    font-size: 0.85rem;
+  }
+  
+  .enrollmentsTable th,
+  .enrollmentsTable td {
+    padding: 0.5rem;
+  }
+  
+  .paidButton,
+  .unpaidButton {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
+  }
+} 

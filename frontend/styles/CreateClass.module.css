@@ -178,4 +178,45 @@
   .button {
     font-size: var(--text-sm);
   }
+}
+
+.buttonGroup {
+  display: flex;
+  gap: var(--spacing-4);
+  margin-top: var(--spacing-4);
+}
+
+.buttonGroup .button {
+  flex: 1;
+  margin-top: 0;
+}
+
+.cancelButton {
+  flex: 1;
+  padding: var(--spacing-4);
+  background-color: var(--neutral-200);
+  color: var(--neutral-800);
+  border: 1px solid var(--neutral-300);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.cancelButton:hover {
+  background-color: var(--neutral-300);
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  cursor: pointer;
+}
+
+.checkboxLabel input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
 } 

@@ -1,5 +1,4 @@
-import { IsEmail, IsEnum, IsString, MinLength } from 'class-validator';
-import { UserRole } from '../schemas/user.schema';
+import { IsEmail, IsString, MinLength } from 'class-validator';
 
 export class RegisterDto {
   @IsEmail()
@@ -11,7 +10,4 @@ export class RegisterDto {
 
   @IsString()
   name: string;
-
-  @IsEnum(UserRole)
-  role: UserRole;
 } 

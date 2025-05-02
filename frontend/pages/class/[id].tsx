@@ -1,198 +1,238 @@
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import axios from 'axios';
 import Cookies from 'js-cookie';
-import styles from '../../styles/ClassDetail.module.css';
-import { FaTrashAlt, FaEdit } from 'react-icons/fa';
-import Link from 'next/link';
+import { jwtDecode } from 'jwt-decode';
 import VideoPlayer from '../../components/VideoPlayer';
+import Layout from '../../components/Layout';
+import styles from '../../styles/ClassDetail.module.css';
+import { UserRole } from '../../types/user';
 
+// Interfaces
 interface Class {
   _id: string;
   title: string;
   description: string;
+  courseId: string;
+  order: number;
   videoUrl: string;
-  videoFileName?: string;
-  teacher: {
+  createdBy: {
     _id: string;
-    name: string;
     email: string;
+    firstName: string;
+    lastName: string;
   };
-  course: {
-    _id: string;
-    title: string;
-  };
+  isPublic: boolean;
 }
 
-export default function ClassDetail() {
+interface DecodedToken {
+  userId: string;
+  email: string;
+  role: UserRole;
+  iat: number;
+  exp: number;
+}
+
+const ClassDetail: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
   const [classData, setClassData] = useState<Class | null>(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
 
   useEffect(() => {
-    const token = Cookies.get('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
+    const checkAuth = () => {
+      const token = Cookies.get('token');
+      if (!token) {
+        router.push('/login');
+        return false;
+      }
 
-    try {
-      const decoded = JSON.parse(atob(token.split('.')[1]));
-      setUser({
-        id: decoded.sub,
-        email: decoded.email,
-        name: decoded.name,
-        role: decoded.role,
-      });
-    } catch (error) {
-      console.error('Error al decodificar token:', error);
-    }
+      try {
+        const decoded = jwtDecode<DecodedToken>(token);
+        setUserRole(decoded.role);
+        return true;
+      } catch (err) {
+        Cookies.remove('token');
+        router.push('/login');
+        return false;
+      }
+    };
+
+    const fetchClassData = async () => {
+      if (!id || !checkAuth()) return;
+
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/classes/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${Cookies.get('token')}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch class data');
+        }
+        
+        const data = await response.json();
+        setClassData(data);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setLoading(false);
+      }
+    };
 
     if (id) {
-      fetchClassData(token);
+      fetchClassData();
     }
   }, [id, router]);
 
-  const fetchClassData = async (token: string) => {
+  const handleDeleteClass = async () => {
+    if (!classData) return;
+    
+    const confirmDelete = confirm('Are you sure you want to delete this class?');
+    if (!confirmDelete) return;
+
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const response = await axios.get(`${apiUrl}/api/classes/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await fetch(`/api/classes/${classData._id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${Cookies.get('token')}`
+        }
       });
-      setClassData(response.data);
-    } catch (error) {
-      console.error('Error al cargar la clase:', error);
-      setError('Error al cargar la información de la clase');
-    } finally {
-      setLoading(false);
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete class');
+      }
+      
+      router.push(`/course/${classData.courseId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    }
+  };
+
+  const handleTogglePublic = async () => {
+    if (!classData) return;
+
+    try {
+      const response = await fetch(`/api/classes/${classData._id}/toggle-public`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${Cookies.get('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          isPublic: !classData.isPublic
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update class visibility');
+      }
+      
+      const updatedClass = await response.json();
+      setClassData(updatedClass);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
     }
   };
 
   const isTeacherOrAdmin = () => {
-    if (!user || !classData) return false;
-    
-    if (user.role === 'admin') return true;
-    
-    return classData.teacher?._id === user.id;
-  };
-
-  const handleDeleteClass = async () => {
-    if (!confirm('¿Estás seguro de que deseas eliminar esta clase? Esta acción no se puede deshacer.')) {
-      return;
-    }
-    
-    setIsDeleting(true);
-    
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const token = Cookies.get('token');
-      
-      if (!token) {
-        setError('Debes iniciar sesión para realizar esta acción');
-        setIsDeleting(false);
-        return;
-      }
-      
-      const headers = { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      };
-      
-      await axios.delete(`${apiUrl}/api/classes/${id}`, { headers });
-      
-      // Redirigir al curso después de eliminar
-      if (classData?.course?._id) {
-        router.push(`/course/${classData.course._id}`);
-      } else {
-        router.push('/');
-      }
-    } catch (error) {
-      console.error('Error al eliminar la clase:', error);
-      setError('Error al eliminar la clase. Por favor intenta de nuevo.');
-      setIsDeleting(false);
-    }
+    return userRole && [UserRole.TEACHER, UserRole.SCHOOL_OWNER, UserRole.SUPER_ADMIN].includes(userRole);
   };
 
   if (loading) {
-    return <div className={styles.loading}>Cargando clase...</div>;
+    return (
+      <Layout>
+        <div className={styles.loading}>Loading class information...</div>
+      </Layout>
+    );
   }
 
   if (error) {
-    return <div className={styles.error}>{error}</div>;
+    return (
+      <Layout>
+        <div className={styles.error}>{error}</div>
+      </Layout>
+    );
   }
 
   if (!classData) {
-    return <div className={styles.error}>No se encontró la clase</div>;
+    return (
+      <Layout>
+        <div className={styles.error}>Class not found</div>
+      </Layout>
+    );
   }
 
   return (
-    <div className={styles.container}>
-      <main className={styles.main}>
+    <Layout>
+      <div className={styles.classDetail}>
         <h1 className={styles.title}>{classData.title}</h1>
-        <div className={styles.content}>
+        
+        {classData.videoUrl && (
           <div className={styles.videoContainer}>
-            {classData.videoUrl ? (
-              <VideoPlayer 
-                videoUrl={classData.videoUrl}
-                title={classData.title}
-                poster="/video-placeholder.jpg"
-                classId={id as string}
-                onError={(e) => {
-                  console.error('Error al cargar el video en Class Detail:', e);
-                  console.log('URL problemática:', classData.videoUrl);
-                }}
-              />
-            ) : (
-              <div className={styles.noVideoMessage}>
-                No hay video disponible para esta clase
-              </div>
-            )}
+            <VideoPlayer 
+              url={classData.videoUrl} 
+              title={classData.title} 
+              classId={classData._id}
+            />
           </div>
-          <div className={styles.details}>
-            <h2>Descripción</h2>
-            <p>{classData.description}</p>
-            <h2>Profesor</h2>
-            <p>{classData.teacher.name}</p>
-            <p>{classData.teacher.email}</p>
-            {classData.videoFileName && (
-              <div className={styles.videoInfo}>
-                <h2>Información del video</h2>
-                <p>Nombre del archivo: {classData.videoFileName}</p>
-              </div>
-            )}
-            
-            {isTeacherOrAdmin() && (
-              <div className={styles.adminActions}>
-                <button 
-                  className={`${styles.actionButton} ${styles.editButton}`}
-                  onClick={() => router.push(`/class/edit/${classData._id}`)}
-                >
-                  <FaEdit /> Editar Clase
-                </button>
-                <button 
-                  className={`${styles.actionButton} ${styles.deleteButton}`}
-                  onClick={handleDeleteClass}
-                  disabled={isDeleting}
-                >
-                  <FaTrashAlt /> {isDeleting ? 'Eliminando...' : 'Eliminar Clase'}
-                </button>
-              </div>
-            )}
-          </div>
+        )}
+        
+        <div className={styles.description}>
+          <h2>Description</h2>
+          <p>{classData.description}</p>
         </div>
         
-        <div className={styles.backLink}>
-          {classData.course && (
-            <Link href={`/course/${classData.course._id}`}>
-              <a>← Volver al curso</a>
-            </Link>
-          )}
+        <div className={styles.teacherInfo}>
+          <h3>Teacher</h3>
+          <p>{classData.createdBy.firstName} {classData.createdBy.lastName}</p>
+          <p>{classData.createdBy.email}</p>
         </div>
-      </main>
-    </div>
+        
+        {isTeacherOrAdmin() && (
+          <div className={styles.adminActions}>
+            <button 
+              className={styles.editButton}
+              onClick={() => router.push(`/class/edit/${classData._id}`)}
+            >
+              Edit Class
+            </button>
+            <button 
+              className={styles.deleteButton}
+              onClick={handleDeleteClass}
+            >
+              Delete Class
+            </button>
+            <button 
+              className={`${styles.publicButton} ${classData.isPublic ? styles.public : styles.private}`}
+              onClick={handleTogglePublic}
+            >
+              {classData.isPublic ? 'Mark as Private' : 'Mark as Public'}
+            </button>
+            <button 
+              className={styles.backButton}
+              onClick={() => router.push(`/course/${classData.courseId}`)}
+            >
+              Back to Course
+            </button>
+          </div>
+        )}
+        
+        {!isTeacherOrAdmin() && (
+          <button 
+            className={styles.backButton}
+            onClick={() => router.push(`/course/${classData.courseId}`)}
+          >
+            Back to Course
+          </button>
+        )}
+      </div>
+    </Layout>
   );
-}
+};
+
+export default ClassDetail;

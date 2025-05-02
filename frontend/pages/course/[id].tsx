@@ -4,8 +4,9 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../../styles/Course.module.css';
-import { FaPlus, FaLock, FaLockOpen, FaTrashAlt } from 'react-icons/fa';
-import { useSession } from 'next-auth/react';
+import { FaPlus, FaTrashAlt } from 'react-icons/fa';
+import { jwtDecode } from 'jwt-decode';
+import { useApiErrorHandler } from '../../utils/api-error-handler';
 
 interface Course {
   _id: string;
@@ -35,6 +36,13 @@ interface Class {
   isPublic: boolean;
 }
 
+interface DecodedToken {
+  sub: string;
+  email: string;
+  name: string;
+  role: string;
+}
+
 export default function CourseDetail() {
   const router = useRouter();
   const { id } = router.query;
@@ -43,18 +51,18 @@ export default function CourseDetail() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{id: string; email: string; name: string; role: string} | null>(null);
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deletingClassId, setDeletingClassId] = useState<string | null>(null);
-  const session = useSession();
+  const { handleApiError } = useApiErrorHandler();
 
   useEffect(() => {
     const checkAuth = () => {
       const token = Cookies.get('token');
       if (token) {
         try {
-          const decoded = JSON.parse(atob(token.split('.')[1]));
+          const decoded = jwtDecode<DecodedToken>(token);
           setUser({
             id: decoded.sub,
             email: decoded.email,
@@ -99,7 +107,7 @@ export default function CourseDetail() {
         }
       } catch (error) {
         console.error('Error al obtener datos:', error);
-        setError('No se pudo cargar la información. Por favor, intenta de nuevo más tarde.');
+        setError(handleApiError(error));
       } finally {
         setLoading(false);
       }
@@ -113,14 +121,14 @@ export default function CourseDetail() {
   };
   
   const isTeacherOrAdmin = () => {
-    if (!session || !course) return false;
+    if (!user) return false;
     
     // Usando el acceso seguro a los datos del usuario como están estructurados en la aplicación
     const userId = user?.id;
     if (!userId) return false;
     
-    const isTeacher = course.teacher && course.teacher._id === userId;
-    const isAdmin = user?.role === 'admin';
+    const isTeacher = course?.teacher && course.teacher._id === userId;
+    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
     
     return isTeacher || isAdmin;
   };
@@ -153,8 +161,7 @@ export default function CourseDetail() {
       router.push('/');
     } catch (error) {
       console.error('Error al eliminar curso:', error);
-      setError('Error al eliminar el curso. Por favor intenta de nuevo.');
-    } finally {
+      setError(handleApiError(error));
       setIsDeleting(false);
     }
   };
@@ -191,7 +198,7 @@ export default function CourseDetail() {
       }
     } catch (error) {
       console.error('Error al eliminar la clase:', error);
-      setError('Error al eliminar la clase. Por favor intenta de nuevo.');
+      setError(handleApiError(error));
     } finally {
       setDeletingClassId(null);
     }
@@ -233,10 +240,8 @@ export default function CourseDetail() {
               <span className={course.isPublic ? styles.public : styles.private}>
                 {course.isPublic ? 'Público' : 'Privado'}
               </span>
-              <Link href={`/school/${course.school._id}`}>
-                <a className={styles.schoolLink}>
-                  Escuela: {course.school.name}
-                </a>
+              <Link href={`/school/${course.school._id}`} className={styles.schoolLink}>
+                Escuela: {course.school.name}
               </Link>
             </div>
           </div>
@@ -312,6 +317,12 @@ export default function CourseDetail() {
                   <FaPlus /> Agregar Clase
                 </button>
                 <button 
+                  onClick={() => router.push(`/course/attendance/${course._id}`)} 
+                  className={styles.attendanceButton}
+                >
+                  Control de Asistencia
+                </button>
+                <button 
                   onClick={handleDeleteCourse} 
                   className={styles.deleteButton}
                   disabled={isDeleting}
@@ -347,13 +358,12 @@ export default function CourseDetail() {
                             videoContainer.innerHTML = `
                               <div style="padding: 20px; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #000;">
                                 <p style="color: white; margin-bottom: 20px;">No se pudo cargar el video en el reproductor.</p>
-                                <a 
-                                  href="${selectedClass.videoUrl}" 
-                                  target="_blank" 
-                                  style="background: #3182ce; color: white; padding: 10px 15px; border-radius: 4px; text-decoration: none; font-weight: bold;"
+                                <button 
+                                  onclick="window.open('${selectedClass.videoUrl}', '_blank')"
+                                  style="background: #3182ce; color: white; padding: 10px 15px; border-radius: 4px; text-decoration: none; font-weight: bold; border: none; cursor: pointer;"
                                 >
                                   Abrir video en nueva pestaña
-                                </a>
+                                </button>
                               </div>
                             `;
                           }
@@ -382,7 +392,7 @@ export default function CourseDetail() {
         
         <div className={styles.backLink}>
           <Link href={`/school/${course.school._id}`}>
-            <a>← Volver a la escuela</a>
+            ← Volver a la escuela
           </Link>
         </div>
       </main>

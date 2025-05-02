@@ -101,4 +101,50 @@ npm run start:dev
 cd frontend
 npm install
 npm run dev
-``` 
+```
+
+## Scripts útiles
+
+### Creación de usuarios de prueba
+
+Para facilitar las pruebas del sistema, especialmente para la funcionalidad de asistencias,
+puedes crear rápidamente 10 alumnos de prueba con el siguiente script:
+
+```bash
+# Instalar dependencias necesarias
+npm install
+
+# Ejecutar el script de creación de alumnos
+node scripts/create-test-students.js
+```
+
+Esto creará 10 alumnos con los siguientes datos:
+- Email: test-student-1@example.com, test-student-2@example.com, etc.
+- Contraseña: Test123!
+- Nombres aleatorios generados con Faker
+
+### Visualización de estadísticas de asistencia
+
+Para facilitar el seguimiento de la asistencia de los estudiantes, se incluye un script que permite ver rápidamente estadísticas detalladas:
+
+```bash
+# Ver estadísticas de asistencia (interactivo)
+node scripts/attendance-stats.js
+
+# Ver estadísticas de una clase específica
+node scripts/attendance-stats.js <class-id>
+```
+
+Este script proporciona:
+- Tasa de asistencia por fecha
+- Listado detallado de estudiantes presentes y ausentes
+- Notas asociadas a cada registro de asistencia
+
+### Características de seguridad para videos
+
+El sistema incluye las siguientes características de seguridad para los videos:
+
+1. **URLs firmadas**: Todos los videos se sirven mediante URLs firmadas de AWS S3/CloudFront con tiempo limitado de expiración.
+2. **Reproducción segura**: Los videos solo pueden reproducirse en el reproductor de la plataforma.
+3. **Protección de contenido**: No se permite la descarga de videos para proteger los derechos de autor del contenido.
+4. **Limpieza automática**: El sistema incluye funcionalidad para identificar y limpiar videos huérfanos. 

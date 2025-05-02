@@ -29,31 +29,37 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // Verificamos que el payload contenga la información mínima necesaria
       if (!payload.sub) {
         this.logger.error('Token JWT sin ID de usuario (sub)');
-        throw new UnauthorizedException('Token inválido');
+        throw new UnauthorizedException('Token inválido: falta el ID de usuario');
       }
       
-      const user = await this.userModel.findById(payload.sub);
-      
-      if (!user) {
-        this.logger.error(`Usuario con ID ${payload.sub} no encontrado en la base de datos`);
-        throw new UnauthorizedException('Usuario no encontrado');
+      try {
+        const user = await this.userModel.findById(payload.sub);
+        
+        if (!user) {
+          this.logger.error(`Usuario con ID ${payload.sub} no encontrado en la base de datos`);
+          throw new UnauthorizedException('Usuario no encontrado');
+        }
+        
+        this.logger.log(`Usuario autenticado: ${user._id} (${user.email})`);
+        console.log('Usuario encontrado en DB:', {
+          id: user._id,
+          email: user.email,
+          role: user.role
+        });
+        
+        // Devolver un objeto con la información mínima necesaria para la autenticación
+        return {
+          _id: user._id.toString(),
+          sub: user._id.toString(), // Asegurar que el sub está disponible
+          email: user.email,
+          name: user.name,
+          role: user.role
+        };
+      } catch (dbError) {
+        this.logger.error(`Error al buscar usuario en DB: ${dbError.message}`);
+        console.error('Error de base de datos:', dbError);
+        throw new UnauthorizedException('Error al validar usuario');
       }
-      
-      this.logger.log(`Usuario autenticado: ${user._id} (${user.email})`);
-      console.log('Usuario encontrado en DB:', {
-        id: user._id,
-        email: user.email,
-        role: user.role
-      });
-      
-      // Devolver un objeto con la información mínima necesaria para la autenticación
-      return {
-        _id: user._id.toString(),
-        sub: user._id.toString(), // Asegurar que el sub está disponible
-        email: user.email,
-        name: user.name,
-        role: user.role
-      };
     } catch (error) {
       this.logger.error(`Error al validar token: ${error.message}`);
       console.error('Error validando JWT:', error);

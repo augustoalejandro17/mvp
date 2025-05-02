@@ -4,6 +4,8 @@ import { Document, Schema as MongooseSchema } from 'mongoose';
 export type UserDocument = User & Document;
 
 export enum UserRole {
+  SUPER_ADMIN = 'super_admin',
+  SCHOOL_OWNER = 'school_owner',
   ADMIN = 'admin',
   TEACHER = 'teacher',
   STUDENT = 'student',
@@ -28,6 +30,15 @@ export class User {
 
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'School' }], default: [] })
   schools: MongooseSchema.Types.ObjectId[];
+
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'School' }], default: [] })
+  ownedSchools: MongooseSchema.Types.ObjectId[];
+
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'School' }], default: [] })
+  administratedSchools: MongooseSchema.Types.ObjectId[];
+
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Course' }], default: [] })
+  teachingCourses: MongooseSchema.Types.ObjectId[];
 
   @Prop({ default: Date.now })
   createdAt: Date;

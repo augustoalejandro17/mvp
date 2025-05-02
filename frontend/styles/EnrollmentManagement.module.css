@@ -1,0 +1,271 @@
+.container {
+  width: 100%;
+  padding: 20px;
+}
+
+.main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.title {
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+  color: #333;
+  text-align: center;
+}
+
+.errorMessage,
+.successMessage {
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.errorMessage {
+  background-color: rgba(255, 0, 0, 0.1);
+  color: #d32f2f;
+  border: 1px solid #d32f2f;
+}
+
+.successMessage {
+  background-color: rgba(0, 128, 0, 0.1);
+  color: #388e3c;
+  border: 1px solid #388e3c;
+}
+
+.filterSection {
+  margin-bottom: 2rem;
+  padding: 15px;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+}
+
+.filterItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.select {
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background-color: white;
+  min-width: 200px;
+  flex-grow: 1;
+}
+
+.enrollSection {
+  margin-bottom: 2rem;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.enrollSection h2 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.enrollForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.formGroup label {
+  font-weight: 500;
+}
+
+.enrollButton {
+  padding: 10px 15px;
+  background-color: #4a90e2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  align-self: flex-start;
+  margin-top: 10px;
+}
+
+.enrollButton:hover {
+  background-color: #3a7bc8;
+}
+
+.enrollButton:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.enrollmentsSection {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.enrollmentsSection h2 {
+  padding: 15px 20px;
+  margin: 0;
+  background-color: #f5f5f5;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.loading {
+  padding: 20px;
+  text-align: center;
+  color: #666;
+}
+
+.noEnrollments {
+  padding: 30px 20px;
+  text-align: center;
+  color: #666;
+}
+
+.enrollmentsTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tableHeader {
+  display: flex;
+  background-color: #f5f5f5;
+  font-weight: bold;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.tableRow {
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.tableRow:last-child {
+  border-bottom: none;
+}
+
+.tableCell {
+  flex: 1;
+  padding: 15px;
+  word-break: break-word;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.tableCell:last-child {
+  flex: 0.5;
+}
+
+.emailText,
+.schoolText {
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 4px;
+}
+
+.paymentStatusPaid,
+.paymentStatusUnpaid {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.paymentStatusPaid {
+  background-color: rgba(0, 128, 0, 0.1);
+  color: #388e3c;
+}
+
+.paymentStatusUnpaid {
+  background-color: rgba(255, 0, 0, 0.1);
+  color: #d32f2f;
+}
+
+.unenrollButton {
+  padding: 6px 12px;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.unenrollButton:hover {
+  background-color: #d32f2f;
+}
+
+.unenrollButton:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .tableHeader,
+  .tableRow {
+    display: block;
+  }
+  
+  .tableHeader {
+    display: none;
+  }
+  
+  .tableCell {
+    display: flex;
+    padding: 10px 15px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .tableCell:before {
+    content: attr(data-label);
+    font-weight: bold;
+    flex: 0 0 40%;
+  }
+  
+  .tableRow {
+    margin-bottom: 1rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+  }
+  
+  .enrollForm {
+    flex-direction: column;
+  }
+  
+  .formGroup {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .filterItem {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .select {
+    width: 100%;
+  }
+  
+  .enrollButton {
+    width: 100%;
+  }
+} 

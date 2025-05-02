@@ -5,6 +5,15 @@ import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../../styles/School.module.css';
 import { FaTrashAlt, FaEdit } from 'react-icons/fa';
+import { jwtDecode } from 'jwt-decode';
+import { useApiErrorHandler } from '../../utils/api-error-handler';
+
+interface DecodedToken {
+  sub: string;
+  email: string;
+  name: string;
+  role: string;
+}
 
 interface School {
   _id: string;
@@ -50,14 +59,16 @@ export default function SchoolDetail() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{id: string; email: string; name: string; role: string} | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { handleApiError } = useApiErrorHandler();
 
   useEffect(() => {
     const checkAuth = () => {
       const token = Cookies.get('token');
       if (token) {
         try {
-          const decoded = JSON.parse(atob(token.split('.')[1]));
+          const decoded = jwtDecode<DecodedToken>(token);
           setUser({
             id: decoded.sub,
             email: decoded.email,
@@ -88,15 +99,31 @@ export default function SchoolDetail() {
         }
         
         // Obtener información de la escuela
-        const schoolResponse = await axios.get(`${apiUrl}/api/schools/${id}`, { headers });
+        const schoolResponse = await axios.get(`${apiUrl}/api/schools/${id}`, { headers })
+          .catch(error => {
+            console.error('Error al obtener información de la escuela:', error);
+            if (error.response) {
+              console.error('Respuesta del servidor:', error.response.status, error.response.data);
+            }
+            throw error;
+          });
+        
         setSchool(schoolResponse.data);
         
         // Obtener cursos de la escuela
-        const coursesResponse = await axios.get(`${apiUrl}/api/courses?schoolId=${id}`, { headers });
+        const coursesResponse = await axios.get(`${apiUrl}/api/courses?schoolId=${id}`, { headers })
+          .catch(error => {
+            console.error('Error al obtener cursos de la escuela:', error);
+            if (error.response) {
+              console.error('Respuesta del servidor:', error.response.status, error.response.data);
+            }
+            throw error;
+          });
+        
         setCourses(coursesResponse.data);
       } catch (error) {
         console.error('Error al obtener datos:', error);
-        setError('No se pudo cargar la información. Por favor, intenta de nuevo más tarde.');
+        setError(handleApiError(error));
       } finally {
         setLoading(false);
       }
@@ -131,8 +158,9 @@ export default function SchoolDetail() {
       return;
     }
     
+    setIsDeleting(true);
+    
     try {
-      setLoading(true);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
       
@@ -153,8 +181,9 @@ export default function SchoolDetail() {
       router.push('/');
     } catch (error) {
       console.error('Error al eliminar la escuela:', error);
-      setError('No se pudo eliminar la escuela. Verifica que tienes los permisos necesarios.');
-      setLoading(false);
+      setError(handleApiError(error));
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -266,9 +295,9 @@ export default function SchoolDetail() {
         )}
         
         <div className={styles.backLink}>
-          <Link href="/">
-            <a>← Volver a la página principal</a>
-          </Link>
+          <button onClick={() => router.push('/')}>
+            Volver a la página principal
+          </button>
         </div>
       </main>
     </div>

@@ -4,6 +4,7 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/CreateClass.module.css';
+import { useApiErrorHandler } from '../../utils/api-error-handler';
 
 interface Course {
   _id: string;
@@ -28,10 +29,11 @@ export default function CreateClass() {
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
+  const { handleApiError } = useApiErrorHandler();
 
   useEffect(() => {
     const token = Cookies.get('token');
@@ -62,8 +64,8 @@ export default function CreateClass() {
       });
       setCourses(response.data);
     } catch (error) {
-      console.error('Error al obtener cursos:', error);
-      setError('Error al cargar los cursos disponibles');
+      console.error('Error fetching courses:', error);
+      setError(handleApiError(error));
     } finally {
       setLoadingCourses(false);
     }
@@ -123,21 +125,16 @@ export default function CreateClass() {
         }
       );
       
-      setSuccess(true);
+      setSuccess('Clase creada exitosamente. Redirigiendo...');
       
       // Redirigir al dashboard después de 2 segundos
       setTimeout(() => {
         router.push('/');
       }, 2000);
       
-    } catch (error: any) {
-      console.error('Error al crear clase:', error);
-      
-      if (error.response?.data?.message) {
-        setError(error.response.data.message);
-      } else {
-        setError('Error al crear la clase. Por favor, intenta de nuevo más tarde.');
-      }
+    } catch (error) {
+      console.error('Error creating class:', error);
+      setError(handleApiError(error));
     } finally {
       setLoading(false);
     }
@@ -168,7 +165,7 @@ export default function CreateClass() {
         
         {success ? (
           <div className={styles.success}>
-            Clase creada exitosamente. Redirigiendo...
+            {success}
           </div>
         ) : (
           <form onSubmit={handleSubmit} className={styles.form}>
@@ -181,6 +178,7 @@ export default function CreateClass() {
                 value={courseId}
                 onChange={(e) => setCourseId(e.target.value)}
                 required
+                className={styles.select}
               >
                 <option value="">Selecciona un curso</option>
                 {courses.map((course) => (
@@ -201,6 +199,7 @@ export default function CreateClass() {
                 required
                 minLength={3}
                 placeholder="Ej: Introducción a los pasos básicos"
+                className={styles.input}
               />
             </div>
             
@@ -214,6 +213,7 @@ export default function CreateClass() {
                 minLength={10}
                 rows={4}
                 placeholder="Describe el contenido de la clase, objetivos, etc."
+                className={styles.textarea}
               />
             </div>
             
@@ -225,6 +225,7 @@ export default function CreateClass() {
                 accept="video/mp4,video/webm,video/quicktime,video/x-msvideo"
                 onChange={handleVideoChange}
                 required
+                className={styles.input}
               />
               <p className={styles.inputHelp}>
                 Formatos permitidos: MP4, WebM, MOV, AVI. Tamaño máximo: 100MB

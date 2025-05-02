@@ -1,24 +1,49 @@
-import { Injectable, UnauthorizedException, Logger, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger, InternalServerErrorException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Document } from 'mongoose';
 import * as argon2 from 'argon2';
 import { User, UserRole } from './schemas/user.schema';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 
+// Definir tipo UserDocument
+export type UserDocument = User & Document;
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
     private jwtService: JwtService,
   ) {}
 
-  async register(registerDto: RegisterDto) {
-    this.logger.log(`Procesando registro de usuario: ${registerDto.email}, rol: ${registerDto.role}`);
+  // Método auxiliar para hacer hash de contraseñas
+  private async hashPassword(password: string): Promise<string> {
+    return await argon2.hash(password, {
+      type: argon2.argon2id,
+      memoryCost: 2**16,
+      timeCost: 3,
+      parallelism: 1
+    });
+  }
+
+  // Método auxiliar para generar token JWT
+  private async generateToken(user: UserDocument): Promise<string> {
+    const payload = { 
+      sub: user._id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+    };
+    
+    return this.jwtService.sign(payload);
+  }
+
+  async register(registerDto: RegisterDto): Promise<{ user: any; token: string }> {
+    this.logger.log(`Procesando registro de usuario: ${registerDto.email}`);
     
     try {
       // Verificar si el usuario ya existe
@@ -29,31 +54,20 @@ export class AuthService {
       }
       
       // Usar argon2 para hacer hash de la contraseña
-      const hashedPassword = await argon2.hash(registerDto.password, {
-        type: argon2.argon2id, // Variante más segura
-        memoryCost: 2**16,     // Coste de memoria
-        timeCost: 3,           // Iteraciones
-        parallelism: 1         // Paralelismo
-      });
+      const hashedPassword = await this.hashPassword(registerDto.password);
       
+      // Asignar siempre el rol de estudiante
       const user = await this.userModel.create({
         ...registerDto,
+        role: UserRole.STUDENT, // Forzar el rol de estudiante
         password: hashedPassword,
       });
 
-      this.logger.log(`Usuario registrado exitosamente: ${user._id} (${user.email})`);
+      this.logger.log(`Usuario registrado exitosamente como estudiante: ${user._id} (${user.email})`);
 
-      const payload = { 
-        sub: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      };
-      
-      const token = this.jwtService.sign(payload);
+      const token = await this.generateToken(user);
       
       this.logger.log(`Token JWT generado para el usuario: ${user._id}`);
-      this.logger.debug(`Payload del token: ${JSON.stringify(payload)}`);
 
       return {
         user: {
@@ -89,14 +103,7 @@ export class AuthService {
         throw new UnauthorizedException('Credenciales inválidas');
       }
       
-      const payload = {
-        sub: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      };
-      
-      const token = this.jwtService.sign(payload);
+      const token = await this.generateToken(user);
       
       this.logger.log(`Usuario ${user.email} ha iniciado sesión`);
       
@@ -118,6 +125,32 @@ export class AuthService {
       }
       
       throw new InternalServerErrorException('Error al procesar la autenticación');
+    }
+  }
+
+  async updateUserRole(userId: string, newRole: UserRole, adminId: string): Promise<UserDocument> {
+    try {
+      // Verificar que el usuario existe
+      const user = await this.userModel.findById(userId);
+      if (!user) {
+        throw new NotFoundException('Usuario no encontrado');
+      }
+
+      // Verificar que el administrador no está intentando cambiar su propio rol
+      if (userId === adminId) {
+        throw new BadRequestException('No puede cambiar su propio rol');
+      }
+
+      // Actualizar el rol del usuario
+      user.role = newRole;
+      await user.save();
+
+      this.logger.log(`Rol de usuario ${userId} actualizado a ${newRole} por admin ${adminId}`);
+
+      return user;
+    } catch (error) {
+      this.logger.error(`Error al actualizar rol de usuario: ${error.message}`, error.stack);
+      throw error;
     }
   }
 } 

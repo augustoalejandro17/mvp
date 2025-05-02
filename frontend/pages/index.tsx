@@ -4,6 +4,7 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../styles/Home.module.css';
+import { jwtDecode } from 'jwt-decode';
 
 interface School {
   _id: string;
@@ -13,19 +14,26 @@ interface School {
   isPublic: boolean;
 }
 
+interface DecodedToken {
+  sub: string;
+  email: string;
+  name: string;
+  role: string;
+}
+
 export default function Home() {
   const router = useRouter();
   const [schools, setSchools] = useState<School[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{id: string; email: string; name: string; role: string} | null>(null);
 
   useEffect(() => {
     const checkAuth = () => {
       const token = Cookies.get('token');
       if (token) {
         try {
-          const decoded = JSON.parse(atob(token.split('.')[1]));
+          const decoded = jwtDecode<DecodedToken>(token);
           setUser({
             id: decoded.sub,
             email: decoded.email,
@@ -133,11 +141,11 @@ export default function Home() {
             </div>
             
             <div className={styles.authButtons}>
-              <Link href="/login">
-                <a className={styles.loginButton}>Iniciar Sesión</a>
+              <Link href="/login" className={styles.loginButton}>
+                Iniciar Sesión
               </Link>
-              <Link href="/register">
-                <a className={styles.registerButton}>Registrarse</a>
+              <Link href="/register" className={styles.registerButton}>
+                Registrarse
               </Link>
             </div>
 

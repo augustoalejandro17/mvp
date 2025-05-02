@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  swcMinify: true,
+  env: {
+    APP_NAME: 'Inti',
+    APP_DESCRIPTION: 'Plataforma de aprendizaje en línea',
+    APP_URL: process.env.APP_URL || 'http://localhost:3000',
+  },
   images: {
     domains: ['img.youtube.com'],
   },

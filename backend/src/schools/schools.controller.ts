@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Put, Body, Param, UseGuards, Req, Logger, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, UseGuards, Req, Logger, Delete, BadRequestException } from '@nestjs/common';
 import { SchoolsService } from './schools.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../auth/schemas/user.schema';
+import { Permission, RequirePermissions, PermissionsGuard } from '../auth/guards/permissions.guard';
 
 @Controller('schools')
 export class SchoolsController {
@@ -31,13 +32,23 @@ export class SchoolsController {
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string) {
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      this.logger.warn(`Solicitud con ID de escuela inválido: ${id}`);
+      throw new BadRequestException(`ID de escuela inválido: ${id}`);
+    }
+    
     this.logger.log(`Procesando solicitud para obtener escuela con ID: ${id}`);
-    return this.schoolsService.findOne(id);
+    try {
+      return await this.schoolsService.findOne(id);
+    } catch (error) {
+      this.logger.error(`Error al obtener escuela con ID ${id}: ${error.message}`);
+      throw error;
+    }
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.CREATE_SCHOOL)
   async create(@Body() createSchoolDto: CreateSchoolDto, @Req() req) {
     this.logger.log(`Procesando solicitud para crear escuela: ${JSON.stringify(createSchoolDto)}`);
     this.logger.log(`Usuario autenticado: ${req.user._id}, rol: ${req.user.role}`);
@@ -53,7 +64,8 @@ export class SchoolsController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.UPDATE_SCHOOL)
   async update(@Param('id') id: string, @Body() updateSchoolDto: any, @Req() req) {
     this.logger.log(`Procesando solicitud para actualizar escuela con ID: ${id}`);
     this.logger.log(`Usuario autenticado: ${req.user._id}`);
@@ -69,8 +81,8 @@ export class SchoolsController {
   }
 
   @Post(':id/teachers/:teacherId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.MANAGE_TEACHERS)
   async addTeacher(@Param('id') id: string, @Param('teacherId') teacherId: string, @Req() req) {
     this.logger.log(`Procesando solicitud para añadir profesor ${teacherId} a escuela ${id}`);
     this.logger.log(`Usuario autenticado: ${req.user._id}`);
@@ -86,7 +98,8 @@ export class SchoolsController {
   }
 
   @Post(':id/students/:studentId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.MANAGE_STUDENTS)
   async addStudent(@Param('id') id: string, @Param('studentId') studentId: string, @Req() req) {
     this.logger.log(`Procesando solicitud para añadir estudiante ${studentId} a escuela ${id}`);
     this.logger.log(`Usuario autenticado: ${req.user._id}`);
@@ -102,7 +115,8 @@ export class SchoolsController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.DELETE_SCHOOL)
   async remove(@Param('id') id: string, @Req() req) {
     const userId = req.user.sub || req.user._id?.toString();
     
@@ -117,5 +131,12 @@ export class SchoolsController {
       this.logger.error(`Error al eliminar escuela: ${error.message}`, error.stack);
       throw error;
     }
+  }
+
+  @Post(':id/owner/:userId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async assignOwner(@Param('id') id: string, @Param('userId') userId: string) {
+    return this.schoolsService.assignOwner(id, userId);
   }
 } 

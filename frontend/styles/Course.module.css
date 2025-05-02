@@ -321,16 +321,15 @@
 .deleteButton {
   background-color: #e53e3e;
   color: white;
-  padding: 8px 16px;
-  border-radius: 4px;
   border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 500;
-  cursor: pointer;
+  font-size: 14px;
   transition: background-color 0.2s;
-  margin-left: 8px;
 }
 
 .deleteButton:hover {
@@ -340,6 +339,24 @@
 .deleteButton:disabled {
   background-color: #feb2b2;
   cursor: not-allowed;
+}
+
+.attendanceButton {
+  background-color: #3182ce;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.attendanceButton:hover {
+  background-color: #2b6cb0;
 }
 
 .icon {

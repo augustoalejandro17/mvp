@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { School } from './schemas/school.schema';
@@ -132,10 +132,20 @@ export class SchoolsService {
   async findOne(id: string) {
     this.logger.log(`Buscando escuela con ID: ${id}`);
     try {
+      // Verifica si el ID es válido para MongoDB
+      if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+        this.logger.warn(`ID de escuela inválido: ${id}`);
+        throw new BadRequestException(`ID de escuela inválido: ${id}`);
+      }
+
       const school = await this.schoolModel.findById(id)
         .populate('admin', 'name email')
         .populate('teachers', 'name email')
-        .populate('students', 'name email');
+        .populate('students', 'name email')
+        .catch(err => {
+          this.logger.error(`Error en la consulta de base de datos: ${err.message}`);
+          throw new InternalServerErrorException('Error al acceder a la base de datos');
+        });
       
       if (!school) {
         this.logger.warn(`Escuela con ID ${id} no encontrada`);
@@ -519,6 +529,56 @@ export class SchoolsService {
       return { success: true, message: 'Escuela eliminada exitosamente' };
     } catch (error) {
       this.logger.error(`Error al eliminar escuela ${id}: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async assignOwner(schoolId: string, userId: string) {
+    this.logger.log(`Assigning ownership of school ${schoolId} to user ${userId}`);
+    
+    try {
+      // Check if school exists
+      const school = await this.schoolModel.findById(schoolId);
+      if (!school) {
+        throw new NotFoundException(`School with ID ${schoolId} not found`);
+      }
+      
+      // Check if user exists
+      const user = await this.userModel.findById(userId);
+      if (!user) {
+        throw new NotFoundException(`User with ID ${userId} not found`);
+      }
+      
+      // Assign user as the school owner
+      // Update user's role to SCHOOL_OWNER if not already an admin or higher
+      if (user.role === UserRole.TEACHER || user.role === UserRole.STUDENT) {
+        await this.userModel.findByIdAndUpdate(userId, {
+          role: UserRole.SCHOOL_OWNER,
+          $addToSet: { 
+            schools: schoolId,
+            ownedSchools: schoolId 
+          }
+        });
+      } else {
+        // Just add the school to their owned schools
+        await this.userModel.findByIdAndUpdate(userId, {
+          $addToSet: { 
+            schools: schoolId,
+            ownedSchools: schoolId 
+          }
+        });
+      }
+      
+      // Update the school
+      const updatedSchool = await this.schoolModel.findByIdAndUpdate(
+        schoolId,
+        { admin: userId },
+        { new: true }
+      ).populate('admin', 'name email');
+      
+      return updatedSchool;
+    } catch (error) {
+      this.logger.error(`Error assigning school owner: ${error.message}`, error.stack);
       throw error;
     }
   }

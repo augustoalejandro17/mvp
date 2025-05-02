@@ -4,6 +4,7 @@ import Link from 'next/link';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import styles from '../../../styles/Forms.module.css';
+import { useApiErrorHandler } from '../../../utils/api-error-handler';
 
 interface School {
   _id: string;
@@ -35,16 +36,17 @@ export default function EditCourse() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { handleApiError } = useApiErrorHandler();
 
   useEffect(() => {
-    // Verificar si hay un token
+    // Check if there is a token
     const token = Cookies.get('token');
     if (!token) {
       router.push('/login');
       return;
     }
 
-    // Asegurarse de que id sea un string válido
+    // Make sure id is a valid string
     if (id && typeof id === 'string') {
       fetchCourse(id, token);
       fetchSchools(token);
@@ -69,12 +71,12 @@ export default function EditCourse() {
       const courseData = response.data;
       setCourse(courseData);
       
-      // Llenar los campos del formulario
+      // Fill form fields
       setTitle(courseData.title || '');
       setDescription(courseData.description || '');
       setCoverImageUrl(courseData.coverImageUrl || '');
       
-      // Establecer el ID de la escuela
+      // Set school ID
       if (typeof courseData.school === 'object' && courseData.school._id) {
         setSchoolId(courseData.school._id);
       } else if (typeof courseData.school === 'string') {
@@ -83,9 +85,9 @@ export default function EditCourse() {
       
       setIsPublic(courseData.isPublic || false);
       
-    } catch (error: any) {
-      console.error('Error al obtener curso:', error);
-      setError('Error al cargar los datos del curso. Verifica tu permiso o conexión.');
+    } catch (error) {
+      console.error('Error fetching course:', error);
+      setError(handleApiError(error));
     } finally {
       setLoading(false);
     }
@@ -104,19 +106,19 @@ export default function EditCourse() {
       );
       
       setSchools(response.data);
-    } catch (error: any) {
-      console.error('Error al obtener escuelas:', error);
-      // No bloqueamos la UI por este error, simplemente mostramos un mensaje
-      setError(prev => prev || 'No se pudieron cargar las escuelas. Algunas opciones pueden no estar disponibles.');
+    } catch (error) {
+      console.error('Error fetching schools:', error);
+      // Don't block the UI for this error, just show a message
+      setError(prev => prev || 'Could not load schools. Some options may not be available.');
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validación
+    // Validation
     if (!title.trim() || !description.trim() || !schoolId) {
-      setError('El título, la descripción y la escuela son obligatorios');
+      setError('Title, description, and school are required');
       return;
     }
     
@@ -126,7 +128,7 @@ export default function EditCourse() {
     
     const token = Cookies.get('token');
     if (!token) {
-      setError('No hay sesión activa. Por favor, inicia sesión nuevamente.');
+      setError('No active session. Please login again.');
       setSaving(false);
       return;
     }
@@ -142,6 +144,7 @@ export default function EditCourse() {
         isPublic
       };
       
+      // Usar la ruta correcta con /api/
       const response = await axios.put(
         `${apiUrl}/api/courses/${id}`,
         courseData,
@@ -153,27 +156,16 @@ export default function EditCourse() {
         }
       );
       
-      setSuccess('¡Curso actualizado con éxito!');
+      setSuccess('Course updated successfully!');
       
-      // Redirigir después de 2 segundos
+      // Redirect after 2 seconds
       setTimeout(() => {
         router.push(`/course/${id}`);
       }, 2000);
       
-    } catch (error: any) {
-      console.error('Error al actualizar curso:', error);
-      
-      if (error.response) {
-        // Error con respuesta del servidor
-        const errorMessage = error.response.data.message || 'Error al actualizar el curso';
-        setError(`Error: ${errorMessage}`);
-      } else if (error.request) {
-        // Error sin respuesta del servidor
-        setError('No se pudo conectar con el servidor. Verifica tu conexión.');
-      } else {
-        // Otro tipo de error
-        setError('Error al enviar la solicitud. Por favor, intenta de nuevo.');
-      }
+    } catch (error) {
+      console.error('Error updating course:', error);
+      setError(handleApiError(error));
     } finally {
       setSaving(false);
     }
@@ -181,15 +173,17 @@ export default function EditCourse() {
 
   if (loading) {
     return <div className={styles.container}>
-      <div className={styles.loading}>Cargando información del curso...</div>
+      <div className={styles.loading}>Loading course information...</div>
     </div>;
   }
 
   if (!course && !loading) {
     return <div className={styles.container}>
-      <div className={styles.error}>No se pudo encontrar el curso solicitado.</div>
+      <div className={styles.error}>Could not find the requested course.</div>
       <div className={styles.buttonContainer}>
-        <Link href="/admin" className={styles.secondaryButton}>Volver al panel de administración</Link>
+        <Link href="/dashboard" className={styles.secondaryButton}>
+          Return to Dashboard
+        </Link>
       </div>
     </div>;
   }
@@ -197,22 +191,54 @@ export default function EditCourse() {
   return (
     <div className={styles.container}>
       <main className={styles.main}>
-        <h1 className={styles.title}>Editar Curso</h1>
+        <h1 className={styles.title}>Edit Course</h1>
         
-        <form className={styles.form} onSubmit={handleSubmit}>
-          {error && <div className={styles.error}><p>{error}</p></div>}
-          {success && <div className={styles.success}><p>{success}</p></div>}
+        {error && <div className={styles.error}>{error}</div>}
+        {success && <div className={styles.success}>{success}</div>}
+        
+        <form onSubmit={handleSubmit} className={styles.form}>
+          <div className={styles.formGroup}>
+            <label htmlFor="title">Title</label>
+            <input
+              type="text"
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+            />
+          </div>
           
           <div className={styles.formGroup}>
-            <label htmlFor="schoolId">Escuela*</label>
+            <label htmlFor="description">Description</label>
+            <textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={5}
+              required
+            ></textarea>
+          </div>
+          
+          <div className={styles.formGroup}>
+            <label htmlFor="coverImageUrl">Cover Image URL (optional)</label>
+            <input
+              type="url"
+              id="coverImageUrl"
+              value={coverImageUrl}
+              onChange={(e) => setCoverImageUrl(e.target.value)}
+              placeholder="https://example.com/image.jpg"
+            />
+          </div>
+          
+          <div className={styles.formGroup}>
+            <label htmlFor="school">School</label>
             <select
-              id="schoolId"
-              className={styles.select}
+              id="school"
               value={schoolId}
               onChange={(e) => setSchoolId(e.target.value)}
               required
             >
-              <option value="">Selecciona una escuela</option>
+              <option value="">Select a school</option>
               {schools.map((school) => (
                 <option key={school._id} value={school._id}>
                   {school.name}
@@ -222,71 +248,28 @@ export default function EditCourse() {
           </div>
           
           <div className={styles.formGroup}>
-            <label htmlFor="title">Título del Curso*</label>
-            <input
-              type="text"
-              id="title"
-              className={styles.input}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              minLength={3}
-              maxLength={100}
-            />
-          </div>
-          
-          <div className={styles.formGroup}>
-            <label htmlFor="description">Descripción*</label>
-            <textarea
-              id="description"
-              className={styles.textarea}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              required
-              rows={4}
-              minLength={10}
-            />
-          </div>
-          
-          <div className={styles.formGroup}>
-            <label htmlFor="coverImageUrl">URL de la Imagen de Portada</label>
-            <input
-              type="url"
-              id="coverImageUrl"
-              className={styles.input}
-              value={coverImageUrl}
-              onChange={(e) => setCoverImageUrl(e.target.value)}
-              placeholder="https://ejemplo.com/imagen.jpg"
-            />
-            <small className={styles.inputHelp}>Ingresa la URL de una imagen para la portada del curso (opcional)</small>
-          </div>
-          
-          <div className={styles.formGroup}>
-            <div className={styles.checkboxGroup}>
+            <label className={styles.checkboxLabel}>
               <input
                 type="checkbox"
-                id="isPublic"
                 checked={isPublic}
                 onChange={(e) => setIsPublic(e.target.checked)}
               />
-              <label htmlFor="isPublic">Curso público (visible para todos)</label>
-            </div>
-            <small className={styles.inputHelp}>
-              Si está marcado, el curso será visible para todos los usuarios. De lo contrario, solo será visible para los miembros del curso.
-            </small>
+              Public Course
+            </label>
           </div>
           
           <div className={styles.buttonContainer}>
-            <Link href={`/course/${id}`} className={styles.secondaryButton}>
-              Cancelar
-            </Link>
-            <button 
-              type="submit" 
-              className={styles.button}
+            <button
+              type="submit"
+              className={styles.primaryButton}
               disabled={saving}
             >
-              {saving ? 'Guardando...' : 'Guardar Cambios'}
+              {saving ? 'Saving...' : 'Save Changes'}
             </button>
+            
+            <Link href={`/course/${id}`} className={styles.secondaryButton}>
+              Cancel
+            </Link>
           </div>
         </form>
       </main>

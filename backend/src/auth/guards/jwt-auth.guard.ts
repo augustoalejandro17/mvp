@@ -28,12 +28,17 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   handleRequest(err, user, info) {
-    if (err || !user) {
-      this.logger.warn(`Error de autenticación: ${err?.message || 'Usuario no encontrado'}`);
-      throw err || new UnauthorizedException('No autenticado');
+    if (err) {
+      this.logger.warn(`Error de autenticación: ${err.message}`);
+      throw err;
     }
     
-    this.logger.debug(`Usuario autenticado: ${user.sub} (${user.role})`);
+    if (!user) {
+      this.logger.warn(`Error de autenticación: Usuario no encontrado, info: ${info ? JSON.stringify(info) : 'No hay información'}`);
+      throw new UnauthorizedException('No autenticado: token inválido o expirado');
+    }
+    
+    this.logger.debug(`Usuario autenticado: ${user.sub || user._id} (${user.role})`);
     
     // Asegurar que tanto sub como _id estén disponibles para compatibilidad
     if (user.sub && !user._id) {

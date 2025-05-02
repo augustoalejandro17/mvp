@@ -1,0 +1,255 @@
+.container {
+  min-height: 100vh;
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  background-color: #f5f7fa;
+}
+
+.main {
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.5rem;
+  background-color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.title {
+  font-size: 2rem;
+  color: #2d3748;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.courseTitle {
+  font-size: 1.5rem;
+  color: #4a5568;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 300px;
+  font-size: 1.2rem;
+  color: #718096;
+}
+
+.error {
+  padding: 1rem;
+  margin: 1rem 0;
+  background-color: #fff5f5;
+  color: #e53e3e;
+  border-radius: 5px;
+  border-left: 4px solid #e53e3e;
+}
+
+.success {
+  padding: 1rem;
+  margin: 1rem 0;
+  background-color: #f0fff4;
+  color: #38a169;
+  border-radius: 5px;
+  border-left: 4px solid #38a169;
+}
+
+.controlBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.dateSelector {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dateSelector label {
+  font-weight: 600;
+  color: #4a5568;
+}
+
+.dateInput {
+  padding: 0.6rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.backLink {
+  color: #4299e1;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.3s;
+}
+
+.backLink:hover {
+  color: #2b6cb0;
+  text-decoration: underline;
+}
+
+.form {
+  margin-top: 2rem;
+}
+
+.studentList {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 2fr;
+  gap: 1rem;
+  padding: 1rem;
+  background-color: #f7fafc;
+  font-weight: 600;
+  color: #2d3748;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.studentRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr 2fr;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  align-items: center;
+}
+
+.studentRow:last-child {
+  border-bottom: none;
+}
+
+.studentName {
+  display: flex;
+  flex-direction: column;
+}
+
+.name {
+  font-weight: 500;
+  color: #2d3748;
+}
+
+.email {
+  font-size: 0.9rem;
+  color: #718096;
+}
+
+.studentPresent {
+  display: flex;
+  gap: 1rem;
+}
+
+.radioLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.radioLabel input {
+  cursor: pointer;
+}
+
+.studentNotes {
+  width: 100%;
+}
+
+.notesInput {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.actions {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: center;
+}
+
+.saveButton {
+  padding: 0.75rem 2rem;
+  background-color: #4299e1;
+  color: white;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.saveButton:hover {
+  background-color: #3182ce;
+}
+
+.saveButton:disabled {
+  background-color: #a0aec0;
+  cursor: not-allowed;
+}
+
+.noStudents {
+  padding: 3rem;
+  text-align: center;
+  color: #718096;
+  font-style: italic;
+}
+
+.statsLink {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: center;
+}
+
+.button {
+  padding: 0.75rem 1.5rem;
+  background-color: #4a5568;
+  color: white;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.3s;
+}
+
+.button:hover {
+  background-color: #2d3748;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .header {
+    grid-template-columns: 1fr;
+  }
+
+  .studentRow {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    padding: 1rem 0.5rem;
+  }
+
+  .studentPresent {
+    margin-top: 0.5rem;
+  }
+
+  .studentNotes {
+    margin-top: 0.5rem;
+  }
+
+  .controlBar {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+} 

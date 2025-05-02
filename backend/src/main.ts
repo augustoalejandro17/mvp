@@ -5,13 +5,25 @@ import * as express from 'express';
 
 const logger = new Logger('Bootstrap');
 
+// Valores por defecto para variables de entorno críticas
+const DEFAULT_PORT = 4000;
+const DEFAULT_FRONTEND_URL = 'http://localhost:3000';
+const DEFAULT_MONGODB_URI = 'mongodb://localhost:27017/learnhub';
+const DEFAULT_JWT_SECRET = 'insecure-jwt-secret-please-change-in-production';
+
 async function bootstrap() {
   try {
+    // Configurar valores por defecto para variables de entorno si no están definidas
+    process.env.PORT = process.env.PORT || DEFAULT_PORT.toString();
+    process.env.FRONTEND_URL = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL;
+    process.env.MONGODB_URI = process.env.MONGODB_URI || DEFAULT_MONGODB_URI;
+    process.env.JWT_SECRET = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
+    
     const app = await NestFactory.create(AppModule);
     
     // Habilitar CORS
     app.enableCors({
-      origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+      origin: process.env.FRONTEND_URL,
       methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
       credentials: true,
     });
@@ -20,16 +32,22 @@ async function bootstrap() {
     app.setGlobalPrefix('api');
 
     // Configurar validación de DTO
-    app.useGlobalPipes(new ValidationPipe());
+    app.useGlobalPipes(new ValidationPipe({
+      whitelist: true, // Elimina propiedades que no están en el DTO
+      forbidNonWhitelisted: true, // Arroja error si se envían propiedades no definidas
+      transform: true, // Transforma los datos a las clases DTO
+    }));
 
     // Aumentar el límite de tamaño para subir archivos
     app.use(express.json({ limit: '50mb' }));
     app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-    // Obtener el puerto desde las variables de entorno o usar 3000 por defecto
-    const port = process.env.PORT || 3000;
+    // Obtener el puerto desde las variables de entorno
+    const port = process.env.PORT;
     
     logger.log(`Iniciando aplicación en modo de depuración completa`);
+    logger.log(`Usando FRONTEND_URL: ${process.env.FRONTEND_URL}`);
+    logger.log(`Usando MONGODB_URI: ${process.env.MONGODB_URI.substring(0, 10)}...`);
     
     await app.listen(port);
     logger.log(`Aplicación iniciada correctamente en puerto ${port}`);
@@ -41,12 +59,16 @@ async function bootstrap() {
       logger.warn(`Puerto ${process.env.PORT} en uso, intentando con puerto alternativo 4004`);
       const app = await NestFactory.create(AppModule);
       app.enableCors({
-        origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+        origin: process.env.FRONTEND_URL,
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
         credentials: true,
       });
       app.setGlobalPrefix('api');
-      app.useGlobalPipes(new ValidationPipe());
+      app.useGlobalPipes(new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }));
       app.use(express.json({ limit: '50mb' }));
       app.use(express.urlencoded({ limit: '50mb', extended: true }));
       

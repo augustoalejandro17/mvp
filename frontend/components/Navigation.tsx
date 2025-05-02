@@ -1,210 +1,146 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import Cookies from 'js-cookie';
-import { jwtDecode } from 'jwt-decode';
+import { getCookie } from 'cookies-next';
+import jwt from 'jsonwebtoken';
 import styles from '../styles/Navigation.module.css';
 
 interface DecodedToken {
-  sub: string;
-  email: string;
-  name: string;
+  id: number;
   role: string;
-  iat: number;
+  schoolId?: number;
   exp: number;
 }
 
-interface User {
-  name?: string;
-  email?: string;
-  role?: string;
-}
-
-const Navigation = () => {
-  const router = useRouter();
+const Navigation: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState('');
-  const [userName, setUserName] = useState('');
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [schoolId, setSchoolId] = useState<number | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
-    const token = Cookies.get('token');
+    const token = getCookie('token');
     if (token) {
       try {
-        const decoded = jwtDecode<DecodedToken>(token);
+        const decoded = jwt.decode(token as string) as DecodedToken;
         setIsAuthenticated(true);
         setUserRole(decoded.role);
-        setUserName(decoded.name);
-        setUser({
-          name: decoded.name,
-          email: decoded.email,
-          role: decoded.role
-        });
+        setSchoolId(decoded.schoolId || null);
       } catch (error) {
-        console.error('Error decodificando token:', error);
+        console.error('Error decoding token:', error);
       }
-    } else {
-      setIsAuthenticated(false);
-      setUserRole('');
-      setUserName('');
-      setUser(null);
     }
   }, []);
 
+  const handleLogout = useCallback(() => {
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    setIsAuthenticated(false);
+    setUserRole(null);
+    setSchoolId(null);
+    setIsDropdownOpen(false);
+    router.push('/login');
+  }, [router]);
+
   useEffect(() => {
-    // Cerrar el dropdown cuando se cambia de página
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Close mobile menu when route changes
+  useEffect(() => {
     const handleRouteChange = () => {
-      setActiveDropdown(null);
-      setIsMenuOpen(false);
+      setIsMobileMenuOpen(false);
+      setIsDropdownOpen(false);
     };
 
     router.events.on('routeChangeComplete', handleRouteChange);
     return () => {
       router.events.off('routeChangeComplete', handleRouteChange);
     };
-  }, [router]);
+  }, [router.events]);
 
-  // Cerrar dropdowns cuando se hace clic fuera
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest(`.${styles.dropdown}`)) {
-        setActiveDropdown(null);
-      }
-    };
-
-    document.addEventListener('click', handleClickOutside);
-    return () => {
-      document.removeEventListener('click', handleClickOutside);
-    };
-  }, []);
-
-  const handleLogout = () => {
-    Cookies.remove('token');
-    setIsAuthenticated(false);
-    setUserRole('');
-    setUserName('');
-    setUser(null);
-    router.push('/login');
-  };
-
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
-  };
-
-  const toggleDropdown = (dropdownName: string) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setActiveDropdown(activeDropdown === dropdownName ? null : dropdownName);
+  const isActive = (path: string) => {
+    return router.pathname === path ? styles.active : '';
   };
 
   return (
-    <nav className={styles.navigation}>
-      <div className={styles.navContainer}>
-        <Link href="/">
-          <a className={styles.logo}>DancePlatform</a>
+    <nav className={styles.navbar}>
+      <div className={styles.container}>
+        <Link href="/" className={styles.brand}>
+          <span className={styles.brandName}>Inti</span>
         </Link>
 
-        <div className={styles.mobileMenuButton} onClick={toggleMenu}>
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
+        <div className={styles.navMenu}>
+          <button
+            className={`${styles.mobileMenuButton} ${isMobileMenuOpen ? styles.open : ''}`}
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            <span className={styles.mobileMenuIcon} />
+          </button>
 
-        <div className={`${styles.navLinks} ${isMenuOpen ? styles.active : ''}`}>
-          {/* Enlaces públicos */}
-          <Link href="/">
-            <a className={router.pathname === '/' ? styles.active : ''}>Inicio</a>
-          </Link>
-
-          {isAuthenticated ? (
-            <>
-              {/* Enlaces comunes para usuarios autenticados */}
-              
-              {/* Enlaces específicos por rol */}
-              {userRole === 'admin' && (
-                <div className={`${styles.dropdown} ${activeDropdown === 'admin' ? styles.open : ''}`}>
-                  <button 
-                    className={styles.dropbtn}
-                    onClick={toggleDropdown('admin')}
+          <div className={`${styles.navLinks} ${isMobileMenuOpen ? styles.show : ''}`}>
+            {isAuthenticated ? (
+              <>
+                <Link href="/" className={`${styles.navLink} ${isActive('/')}`}>
+                  Inicio
+                </Link>
+                {userRole === 'TEACHER' && (
+                  <Link href="/courses/my-courses" className={`${styles.navLink} ${isActive('/courses/my-courses')}`}>
+                    Mis Cursos
+                  </Link>
+                )}
+                {userRole === 'ADMIN' && (
+                  <>
+                    <Link href="/admin/dashboard" className={`${styles.navLink} ${isActive('/admin/dashboard')}`}>
+                      Dashboard
+                    </Link>
+                    <Link href="/admin/payment-management" className={`${styles.navLink} ${isActive('/admin/payment-management')}`}>
+                      Pagos
+                    </Link>
+                  </>
+                )}
+                <div className={`${styles.dropdown} ${isDropdownOpen ? styles.open : ''}`} ref={dropdownRef}>
+                  <button
+                    className={styles.dropdownButton}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsDropdownOpen(!isDropdownOpen);
+                    }}
+                    aria-expanded={isDropdownOpen}
                   >
-                    Administración 
-                    <i className={styles.arrowDown}></i>
+                    Mi Cuenta
                   </button>
                   <div className={styles.dropdownContent}>
-                    <Link href="/school/list">
-                      <a>Gestionar Escuelas</a>
+                    <Link href="/profile" className={styles.dropdownItem}>
+                      Perfil
                     </Link>
-                    <Link href="/users/list">
-                      <a>Gestionar Usuarios</a>
-                    </Link>
-                    <Link href="/school/create">
-                      <a>Crear Escuela</a>
-                    </Link>
+                    <button onClick={handleLogout} className={styles.dropdownItem}>
+                      Cerrar Sesión
+                    </button>
                   </div>
                 </div>
-              )}
-
-              {(userRole === 'admin' || userRole === 'teacher') && (
-                <div className={`${styles.dropdown} ${activeDropdown === 'teaching' ? styles.open : ''}`}>
-                  <button 
-                    className={styles.dropbtn}
-                    onClick={toggleDropdown('teaching')}
-                  >
-                    Enseñanza 
-                    <i className={styles.arrowDown}></i>
-                  </button>
-                  <div className={styles.dropdownContent}>
-                    <Link href="/course/list">
-                      <a>Mis Cursos</a>
-                    </Link>
-                    <Link href="/course/create">
-                      <a>Crear Curso</a>
-                    </Link>
-                    <Link href="/class/create">
-                      <a>Crear Clase</a>
-                    </Link>
-                  </div>
-                </div>
-              )}
-
-              {/* Perfil y cerrar sesión */}
-              <div className={`${styles.dropdown} ${activeDropdown === 'profile' ? styles.open : ''}`}>
-                <button 
-                  className={styles.dropbtn}
-                  onClick={toggleDropdown('profile')}
-                >
-                  {userName} 
-                  <i className={styles.arrowDown}></i>
-                </button>
-                <div className={styles.dropdownContent}>
-                  <Link href="/profile">
-                    <a>Mi Perfil</a>
-                  </Link>
-                  <a href="#" onClick={handleLogout}>Cerrar Sesión</a>
-                </div>
-              </div>
-
-              {(user?.role === 'admin' || user?.role === 'teacher') && (
-                <li className={styles.navItem}>
-                  <Link href="/admin" className={router.pathname.startsWith('/admin') ? styles.active : ''}>
-                    Panel de Administración
-                  </Link>
-                </li>
-              )}
-            </>
-          ) : (
-            <>
-              {/* Enlaces para usuarios no autenticados */}
-              <Link href="/login">
-                <a className={router.pathname === '/login' ? styles.active : ''}>Iniciar Sesión</a>
-              </Link>
-              <Link href="/register">
-                <a className={router.pathname === '/register' ? styles.active : ''}>Registrarse</a>
-              </Link>
-            </>
-          )}
+              </>
+            ) : (
+              <>
+                <Link href="/login" className={`${styles.navLink} ${isActive('/login')}`}>
+                  Iniciar Sesión
+                </Link>
+                <Link href="/register" className={`${styles.navLink} ${isActive('/register')}`}>
+                  Registrarse
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </nav>

@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import axios from 'axios';
 import styles from '../styles/Login.module.css';
-import Cookies from 'js-cookie';
+import { useApiErrorHandler } from '../utils/api-error-handler';
 
 export default function Register() {
   const router = useRouter();
@@ -11,17 +11,17 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState('student');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const { handleApiError } = useApiErrorHandler();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validación básica
+    // Basic validation
     if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden');
+      setError('Passwords do not match');
       return;
     }
     
@@ -31,27 +31,23 @@ export default function Register() {
       
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
+      // Always register as student
       const response = await axios.post(
         `${apiUrl}/api/auth/register`, 
-        { name, email, password, role },
+        { name, email, password, role: 'student' },
         { headers: { 'Content-Type': 'application/json' } }
       );
       
       setSuccess(true);
       
-      // Redirigir al login después de 2 segundos
+      // Redirect to login after 2 seconds using window.location for full page reload
       setTimeout(() => {
-        router.push('/login');
+        window.location.href = '/login';
       }, 2000);
       
     } catch (error: any) {
-      console.error('Error de registro:', error);
-      
-      if (error.response && error.response.data && error.response.data.message) {
-        setError(error.response.data.message);
-      } else {
-        setError('Error al registrar. Por favor, intenta de nuevo más tarde.');
-      }
+      console.error('Registration error:', error);
+      setError(handleApiError(error));
     } finally {
       setLoading(false);
     }
@@ -60,81 +56,121 @@ export default function Register() {
   return (
     <div className={styles.container}>
       <main className={styles.main}>
-        <h1 className={styles.title}>Registro</h1>
+        <h1 className={styles.title}>Register</h1>
         
         {success ? (
           <div className={styles.successMessage}>
-            <p>¡Registro exitoso! Redirigiendo al inicio de sesión...</p>
+            <p>Registration successful! Redirecting to login...</p>
           </div>
         ) : (
           <form className={styles.form} onSubmit={handleSubmit}>
             {error && <p className={styles.error}>{error}</p>}
             
             <div className={styles.formGroup}>
-              <label htmlFor="name">Nombre</label>
+              <label htmlFor="name">Full Name</label>
               <input
                 type="text"
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
+                className={styles.input}
+                style={{ 
+                  width: '100%', 
+                  padding: '0.75rem',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '4px',
+                  backgroundColor: 'white',
+                  color: '#333',
+                  fontSize: '1rem'
+                }}
               />
             </div>
             
             <div className={styles.formGroup}>
-              <label htmlFor="email">Correo electrónico</label>
+              <label htmlFor="email">Email</label>
               <input
                 type="email"
                 id="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                className={styles.input}
+                style={{ 
+                  width: '100%', 
+                  padding: '0.75rem',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '4px',
+                  backgroundColor: 'white',
+                  color: '#333',
+                  fontSize: '1rem'
+                }}
               />
             </div>
             
             <div className={styles.formGroup}>
-              <label htmlFor="password">Contraseña</label>
+              <label htmlFor="password">Password</label>
               <input
                 type="password"
                 id="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                className={styles.input}
+                style={{ 
+                  width: '100%', 
+                  padding: '0.75rem',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '4px',
+                  backgroundColor: 'white',
+                  color: '#333',
+                  fontSize: '1rem'
+                }}
               />
             </div>
             
             <div className={styles.formGroup}>
-              <label htmlFor="confirmPassword">Confirmar contraseña</label>
+              <label htmlFor="confirmPassword">Confirm Password</label>
               <input
                 type="password"
                 id="confirmPassword"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                className={styles.input}
+                style={{ 
+                  width: '100%', 
+                  padding: '0.75rem',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '4px',
+                  backgroundColor: 'white',
+                  color: '#333',
+                  fontSize: '1rem'
+                }}
               />
             </div>
             
-            <div className={styles.formGroup}>
-              <label htmlFor="role">Rol</label>
-              <select
-                id="role"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className={styles.select}
-              >
-                <option value="student">Alumno</option>
-                <option value="teacher">Profesor</option>
-              </select>
-            </div>
-            
-            <button type="submit" className={styles.button} disabled={loading}>
-              {loading ? 'Registrando...' : 'Registrarse'}
+            <button type="submit" className={styles.button} disabled={loading}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                backgroundColor: '#3182ce',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '1rem',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                marginTop: '1.5rem'
+              }}
+            >
+              {loading ? 'Registering...' : 'Register'}
             </button>
             
             <div className={styles.links}>
-              <span>¿Ya tienes una cuenta?</span>
+              <span>Already have an account?</span>
               <Link href="/login">
-                <a>Iniciar sesión</a>
+                Log in
               </Link>
             </div>
           </form>

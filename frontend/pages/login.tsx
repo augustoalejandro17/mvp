@@ -30,7 +30,7 @@ export default function Login() {
       const { token } = response.data;
       Cookies.set('token', token, { expires: 7 });
       
-      router.push('/');
+      window.location.href = '/';
     } catch (error: any) {
       console.error('Error de inicio de sesión:', error);
       
@@ -59,6 +59,15 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
               required
               className={styles.input}
+              style={{ 
+                width: '100%', 
+                padding: '0.75rem',
+                border: '1px solid #e2e8f0',
+                borderRadius: '4px',
+                backgroundColor: 'white',
+                color: '#333',
+                fontSize: '1rem'
+              }}
             />
           </div>
           <div className={styles.formGroup}>
@@ -71,12 +80,33 @@ export default function Login() {
               required
               className={styles.input}
               minLength={6}
+              style={{ 
+                width: '100%', 
+                padding: '0.75rem',
+                border: '1px solid #e2e8f0',
+                borderRadius: '4px',
+                backgroundColor: 'white',
+                color: '#333',
+                fontSize: '1rem'
+              }}
             />
           </div>
           <button 
             type="submit" 
             className={styles.button}
             disabled={loading}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              backgroundColor: '#3182ce',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '1rem',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              marginTop: '1.5rem'
+            }}
           >
             {loading ? 'Procesando...' : 'Iniciar Sesión'}
           </button>

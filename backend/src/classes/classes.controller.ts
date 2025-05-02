@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Req, Logger, Query, UseInterceptors, UploadedFile, BadRequestException, NotFoundException, InternalServerErrorException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Req, Logger, Query, UseInterceptors, UploadedFile, BadRequestException, NotFoundException, InternalServerErrorException, UnauthorizedException, Patch, Res } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ClassesService } from './classes.service';
 import { CreateClassDto } from './dto/create-class.dto';
@@ -6,7 +6,12 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../auth/schemas/user.schema';
-import { Request } from 'express';
+import { Request, Response } from 'express';
+import { PermissionsGuard, Permission } from '../auth/guards/permissions.guard';
+import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { RecordAttendanceDto } from './dto/record-attendance.dto';
+import { UpdateAttendanceDto } from './dto/update-attendance.dto';
+import { UpdateClassDto } from './dto/update-class.dto';
 
 @Controller('classes')
 export class ClassesController {
@@ -28,26 +33,6 @@ export class ClassesController {
   async findOne(@Param('id') id: string) {
     this.logger.log(`Procesando solicitud para obtener clase con ID: ${id}`);
     return this.classesService.findOne(id);
-  }
-
-  @Get(':id/download-url')
-  @UseGuards(JwtAuthGuard)
-  async getDownloadUrl(@Param('id') id: string, @Req() req) {
-    try {
-      const classItem = await this.classesService.findOne(id);
-      
-      if (!classItem || !classItem.videoUrl) {
-        throw new NotFoundException('Clase o video no encontrado');
-      }
-      
-      // Generar una URL firmada específica para descarga
-      const downloadUrl = await this.classesService.getVideoDownloadUrl(classItem.videoUrl);
-      
-      return { url: downloadUrl };
-    } catch (error) {
-      this.logger.error(`Error al generar URL de descarga: ${error.message}`, error.stack);
-      throw error;
-    }
   }
 
   @Get(':id/stream-url')
@@ -76,6 +61,40 @@ export class ClassesController {
         throw error;
       }
       throw new InternalServerErrorException(`Error al obtener URL de streaming: ${error.message}`);
+    }
+  }
+
+  @Get(':id/download-url')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  async getDownloadUrl(@Param('id') id: string, @Req() req) {
+    try {
+      // Find the class
+      const classItem = await this.classesService.findOne(id);
+      
+      if (!classItem) {
+        throw new NotFoundException(`Class with ID ${id} not found`);
+      }
+      
+      // Generate a URL specifically for download
+      // We'll reuse the streaming URL method but will later modify it to support downloads
+      const downloadUrl = await this.classesService.getSignedUrlForStreaming(classItem.videoUrl);
+      
+      this.logger.log(`Download URL generated for class ${id} by user ${req.user.sub}`);
+      
+      return {
+        success: true,
+        url: downloadUrl,
+        title: classItem.title,
+        filename: `${classItem.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp4`,
+        contentType: 'video/mp4'
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(`Error generating download URL: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(`Error generating download URL: ${error.message}`);
     }
   }
 
@@ -162,7 +181,7 @@ export class ClassesController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard)
-  async update(@Param('id') id: string, @Body() updateClassDto: any, @Req() req: Request) {
+  async update(@Param('id') id: string, @Body() updateClassDto: UpdateClassDto, @Req() req: Request) {
     this.logger.log(`Procesando solicitud para actualizar clase con ID: ${id}`);
     const user = req.user as any;
     const userId = user._id || user.sub;
@@ -192,5 +211,65 @@ export class ClassesController {
       this.logger.error(`Error al eliminar clase: ${error.message}`, error.stack);
       throw error;
     }
+  }
+
+  @Post(':id/attendance')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.TAKE_ATTENDANCE)
+  async recordAttendance(
+    @Param('id') classId: string,
+    @Body() recordAttendanceDto: RecordAttendanceDto,
+    @Req() req,
+  ) {
+    const userId = req.user.sub;
+    return this.classesService.recordAttendance(classId, recordAttendanceDto, userId);
+  }
+
+  @Get(':id/attendance')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.VIEW_ATTENDANCE)
+  async getAttendance(
+    @Param('id') classId: string,
+    @Query('date') date?: string,
+  ) {
+    return this.classesService.getAttendance(classId, date);
+  }
+
+  @Get(':id/attendance/student/:studentId')
+  @UseGuards(JwtAuthGuard)
+  async getStudentAttendance(
+    @Param('id') classId: string,
+    @Param('studentId') studentId: string,
+    @Req() req,
+  ) {
+    // Students can only view their own attendance
+    if (req.user.role === UserRole.STUDENT && req.user.sub !== studentId) {
+      throw new UnauthorizedException('You can only view your own attendance records');
+    }
+    
+    return this.classesService.getStudentAttendance(classId, studentId);
+  }
+
+  @Patch(':id/attendance/:attendanceId')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.UPDATE_ATTENDANCE)
+  async updateAttendance(
+    @Param('id') classId: string,
+    @Param('attendanceId') attendanceId: string,
+    @Body() updateAttendanceDto: UpdateAttendanceDto,
+    @Req() req,
+  ) {
+    const userId = req.user.sub;
+    return this.classesService.updateAttendance(classId, attendanceId, updateAttendanceDto, userId);
+  }
+
+  @Delete(':id/attendance/:attendanceId')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.DELETE_ATTENDANCE)
+  async deleteAttendance(
+    @Param('id') classId: string,
+    @Param('attendanceId') attendanceId: string,
+  ) {
+    return this.classesService.deleteAttendance(classId, attendanceId);
   }
 } 

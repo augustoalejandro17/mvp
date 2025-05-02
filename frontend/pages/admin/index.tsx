@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import styles from '../../styles/Admin.module.css';
+import { jwtDecode } from 'jwt-decode';
 
 interface User {
   _id: string;
@@ -28,6 +29,13 @@ interface Course {
   coverImageUrl?: string;
   school: School | string;
   isPublic: boolean;
+}
+
+interface DecodedToken {
+  sub: string;
+  email: string;
+  name: string;
+  role: string;
 }
 
 export default function AdminDashboard() {
@@ -70,12 +78,12 @@ export default function AdminDashboard() {
     }
   }, [router]);
 
-  const parseJwt = (token: string) => {
+  const parseJwt = (token: string): DecodedToken => {
     try {
-      return JSON.parse(atob(token.split('.')[1]));
+      return jwtDecode<DecodedToken>(token);
     } catch (e) {
-      console.error('Error parsing JWT:', e);
-      return null;
+      console.error('Error parsing JWT token', e);
+      return { sub: '', name: '', email: '', role: '' };
     }
   };
 

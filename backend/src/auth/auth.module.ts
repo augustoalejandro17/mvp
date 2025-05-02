@@ -5,8 +5,13 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { AuthorizationService } from './services/authorization.service';
 import { User, UserSchema } from './schemas/user.schema';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { School, SchoolSchema } from '../schools/schemas/school.schema';
+import { Course, CourseSchema } from '../courses/schemas/course.schema';
+
+const logger = new Logger('AuthModule');
 
 @Module({
   imports: [
@@ -14,26 +19,31 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => {
+      useFactory: (configService: ConfigService) => {
         const secret = configService.get<string>('JWT_SECRET');
         const expiresIn = configService.get<string>('JWT_EXPIRATION') || '7d';
         
         if (!secret) {
-          const logger = new Logger('JwtModule');
           logger.error('JWT_SECRET no está definido en las variables de entorno');
           throw new Error('JWT_SECRET no está definido');
         }
+        
+        logger.log(`JWT configurado con expiración: ${expiresIn}`);
         
         return {
           secret,
           signOptions: { expiresIn },
         };
-      },
+      }
     }),
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+      { name: School.name, schema: SchoolSchema },
+      { name: Course.name, schema: CourseSchema },
+    ]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [AuthService],
+  providers: [AuthService, JwtStrategy, AuthorizationService],
+  exports: [AuthService, AuthorizationService],
 })
 export class AuthModule {} 

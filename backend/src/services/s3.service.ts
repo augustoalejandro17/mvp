@@ -29,10 +29,23 @@ export class S3Service {
         Bucket: this.bucketName,
         Key: key,
         Body: file.buffer,
-        ContentType: file.mimetype,
+        ContentType: 'video/mp4',
+        // Añadir metadatos para evitar problemas de orientación
+        Metadata: {
+          'x-amz-meta-orientation': 'normal',
+          'x-amz-meta-video-rotation': '0',
+          'x-amz-meta-video-transform': 'none',
+          'x-amz-meta-video-display': 'inline'
+        },
+        // Forzar compatibilidad
+        ContentDisposition: 'inline',
+        // Configurar cache para mejorar rendimiento
+        CacheControl: 'max-age=31536000',
+        // Asegurar que el contenido es tratado como video MP4
+        ContentEncoding: 'identity'
       };
 
-      this.logger.log(`Parámetros de carga: bucket=${this.bucketName}, key=${key}, contentType=${file.mimetype}`);
+      this.logger.log(`Parámetros de carga: bucket=${this.bucketName}, key=${key}, contentType=video/mp4`);
       
       const uploadResult = await this.s3.upload(uploadParams).promise();
 
@@ -145,25 +158,9 @@ export class S3Service {
           }
         }
         
-        // Caso específico para mpvbucket-version1-augusto
-        if (hostname === 'mpvbucket-version1-augusto.s3.amazonaws.com') {
-          this.logger.log(`Caso específico: mpvbucket-version1-augusto - key extraída: ${pathname}`);
-          return pathname;
-        }
-        
         // Si llegamos aquí, no pudimos determinar la key basándonos en la estructura de la URL
-        // Asumimos que la URL ya contiene la key directamente (posiblemente un error, pero intentamos recuperarnos)
-        const urlParts = cleanUrl.split('/');
-        // Buscamos 'videos' en la ruta y tomamos todo lo que sigue
-        const videosIndex = urlParts.indexOf('videos');
-        if (videosIndex !== -1) {
-          const key = urlParts.slice(videosIndex).join('/');
-          this.logger.log(`Caso de recuperación: Buscando 'videos' en la URL - key extraída: ${key}`);
-          return key;
-        }
-        
-        // Último recurso: devolvemos toda la ruta después del hostname
-        this.logger.warn(`No se pudo determinar la key de manera precisa. Devolviendo pathname completo: ${pathname}`);
+        // Asumimos que la URL ya contiene la key directamente
+        this.logger.warn(`No se pudo determinar la key de manera precisa. Devolviendo pathname: ${pathname}`);
         return pathname;
         
       } catch (parseError) {
@@ -176,41 +173,12 @@ export class S3Service {
           this.logger.log(`Extracción basada en patrón '/videos/' - key extraída: ${key}`);
           return key;
         }
+        
+        throw parseError;
       }
     } catch (error) {
-      this.logger.error('Error al procesar la URL:', error);
+      this.logger.error(`Error al procesar la URL: ${error.message}`);
       throw error;
-    }
-  }
-
-  async getDownloadUrl(videoUrl: string, expiresIn: number = 3600): Promise<string> {
-    try {
-      // Si la URL no existe, devolvemos la URL original
-      if (!videoUrl) {
-        this.logger.warn('URL vacía proporcionada para generar URL de descarga');
-        return videoUrl;
-      }
-
-      // Extraer la key del objeto desde la URL
-      const key = this.getKeyFromUrl(videoUrl);
-      const fileName = key.split('/').pop() || 'video';
-      
-      this.logger.log(`Generating download URL for key: ${key}, bucket: ${this.bucketName}`);
-      
-      // Generar URL firmada para descarga (con ResponseContentDisposition para forzar descarga)
-      const downloadUrl = await this.s3.getSignedUrlPromise('getObject', {
-        Bucket: this.bucketName,
-        Key: key,
-        Expires: expiresIn,
-        ResponseContentDisposition: `attachment; filename="${fileName}"`
-      });
-      
-      this.logger.log(`Download URL generated successfully: Length=${downloadUrl.length}`);
-      return downloadUrl;
-    } catch (error) {
-      this.logger.error(`Error generating download URL for ${videoUrl}: ${error.message}`, error.stack);
-      // En caso de error, devolver la URL original para no interrumpir el funcionamiento
-      return videoUrl;
     }
   }
 
@@ -224,7 +192,7 @@ export class S3Service {
       const fileNameSplit = originalname.split('.');
       // Siempre usamos .mp4 como extensión para mejor compatibilidad
       const fileExtension = 'mp4';
-      const sanitizedName = this.sanitizeFileName(fileNameSplit.join('.'));
+      const sanitizedName = this.sanitizeFileName(fileNameSplit[0]);
       const uniqueFileName = `${sanitizedName}-${Date.now()}.${fileExtension}`;
       
       // Clave en S3 (ruta completa)
@@ -234,13 +202,20 @@ export class S3Service {
       const contentType = 'video/mp4';
       
       // Configuración de carga con Content-Type correcto
-      const params = {
+      const uploadParams = {
         Bucket: this.bucketName,
         Key: key,
         Body: buffer,
         ContentType: contentType,
-        // Sin ContentDisposition - para reproducción en línea
-        ACL: 'public-read',
+        // Añadir metadatos para evitar problemas de orientación
+        Metadata: {
+          'x-amz-meta-orientation': 'normal',
+          'x-amz-meta-video-rotation': '0',
+          'x-amz-meta-video-transform': 'none',
+          'x-amz-meta-video-display': 'inline'
+        },
+        // Forzar compatibilidad
+        ContentDisposition: 'inline',
         // Cache-Control para mejorar el rendimiento
         CacheControl: 'max-age=31536000'
       };
@@ -248,10 +223,9 @@ export class S3Service {
       this.logger.log(`Subiendo archivo a S3. Bucket: ${this.bucketName}, Key: ${key}, ContentType: ${contentType}`);
       
       // Subir archivo a S3
-      const upload = await this.s3.upload(params).promise();
+      const upload = await this.s3.upload(uploadParams).promise();
       this.logger.log(`Archivo subido exitosamente: ${upload.Location}`);
       
-      // No usamos la URL de S3 directamente ya que usaremos CloudFront
       return {
         url: upload.Location, // Guardamos la URL original de S3 como referencia
         key: key // La clave es lo importante para generar URLs de CloudFront

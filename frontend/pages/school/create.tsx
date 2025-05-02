@@ -161,6 +161,7 @@ export default function CreateSchool() {
                 onChange={(e) => setName(e.target.value)}
                 required
                 placeholder="Ej: Academia de Danza Moderna"
+                className={styles.input}
               />
             </div>
             
@@ -173,6 +174,7 @@ export default function CreateSchool() {
                 required
                 rows={4}
                 placeholder="Describe tu escuela de danza..."
+                className={styles.textarea}
               ></textarea>
               <p className={styles.inputHelp}>Mínimo 10 caracteres</p>
             </div>
@@ -185,6 +187,7 @@ export default function CreateSchool() {
                 value={logoUrl}
                 onChange={(e) => setLogoUrl(e.target.value)}
                 placeholder="https://..."
+                className={styles.input}
               />
               <p className={styles.inputHelp}>Si no proporcionas una URL, se usará una imagen predeterminada</p>
             </div>
