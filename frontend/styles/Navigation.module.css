@@ -242,7 +242,7 @@
   }
   
   .container {
-    padding: 0 24px;
+    padding: 0 16px;
   }
   
   .brandName {
@@ -252,6 +252,9 @@
   .mobileMenuButton {
     display: block;
     padding: 12px;
+    background: transparent;
+    outline: none;
+    border: none;
     margin-left: auto;
     z-index: 1100;
   }
@@ -261,9 +264,9 @@
     top: 70px;
     left: 0;
     right: 0;
-    background-color: var(--color-background);
+    background-color: #fff;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     padding: 0;
     border-top: 1px solid var(--color-border);
     max-height: 0;
@@ -280,18 +283,21 @@
     opacity: 1;
     visibility: visible;
     overflow-y: auto;
-    padding: var(--spacing-4) 0;
+    padding: 8px 0;
   }
   
   .navLink {
     width: 100%;
-    padding: var(--spacing-3) var(--spacing-6);
+    padding: 12px 24px;
+    text-align: left;
+    border-bottom: 1px solid #f5f5f5;
   }
   
   .dropdown {
     position: static;
     width: 100%;
     margin-left: 0;
+    display: block;
   }
   
   .dropdownButton {
@@ -299,6 +305,7 @@
     text-align: left;
     justify-content: space-between;
     padding: 12px 24px;
+    border-bottom: 1px solid #f5f5f5;
   }
   
   .dropdownContent {
@@ -308,7 +315,7 @@
     border-radius: 0;
     border: none;
     margin: 0;
-    background-color: #f5f5f5;
+    background-color: #f8f9fa;
     padding: 0;
     transform: none;
     max-height: 0;
@@ -316,17 +323,23 @@
     opacity: 0;
     visibility: hidden;
     transition: max-height 0.3s ease, opacity 0.3s ease;
+    display: none;
   }
   
   .dropdown.open .dropdownContent {
     max-height: 300px;
     opacity: 1;
     visibility: visible;
+    display: block;
   }
   
   .dropdownItem {
     padding: 12px 32px;
+    display: block;
     border-left: 3px solid transparent;
+    width: 100%;
+    text-align: left;
+    border-bottom: 1px solid #f0f0f0;
   }
   
   .dropdownItem:hover {

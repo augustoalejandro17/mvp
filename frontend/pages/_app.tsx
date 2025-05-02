@@ -13,17 +13,23 @@ function MyApp({ Component, pageProps }: AppProps) {
       body {
         padding-top: 80px;
         margin: 0;
+        overflow-x: hidden;
       }
       
       .page-content {
         padding: 16px;
         max-width: 1200px;
         margin: 0 auto;
+        min-height: calc(100vh - 120px);
       }
       
       @media (max-width: 768px) {
         body {
           padding-top: 70px;
+        }
+        
+        .page-content {
+          padding: 12px;
         }
       }
     `;
@@ -41,7 +47,7 @@ function MyApp({ Component, pageProps }: AppProps) {
         <title>Inti</title>
         <meta name="description" content="Plataforma educativa Inti" />
         <link rel="icon" href="/favicon.ico" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
       </Head>
       
       <Navigation />

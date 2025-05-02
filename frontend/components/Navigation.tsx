@@ -71,6 +71,11 @@ const Navigation: React.FC = () => {
   const toggleDropdown = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsDropdownOpen(!isDropdownOpen);
+    
+    // If we're on mobile, don't close the mobile menu when opening the dropdown
+    if (window.innerWidth <= 768) {
+      setIsMobileMenuOpen(true);
+    }
   };
   
   const isActive = (path: string) => {
