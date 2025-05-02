@@ -16,6 +16,13 @@
   --color-border: #e2e8f0;
   --color-background-light: #f7fafc;
   --color-background-hover: #edf2f7;
+
+  /* Z-index layers */
+  --z-index-backdrop: 100;
+  --z-index-navbar: 1000;
+  --z-index-dropdown: 1100;
+  --z-index-modal: 2000;
+  --z-index-toast: 3000;
 }
 
 body {
@@ -177,6 +184,7 @@ a {
   color: var(--primary-600);
   text-decoration: none;
   transition: color 0.2s ease;
+  position: relative;
 }
 
 a:hover {
@@ -192,6 +200,7 @@ button {
   background-color: var(--primary-500);
   color: white;
   transition: background-color 0.2s ease;
+  position: relative;
 }
 
 button:hover {

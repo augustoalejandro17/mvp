@@ -2,20 +2,20 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { getCookie } from 'cookies-next';
-import jwt from 'jsonwebtoken';
+import { jwtDecode } from 'jwt-decode';
 import styles from '../styles/Navigation.module.css';
 
 interface DecodedToken {
-  id: number;
+  sub: string;
   role: string;
-  schoolId?: number;
+  email: string;
+  name: string;
   exp: number;
 }
 
 const Navigation: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [schoolId, setSchoolId] = useState<number | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -25,10 +25,9 @@ const Navigation: React.FC = () => {
     const token = getCookie('token');
     if (token) {
       try {
-        const decoded = jwt.decode(token as string) as DecodedToken;
+        const decoded = jwtDecode<DecodedToken>(token as string);
         setIsAuthenticated(true);
         setUserRole(decoded.role);
-        setSchoolId(decoded.schoolId || null);
       } catch (error) {
         console.error('Error decoding token:', error);
       }
@@ -39,11 +38,11 @@ const Navigation: React.FC = () => {
     document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     setIsAuthenticated(false);
     setUserRole(null);
-    setSchoolId(null);
     setIsDropdownOpen(false);
     router.push('/login');
   }, [router]);
 
+  // Handle click outside dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -55,7 +54,7 @@ const Navigation: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Close mobile menu when route changes
+  // Handle route changes
   useEffect(() => {
     const handleRouteChange = () => {
       setIsMobileMenuOpen(false);
@@ -68,6 +67,12 @@ const Navigation: React.FC = () => {
     };
   }, [router.events]);
 
+  // Toggle dropdown menu
+  const toggleDropdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDropdownOpen(!isDropdownOpen);
+  };
+  
   const isActive = (path: string) => {
     return router.pathname === path ? styles.active : '';
   };
@@ -99,7 +104,7 @@ const Navigation: React.FC = () => {
                     Mis Cursos
                   </Link>
                 )}
-                {userRole === 'ADMIN' && (
+                {userRole === 'admin' && (
                   <>
                     <Link href="/admin/dashboard" className={`${styles.navLink} ${isActive('/admin/dashboard')}`}>
                       Dashboard
@@ -112,16 +117,14 @@ const Navigation: React.FC = () => {
                 <div className={`${styles.dropdown} ${isDropdownOpen ? styles.open : ''}`} ref={dropdownRef}>
                   <button
                     className={styles.dropdownButton}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsDropdownOpen(!isDropdownOpen);
-                    }}
+                    onClick={toggleDropdown}
                     aria-expanded={isDropdownOpen}
                   >
                     Mi Cuenta
+                    {/* Arrow icon is added via CSS */}
                   </button>
                   <div className={styles.dropdownContent}>
-                    <Link href="/profile" className={styles.dropdownItem}>
+                    <Link href="/profile" className={styles.dropdownItem} onClick={() => setIsDropdownOpen(false)}>
                       Perfil
                     </Link>
                     <button onClick={handleLogout} className={styles.dropdownItem}>
