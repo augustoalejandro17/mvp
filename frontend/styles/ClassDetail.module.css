@@ -198,7 +198,13 @@
   
   .adminActions {
     flex-direction: row;
+    flex-wrap: wrap;
     justify-content: center;
+    gap: 1rem;
+  }
+  
+  .actionButton, .editButton, .deleteButton, .publicButton, .backButton {
+    min-width: 150px;
   }
 }
 

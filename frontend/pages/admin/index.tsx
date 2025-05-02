@@ -5,6 +5,7 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import styles from '../../styles/Admin.module.css';
 import { jwtDecode } from 'jwt-decode';
+import ImageFallback from '../../components/ImageFallback';
 
 interface User {
   _id: string;
@@ -20,6 +21,11 @@ interface School {
   description: string;
   logoUrl?: string;
   isPublic: boolean;
+  admin?: {
+    _id: string;
+    name: string;
+    email: string;
+  };
 }
 
 interface Course {
@@ -225,9 +231,16 @@ export default function AdminDashboard() {
                     <div className={styles.cardHeader}>
                       <div className={styles.logoContainer}>
                         {school.logoUrl ? (
-                          <img src={school.logoUrl} alt={school.name} className={styles.logo} />
+                          <ImageFallback 
+                            src={school.logoUrl} 
+                            alt={school.name} 
+                            className={styles.logo}
+                            placeholderClassName={styles.logoPlaceholder}
+                          />
                         ) : (
-                          <div className={styles.logoPlaceholder}>{school.name.charAt(0)}</div>
+                          <div className={styles.logoPlaceholder}>
+                            {school.name.substring(0, 2).toUpperCase()}
+                          </div>
                         )}
                       </div>
                       <div className={styles.statusBadge}>
@@ -242,9 +255,11 @@ export default function AdminDashboard() {
                       <Link href={`/school/${school._id}`} className={styles.viewButton}>
                         Ver detalles
                       </Link>
-                      <Link href={`/school/edit/${school._id}`} className={styles.editButton}>
-                        Editar
-                      </Link>
+                      {(user.role === 'super_admin' || user.role === 'admin' || (school.admin && school.admin._id === user.sub)) && (
+                        <Link href={`/school/edit/${school._id}`} className={styles.editButton}>
+                          Editar
+                        </Link>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -265,9 +280,16 @@ export default function AdminDashboard() {
                     <div className={styles.cardHeader}>
                       <div className={styles.coverContainer}>
                         {course.coverImageUrl ? (
-                          <img src={course.coverImageUrl} alt={course.title} className={styles.cover} />
+                          <ImageFallback 
+                            src={course.coverImageUrl} 
+                            alt={course.title}
+                            className={styles.cover}
+                            placeholderClassName={styles.coverPlaceholder}
+                          />
                         ) : (
-                          <div className={styles.coverPlaceholder}>{course.title.charAt(0)}</div>
+                          <div className={styles.coverPlaceholder}>
+                            {typeof course.title === 'string' && course.title.substring(0, 2).toUpperCase()}
+                          </div>
                         )}
                       </div>
                       <div className={styles.statusBadge}>
@@ -311,9 +333,16 @@ export default function AdminDashboard() {
                     <div className={styles.cardHeader}>
                       <div className={styles.coverContainer}>
                         {classItem.thumbnailUrl ? (
-                          <img src={classItem.thumbnailUrl} alt={classItem.title} className={styles.cover} />
+                          <ImageFallback 
+                            src={classItem.thumbnailUrl} 
+                            alt={classItem.title}
+                            className={styles.cover}
+                            placeholderClassName={styles.coverPlaceholder}
+                          />
                         ) : (
-                          <div className={styles.coverPlaceholder}>{classItem.title.charAt(0)}</div>
+                          <div className={styles.coverPlaceholder}>
+                            {classItem.title.substring(0, 2).toUpperCase()}
+                          </div>
                         )}
                       </div>
                       <div className={styles.statusBadge}>

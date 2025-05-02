@@ -3,8 +3,9 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import axios from 'axios';
 import Cookies from 'js-cookie';
-import styles from '../../../styles/Forms.module.css';
+import styles from '../../../styles/CourseForm.module.css';
 import { useApiErrorHandler } from '../../../utils/api-error-handler';
+import ImageUploader from '../../../components/ImageUploader';
 
 interface School {
   _id: string;
@@ -113,6 +114,10 @@ export default function EditCourse() {
     }
   };
 
+  const handleImageUpload = (imageUrl: string) => {
+    setCoverImageUrl(imageUrl);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -139,7 +144,7 @@ export default function EditCourse() {
       const courseData = {
         title,
         description,
-        coverImageUrl: coverImageUrl || undefined,
+        coverImageUrl: coverImageUrl || null,
         schoolId,
         isPublic
       };
@@ -220,14 +225,14 @@ export default function EditCourse() {
           </div>
           
           <div className={styles.formGroup}>
-            <label htmlFor="coverImageUrl">Cover Image URL (optional)</label>
-            <input
-              type="url"
-              id="coverImageUrl"
-              value={coverImageUrl}
-              onChange={(e) => setCoverImageUrl(e.target.value)}
-              placeholder="https://example.com/image.jpg"
+            <label>Course Cover Image</label>
+            <ImageUploader 
+              onImageUpload={handleImageUpload} 
+              defaultImage={coverImageUrl}
+              label="Cover Image" 
+              className={styles.imageUploader}
             />
+            <small className={styles.inputHelp}>Upload an image for your course (optional)</small>
           </div>
           
           <div className={styles.formGroup}>

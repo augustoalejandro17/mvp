@@ -21,6 +21,75 @@ export class AuthorizationService {
   }
 
   /**
+   * Obtiene el rol de un usuario en una escuela específica
+   * @param userId ID del usuario
+   * @param schoolId ID de la escuela
+   * @returns El rol del usuario en la escuela o null si no tiene un rol asignado
+   */
+  async getUserRoleInSchool(userId: string, schoolId: string): Promise<UserRole | null> {
+    if (!userId || !schoolId) return null;
+    
+    const user = await this.userModel.findById(userId);
+    if (!user) return null;
+    
+    // El super admin tiene rol super admin en todas partes
+    if (user.role === UserRole.SUPER_ADMIN) {
+      return UserRole.SUPER_ADMIN;
+    }
+    
+    // Buscar un rol específico para esta escuela
+    const schoolRole = user.schoolRoles.find(
+      sr => sr.schoolId.toString() === schoolId
+    );
+    
+    if (schoolRole) {
+      // Si tiene un rol específico para esta escuela, devolver ese rol
+      return schoolRole.role;
+    }
+    
+    // Si es dueño de la escuela, su rol es SCHOOL_OWNER
+    if (user.ownedSchools.some(id => id.toString() === schoolId)) {
+      return UserRole.SCHOOL_OWNER;
+    }
+    
+    // Si es administrador de la escuela, su rol es ADMIN
+    if (user.administratedSchools.some(id => id.toString() === schoolId)) {
+      return UserRole.ADMIN;
+    }
+    
+    // Si es profesor en algún curso de la escuela, su rol es TEACHER
+    if (user.role === UserRole.TEACHER) {
+      // Verificar si tiene cursos en esta escuela
+      const teachingCoursesInSchool = await this.courseModel.countDocuments({
+        _id: { $in: user.teachingCourses },
+        school: schoolId
+      });
+      
+      if (teachingCoursesInSchool > 0) {
+        return UserRole.TEACHER;
+      }
+    }
+    
+    // Si está inscrito en algún curso de la escuela, su rol es STUDENT
+    const enrolledCoursesInSchool = await this.courseModel.countDocuments({
+      _id: { $in: user.enrolledCourses },
+      school: schoolId
+    });
+    
+    if (enrolledCoursesInSchool > 0) {
+      return UserRole.STUDENT;
+    }
+    
+    // Si está en las escuelas pero no tiene un rol específico, usar su rol global
+    if (user.schools.some(id => id.toString() === schoolId)) {
+      return user.role;
+    }
+    
+    // No tiene relación con esta escuela
+    return null;
+  }
+
+  /**
    * Verifica si un usuario es dueño de una escuela específica
    */
   async isSchoolOwner(userId: string, schoolId: string): Promise<boolean> {
@@ -32,7 +101,11 @@ export class AuthorizationService {
     // Super admin tiene acceso a todas las escuelas
     if (user.role === UserRole.SUPER_ADMIN) return true;
     
-    // Verificar si el usuario es dueño de la escuela
+    // Verificar rol específico en la escuela
+    const schoolRole = await this.getUserRoleInSchool(userId, schoolId);
+    if (schoolRole === UserRole.SCHOOL_OWNER) return true;
+    
+    // Verificar si el usuario es dueño de la escuela (compatibilidad con el modelo anterior)
     return user.role === UserRole.SCHOOL_OWNER && 
            user.ownedSchools.some(id => id.toString() === schoolId);
   }
@@ -41,19 +114,47 @@ export class AuthorizationService {
    * Verifica si un usuario es administrador de una escuela específica
    */
   async isSchoolAdmin(userId: string, schoolId: string): Promise<boolean> {
-    if (!userId || !schoolId) return false;
+    if (!userId || !schoolId) {
+      console.log(`isSchoolAdmin: userId (${userId}) o schoolId (${schoolId}) no proporcionados`);
+      return false;
+    }
+    
+    console.log(`isSchoolAdmin: verificando permisos para usuario ${userId} en escuela ${schoolId}`);
     
     const user = await this.userModel.findById(userId);
-    if (!user) return false;
+    if (!user) {
+      console.log(`isSchoolAdmin: Usuario ${userId} no encontrado`);
+      return false;
+    }
     
-    // Super admin y dueños de escuela tienen poderes de administrador
-    if (user.role === UserRole.SUPER_ADMIN) return true;
-    if (user.role === UserRole.SCHOOL_OWNER && 
-        user.ownedSchools.some(id => id.toString() === schoolId)) return true;
+    console.log(`isSchoolAdmin: Usuario encontrado - ${user.name}, rol: ${user.role}`);
     
-    // Verificar si el usuario es administrador de la escuela
-    return user.role === UserRole.ADMIN && 
-           user.administratedSchools.some(id => id.toString() === schoolId);
+    // Super admin siempre tiene permisos administrativos
+    if (user.role === UserRole.SUPER_ADMIN) {
+      console.log(`isSchoolAdmin: Usuario es SUPER_ADMIN, permiso concedido`);
+      return true;
+    }
+    
+    // Verificar rol específico en la escuela
+    const schoolRole = await this.getUserRoleInSchool(userId, schoolId);
+    if (schoolRole === UserRole.SCHOOL_OWNER || schoolRole === UserRole.ADMIN) {
+      console.log(`isSchoolAdmin: Usuario tiene rol administrativo (${schoolRole}) en la escuela`);
+      return true;
+    }
+    
+    // Para compatibilidad con el modelo anterior
+    if (user.role === UserRole.SCHOOL_OWNER && user.ownedSchools.some(id => id.toString() === schoolId)) {
+      console.log(`isSchoolAdmin: Usuario es SCHOOL_OWNER, verificando propiedad: true`);
+      return true;
+    }
+    
+    if (user.role === UserRole.ADMIN && user.administratedSchools.some(id => id.toString() === schoolId)) {
+      console.log(`isSchoolAdmin: Usuario es ADMIN, verificando administración: true`);
+      return true;
+    }
+    
+    console.log(`isSchoolAdmin: Sin permisos administrativos`);
+    return false;
   }
 
   /**
@@ -69,23 +170,18 @@ export class AuthorizationService {
     if (user.role === UserRole.SUPER_ADMIN) return true;
     
     // Verificar si el usuario es profesor del curso
-    if (user.role === UserRole.TEACHER) {
-      return user.teachingCourses.some(id => id.toString() === courseId);
-    }
+    const isTeacher = user.teachingCourses.some(id => id.toString() === courseId);
+    if (isTeacher) return true;
     
     // Verificar si es admin o dueño de la escuela a la que pertenece el curso
     const course = await this.courseModel.findById(courseId);
     if (!course) return false;
     
-    if (user.role === UserRole.SCHOOL_OWNER) {
-      return user.ownedSchools.some(id => id.toString() === course.school.toString());
-    }
+    const schoolId = course.school.toString();
+    const schoolRole = await this.getUserRoleInSchool(userId, schoolId);
     
-    if (user.role === UserRole.ADMIN) {
-      return user.administratedSchools.some(id => id.toString() === course.school.toString());
-    }
-    
-    return false;
+    // Administradores y dueños de escuela pueden gestionar todos los cursos
+    return schoolRole === UserRole.SCHOOL_OWNER || schoolRole === UserRole.ADMIN;
   }
 
   /**
@@ -120,41 +216,39 @@ export class AuthorizationService {
     const targetUser = await this.userModel.findById(targetUserId);
     if (!targetUser) return false;
     
+    // Obtener roles contextuales
+    const managerRole = await this.getUserRoleInSchool(managerId, schoolId);
+    const targetRole = await this.getUserRoleInSchool(targetUserId, schoolId);
+    
+    // Si alguno no tiene rol en esta escuela
+    if (!managerRole || !targetRole) return false;
+    
     // Super admin puede gestionar a cualquiera
-    if (manager.role === UserRole.SUPER_ADMIN) return true;
+    if (managerRole === UserRole.SUPER_ADMIN) return true;
     
-    // Dueño de escuela puede gestionar a cualquiera en su escuela, excepto a otros dueños
-    if (manager.role === UserRole.SCHOOL_OWNER && 
-        manager.ownedSchools.some(id => id.toString() === schoolId)) {
-      return targetUser.role !== UserRole.SUPER_ADMIN && 
-             targetUser.role !== UserRole.SCHOOL_OWNER;
+    // Dueño de escuela puede gestionar a cualquiera excepto super admin
+    if (managerRole === UserRole.SCHOOL_OWNER) {
+      return targetRole !== UserRole.SUPER_ADMIN;
     }
     
-    // Administrador puede gestionar a profesores y estudiantes en su escuela
-    if (manager.role === UserRole.ADMIN && 
-        manager.administratedSchools.some(id => id.toString() === schoolId)) {
-      return targetUser.role !== UserRole.SUPER_ADMIN && 
-             targetUser.role !== UserRole.SCHOOL_OWNER && 
-             targetUser.role !== UserRole.ADMIN;
+    // Admin puede gestionar profesores y estudiantes
+    if (managerRole === UserRole.ADMIN) {
+      return targetRole === UserRole.TEACHER || targetRole === UserRole.STUDENT;
     }
     
-    // Profesor solo puede gestionar estudiantes en sus cursos
-    if (manager.role === UserRole.TEACHER) {
-      // Verificar si el profesor tiene cursos en esta escuela
-      const teacherCourses = await this.courseModel.find({
+    // Profesor solo puede gestionar estudiantes
+    if (managerRole === UserRole.TEACHER && targetRole === UserRole.STUDENT) {
+      // Verificar si el estudiante está en alguno de los cursos del profesor
+      const professorCourses = await this.courseModel.find({
         _id: { $in: manager.teachingCourses },
         school: schoolId
       });
       
-      if (teacherCourses.length === 0) return false;
+      if (professorCourses.length === 0) return false;
       
-      // Profesores solo pueden gestionar estudiantes
-      if (targetUser.role !== UserRole.STUDENT) return false;
-      
-      // Verificar si el estudiante está inscrito en alguno de los cursos del profesor
-      const courseIds = teacherCourses.map(course => course._id.toString());
+      const professorCourseIds = professorCourses.map(c => c._id.toString());
       return targetUser.enrolledCourses.some(courseId => 
-        courseIds.includes(courseId.toString())
+        professorCourseIds.includes(courseId.toString())
       );
     }
     
@@ -173,25 +267,18 @@ export class AuthorizationService {
     // Super admin puede modificar cualquier curso
     if (user.role === UserRole.SUPER_ADMIN) return true;
     
+    // Verificar si es profesor del curso
+    const isTeacher = user.teachingCourses.some(id => id.toString() === courseId);
+    if (isTeacher) return true;
+    
+    // Verificar si es admin o dueño de la escuela
     const course = await this.courseModel.findById(courseId);
     if (!course) return false;
     
-    // Verificar si es dueño de la escuela
-    if (user.role === UserRole.SCHOOL_OWNER) {
-      return user.ownedSchools.some(id => id.toString() === course.school.toString());
-    }
+    const schoolId = course.school.toString();
+    const schoolRole = await this.getUserRoleInSchool(userId, schoolId);
     
-    // Verificar si es administrador de la escuela
-    if (user.role === UserRole.ADMIN) {
-      return user.administratedSchools.some(id => id.toString() === course.school.toString());
-    }
-    
-    // Los profesores solo pueden modificar sus propios cursos
-    if (user.role === UserRole.TEACHER) {
-      return user.teachingCourses.some(id => id.toString() === courseId);
-    }
-    
-    return false;
+    return schoolRole === UserRole.SCHOOL_OWNER || schoolRole === UserRole.ADMIN;
   }
 
   /**
@@ -200,16 +287,50 @@ export class AuthorizationService {
   async canDeleteSchool(userId: string, schoolId: string): Promise<boolean> {
     if (!userId || !schoolId) return false;
     
+    // Solo super admin y dueños de escuela pueden eliminar escuelas
+    const schoolRole = await this.getUserRoleInSchool(userId, schoolId);
+    return schoolRole === UserRole.SUPER_ADMIN || schoolRole === UserRole.SCHOOL_OWNER;
+  }
+  
+  /**
+   * Asigna un rol específico a un usuario en una escuela
+   */
+  async assignRoleInSchool(userId: string, schoolId: string, role: UserRole): Promise<boolean> {
+    if (!userId || !schoolId) return false;
+    
     const user = await this.userModel.findById(userId);
     if (!user) return false;
     
-    // Solo super admin y dueños de escuela pueden eliminar escuelas
-    if (user.role === UserRole.SUPER_ADMIN) return true;
+    // Verificar si la escuela existe
+    const school = await this.schoolModel.findById(schoolId);
+    if (!school) return false;
     
-    if (user.role === UserRole.SCHOOL_OWNER) {
-      return user.ownedSchools.some(id => id.toString() === schoolId);
+    // Primero eliminar cualquier rol existente en esta escuela
+    user.schoolRoles = user.schoolRoles.filter(
+      sr => sr.schoolId.toString() !== schoolId
+    );
+    
+    // Agregar el nuevo rol
+    user.schoolRoles.push({
+      schoolId: school._id as any,
+      role
+    });
+    
+    // Asegurar que el usuario esté asociado con la escuela
+    if (!user.schools.some(id => id.toString() === schoolId)) {
+      user.schools.push(school._id as any);
     }
     
-    return false;
+    // Actualizar listas específicas según el rol
+    if (role === UserRole.SCHOOL_OWNER && !user.ownedSchools.some(id => id.toString() === schoolId)) {
+      user.ownedSchools.push(school._id as any);
+    }
+    
+    if (role === UserRole.ADMIN && !user.administratedSchools.some(id => id.toString() === schoolId)) {
+      user.administratedSchools.push(school._id as any);
+    }
+    
+    await user.save();
+    return true;
   }
 } 

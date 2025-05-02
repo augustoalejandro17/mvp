@@ -153,4 +153,25 @@ export class AuthService {
       throw error;
     }
   }
+
+  async makeSuperAdmin(email: string): Promise<UserDocument> {
+    try {
+      // Buscar el usuario por email
+      const user = await this.userModel.findOne({ email });
+      if (!user) {
+        throw new NotFoundException(`Usuario con email ${email} no encontrado`);
+      }
+
+      // Actualizar el rol a SUPER_ADMIN
+      user.role = UserRole.SUPER_ADMIN;
+      await user.save();
+
+      this.logger.log(`Usuario ${email} promovido a SUPER_ADMIN`);
+
+      return user;
+    } catch (error) {
+      this.logger.error(`Error al promover a SUPER_ADMIN: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
 } 

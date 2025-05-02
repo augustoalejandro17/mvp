@@ -3,7 +3,16 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import axios from 'axios';
 import Cookies from 'js-cookie';
-import styles from '../../../styles/Forms.module.css';
+import styles from '../../../styles/SchoolForm.module.css';
+import ImageUploader from '../../../components/ImageUploader';
+import { jwtDecode } from 'jwt-decode';
+
+interface DecodedToken {
+  sub: string;
+  email: string;
+  name: string;
+  role: string;
+}
 
 interface School {
   _id: string;
@@ -64,6 +73,28 @@ export default function EditSchool() {
       );
       
       const schoolData = response.data;
+      
+      // Verificar si el usuario tiene permisos para editar la escuela
+      let hasPermission = false;
+      try {
+        const decoded = jwtDecode<DecodedToken>(token);
+        const userId = decoded.sub;
+        const userRole = decoded.role;
+        
+        // Usuarios con rol 'super_admin', 'school_owner', 'admin' o el administrador de la escuela pueden editarla
+        if (userRole === 'super_admin' || userRole === 'school_owner' || userRole === 'admin' || schoolData.admin?._id === userId) {
+          hasPermission = true;
+        }
+      } catch (error) {
+        console.error('Error al verificar permisos:', error);
+      }
+      
+      if (!hasPermission) {
+        // Redirigir a la página de detalles si no tiene permisos
+        router.push(`/school/${schoolId}`);
+        return;
+      }
+      
       setSchool(schoolData);
       
       // Llenar los campos del formulario
@@ -81,6 +112,14 @@ export default function EditSchool() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleImageUpload = (imageUrl: string) => {
+    console.log('Nueva URL de imagen recibida:', imageUrl);
+    // Almacenar la URL sin parámetros de caché para facilitar la comparación
+    const cleanUrl = imageUrl.split('?')[0];
+    console.log('URL limpia (sin parámetros):', cleanUrl);
+    setLogoUrl(imageUrl);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -109,12 +148,20 @@ export default function EditSchool() {
       const schoolData = {
         name,
         description,
-        logoUrl: logoUrl || undefined,
+        logoUrl: logoUrl || null,
         address: address || undefined,
         phone: phone || undefined,
         website: website || undefined,
         isPublic
       };
+      
+      // Log para depuración
+      console.log('Enviando solicitud de actualización:');
+      console.log('URL:', `${apiUrl}/api/schools/${id}`);
+      console.log('Datos:', JSON.stringify(schoolData));
+      console.log('Token presente:', !!token);
+      console.log('Longitud del token:', token ? token.length : 0);
+      console.log('Primeros caracteres del token:', token ? token.substring(0, 20) + '...' : 'N/A');
       
       const response = await axios.put(
         `${apiUrl}/api/schools/${id}`,
@@ -139,6 +186,28 @@ export default function EditSchool() {
       
       if (error.response) {
         // Error con respuesta del servidor
+        console.error('Status:', error.response.status);
+        console.error('Headers:', JSON.stringify(error.response.headers));
+        console.error('Data:', JSON.stringify(error.response.data));
+        
+        // Verificar detalles específicos del error 403
+        if (error.response.status === 403) {
+          // Intenta decodificar el token para ver si es válido y su contenido
+          try {
+            if (token) {
+              const decoded = jwtDecode<DecodedToken>(token);
+              console.error('Token decodificado:', {
+                sub: decoded.sub,
+                role: decoded.role,
+                email: decoded.email,
+                name: decoded.name
+              });
+            }
+          } catch (tokenError) {
+            console.error('Error al decodificar token:', tokenError);
+          }
+        }
+        
         const errorMessage = error.response.data.message || 'Error al actualizar la escuela';
         setError(`Error: ${errorMessage}`);
       } else if (error.request) {
@@ -205,16 +274,14 @@ export default function EditSchool() {
           </div>
           
           <div className={styles.formGroup}>
-            <label htmlFor="logoUrl">URL del Logo</label>
-            <input
-              type="url"
-              id="logoUrl"
-              className={styles.input}
-              value={logoUrl}
-              onChange={(e) => setLogoUrl(e.target.value)}
-              placeholder="https://ejemplo.com/imagen.jpg"
+            <label>Logo de la Escuela</label>
+            <ImageUploader 
+              onImageUpload={handleImageUpload} 
+              defaultImage={logoUrl}
+              label="Logo" 
+              className={styles.imageUploader}
             />
-            <small className={styles.inputHelp}>Ingresa la URL de una imagen para el logo (opcional)</small>
+            <small className={styles.inputHelp}>Sube una imagen para el logo de tu escuela (opcional)</small>
           </div>
           
           <div className={styles.formGroup}>

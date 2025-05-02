@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import Cookies from 'js-cookie';
@@ -7,6 +7,8 @@ import styles from '../../styles/Course.module.css';
 import { FaPlus, FaTrashAlt } from 'react-icons/fa';
 import { jwtDecode } from 'jwt-decode';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
+import ImageFallback from '../../components/ImageFallback';
+import { canModifyClass, canManageVideos, canManageAttendance } from '../../utils/permission-utils';
 
 interface Course {
   _id: string;
@@ -34,6 +36,11 @@ interface Class {
   duration?: number;
   order: number;
   isPublic: boolean;
+  createdBy: {
+    _id: string;
+    name: string;
+    email: string;
+  };
 }
 
 interface DecodedToken {
@@ -63,6 +70,13 @@ export default function CourseDetail() {
       if (token) {
         try {
           const decoded = jwtDecode<DecodedToken>(token);
+          console.log('User token decoded:', {
+            role: decoded.role,
+            sub: decoded.sub,
+            email: decoded.email,
+            name: decoded.name
+          });
+          
           setUser({
             id: decoded.sub,
             email: decoded.email,
@@ -72,6 +86,8 @@ export default function CourseDetail() {
         } catch (error) {
           console.error('Error al decodificar token:', error);
         }
+      } else {
+        console.warn('No token found in cookies');
       }
     };
     
@@ -116,23 +132,38 @@ export default function CourseDetail() {
     fetchCourseAndClasses();
   }, [id]);
 
+  useEffect(() => {
+    if (course) {
+      console.log('Course data loaded:', {
+        courseId: course._id,
+        teacherId: course.teacher._id,
+        title: course.title
+      });
+    }
+  }, [course]);
+
   const handleClassClick = (classItem: Class) => {
     setSelectedClass(classItem);
   };
   
-  const isTeacherOrAdmin = () => {
-    if (!user) return false;
-    
-    // Usando el acceso seguro a los datos del usuario como están estructurados en la aplicación
-    const userId = user?.id;
-    if (!userId) return false;
-    
-    const isTeacher = course?.teacher && course.teacher._id === userId;
-    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
-    
-    return isTeacher || isAdmin;
-  };
-  
+  const isClassTeacher = useCallback((teacherId: string): boolean => {
+    return Boolean(user?.id && teacherId === user.id);
+  }, [user]);
+
+  const canModifyClassItem = useCallback((teacherId: string): boolean => {
+    if (!user?.role) return false;
+    const hasPermission = canModifyClass(user.role, isClassTeacher(teacherId));
+    console.log('canModifyClass check:', { role: user.role, isTeacher: isClassTeacher(teacherId), hasPermission });
+    return hasPermission;
+  }, [user, isClassTeacher]);
+
+  const canTakeAttendance = useCallback((teacherId: string): boolean => {
+    if (!user?.role) return false;
+    const hasPermission = canManageAttendance(user.role, isClassTeacher(teacherId));
+    console.log('canManageAttendance check:', { role: user.role, isTeacher: isClassTeacher(teacherId), hasPermission });
+    return hasPermission;
+  }, [user, isClassTeacher]);
+
   const handleDeleteCourse = async () => {
     if (!confirm('¿Estás seguro de que deseas eliminar este curso? Esta acción no se puede deshacer.')) {
       return;
@@ -204,6 +235,21 @@ export default function CourseDetail() {
     }
   };
 
+  useEffect(() => {
+    if (user && course) {
+      const isTeacher = isClassTeacher(course.teacher._id);
+      const canModify = canModifyClassItem(course.teacher._id);
+      const canAttend = canTakeAttendance(course.teacher._id);
+      
+      console.log('Permission checks:', {
+        userRole: user.role,
+        isTeacherOfCourse: isTeacher,
+        canModifyCourse: canModify,
+        canManageAttendance: canAttend
+      });
+    }
+  }, [user, course, isClassTeacher, canModifyClassItem, canTakeAttendance]);
+
   if (loading) {
     return <div className={styles.loading}>Cargando información...</div>;
   }
@@ -221,8 +267,11 @@ export default function CourseDetail() {
       <main className={styles.main}>
         <div className={styles.courseHeader}>
           {course.coverImageUrl ? (
-            <div className={styles.courseImage}>
-              <img src={course.coverImageUrl} alt={course.title} />
+            <div className={styles.courseCover}>
+              <ImageFallback 
+                src={course.coverImageUrl}
+                alt={course.title}
+              />
             </div>
           ) : (
             <div className={styles.courseImagePlaceholder}>
@@ -278,7 +327,7 @@ export default function CourseDetail() {
                       )}
                     </div>
                     
-                    {isTeacherOrAdmin() && (
+                    {canModifyClassItem(classItem.createdBy?._id) && (
                       <div className={styles.classActions}>
                         <button 
                           className={styles.classActionBtn}
@@ -308,29 +357,35 @@ export default function CourseDetail() {
               </div>
             )}
             
-            {isTeacherOrAdmin() && (
-              <div className={styles.adminActions}>
-                <button 
-                  className={styles.createButton}
-                  onClick={() => router.push(`/class/create?courseId=${course._id}`)}
-                >
-                  <FaPlus /> Agregar Clase
-                </button>
+            <div className={styles.adminActions}>
+              {canModifyClassItem(course.teacher._id) && (
+                <>
+                  <button 
+                    className={styles.createButton}
+                    onClick={() => router.push(`/class/create?courseId=${course._id}`)}
+                  >
+                    <FaPlus /> Agregar Clase
+                  </button>
+                  
+                  <button 
+                    onClick={handleDeleteCourse} 
+                    className={styles.deleteButton}
+                    disabled={isDeleting}
+                  >
+                    <FaTrashAlt /> {isDeleting ? 'Eliminando...' : 'Eliminar Curso'}
+                  </button>
+                </>
+              )}
+              
+              {canTakeAttendance(course.teacher._id) && (
                 <button 
                   onClick={() => router.push(`/course/attendance/${course._id}`)} 
                   className={styles.attendanceButton}
                 >
                   Control de Asistencia
                 </button>
-                <button 
-                  onClick={handleDeleteCourse} 
-                  className={styles.deleteButton}
-                  disabled={isDeleting}
-                >
-                  <FaTrashAlt /> {isDeleting ? 'Eliminando...' : 'Eliminar Curso'}
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
           
           <div className={styles.videoColumn}>

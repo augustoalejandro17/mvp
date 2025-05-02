@@ -216,21 +216,36 @@ export class CoursesService {
     this.logger.log(`Buscando curso con ID: ${id}`);
     try {
       const course = await this.courseModel.findById(id)
-        .populate('school', 'name')
         .populate('teacher', 'name email')
+        .populate('school', 'name logoUrl')
         .populate({
           path: 'classes',
           options: { sort: { order: 1 } }
         })
-        .populate('students', 'name email');
+        .lean();
       
       if (!course) {
         this.logger.warn(`Curso con ID ${id} no encontrado`);
         throw new NotFoundException(`Curso con ID ${id} no encontrado`);
       }
       
+      const courseWithVisibility = {
+        ...course,
+        classes: Array.isArray(course.classes) ? course.classes.map(classItem => {
+          // Safely check if isPublic and order properties exist
+          const isPublic = typeof classItem === 'object' && 'isPublic' in classItem ? classItem.isPublic : false;
+          const order = typeof classItem === 'object' && 'order' in classItem ? classItem.order : 0;
+          
+          return {
+            ...classItem,
+            // Mark only the first class as visible by default
+            isVisible: isPublic === true || order === 1 || order === 0,
+          };
+        }) : []
+      };
+      
       this.logger.log(`Curso encontrado: ${course.title}`);
-      return course;
+      return courseWithVisibility;
     } catch (error) {
       this.logger.error(`Error al buscar curso ${id}: ${error.message}`, error.stack);
       throw error;
@@ -773,6 +788,57 @@ export class CoursesService {
       return courses;
     } catch (error) {
       this.logger.error(`Error getting enrolled courses: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async getCourseForUser(id: string, userId: string, userRole: string) {
+    this.logger.log(`Buscando curso ${id} para usuario ${userId} con rol ${userRole}`);
+    try {
+      // Obtener el curso
+      const course = await this.findOne(id);
+      
+      // Si el usuario es SUPER_ADMIN, permitir acceso completo a todas las clases
+      if (compareRole(userRole, UserRole.SUPER_ADMIN)) {
+        return {
+          ...course,
+          classes: Array.isArray(course.classes) ? course.classes.map(classItem => ({
+            ...classItem,
+            isVisible: true
+          })) : []
+        };
+      }
+      
+      // Si el usuario es el profesor del curso, mostrar todas las clases
+      let teacherId = null;
+      try {
+        if (course.teacher) {
+          // Handle different types of teacher objects from MongoDB
+          if (typeof course.teacher === 'object' && course.teacher !== null) {
+            // Using string access to avoid TypeScript property errors
+            teacherId = course.teacher['_id']?.toString() || null;
+          } else {
+            teacherId = String(course.teacher);
+          }
+        }
+      } catch (error) {
+        this.logger.warn(`Error extracting teacher ID: ${error.message}`);
+      }
+      
+      if (teacherId === userId) {
+        return {
+          ...course,
+          classes: Array.isArray(course.classes) ? course.classes.map(classItem => ({
+            ...classItem,
+            isVisible: true
+          })) : []
+        };
+      }
+      
+      // Para otros usuarios, mantener la visibilidad definida en findOne
+      return course;
+    } catch (error) {
+      this.logger.error(`Error getting course for user: ${error.message}`, error.stack);
       throw error;
     }
   }

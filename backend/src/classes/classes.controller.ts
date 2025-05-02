@@ -100,7 +100,7 @@ export class ClassesController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.TEACHER, UserRole.ADMIN)
+  @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @UseInterceptors(FileInterceptor('video', {
     limits: {
       fileSize: 200 * 1024 * 1024, // 200MB para soportar videos más grandes

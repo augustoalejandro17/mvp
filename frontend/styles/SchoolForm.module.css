@@ -1,7 +1,7 @@
 .container {
-  max-width: 800px;
+  padding: 2rem;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 0 1rem;
 }
 
 .main {
@@ -11,145 +11,185 @@
 
 .title {
   font-size: 2rem;
-  text-align: center;
   margin-bottom: 2rem;
-  color: #2d3748;
+  color: #333;
+  text-align: center;
 }
 
 .form {
-  background-color: white;
+  background: white;
   padding: 2rem;
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
 .formGroup {
   margin-bottom: 1.5rem;
 }
 
-.formGroup label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #4a5568;
-}
-
-.formGroup input,
-.formGroup textarea {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  font-size: 1rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-  background-color: #f7fafc;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.formGroup input:focus,
-.formGroup textarea:focus {
-  outline: none;
-  border-color: #3182ce;
-  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.2);
-}
-
-.formGroup textarea {
-  resize: vertical;
-  min-height: 100px;
-}
-
-.formGroupCheckbox {
+.formRow {
   display: flex;
-  align-items: flex-start;
+  gap: 1rem;
   margin-bottom: 1.5rem;
 }
 
-.formGroupCheckbox input {
-  margin-top: 0.25rem;
-  margin-right: 0.75rem;
+.formRow .formGroup {
+  flex: 1;
+  margin-bottom: 0;
 }
 
-.formGroupCheckbox label {
+.label, .formGroup label {
+  display: block;
   font-weight: 500;
-  color: #4a5568;
+  margin-bottom: 0.5rem;
+}
+
+.input, .textarea, .select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.checkbox {
+  width: auto;
+  margin-right: 0.5rem;
+}
+
+.checkboxGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .inputHelp {
-  margin-top: 0.5rem;
   font-size: 0.875rem;
-  color: #718096;
+  color: #666;
+  margin-top: 0.25rem;
 }
 
-.formActions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 2rem;
-}
-
-.submitButton {
-  background-color: #3182ce;
+.button {
+  background-color: #0070f3;
   color: white;
   border: none;
   border-radius: 4px;
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
-  font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.3s;
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
 }
 
-.submitButton:hover {
-  background-color: #2c5282;
+.button:hover {
+  background-color: #0051a8;
 }
 
-.submitButton:disabled {
-  background-color: #a0aec0;
+.button:disabled {
+  background-color: #ccc;
   cursor: not-allowed;
 }
 
-.cancelButton {
-  color: #718096;
-  text-decoration: none;
+.secondaryButton {
+  background-color: transparent;
+  color: #0070f3;
+  border: 1px solid #0070f3;
+  border-radius: 4px;
   padding: 0.75rem 1.5rem;
-  border-radius: 4px;
-  transition: background-color 0.2s;
   font-size: 1rem;
-  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-align: center;
+  display: block;
+  text-decoration: none;
 }
 
-.cancelButton:hover {
-  background-color: #f7fafc;
-  color: #4a5568;
+.secondaryButton:hover {
+  background-color: #f0f7ff;
 }
 
-.errorMessage {
-  background-color: #fed7d7;
-  color: #9b2c2c;
-  padding: 1rem;
-  border-radius: 4px;
-  margin-bottom: 1.5rem;
+.buttonContainer {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
 }
 
-.errorMessage p {
-  margin: 0;
+.buttonContainer button,
+.buttonContainer a {
+  flex: 1;
+  margin-top: 0;
 }
 
 .successMessage {
-  background-color: #c6f6d5;
-  color: #276749;
-  padding: 1.5rem;
+  background-color: #d4edda;
+  color: #155724;
+  padding: 1rem;
   border-radius: 4px;
+  margin-bottom: 1rem;
   text-align: center;
-  font-size: 1.1rem;
 }
 
-.loading {
+.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.success {
+  background-color: #d4edda;
+  color: #155724;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.loadingContainer {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 50vh;
   font-size: 1.2rem;
-  color: #4a5568;
+  color: #666;
+}
+
+.loading {
+  padding: 2rem;
+  text-align: center;
+  color: #666;
+}
+
+.debugInfo {
+  margin-top: 2rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.debugInfo pre {
+  white-space: pre-wrap;
+  overflow-x: auto;
+  font-size: 0.85rem;
+}
+
+.imageUploader {
+  margin-bottom: 1rem;
 }
 
 @media (max-width: 768px) {

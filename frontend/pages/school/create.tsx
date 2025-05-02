@@ -3,7 +3,8 @@ import { useRouter } from 'next/router';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
-import styles from '../../styles/Forms.module.css';
+import styles from '../../styles/SchoolForm.module.css';
+import ImageUploader from '../../components/ImageUploader';
 
 interface DecodedToken {
   sub: string;
@@ -19,9 +20,9 @@ export default function CreateSchool() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
-  const [isPublic, setIsPublic] = useState(true);
-  const [error, setError] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [userId, setUserId] = useState('');
   const [userRole, setUserRole] = useState('');
@@ -50,6 +51,10 @@ export default function CreateSchool() {
     }
   }, [router]);
 
+  const handleImageUpload = (imageUrl: string) => {
+    setLogoUrl(imageUrl);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -75,7 +80,7 @@ export default function CreateSchool() {
       const payload = { 
         name, 
         description, 
-        logoUrl: logoUrl || 'https://via.placeholder.com/150?text=Escuela', 
+        logoUrl: logoUrl || undefined, 
         isPublic,
         admin: userId
       };
@@ -180,16 +185,13 @@ export default function CreateSchool() {
             </div>
             
             <div className={styles.formGroup}>
-              <label htmlFor="logoUrl">URL del Logo</label>
-              <input
-                type="url"
-                id="logoUrl"
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-                placeholder="https://..."
-                className={styles.input}
+              <label>Logo de la Escuela</label>
+              <ImageUploader 
+                onImageUpload={handleImageUpload} 
+                label="Logo" 
+                className={styles.imageUploader}
               />
-              <p className={styles.inputHelp}>Si no proporcionas una URL, se usará una imagen predeterminada</p>
+              <p className={styles.inputHelp}>Sube una imagen para tu escuela (opcional)</p>
             </div>
             
             <div className={styles.formGroup}>

@@ -7,6 +7,7 @@ import styles from '../../styles/School.module.css';
 import { FaTrashAlt, FaEdit } from 'react-icons/fa';
 import { jwtDecode } from 'jwt-decode';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
+import ImageFallback from '../../components/ImageFallback';
 
 interface DecodedToken {
   sub: string;
@@ -139,7 +140,7 @@ export default function SchoolDetail() {
   const isTeacherOrAdmin = () => {
     if (!user || !school) return false;
     
-    if (user.role === 'admin') return true;
+    if (user.role === 'super_admin' || user.role === 'admin') return true;
     
     return school.teachers?.some(teacher => teacher._id === user.id) || 
            school.admin?._id === user.id;
@@ -148,7 +149,7 @@ export default function SchoolDetail() {
   const isSchoolAdmin = () => {
     if (!user || !school) return false;
     
-    if (user.role === 'admin') return true;
+    if (user.role === 'super_admin' || user.role === 'admin') return true;
     
     return school.admin?._id === user.id;
   };
@@ -205,7 +206,10 @@ export default function SchoolDetail() {
         <div className={styles.schoolHeader}>
           {school.logoUrl ? (
             <div className={styles.schoolLogo}>
-              <img src={school.logoUrl} alt={school.name} />
+              <ImageFallback 
+                src={school.logoUrl}
+                alt={school.name}
+              />
             </div>
           ) : (
             <div className={styles.schoolLogoPlaceholder}>
@@ -241,7 +245,10 @@ export default function SchoolDetail() {
               >
                 {course.coverImageUrl ? (
                   <div className={styles.cardImage}>
-                    <img src={course.coverImageUrl} alt={course.title} />
+                    <ImageFallback 
+                      src={course.coverImageUrl}
+                      alt={course.title}
+                    />
                   </div>
                 ) : (
                   <div className={styles.cardImagePlaceholder}>

@@ -54,12 +54,19 @@ export class CoursesController {
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string, @Req() req) {
-    const userId = getUserIdFromRequest(req);
+    this.logger.log(`Solicitud para obtener curso con ID: ${id}`);
+    try {
+      // Get user information from token
+      const userId = req.user.sub;
+      const userRole = req.user.role;
     
-    this.logger.log(`Processing request to get course with ID: ${id}`);
-    this.logger.log(`User: ${userId}, Role: ${req.user.role}`);
-    
-    return this.coursesService.findOne(id);
+      this.logger.log(`Usuario ${userId} con rol ${userRole} solicitando curso ${id}`);
+      const result = await this.coursesService.getCourseForUser(id, userId, userRole);
+      return result;
+    } catch (error) {
+      this.logger.error(`Error al obtener curso ${id}: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   @Post()

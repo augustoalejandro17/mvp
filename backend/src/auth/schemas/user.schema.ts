@@ -11,6 +11,18 @@ export enum UserRole {
   STUDENT = 'student',
 }
 
+// Esquema para roles contextuales (por escuela)
+@Schema({ _id: false })
+export class UserSchoolRole {
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'School', required: true })
+  schoolId: MongooseSchema.Types.ObjectId;
+
+  @Prop({ required: true, enum: UserRole })
+  role: UserRole;
+}
+
+export const UserSchoolRoleSchema = SchemaFactory.createForClass(UserSchoolRole);
+
 @Schema()
 export class User {
   @Prop({ required: true, unique: true })
@@ -22,8 +34,13 @@ export class User {
   @Prop({ required: true })
   name: string;
 
+  // Rol global del usuario (su rol principal)
   @Prop({ required: true, enum: UserRole, default: UserRole.STUDENT })
   role: UserRole;
+
+  // Roles contextuales por escuela (múltiples roles)
+  @Prop({ type: [UserSchoolRoleSchema], default: [] })
+  schoolRoles: UserSchoolRole[];
 
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Course' }], default: [] })
   enrolledCourses: MongooseSchema.Types.ObjectId[];

@@ -161,7 +161,7 @@ export class SchoolsService {
   }
 
   async update(id: string, updateSchoolDto: any, userId: string) {
-    this.logger.log(`Actualizando escuela con ID: ${id}`);
+    this.logger.log(`Actualizando escuela con ID: ${id}, userId: ${userId}`);
     try {
       const school = await this.schoolModel.findById(id);
       
@@ -170,14 +170,53 @@ export class SchoolsService {
         throw new NotFoundException(`Escuela con ID ${id} no encontrada`);
       }
       
+      this.logger.log(`Escuela encontrada: ${school.name}, admin: ${school.admin}`);
+      
       // Verificar permisos
-      if (school.admin.toString() !== userId) {
+      const schoolAdminId = school.admin.toString();
+      this.logger.log(`Comparando admin de escuela (${schoolAdminId}) con userId (${userId})`);
+      
+      if (schoolAdminId !== userId) {
+        this.logger.log(`Usuario no es admin de la escuela, verificando otros roles`);
         const user = await this.userModel.findById(userId);
-        if (!user || user.role !== UserRole.ADMIN) {
+        if (!user) {
+          this.logger.warn(`Usuario ${userId} no encontrado`);
+          throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
+        }
+        
+        this.logger.log(`Usuario encontrado: ${user.name}, rol: ${user.role}`);
+        
+        if (user.role !== UserRole.SUPER_ADMIN && user.role !== UserRole.SCHOOL_OWNER && user.role !== UserRole.ADMIN) {
+          this.logger.warn(`Usuario ${userId} con rol ${user.role} no tiene permisos para actualizar escuela`);
           throw new BadRequestException('No tiene permisos para actualizar esta escuela');
         }
+        
+        // Si es SCHOOL_OWNER, verificar que sea dueño de esta escuela
+        if (user.role === UserRole.SCHOOL_OWNER) {
+          const isOwner = user.ownedSchools.some(schoolId => schoolId.toString() === id);
+          this.logger.log(`¿Es dueño de la escuela? ${isOwner}`);
+          
+          if (!isOwner) {
+            this.logger.warn(`Usuario ${userId} no es dueño de la escuela ${id}`);
+            throw new BadRequestException('No es dueño de esta escuela');
+          }
+        }
+        
+        // Si es ADMIN, verificar si tiene la escuela en administratedSchools
+        if (user.role === UserRole.ADMIN) {
+          this.logger.log(`Escuelas administradas: ${user.administratedSchools.map(s => s.toString()).join(', ')}`);
+          const isAdmin = user.administratedSchools.some(schoolId => schoolId.toString() === id);
+          
+          if (!isAdmin) {
+            this.logger.warn(`Admin ${userId} no administra la escuela ${id}`);
+            // Aunque podríamos lanzar una excepción aquí, permitimos que los admins puedan editar cualquier escuela
+          }
+        }
+      } else {
+        this.logger.log(`Usuario es el admin de la escuela, permiso concedido`);
       }
       
+      this.logger.log(`Actualizando escuela con datos: ${JSON.stringify(updateSchoolDto)}`);
       const updatedSchool = await this.schoolModel.findByIdAndUpdate(
         id,
         updateSchoolDto,

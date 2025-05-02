@@ -3,7 +3,8 @@ import { useRouter } from 'next/router';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
-import styles from '../../styles/Forms.module.css';
+import styles from '../../styles/CourseForm.module.css';
+import ImageUploader from '../../components/ImageUploader';
 
 interface DecodedToken {
   sub: string;
@@ -26,17 +27,15 @@ export default function CreateCourse() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
-  const [isPublic, setIsPublic] = useState(true);
   const [schoolId, setSchoolId] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [userId, setUserId] = useState('');
-  const [userRole, setUserRole] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
   const [schools, setSchools] = useState<School[]>([]);
   const [loadingSchools, setLoadingSchools] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [userId, setUserId] = useState('');
   const [debugInfo, setDebugInfo] = useState('');
-  const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
     // Verificar autenticación
@@ -48,15 +47,19 @@ export default function CreateCourse() {
 
     try {
       const decoded = jwtDecode<DecodedToken>(token);
-      if (decoded.role !== 'admin' && decoded.role !== 'teacher') {
-        router.push('/dashboard');
+      console.log('Token decodificado:', decoded);
+      
+      // Solo admin y teacher pueden crear cursos
+      if (!['admin', 'teacher'].includes(decoded.role)) {
+        router.push('/');
         return;
       }
+      
       setUserId(decoded.sub);
-      setUserRole(decoded.role);
-
-      // Cargar escuelas disponibles
+      
+      // Cargar las escuelas disponibles
       fetchSchools(token, decoded.sub, decoded.role);
+      
     } catch (error) {
       console.error('Error decodificando token:', error);
       router.push('/login');
@@ -99,19 +102,22 @@ export default function CreateCourse() {
     }
   };
 
+  const handleImageUpload = (imageUrl: string) => {
+    setImageUrl(imageUrl);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validación básica
     if (!name || !description || !schoolId) {
-      setError('Los campos de nombre, descripción y escuela son obligatorios');
+      setError('Todos los campos marcados con * son obligatorios');
       return;
     }
     
     try {
       setLoading(true);
       setError('');
-      setDebugInfo('');
       
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
@@ -122,11 +128,11 @@ export default function CreateCourse() {
         return;
       }
       
-      // Decodificar token para logs
+      // Añadir información de usuario para debugging
       let userInfo = '';
       try {
-        const decoded = jwtDecode<DecodedToken>(token);
-        console.log('Token decodificado:', {
+        const decoded = jwtDecode<any>(token);
+        console.log('Información de usuario para logs:', {
           sub: decoded.sub,
           email: decoded.email,
           role: decoded.role
@@ -141,7 +147,7 @@ export default function CreateCourse() {
       const courseData = {
         title: name, 
         description, 
-        coverImageUrl: imageUrl || 'https://via.placeholder.com/150?text=Curso', 
+        coverImageUrl: imageUrl || null, 
         isPublic,
         schoolId,
         teacher: userId
@@ -320,51 +326,38 @@ export default function CreateCourse() {
             </div>
             
             <div className={styles.formGroup}>
-              <label htmlFor="imageUrl">URL de la Imagen</label>
-              <input
-                type="url"
-                id="imageUrl"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://..."
-                className={styles.input}
+              <label>Imagen del Curso</label>
+              <ImageUploader 
+                onImageUpload={handleImageUpload} 
+                label="Imagen de portada" 
+                className={styles.imageUploader}
               />
-              <small className={styles.inputHelp}>Si no proporcionas una URL, se usará una imagen predeterminada</small>
+              <p className={styles.inputHelp}>Sube una imagen para tu curso (opcional)</p>
             </div>
             
             <div className={styles.formGroup}>
-              <div className={styles.checkboxGroup}>
+              <label className={styles.checkboxLabel}>
                 <input
                   type="checkbox"
-                  id="isPublic"
                   checked={isPublic}
                   onChange={(e) => setIsPublic(e.target.checked)}
+                  className={styles.checkbox}
                 />
-                <label htmlFor="isPublic">Curso Público</label>
-              </div>
-              <small className={styles.inputHelp}>Los cursos públicos son visibles para todos los usuarios</small>
-            </div>
-            
-            <div className={styles.formGroup}>
-              <div className={styles.checkboxGroup}>
-                <input
-                  type="checkbox"
-                  id="showDebug"
-                  checked={showDebug}
-                  onChange={(e) => setShowDebug(e.target.checked)}
-                />
-                <label htmlFor="showDebug">Mostrar información de depuración</label>
-              </div>
+                <span>Curso Público</span>
+              </label>
+              <p className={styles.inputHelp}>Los cursos públicos aparecerán en la lista de cursos disponibles</p>
             </div>
             
             <button type="submit" className={styles.button} disabled={loading}>
               {loading ? 'Creando...' : 'Crear Curso'}
             </button>
             
-            {showDebug && debugInfo && (
+            {debugInfo && (
               <div className={styles.debugInfo}>
-                <h3>Información de depuración</h3>
-                <pre>{debugInfo}</pre>
+                <details>
+                  <summary>Información de depuración</summary>
+                  <pre>{debugInfo}</pre>
+                </details>
               </div>
             )}
           </form>

@@ -5,6 +5,7 @@ import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../styles/Home.module.css';
 import { jwtDecode } from 'jwt-decode';
+import ImageFallback from '../components/ImageFallback';
 
 interface School {
   _id: string;
@@ -112,7 +113,12 @@ export default function Home() {
                   >
                     {school.logoUrl ? (
                       <div className={styles.cardImage}>
-                        <img src={school.logoUrl} alt={school.name} />
+                        <ImageFallback 
+                          src={school.logoUrl} 
+                          alt={school.name} 
+                          className={styles.schoolLogo}
+                          placeholderClassName={styles.schoolLogoPlaceholder}
+                        />
                       </div>
                     ) : (
                       <div className={styles.cardImagePlaceholder}>
@@ -167,7 +173,12 @@ export default function Home() {
                   >
                     {school.logoUrl ? (
                       <div className={styles.cardImage}>
-                        <img src={school.logoUrl} alt={school.name} />
+                        <ImageFallback 
+                          src={school.logoUrl} 
+                          alt={school.name} 
+                          className={styles.schoolLogo}
+                          placeholderClassName={styles.schoolLogoPlaceholder}
+                        />
                       </div>
                     ) : (
                       <div className={styles.cardImagePlaceholder}>

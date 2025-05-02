@@ -14,6 +14,18 @@ import { Attendance, AttendanceDocument } from './schemas/attendance.schema';
 import { VideoProcessorService } from '../services/video-processor.service';
 import * as fs from 'fs';
 
+// Función de utilidad para comparar roles
+const compareRole = (userRole: any, enumRole: UserRole): boolean => {
+  // Si los roles son directamente iguales (mismo enum)
+  if (userRole === enumRole) return true;
+  
+  // Si no, comparamos los valores como strings para evitar problemas de tipos distintos
+  const userRoleStr = String(userRole).toLowerCase();
+  const enumRoleStr = String(enumRole).toLowerCase();
+  
+  return userRoleStr === enumRoleStr;
+};
+
 interface ClassWithVideo extends ClassDocument {
   videoFileName?: string;
   videoFileSize?: number;
@@ -136,8 +148,8 @@ export class ClassesService {
         query.course = courseId;
       }
       
-      // Si es un usuario no admin, filtramos por clases públicas o donde el profesor sea el usuario
-      if (userId && role !== UserRole.ADMIN) {
+      // Si es un usuario no admin o super_admin, filtramos por clases públicas o donde el profesor sea el usuario
+      if (userId && role !== UserRole.ADMIN && role !== UserRole.SUPER_ADMIN) {
         if (role === UserRole.TEACHER) {
           query = { 
             ...query,
@@ -257,7 +269,7 @@ export class ClassesService {
       // Verificar permisos
       if (classItem.teacher.toString() !== userId) {
         const user = await this.userModel.findById(userId);
-        if (!user || user.role !== UserRole.ADMIN) {
+        if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN)) {
           throw new BadRequestException('No tiene permisos para actualizar esta clase');
         }
       }
@@ -277,26 +289,41 @@ export class ClassesService {
   }
 
   async remove(id: string, userId: string) {
-    this.logger.log(`Eliminando clase con ID: ${id}`);
+    this.logger.log(`Eliminando clase con ID: ${id}, userId: ${userId}`);
     try {
-      const classItem = await this.classModel.findById(id);
+      const classToDelete = await this.classModel.findById(id);
       
-      if (!classItem) {
+      if (!classToDelete) {
         this.logger.warn(`Clase con ID ${id} no encontrada`);
         throw new NotFoundException(`Clase con ID ${id} no encontrada`);
       }
       
       // Verificar permisos
-      if (classItem.teacher.toString() !== userId) {
-        const user = await this.userModel.findById(userId);
-        if (!user || user.role !== UserRole.ADMIN) {
-          throw new BadRequestException('No tiene permisos para eliminar esta clase');
-        }
+      const course = await this.coursesService.findOne(String(classToDelete.course));
+      
+      if (!course) {
+        throw new NotFoundException(`Curso ${classToDelete.course} no encontrado`);
+      }
+      
+      const user = await this.userModel.findById(userId);
+      if (!user) {
+        throw new NotFoundException(`Usuario ${userId} no encontrado`);
+      }
+      
+      // Verificar si el usuario es el profesor del curso o un administrador
+      const isTeacher = String(course.teacher) === userId;
+      const isAdmin = compareRole(user.role, UserRole.ADMIN) || compareRole(user.role, UserRole.SUPER_ADMIN);
+      
+      this.logger.log(`Verificando permisos - userId: ${userId}, teacher: ${course.teacher}, isTeacher: ${isTeacher}, userRole: ${user.role}, isAdmin: ${isAdmin}`);
+      
+      if (!isTeacher && !isAdmin) {
+        this.logger.warn(`Usuario ${userId} no tiene permisos para eliminar la clase ${id}`);
+        throw new UnauthorizedException('No tienes permisos para eliminar esta clase');
       }
       
       // Eliminar el video de S3
-      if (classItem.videoUrl) {
-        await this.s3Service.deleteVideo(classItem.videoUrl);
+      if (classToDelete.videoUrl) {
+        await this.s3Service.deleteVideo(classToDelete.videoUrl);
       }
       
       await this.classModel.findByIdAndDelete(id);
@@ -351,7 +378,7 @@ export class ClassesService {
       }
 
       const isTeacher = String(course.teacher) === String(user._id);
-      const isAdmin = user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN;
+      const isAdmin = compareRole(user.role, UserRole.ADMIN) || compareRole(user.role, UserRole.SUPER_ADMIN);
 
       if (!isTeacher && !isAdmin) {
         throw new UnauthorizedException('You do not have permission to update this class video');

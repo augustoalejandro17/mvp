@@ -68,10 +68,17 @@ export class SchoolsController {
   @RequirePermissions(Permission.UPDATE_SCHOOL)
   async update(@Param('id') id: string, @Body() updateSchoolDto: any, @Req() req) {
     this.logger.log(`Procesando solicitud para actualizar escuela con ID: ${id}`);
-    this.logger.log(`Usuario autenticado: ${req.user._id}`);
+    this.logger.log(`Usuario autenticado: ${req.user._id}, rol: ${req.user.role}`);
+    this.logger.log(`Contenido de updateSchoolDto: ${JSON.stringify(updateSchoolDto)}`);
+    
+    // Verificar formato del ID
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      this.logger.warn(`ID de escuela inválido: ${id}`);
+      throw new BadRequestException(`ID de escuela inválido: ${id}`);
+    }
     
     try {
-      const result = await this.schoolsService.update(id, updateSchoolDto, req.user._id);
+      const result = await this.schoolsService.update(id, updateSchoolDto, req.user.sub || req.user._id);
       this.logger.log(`Escuela actualizada con éxito: ${result._id}`);
       return result;
     } catch (error) {

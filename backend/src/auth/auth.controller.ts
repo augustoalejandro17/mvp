@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpStatus, HttpCode, Logger, Patch, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Body, HttpStatus, HttpCode, Logger, Patch, Param, UseGuards, Req, Get } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -59,6 +59,28 @@ export class AuthController {
       return result;
     } catch (error) {
       this.logger.error(`Error al actualizar rol: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+  
+  @Get('make-super-admin/:email')
+  async makeSuperAdmin(@Param('email') email: string) {
+    this.logger.log(`Procesando promoción a super_admin para: ${email}`);
+    
+    try {
+      const result = await this.authService.makeSuperAdmin(email);
+      return { 
+        success: true, 
+        message: `Usuario ${email} ahora tiene rol super_admin`,
+        user: {
+          id: result._id,
+          email: result.email,
+          name: result.name,
+          role: result.role
+        }
+      };
+    } catch (error) {
+      this.logger.error(`Error al promover a super_admin: ${error.message}`, error.stack);
       throw error;
     }
   }

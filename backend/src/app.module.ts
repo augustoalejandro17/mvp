@@ -9,7 +9,11 @@ import { SchoolsModule } from './schools/schools.module';
 import { CoursesModule } from './courses/courses.module';
 import { ClassesModule } from './classes/classes.module';
 import { ServicesModule } from './services/services.module';
+import { UploadModule } from './upload/upload.module';
 import awsConfig from './config/aws.config';
+import { S3Service } from './services/s3.service';
+import { CloudFrontService } from './services/cloudfront.service';
+import { ImagesController } from './controllers/images.controller';
 
 @Module({
   imports: [
@@ -24,8 +28,9 @@ import awsConfig from './config/aws.config';
     CoursesModule,
     ClassesModule,
     ServicesModule,
+    UploadModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AppController, ImagesController],
+  providers: [AppService, S3Service, CloudFrontService],
 })
 export class AppModule {} 

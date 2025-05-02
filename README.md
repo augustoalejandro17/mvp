@@ -147,4 +147,58 @@ El sistema incluye las siguientes características de seguridad para los videos:
 1. **URLs firmadas**: Todos los videos se sirven mediante URLs firmadas de AWS S3/CloudFront con tiempo limitado de expiración.
 2. **Reproducción segura**: Los videos solo pueden reproducirse en el reproductor de la plataforma.
 3. **Protección de contenido**: No se permite la descarga de videos para proteger los derechos de autor del contenido.
-4. **Limpieza automática**: El sistema incluye funcionalidad para identificar y limpiar videos huérfanos. 
+4. **Limpieza automática**: El sistema incluye funcionalidad para identificar y limpiar videos huérfanos.
+
+## Image Handling Implementation
+
+The application has been updated to handle image loading more robustly:
+
+1. **ImageFallback Component**: A custom component that provides multiple fallback strategies:
+   - First attempts to load the image normally
+   - If that fails, adds a cache-busting parameter
+   - If that fails, tries to load directly from S3 if it's a CloudFront URL
+   - Finally shows a placeholder with the first letter of the alt text
+
+2. **CloudFront Integration**: Images are now served through CloudFront for better performance and security
+
+3. **Error Handling**: Improved logging and error handling for image loading failures
+
+4. **Cache Busting**: Automatic cache-busting parameters to prevent stale image caching
+
+### Usage:
+```jsx
+// Instead of regular img tags:
+<img src={imageUrl} alt="Image description" />
+
+// Use the ImageFallback component:
+<ImageFallback 
+  src={imageUrl} 
+  alt="Image description" 
+  className="optional-class"
+  placeholderClassName="optional-placeholder-class"
+/>
+```
+
+Image placeholders will automatically show the first letter of the alt text when an image fails to load. 
+
+## S3 Permissions for Images
+
+To ensure images are displayed correctly, the following updates have been made:
+
+1. **ACL Settings**: All uploads now include `ACL: 'public-read'` for proper access
+2. **Permission Fix Script**: A script has been added to fix permissions on existing images
+
+If you're experiencing "Access Denied" errors when loading images, run:
+
+```bash
+# Navigate to backend directory
+cd backend
+
+# Install dependencies if needed
+npm install aws-sdk dotenv
+
+# Run the permissions fix script
+node scripts/fix-image-permissions.js
+```
+
+This script will update all images in the S3 bucket to have public-read permissions. 

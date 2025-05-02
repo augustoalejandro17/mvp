@@ -68,18 +68,43 @@ export class PermissionsGuard implements CanActivate {
     }
 
     // Extraer parámetros relevantes de la solicitud
-    const schoolId = request.params.schoolId || request.body.schoolId;
-    const courseId = request.params.courseId || request.body.courseId;
-    const targetUserId = request.params.userId || request.body.userId;
+    let schoolId = request.params.schoolId || request.body.schoolId;
+    // Para rutas como /schools/:id, el parámetro es id
+    if (!schoolId && request.params.id && request.path.includes('/schools/')) {
+      schoolId = request.params.id;
+    }
+    
+    let courseId = request.params.courseId || request.body.courseId;
+    // Para rutas como /courses/:id, el parámetro es id
+    if (!courseId && request.params.id && request.path.includes('/courses/')) {
+      courseId = request.params.id;
+    }
+    
+    const targetUserId = request.params.userId || request.params.id || request.body.userId;
+
+    // Registrar información para depuración
+    console.log(`[PermissionsGuard] Verificando permisos para usuario ${user.sub || user._id}`);
+    console.log(`[PermissionsGuard] Permisos requeridos: ${requiredPermissions.join(', ')}`);
+    console.log(`[PermissionsGuard] Contexto - schoolId: ${schoolId}, courseId: ${courseId}, targetUserId: ${targetUserId}`);
+    console.log(`[PermissionsGuard] Ruta: ${request.method} ${request.path}`);
 
     // Verificar cada permiso requerido
     for (const permission of requiredPermissions) {
-      const hasPermission = await this.hasPermission(permission, user.sub, schoolId, courseId, targetUserId);
+      const hasPermission = await this.hasPermission(
+        permission, 
+        user.sub || user._id, 
+        schoolId, 
+        courseId, 
+        targetUserId
+      );
+      
       if (!hasPermission) {
+        console.log(`[PermissionsGuard] Permiso denegado: ${permission}`);
         return false;
       }
     }
 
+    console.log(`[PermissionsGuard] Todos los permisos concedidos`);
     return true;
   }
 

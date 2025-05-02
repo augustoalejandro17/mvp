@@ -5,15 +5,26 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ChangeRoleDto } from './dto/change-role.dto';
-import { UserRole } from '../auth/enums/user-role.enum';
+import { UserRole } from '../auth/schemas/user.schema';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { Request } from 'express';
+import { AuthorizationService } from '../auth/services/authorization.service';
+import { Permission, RequirePermissions, PermissionsGuard } from '../auth/guards/permissions.guard';
+
+// DTO para la asignación de roles contextuales
+class AssignSchoolRoleDto {
+  schoolId: string;
+  role: UserRole;
+}
 
 @Controller('users')
 export class UsersController {
   private readonly logger = new Logger(UsersController.name);
 
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly authorizationService: AuthorizationService
+  ) {}
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -68,5 +79,49 @@ export class UsersController {
 
     await this.usersService.changePassword(id, changePasswordDto);
     return { message: 'Password changed successfully' };
+  }
+
+  /**
+   * Asigna un rol específico a un usuario en una escuela
+   */
+  @Post(':id/school-role')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.MANAGE_ADMINS, Permission.MANAGE_TEACHERS, Permission.MANAGE_STUDENTS)
+  async assignSchoolRole(
+    @Param('id') userId: string,
+    @Body() assignRoleDto: AssignSchoolRoleDto,
+    @Req() req: Request,
+  ): Promise<{ success: boolean, message: string }> {
+    this.logger.log(`Asignando rol ${assignRoleDto.role} en escuela ${assignRoleDto.schoolId} al usuario ${userId}`);
+    
+    const authUserId = req.user['sub'] || req.user['_id'];
+    const schoolId = assignRoleDto.schoolId;
+    
+    // Verificar que el usuario tenga permisos para gestionar este tipo de rol en la escuela
+    const canManage = await this.authorizationService.canManageUserInSchool(
+      authUserId,
+      userId,
+      schoolId
+    );
+    
+    if (!canManage) {
+      this.logger.warn(`Usuario ${authUserId} sin permisos para asignar rol ${assignRoleDto.role} en escuela ${schoolId}`);
+      throw new ForbiddenException('No tiene permisos para asignar este rol en esta escuela');
+    }
+    
+    const success = await this.authorizationService.assignRoleInSchool(
+      userId,
+      schoolId,
+      assignRoleDto.role
+    );
+    
+    if (success) {
+      return { 
+        success: true, 
+        message: `Rol ${assignRoleDto.role} asignado correctamente al usuario en la escuela`
+      };
+    } else {
+      throw new ForbiddenException('No se pudo asignar el rol al usuario en la escuela');
+    }
   }
 } 

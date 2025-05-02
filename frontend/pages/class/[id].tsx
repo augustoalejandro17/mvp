@@ -6,6 +6,7 @@ import VideoPlayer from '../../components/VideoPlayer';
 import Layout from '../../components/Layout';
 import styles from '../../styles/ClassDetail.module.css';
 import { UserRole } from '../../types/user';
+import { canModifyClass, canManageVideos } from '../../utils/permission-utils';
 
 // Interfaces
 interface Class {
@@ -27,7 +28,7 @@ interface Class {
 interface DecodedToken {
   userId: string;
   email: string;
-  role: UserRole;
+  role: UserRole | string;
   iat: number;
   exp: number;
 }
@@ -38,7 +39,8 @@ const ClassDetail: React.FC = () => {
   const [classData, setClassData] = useState<Class | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -51,6 +53,8 @@ const ClassDetail: React.FC = () => {
       try {
         const decoded = jwtDecode<DecodedToken>(token);
         setUserRole(decoded.role);
+        setUserId(decoded.userId);
+        console.log('User role:', decoded.role);
         return true;
       } catch (err) {
         Cookies.remove('token');
@@ -139,9 +143,39 @@ const ClassDetail: React.FC = () => {
     }
   };
 
-  const isTeacherOrAdmin = () => {
-    return userRole && [UserRole.TEACHER, UserRole.SCHOOL_OWNER, UserRole.SUPER_ADMIN].includes(userRole);
-  };
+  const isClassTeacher = useCallback((): boolean => {
+    if (!classData || !classData.createdBy || !classData.createdBy._id || !userId) {
+      return false;
+    }
+    const result = classData.createdBy._id === userId;
+    console.log('isClassTeacher check:', { 
+      teacherId: classData.createdBy._id, 
+      userId, 
+      isTeacher: result 
+    });
+    return result;
+  }, [classData, userId]);
+
+  const canModify = useCallback((): boolean => {
+    if (!userRole) return false;
+    const result = canModifyClass(userRole, isClassTeacher());
+    console.log('canModify check:', { 
+      userRole, 
+      isTeacher: isClassTeacher(), 
+      canModify: result 
+    });
+    return result;
+  }, [userRole, isClassTeacher]);
+
+  const canManageVideo = useCallback((): boolean => {
+    if (!userRole) return false;
+    const result = canManageVideos(userRole);
+    console.log('canManageVideo check:', { 
+      userRole, 
+      canManage: result 
+    });
+    return result;
+  }, [userRole]);
 
   if (loading) {
     return (
@@ -178,6 +212,7 @@ const ClassDetail: React.FC = () => {
               url={classData.videoUrl} 
               title={classData.title} 
               classId={classData._id}
+              allowDownload={canManageVideo()}
             />
           </div>
         )}
@@ -193,7 +228,7 @@ const ClassDetail: React.FC = () => {
           <p>{classData.createdBy.email}</p>
         </div>
         
-        {isTeacherOrAdmin() && (
+        {canModify() && (
           <div className={styles.adminActions}>
             <button 
               className={styles.editButton}
@@ -222,7 +257,7 @@ const ClassDetail: React.FC = () => {
           </div>
         )}
         
-        {!isTeacherOrAdmin() && (
+        {!canModify() && (
           <button 
             className={styles.backButton}
             onClick={() => router.push(`/course/${classData.courseId}`)}
