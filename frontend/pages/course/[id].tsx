@@ -412,7 +412,7 @@ export default function CourseDetail() {
             )}
 
             {course.teacher && canTakeAttendance(course.teacher._id) && (
-              <Link href={`/attendance/${course._id}`} className={styles.attendanceButton}>
+              <Link href={`/course/attendance/${course._id}`} className={styles.attendanceButton}>
                 <FaUserCheck className={styles.icon} /> Control de Asistencia
               </Link>
             )}
