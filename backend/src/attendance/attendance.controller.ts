@@ -30,6 +30,13 @@ export class AttendanceController {
     return this.attendanceService.createBulk(bulkAttendanceDto, teacherId);
   }
 
+  @Get('records')
+  @UseGuards(JwtAuthGuard)
+  async getAllRecords() {
+    this.logger.log('Obteniendo todos los registros de asistencia');
+    return this.attendanceService.findAllRecords();
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string) {
@@ -80,5 +87,20 @@ export class AttendanceController {
   @RequirePermissions(Permission.TAKE_ATTENDANCE)
   async remove(@Param('id') id: string) {
     return this.attendanceService.remove(id);
+  }
+
+  @Post('link-user')
+  @UseGuards(JwtAuthGuard)
+  async linkUserAttendances(@Body() linkData: { unregisteredName: string; userId: string }) {
+    this.logger.log(`Vinculando asistencias de "${linkData.unregisteredName}" al usuario ${linkData.userId}`);
+    const updatedCount = await this.attendanceService.linkAttendancesToRegisteredUser(
+      linkData.unregisteredName,
+      linkData.userId
+    );
+    return {
+      success: true,
+      message: `Se vincularon ${updatedCount} registros de asistencia al usuario`,
+      updatedCount
+    };
   }
 } 

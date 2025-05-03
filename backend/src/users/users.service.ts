@@ -35,6 +35,46 @@ export class UsersService {
     return createdUser.save();
   }
 
+  async createWithCourses(userData: Partial<User>, courseIds: string[] = []): Promise<User> {
+    this.logger.log(`Creando usuario con ${courseIds.length} cursos`);
+    
+    // Crear usuario básico
+    const createdUser = new this.userModel({
+      ...userData,
+      enrolledCourses: courseIds
+    });
+    
+    // Guardar el usuario
+    const savedUser = await createdUser.save();
+    
+    // Si hay cursos, actualizar la relación en los cursos también
+    if (courseIds && courseIds.length > 0) {
+      this.logger.log(`Matriculando usuario ${savedUser._id} en ${courseIds.length} cursos`);
+      
+      // Actualizar los cursos para incluir al estudiante
+      await this.enrollUserInCourses(savedUser._id, courseIds);
+    }
+    
+    return savedUser;
+  }
+
+  private async enrollUserInCourses(userId: string, courseIds: string[]): Promise<void> {
+    // Importar dynamically para evitar dependencias circulares
+    const { Course } = await import('../courses/schemas/course.schema');
+    const { model } = await import('mongoose');
+    
+    const CourseModel = model<typeof Course>(Course.name);
+    
+    // Actualizar cada curso
+    for (const courseId of courseIds) {
+      await CourseModel.findByIdAndUpdate(
+        courseId,
+        { $addToSet: { students: userId } },
+        { new: true }
+      );
+    }
+  }
+
   async update(id: string, userData: Partial<User>): Promise<User> {
     const user = await this.userModel.findByIdAndUpdate(id, userData, { new: true }).exec();
     if (!user) {

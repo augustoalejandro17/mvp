@@ -39,6 +39,20 @@ export class UsersController {
     return this.usersService.findOne(id);
   }
 
+  @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER)
+  async create(@Body() createUserDto: any): Promise<User> {
+    return this.usersService.create(createUserDto);
+  }
+
+  @Post('with-courses')
+  @UseGuards(JwtAuthGuard)
+  async createWithCourses(@Body() data: { user: Partial<User>, courses: string[] }): Promise<User> {
+    this.logger.log(`Creando usuario ${data.user.name} con ${data.courses?.length || 0} cursos`);
+    return this.usersService.createWithCourses(data.user, data.courses || []);
+  }
+
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER)

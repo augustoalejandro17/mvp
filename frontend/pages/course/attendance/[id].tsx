@@ -7,11 +7,17 @@ import styles from '../../../styles/Attendance.module.css';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { FaPlus, FaCheck, FaTimes } from 'react-icons/fa';
 
 interface Student {
   _id: string;
   name: string;
   email: string;
+}
+
+interface NonRegisteredStudent {
+  name: string;
+  isRegistered: false;
 }
 
 interface Course {
@@ -25,6 +31,8 @@ interface Attendance {
   studentId: string;
   present: boolean;
   notes?: string;
+  isRegistered?: boolean; // True para usuario registrado, false para no registrado
+  studentName?: string; // Nombre del estudiante (para no registrados)
 }
 
 interface DecodedToken {
@@ -45,6 +53,8 @@ export default function AttendancePage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [currentUser, setCurrentUser] = useState<DecodedToken | null>(null);
+  const [showAddNonRegisteredModal, setShowAddNonRegisteredModal] = useState(false);
+  const [newStudentName, setNewStudentName] = useState('');
 
   useEffect(() => {
     const token = Cookies.get('token');
@@ -105,12 +115,19 @@ export default function AttendancePage() {
       
       // Mapear las asistencias existentes
       if (response.data && Array.isArray(response.data)) {
-        setAttendances(response.data.map(attendance => ({
-          _id: attendance._id,
-          studentId: attendance.student._id,
-          present: attendance.present,
-          notes: attendance.notes
-        })));
+        setAttendances(response.data.map(attendance => {
+          // Si es un estudiante registrado (objeto) o no registrado (string)
+          const isRegistered = typeof attendance.student === 'object';
+          
+          return {
+            _id: attendance._id,
+            studentId: isRegistered ? attendance.student._id : attendance.student,
+            studentName: isRegistered ? attendance.student.name : attendance.student,
+            present: attendance.present,
+            notes: attendance.notes,
+            isRegistered: isRegistered
+          };
+        }));
       } else {
         setAttendances([]);
       }
@@ -134,8 +151,10 @@ export default function AttendancePage() {
       if (!exists) {
         newAttendances.push({
           studentId: student._id,
+          studentName: student.name,
           present: true,
-          notes: ''
+          notes: '',
+          isRegistered: true
         });
       }
     });
@@ -163,6 +182,42 @@ export default function AttendancePage() {
     );
   };
 
+  const handleAddNonRegisteredStudent = () => {
+    if (!newStudentName || newStudentName.trim() === '') {
+      setError('Debe ingresar un nombre válido');
+      return;
+    }
+    
+    const studentName = newStudentName.trim();
+    
+    // Verificar si ya existe un estudiante con este nombre
+    const exists = attendances.some(a => 
+      a.studentName?.toLowerCase() === studentName.toLowerCase()
+    );
+    
+    if (exists) {
+      setError('Ya existe un estudiante con este nombre en la lista');
+      return;
+    }
+    
+    // Añadir nuevo estudiante no registrado
+    setAttendances(prev => [
+      ...prev,
+      {
+        studentId: studentName, // El ID es el nombre para no registrados
+        studentName: studentName,
+        present: true,
+        notes: '',
+        isRegistered: false
+      }
+    ]);
+    
+    // Limpiar y cerrar modal
+    setNewStudentName('');
+    setShowAddNonRegisteredModal(false);
+    setSuccess('Estudiante no registrado añadido a la lista');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -186,7 +241,8 @@ export default function AttendancePage() {
         attendances: attendances.map(a => ({
           studentId: a.studentId,
           present: a.present,
-          notes: a.notes
+          notes: a.notes || '',
+          isRegistered: a.isRegistered
         }))
       };
       
@@ -199,11 +255,11 @@ export default function AttendancePage() {
       
       setSuccess('Asistencia registrada correctamente');
       
-      // Actualizar la lista de asistencias
+      // Recargar asistencias para tener los _id actualizados
       fetchAttendances();
     } catch (error) {
-      console.error('Error al guardar asistencia:', error);
-      setError('Error al guardar los datos de asistencia');
+      console.error('Error al registrar asistencia:', error);
+      setError('Ocurrió un error al guardar la asistencia');
     } finally {
       setSaving(false);
     }
@@ -213,28 +269,24 @@ export default function AttendancePage() {
     setDate(e.target.value);
   };
 
-  // Inicializar asistencias si se carga el curso y no hay asistencias
+  // Inicializar la lista cuando se carga el curso
   useEffect(() => {
-    if (course && course.students && course.students.length > 0) {
+    if (course) {
       initializeAttendances();
     }
   }, [course]);
 
-  if (loading) {
+  if (loading && !course) {
     return <div className={styles.loading}>Cargando...</div>;
-  }
-
-  if (!course) {
-    return <div className={styles.error}>No se encontró el curso</div>;
   }
 
   return (
     <div className={styles.container}>
-      <main className={styles.main}>
-        <h1 className={styles.title}>Control de Asistencia</h1>
-        <h2 className={styles.courseTitle}>{course.title}</h2>
+      <div className={styles.header}>
+        <h1>Control de Asistencia</h1>
+        {course && <h2>{course.title}</h2>}
         
-        <div className={styles.controlBar}>
+        <div className={styles.controls}>
           <div className={styles.dateSelector}>
             <label htmlFor="date">Fecha:</label>
             <input
@@ -242,99 +294,147 @@ export default function AttendancePage() {
               id="date"
               value={date}
               onChange={handleDateChange}
-              className={styles.dateInput}
+              max={format(new Date(), 'yyyy-MM-dd')}
             />
           </div>
           
-          <Link href={`/course/${id}`} className={styles.backLink}>
-            Volver al curso
+          <button 
+            className={styles.addButton}
+            onClick={() => setShowAddNonRegisteredModal(true)}
+          >
+            <FaPlus /> Añadir Asistente No Registrado
+          </button>
+          
+          <Link href={`/course/${id}`} className={styles.backButton}>
+            Volver al Curso
           </Link>
         </div>
-        
-        {error && <div className={styles.error}>{error}</div>}
-        {success && <div className={styles.success}>{success}</div>}
-        
-        <form onSubmit={handleSubmit} className={styles.form}>
-          {course.students && course.students.length > 0 ? (
-            <div className={styles.studentList}>
-              <div className={styles.header}>
-                <div className={styles.studentName}>Estudiante</div>
-                <div className={styles.studentPresent}>Asistencia</div>
-                <div className={styles.studentNotes}>Notas</div>
-              </div>
-              
-              {course.students.map(student => {
-                const attendance = attendances.find(a => a.studentId === student._id);
-                const isPresent = attendance ? attendance.present : true;
-                const notes = attendance ? attendance.notes : '';
-                
-                return (
-                  <div key={student._id} className={styles.studentRow}>
-                    <div className={styles.studentName}>
-                      <span className={styles.name}>{student.name}</span>
-                      <span className={styles.email}>{student.email}</span>
-                    </div>
-                    
-                    <div className={styles.studentPresent}>
-                      <label className={styles.radioLabel}>
-                        <input
-                          type="radio"
-                          name={`present-${student._id}`}
-                          checked={isPresent}
-                          onChange={() => handlePresentChange(student._id, true)}
-                        />
-                        <span>Presente</span>
-                      </label>
-                      
-                      <label className={styles.radioLabel}>
-                        <input
-                          type="radio"
-                          name={`present-${student._id}`}
-                          checked={!isPresent}
-                          onChange={() => handlePresentChange(student._id, false)}
-                        />
-                        <span>Ausente</span>
-                      </label>
-                    </div>
-                    
-                    <div className={styles.studentNotes}>
+      </div>
+      
+      {error && <div className={styles.error}>{error}</div>}
+      {success && <div className={styles.success}>{success}</div>}
+      
+      <form onSubmit={handleSubmit} className={styles.attendanceForm}>
+        <div className={styles.tableContainer}>
+          <table className={styles.attendanceTable}>
+            <thead>
+              <tr>
+                <th>Estudiante</th>
+                <th>Asistencia</th>
+                <th>Notas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {attendances.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className={styles.noData}>
+                    No hay estudiantes para mostrar
+                  </td>
+                </tr>
+              ) : (
+                attendances.map(attendance => (
+                  <tr key={attendance.studentId} className={attendance.isRegistered ? '' : styles.nonRegistered}>
+                    <td>
+                      {attendance.studentName || attendance.studentId}
+                      {!attendance.isRegistered && <span className={styles.tagNonRegistered}>No Registrado</span>}
+                    </td>
+                    <td className={styles.attendanceStatus}>
+                      <div className={styles.radioGroup}>
+                        <label className={attendance.present ? styles.activeRadio : ''}>
+                          <input
+                            type="radio"
+                            name={`present-${attendance.studentId}`}
+                            checked={attendance.present}
+                            onChange={() => handlePresentChange(attendance.studentId, true)}
+                          />
+                          <FaCheck className={styles.radioIcon} />
+                          Presente
+                        </label>
+                        <label className={!attendance.present ? styles.activeRadio : ''}>
+                          <input
+                            type="radio"
+                            name={`present-${attendance.studentId}`}
+                            checked={!attendance.present}
+                            onChange={() => handlePresentChange(attendance.studentId, false)}
+                          />
+                          <FaTimes className={styles.radioIcon} />
+                          Ausente
+                        </label>
+                      </div>
+                    </td>
+                    <td>
                       <input
                         type="text"
+                        value={attendance.notes || ''}
+                        onChange={(e) => handleNotesChange(attendance.studentId, e.target.value)}
                         placeholder="Notas (opcional)"
-                        value={notes || ''}
-                        onChange={(e) => handleNotesChange(student._id, e.target.value)}
                         className={styles.notesInput}
                       />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className={styles.noStudents}>
-              No hay estudiantes matriculados en este curso.
-            </div>
-          )}
-          
-          {course.students && course.students.length > 0 && (
-            <div className={styles.actions}>
-              <button
-                type="submit"
-                className={styles.saveButton}
-                disabled={saving}
-              >
-                {saving ? 'Guardando...' : 'Guardar Asistencia'}
-              </button>
-            </div>
-          )}
-        </form>
-        
-        <div className={styles.statsLink}>
-          <Link href={`/course/attendance/stats/${id}`} className={styles.button}>
-            Ver Estadísticas de Asistencia
-          </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-      </main>
+        
+        <div className={styles.submitContainer}>
+          <button 
+            type="submit" 
+            className={styles.submitButton} 
+            disabled={saving || attendances.length === 0}
+          >
+            {saving ? 'Guardando...' : 'Guardar Asistencia'}
+          </button>
+        </div>
+      </form>
+      
+      {/* Modal para añadir estudiante no registrado */}
+      {showAddNonRegisteredModal && (
+        <div className={styles.modalBackdrop}>
+          <div className={styles.modal}>
+            <h2 className={styles.modalTitle}>Añadir Asistente No Registrado</h2>
+            <p className={styles.modalDescription}>
+              Ingrese el nombre del asistente que no está registrado en el sistema
+            </p>
+            
+            <div className={styles.modalForm}>
+              <div className={styles.formGroup}>
+                <label htmlFor="studentName">Nombre completo:</label>
+                <input
+                  type="text"
+                  id="studentName"
+                  value={newStudentName}
+                  onChange={(e) => setNewStudentName(e.target.value)}
+                  className={styles.input}
+                  placeholder="Ej: Juan Pérez"
+                  autoFocus
+                />
+              </div>
+              
+              <div className={styles.modalActions}>
+                <button 
+                  type="button" 
+                  className={styles.confirmButton}
+                  onClick={handleAddNonRegisteredStudent}
+                >
+                  Añadir
+                </button>
+                <button 
+                  type="button" 
+                  className={styles.cancelButton}
+                  onClick={() => {
+                    setNewStudentName('');
+                    setShowAddNonRegisteredModal(false);
+                  }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

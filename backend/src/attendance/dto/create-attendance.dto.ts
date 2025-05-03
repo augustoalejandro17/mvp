@@ -1,22 +1,26 @@
-import { IsDate, IsBoolean, IsString, IsMongoId, IsOptional } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsBoolean, IsDateString, IsMongoId, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateAttendanceDto {
-  @IsMongoId()
-  studentId: string;
-
+  @IsNotEmpty()
   @IsMongoId()
   courseId: string;
 
-  @Type(() => Date)
-  @IsDate()
+  @IsNotEmpty()
+  @IsString()
+  studentId: string; // ID o nombre del estudiante
+
+  @IsNotEmpty()
+  @IsDateString()
   date: Date;
 
   @IsBoolean()
-  @IsOptional()
-  present: boolean = true;
+  present: boolean;
 
-  @IsString()
   @IsOptional()
-  notes: string;
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isRegistered?: boolean; // True para usuarios registrados, false para no registrados
 } 

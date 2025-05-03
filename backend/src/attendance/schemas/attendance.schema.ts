@@ -8,8 +8,17 @@ export class Attendance {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Course', required: true })
   course: MongooseSchema.Types.ObjectId;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
-  student: MongooseSchema.Types.ObjectId;
+  @Prop({ 
+    type: MongooseSchema.Types.Mixed, 
+    required: true,
+    // Puede ser un ObjectId (usuario registrado) o un string (no registrado)
+    ref: 'User',
+    refPath: 'studentModel'
+  })
+  student: MongooseSchema.Types.ObjectId | string;
+
+  @Prop({ type: String, default: 'User', enum: ['User', 'String'] })
+  studentModel: string;
 
   @Prop({ required: true })
   date: Date;
