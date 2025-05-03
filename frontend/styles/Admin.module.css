@@ -69,6 +69,11 @@
   color: #553c9a;
 }
 
+.unregistered {
+  background-color: #718096;
+  color: #1a202c;
+}
+
 .tabs {
   display: flex;
   border-bottom: 1px solid #e2e8f0;
@@ -719,4 +724,73 @@
 .courseDetails span {
   display: flex;
   align-items: center;
+  margin-right: 1rem;
+}
+
+.buttonContainer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+  gap: 1rem;
+}
+
+.courseTitle {
+  font-size: 1.5rem;
+  color: #4a5568;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.dateInput {
+  padding: 0.5rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.iconSpacer {
+  margin-right: 0.5rem;
+}
+
+.radioLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  margin-right: 1rem;
+}
+
+.studentPresent {
+  display: flex;
+  align-items: center;
+}
+
+.countBadge {
+  display: flex;
+  align-items: center;
+  background-color: #edf2f7;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  color: #4a5568;
+}
+
+.searchIcon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #a0aec0;
+}
+
+.studentName {
+  display: flex;
+  flex-direction: column;
+}
+
+.name {
+  font-weight: 600;
+  color: #2d3748;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
 } 

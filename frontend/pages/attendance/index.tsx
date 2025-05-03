@@ -4,8 +4,9 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
 import Link from 'next/link';
-import styles from '../../styles/AttendancePage.module.css';
+import styles from '../../styles/Admin.module.css';
 import Layout from '../../components/Layout';
+import { FaCalendarAlt, FaUsers, FaChalkboardTeacher, FaSchool, FaSearch } from 'react-icons/fa';
 
 interface Course {
   _id: string;
@@ -15,6 +16,10 @@ interface Course {
     name: string;
   };
   students: string[];
+  teacher?: {
+    _id: string;
+    name: string;
+  };
 }
 
 interface DecodedToken {
@@ -30,6 +35,7 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentUser, setCurrentUser] = useState<DecodedToken | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const token = Cookies.get('token');
@@ -85,52 +91,92 @@ export default function AttendancePage() {
     }
   };
 
+  const filteredCourses = searchTerm 
+    ? courses.filter(course => 
+        course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (course.school && course.school.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      )
+    : courses;
+
   return (
-    <Layout title="Control de Asistencia | Dance Platform">
-      <div className={styles.container}>
-        <main className={styles.main}>
-          <h1 className={styles.title}>Control de Asistencia</h1>
-          <p className={styles.description}>
-            Selecciona un curso para gestionar la asistencia de los estudiantes.
-          </p>
-          
-          {error && <div className={styles.error}>{error}</div>}
-          
-          {loading ? (
-            <div className={styles.loading}>Cargando cursos...</div>
-          ) : (
-            <div className={styles.grid}>
-              {courses.length > 0 ? (
-                courses.map((course) => (
-                  <Link key={course._id} href={`/course/attendance/${course._id}`} className={styles.card}>
-                    <h2>{course.title}</h2>
-                    <p className={styles.schoolName}>{course.school?.name || 'Sin escuela asignada'}</p>
-                    <p className={styles.courseStats}>
-                      <span className={styles.studentsCount}>
-                        {course.students?.length || 0} estudiantes
-                      </span>
-                    </p>
-                    <div className={styles.cardFooter}>
-                      <span className={styles.cardAction}>
-                        Gestionar asistencia →
-                      </span>
-                    </div>
-                  </Link>
-                ))
-              ) : (
-                <div className={styles.noCourses}>
-                  <p>No tienes cursos disponibles para controlar asistencia.</p>
-                  {currentUser?.role === 'admin' && (
-                    <Link href="/course/create" className={styles.createButton}>
-                      Crear un nuevo curso
-                    </Link>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </main>
-      </div>
-    </Layout>
+    <div className={styles.container}>
+      <main className={styles.main}>
+        <h1 className={styles.title}>Control de Asistencia</h1>
+        
+        {error && <div className={styles.error}>{error}</div>}
+        
+        <div className={styles.controls}>
+          <div className={styles.search}>
+            <input
+              type="text"
+              className={styles.searchInput}
+              placeholder="Buscar cursos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <FaSearch className={styles.searchIcon} />
+          </div>
+        </div>
+        
+        {loading ? (
+          <div className={styles.loading}>Cargando cursos...</div>
+        ) : (
+          <>
+            {filteredCourses.length > 0 ? (
+              <div className={styles.tableContainer}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Curso</th>
+                      <th>Escuela</th>
+                      <th>Estudiantes</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCourses.map((course) => (
+                      <tr key={course._id}>
+                        <td>{course.title}</td>
+                        <td>{course.school?.name || 'Sin escuela asignada'}</td>
+                        <td>
+                          <div className={styles.countBadge}>
+                            <FaUsers className={styles.iconSpacer} />
+                            {course.students?.length || 0} estudiantes
+                          </div>
+                        </td>
+                        <td>
+                          <div className={styles.actionButtons}>
+                            <Link href={`/course/attendance/${course._id}`} className={styles.iconButton}>
+                              <FaCalendarAlt /> Asistencia
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className={styles.emptyMessage}>
+                {searchTerm ? (
+                  <p>No se encontraron cursos que coincidan con su búsqueda.</p>
+                ) : (
+                  <>
+                    <p>No tienes cursos disponibles para controlar asistencia.</p>
+                    {currentUser?.role === 'admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'school_owner' ? (
+                      <div className={styles.centerButtons}>
+                        <Link href="/course/create" className={styles.createButton}>
+                          Crear un nuevo curso
+                        </Link>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </main>
+    </div>
   );
 } 

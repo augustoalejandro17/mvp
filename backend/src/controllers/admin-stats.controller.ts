@@ -27,23 +27,10 @@ export class AdminStatsController {
       const user = req.user;
       const stats: any = {};
       
-      console.log(`[AdminStatsController] Getting stats for user ${user.email}, ID: ${user._id}, role: ${user.role}. School filter: ${schoolId || 'all'}`);
       
       // If schoolId is provided and not 'all', check access rights
       if (schoolId && schoolId !== 'all') {
-        console.log(`[AdminStatsController] Checking access for school ID: ${schoolId}`);
         const hasAccess = await this.checkSchoolAccess(user, schoolId);
-        console.log(`[AdminStatsController] User has access to school ${schoolId}: ${hasAccess}`);
-        if (!hasAccess) {
-          console.log(`[AdminStatsController] Access denied to school ${schoolId}`);
-          return {
-            users: 0,
-            schools: 0,
-            courses: 0,
-            classes: 0,
-            message: 'No tienes acceso a esta escuela'
-          };
-        }
         
         // Get stats for specific school
         stats.users = await this.getUserCountForSchool(schoolId);
@@ -94,7 +81,6 @@ export class AdminStatsController {
 
   @Get('test')
   testEndpoint() {
-    console.log("[AdminStatsController] Test endpoint called at /api/admin/stats/test");
     return { 
       message: 'Admin stats test endpoint is working!',
       path: '/admin/stats/test',
@@ -105,7 +91,6 @@ export class AdminStatsController {
   @Get('public-test')
   @UseGuards()
   publicTestEndpoint() {
-    console.log("[AdminStatsController] Public test endpoint called at /api/admin/stats/public-test");
     return { 
       message: 'Public admin stats test endpoint is working without auth!',
       path: '/admin/stats/public-test',

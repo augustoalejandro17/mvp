@@ -89,15 +89,13 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
         return null;
       }
       
-      console.log('Refreshing URL with key:', key);
-      
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const response = await axios.get(`${apiUrl}/api/images/refresh-url`, {
         params: { key }
       });
       
       if (response.data && response.data.url) {
-        console.log('Received refreshed URL from API:', response.data.url.substring(0, 100) + '...');
+        
         return response.data.url;
       }
       
@@ -118,7 +116,7 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
     
     // Si hemos alcanzado el máximo de intentos, mostrar placeholder
     if (newRetryCount > MAX_RETRIES) {
-      console.log(`Max retries (${MAX_RETRIES}) reached. Using placeholder.`);
+      
       setImgError(true);
       return;
     }
@@ -129,15 +127,15 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
     if (newRetryCount === 1) {
       // Primer intento: añadir cache-busting
       const bustedUrl = cacheBustUrl(src);
-      console.log(`Retry ${newRetryCount}/${MAX_RETRIES}: Using cache-busted URL`);
+      
       setImgSrc(bustedUrl);
     } else {
       // Segundo intento: refrescar la URL a través de la API
-      console.log(`Retry ${newRetryCount}/${MAX_RETRIES}: Trying to refresh URL via API`);
+      
       
       const refreshedUrl = await refreshImageUrl(src);
       if (refreshedUrl) {
-        console.log('Using refreshed URL from API');
+        
         setImgSrc(refreshedUrl);
       } else {
         console.warn('Failed to refresh URL via API, using placeholder');

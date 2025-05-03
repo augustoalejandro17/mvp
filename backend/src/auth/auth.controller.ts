@@ -15,11 +15,11 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async register(@Body() registerDto: RegisterDto) {
-    this.logger.log(`Procesando solicitud de registro para: ${registerDto.email}`);
+    
     
     try {
       const result = await this.authService.register(registerDto);
-      this.logger.log(`Usuario registrado exitosamente: ${result.user.id} (${result.user.email})`);
+      
       return result;
     } catch (error) {
       this.logger.error(`Error durante el registro: ${error.message}`, error.stack);
@@ -30,11 +30,11 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() loginDto: LoginDto) {
-    this.logger.log(`Procesando solicitud de login para: ${loginDto.email}`);
+    
     
     try {
       const result = await this.authService.login(loginDto);
-      this.logger.log(`Login exitoso para: ${result.user.id} (${result.user.email})`);
+      
       return result;
     } catch (error) {
       this.logger.error(`Error durante el login: ${error.message}`, error.stack);
@@ -50,12 +50,12 @@ export class AuthController {
     @Body('role') role: UserRole,
     @Req() req
   ) {
-    this.logger.log(`Actualizando rol de usuario ${userId} a ${role}`);
+    
     const adminId = req.user.sub || req.user._id?.toString();
     
     try {
       const result = await this.authService.updateUserRole(userId, role, adminId);
-      this.logger.log(`Rol actualizado exitosamente para usuario: ${userId}`);
+      
       return result;
     } catch (error) {
       this.logger.error(`Error al actualizar rol: ${error.message}`, error.stack);
@@ -65,7 +65,7 @@ export class AuthController {
   
   @Get('make-super-admin/:email')
   async makeSuperAdmin(@Param('email') email: string) {
-    this.logger.log(`Procesando promoción a super_admin para: ${email}`);
+    
     
     try {
       const result = await this.authService.makeSuperAdmin(email);

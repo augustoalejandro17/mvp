@@ -3,11 +3,11 @@ import { useRouter } from 'next/router';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
-import styles from '../../../styles/Attendance.module.css';
+import styles from '../../../styles/Admin.module.css';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { FaPlus, FaCheck, FaTimes } from 'react-icons/fa';
+import { FaPlus, FaCheck, FaTimes, FaArrowLeft, FaCalendarAlt, FaSave } from 'react-icons/fa';
 
 interface Student {
   _id: string;
@@ -73,7 +73,6 @@ export default function AttendancePage() {
         return;
       }
     } catch (error) {
-      console.error('Error al decodificar token:', error);
       router.push('/login');
       return;
     }
@@ -94,9 +93,33 @@ export default function AttendancePage() {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      setCourse(response.data);
+      const courseData = response.data;
+      
+      if (courseData.students && Array.isArray(courseData.students)) {
+        if (courseData.students.length > 0 && typeof courseData.students[0] !== 'object') {
+          try {
+            const studentsResponse = await Promise.all(
+              courseData.students.map(async (studentId: string) => {
+                try {
+                  const studentResponse = await axios.get(`${apiUrl}/api/users/${studentId}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                  });
+                  return studentResponse.data;
+                } catch (error) {
+                  return { _id: studentId, name: 'Usuario no encontrado' };
+                }
+              })
+            );
+            
+            courseData.students = studentsResponse;
+          } catch (error) {
+            // Error silencioso
+          }
+        }
+      }
+      
+      setCourse(courseData);
     } catch (error) {
-      console.error('Error al obtener el curso:', error);
       setError('No se pudo cargar la información del curso');
     } finally {
       setLoading(false);
@@ -113,27 +136,141 @@ export default function AttendancePage() {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      // Mapear las asistencias existentes
       if (response.data && Array.isArray(response.data)) {
-        setAttendances(response.data.map(attendance => {
-          // Si es un estudiante registrado (objeto) o no registrado (string)
-          const isRegistered = typeof attendance.student === 'object';
+        const studentIdsToFetch = new Set<string>();
+        
+        response.data.forEach(attendance => {
+          if (typeof attendance.student === 'string') {
+            studentIdsToFetch.add(attendance.student);
+          }
+        });
+        
+        let studentInfoMap: Record<string, any> = {};
+        
+        if (studentIdsToFetch.size > 0) {
+          try {
+            const studentsPromises = Array.from(studentIdsToFetch).map(async (studentId) => {
+              try {
+                const studentResponse = await axios.get(`${apiUrl}/api/users/${studentId}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                return studentResponse.data;
+              } catch (error: any) {
+                return { _id: studentId, name: 'Usuario no encontrado' };
+              }
+            });
+            
+            const studentResults = await Promise.all(studentsPromises);
+            
+            studentResults.forEach(student => {
+              if (student && student._id) {
+                studentInfoMap[student._id] = student;
+              }
+            });
+            
+            for (const studentId of Array.from(studentIdsToFetch)) {
+              if (studentId.includes('test')) {
+                await debugTestUser(studentId);
+              }
+            }
+          } catch (error) {
+            // Error silencioso
+          }
+        }
+        
+        const mappedAttendancesPromises = response.data.map(async (attendance) => {
+          let studentName = '';
+          let studentId = '';
+          let isRegistered = false;
+          
+          if (typeof attendance.student === 'object' && attendance.student !== null) {
+            isRegistered = true;
+            studentId = attendance.student._id || '';
+            studentName = attendance.student.name || '';
+            
+            if (studentName === 'Usuario no encontrado') {
+              return null;
+            }
+          } else if (typeof attendance.student === 'string') {
+            studentId = attendance.student;
+            isRegistered = true;
+            
+            if (studentInfoMap[studentId]) {
+              studentName = studentInfoMap[studentId].name;
+              
+              if (studentName === 'Usuario no encontrado') {
+                return null;
+              }
+            } else if (attendance.studentName) {
+              studentName = attendance.studentName;
+              isRegistered = false;
+              
+              if (studentName === 'Usuario no encontrado') {
+                return null;
+              }
+            } else {
+              try {
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+                const token = Cookies.get('token');
+                
+                const userResponse = await axios.get(`${apiUrl}/api/users/${studentId}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                
+                if (userResponse.data && userResponse.data.name) {
+                  studentName = userResponse.data.name;
+                  isRegistered = true;
+                  
+                  if (studentName === 'Usuario no encontrado') {
+                    return null;
+                  }
+                }
+              } catch (userError) {
+                if (course && course.students) {
+                  const courseStudent = course.students.find(s => {
+                    if (typeof s === 'object' && s !== null) {
+                      return s._id === studentId;
+                    }
+                    return String(s) === studentId;
+                  });
+                  
+                  if (courseStudent) {
+                    if (typeof courseStudent === 'object' && courseStudent.name) {
+                      studentName = courseStudent.name;
+                      
+                      if (studentName === 'Usuario no encontrado') {
+                        return null;
+                      }
+                    }
+                  }
+                }
+              }
+              
+              if (!studentName) {
+                return null;
+              }
+            }
+          } else {
+            return null;
+          }
           
           return {
             _id: attendance._id,
-            studentId: isRegistered ? attendance.student._id : attendance.student,
-            studentName: isRegistered ? attendance.student.name : attendance.student,
+            studentId: studentId,
+            studentName: studentName,
             present: attendance.present,
             notes: attendance.notes,
             isRegistered: isRegistered
           };
-        }));
+        });
+        
+        const mappedAttendances = (await Promise.all(mappedAttendancesPromises))
+          .filter(attendance => attendance !== null);
+        setAttendances(mappedAttendances);
       } else {
         setAttendances([]);
       }
     } catch (error) {
-      console.error('Error al obtener las asistencias:', error);
-      // Si no hay asistencias para esta fecha, inicializar array vacío
       setAttendances([]);
     } finally {
       setLoading(false);
@@ -141,25 +278,99 @@ export default function AttendancePage() {
   };
 
   const initializeAttendances = () => {
-    if (!course || !course.students) return;
+    if (!course || !course.students) {
+      return;
+    }
     
-    // Crear un registro de asistencia para cada estudiante que no tenga uno
     const newAttendances = [...attendances];
     
-    course.students.forEach(student => {
-      const exists = attendances.some(a => a.studentId === student._id);
-      if (!exists) {
-        newAttendances.push({
-          studentId: student._id,
-          studentName: student.name,
-          present: true,
-          notes: '',
-          isRegistered: true
+    const loadStudentDetails = async (studentId: string) => {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+        const token = Cookies.get('token');
+        
+        const response = await axios.get(`${apiUrl}/api/users/${studentId}`, {
+          headers: { Authorization: `Bearer ${token}` }
         });
+        
+        if (response.data && response.data.name) {
+          return response.data.name;
+        }
+      } catch (error) {
+        // Error silencioso
       }
-    });
+      return null;
+    };
     
-    setAttendances(newAttendances);
+    const processStudents = async () => {
+      for (const student of course.students) {
+        const exists = attendances.some(a => {
+          if (typeof student === 'object' && student !== null) {
+            return a.studentId === student._id;
+          } else {
+            return a.studentId === String(student);
+          }
+        });
+        
+        if (!exists) {
+          let studentId = '';
+          let studentName = '';
+          
+          if (typeof student === 'object' && student !== null) {
+            studentId = student._id || '';
+            studentName = student.name || '';
+            
+            if (studentName === 'Usuario no encontrado') {
+              continue;
+            }
+          } else {
+            studentId = String(student);
+            
+            const additionalName = await loadStudentDetails(studentId);
+            if (additionalName) {
+              studentName = additionalName;
+              
+              if (studentName === 'Usuario no encontrado') {
+                continue;
+              }
+            } else {
+              const existingAttendance = attendances.find(a => a.studentId === studentId);
+              if (existingAttendance && existingAttendance.studentName) {
+                studentName = existingAttendance.studentName;
+                
+                if (studentName === 'Usuario no encontrado') {
+                  continue;
+                }
+              } else {
+                studentName = 'Estudiante sin nombre';
+              }
+            }
+          }
+          
+          if (!studentName) {
+            studentName = 'Estudiante sin nombre';
+          }
+          
+          newAttendances.push({
+            studentId: studentId,
+            studentName: studentName,
+            present: true,
+            notes: '',
+            isRegistered: true
+          });
+        }
+      }
+      
+      setAttendances(newAttendances);
+      
+      if (newAttendances.length > attendances.length) {
+        setSuccess(`Se inicializaron ${newAttendances.length - attendances.length} nuevos registros de asistencia.`);
+      } else {
+        setSuccess('No se encontraron nuevos estudiantes para inicializar asistencia.');
+      }
+    };
+    
+    processStudents();
   };
 
   const handlePresentChange = (studentId: string, present: boolean) => {
@@ -190,7 +401,6 @@ export default function AttendancePage() {
     
     const studentName = newStudentName.trim();
     
-    // Verificar si ya existe un estudiante con este nombre
     const exists = attendances.some(a => 
       a.studentName?.toLowerCase() === studentName.toLowerCase()
     );
@@ -200,19 +410,18 @@ export default function AttendancePage() {
       return;
     }
     
-    // Añadir nuevo estudiante no registrado
-    setAttendances(prev => [
-      ...prev,
-      {
-        studentId: studentName, // El ID es el nombre para no registrados
-        studentName: studentName,
-        present: true,
-        notes: '',
-        isRegistered: false
-      }
-    ]);
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     
-    // Limpiar y cerrar modal
+    const newAttendance = {
+      studentId: tempId,
+      studentName: studentName,
+      present: true,
+      notes: '',
+      isRegistered: false
+    };
+    
+    setAttendances(prev => [...prev, newAttendance]);
+    
     setNewStudentName('');
     setShowAddNonRegisteredModal(false);
     setSuccess('Estudiante no registrado añadido a la lista');
@@ -220,46 +429,42 @@ export default function AttendancePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!course || !date) {
-      setError('Faltan datos requeridos');
-      return;
-    }
-    
+    setSaving(true);
+    setError('');
+    setSuccess('');
+
     try {
-      setSaving(true);
-      setError('');
-      setSuccess('');
-      
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
-      
-      // Preparar el objeto de asistencia masiva
-      const bulkData = {
-        courseId: id,
-        date: new Date(date),
-        attendances: attendances.map(a => ({
-          studentId: a.studentId,
-          present: a.present,
-          notes: a.notes || '',
-          isRegistered: a.isRegistered
-        }))
-      };
-      
-      await axios.post(`${apiUrl}/api/attendance/bulk`, bulkData, {
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+
+      const promises = attendances.map(async (attendance) => {
+        const data = {
+          student: attendance.studentId,
+          course: id,
+          date,
+          present: attendance.present,
+          notes: attendance.notes || '',
+          isRegistered: attendance.isRegistered,
+          studentName: attendance.studentName
+        };
+
+        if (attendance._id) {
+          return axios.put(`${apiUrl}/api/attendance/${attendance._id}`, data, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        } else {
+          return axios.post(`${apiUrl}/api/attendance`, data, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
         }
       });
+
+      await Promise.all(promises);
       
-      setSuccess('Asistencia registrada correctamente');
-      
-      // Recargar asistencias para tener los _id actualizados
+      setSuccess('Asistencia guardada correctamente');
       fetchAttendances();
     } catch (error) {
-      console.error('Error al registrar asistencia:', error);
-      setError('Ocurrió un error al guardar la asistencia');
+      setError('Ocurrió un error al guardar los registros de asistencia');
     } finally {
       setSaving(false);
     }
@@ -276,159 +481,215 @@ export default function AttendancePage() {
     }
   }, [course]);
 
+  // Función para ayudar a depurar el problema con Test User
+  const debugTestUser = async (studentId: string) => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const token = Cookies.get('token');
+      
+      const response = await axios.get(`${apiUrl}/api/users/${studentId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      return response.data;
+    } catch (error: any) {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+        const token = Cookies.get('token');
+        
+        const nonRegisteredResponse = await axios.get(`${apiUrl}/api/attendance/records?student=${studentId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch (subError: any) {
+        // Error silencioso
+      }
+      
+      return null;
+    }
+  };
+
   if (loading && !course) {
     return <div className={styles.loading}>Cargando...</div>;
   }
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <h1>Control de Asistencia</h1>
-        {course && <h2>{course.title}</h2>}
+      <main className={styles.main}>
+        <h1 className={styles.title}>Control de Asistencia</h1>
+        <h2 className={styles.courseTitle}>{course?.title || 'Cargando curso...'}</h2>
         
-        <div className={styles.controls}>
+        <div className={styles.controlBar}>
+          <Link href="/attendance" className={styles.backLink}>
+            <FaArrowLeft /> Volver al Curso
+          </Link>
+          
           <div className={styles.dateSelector}>
-            <label htmlFor="date">Fecha:</label>
+            <label htmlFor="date">
+              <FaCalendarAlt className={styles.iconSpacer} /> Fecha:
+            </label>
             <input
               type="date"
               id="date"
               value={date}
-              onChange={handleDateChange}
-              max={format(new Date(), 'yyyy-MM-dd')}
+              onChange={(e) => setDate(e.target.value)}
+              className={styles.dateInput}
             />
           </div>
-          
-          <button 
-            className={styles.addButton}
-            onClick={() => setShowAddNonRegisteredModal(true)}
-          >
-            <FaPlus /> Añadir Asistente No Registrado
-          </button>
-          
-          <Link href={`/course/${id}`} className={styles.backButton}>
-            Volver al Curso
-          </Link>
-        </div>
-      </div>
-      
-      {error && <div className={styles.error}>{error}</div>}
-      {success && <div className={styles.success}>{success}</div>}
-      
-      <form onSubmit={handleSubmit} className={styles.attendanceForm}>
-        <div className={styles.tableContainer}>
-          <table className={styles.attendanceTable}>
-            <thead>
-              <tr>
-                <th>Estudiante</th>
-                <th>Asistencia</th>
-                <th>Notas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {attendances.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className={styles.noData}>
-                    No hay estudiantes para mostrar
-                  </td>
-                </tr>
-              ) : (
-                attendances.map(attendance => (
-                  <tr key={attendance.studentId} className={attendance.isRegistered ? '' : styles.nonRegistered}>
-                    <td>
-                      {attendance.studentName || attendance.studentId}
-                      {!attendance.isRegistered && <span className={styles.tagNonRegistered}>No Registrado</span>}
-                    </td>
-                    <td className={styles.attendanceStatus}>
-                      <div className={styles.radioGroup}>
-                        <label className={attendance.present ? styles.activeRadio : ''}>
-                          <input
-                            type="radio"
-                            name={`present-${attendance.studentId}`}
-                            checked={attendance.present}
-                            onChange={() => handlePresentChange(attendance.studentId, true)}
-                          />
-                          <FaCheck className={styles.radioIcon} />
-                          Presente
-                        </label>
-                        <label className={!attendance.present ? styles.activeRadio : ''}>
-                          <input
-                            type="radio"
-                            name={`present-${attendance.studentId}`}
-                            checked={!attendance.present}
-                            onChange={() => handlePresentChange(attendance.studentId, false)}
-                          />
-                          <FaTimes className={styles.radioIcon} />
-                          Ausente
-                        </label>
-                      </div>
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        value={attendance.notes || ''}
-                        onChange={(e) => handleNotesChange(attendance.studentId, e.target.value)}
-                        placeholder="Notas (opcional)"
-                        className={styles.notesInput}
-                      />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
         </div>
         
-        <div className={styles.submitContainer}>
-          <button 
-            type="submit" 
-            className={styles.submitButton} 
-            disabled={saving || attendances.length === 0}
-          >
-            {saving ? 'Guardando...' : 'Guardar Asistencia'}
-          </button>
-        </div>
-      </form>
+        {error && <div className={styles.error}>{error}</div>}
+        {success && <div className={styles.success}>{success}</div>}
+        
+        {loading ? (
+          <div className={styles.loading}>Cargando registros de asistencia...</div>
+        ) : (
+          <form onSubmit={handleSubmit} className={styles.form}>
+            {attendances.length === 0 && (!course?.students || course.students.length === 0) ? (
+              <div className={styles.emptyMessage}>
+                No hay estudiantes en este curso. Agregue estudiantes desde la gestión del curso.
+              </div>
+            ) : attendances.length === 0 ? (
+              <div className={styles.emptyMessage}>
+                No hay registros de asistencia para este día. Inicialice la asistencia para generar los registros.
+                <div className={styles.centerButtons}>
+                  <button 
+                    type="button" 
+                    className={styles.createButton}
+                    onClick={initializeAttendances}
+                  >
+                    Inicializar Asistencia
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className={styles.tableContainer}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Estudiante</th>
+                        <th>Asistencia</th>
+                        <th>Notas (opcional)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {attendances
+                        .filter(attendance => attendance && 
+                          attendance.studentName && 
+                          attendance.studentName !== 'Usuario no encontrado')
+                        .map((attendance) => {
+                          const name = attendance.studentName;
+                          return (
+                            <tr key={attendance.studentId}>
+                              <td>
+                                <div className={styles.studentName}>
+                                  <span className={styles.name}>{name}</span>
+                                  {!attendance.isRegistered && (
+                                    <span className={`${styles.roleBadge} ${styles.unregistered}`}>no registrado</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td>
+                                <div className={styles.studentPresent}>
+                                  <label className={styles.radioLabel}>
+                                    <input
+                                      type="radio"
+                                      name={`present-${attendance.studentId}`}
+                                      checked={attendance.present}
+                                      onChange={() => handlePresentChange(attendance.studentId, true)}
+                                    />
+                                    <FaCheck style={{ color: '#38a169' }} /> Presente
+                                  </label>
+                                  <label className={styles.radioLabel}>
+                                    <input
+                                      type="radio"
+                                      name={`present-${attendance.studentId}`}
+                                      checked={!attendance.present}
+                                      onChange={() => handlePresentChange(attendance.studentId, false)}
+                                    />
+                                    <FaTimes style={{ color: '#e53e3e' }} /> Ausente
+                                  </label>
+                                </div>
+                              </td>
+                              <td>
+                                <input
+                                  type="text"
+                                  value={attendance.notes || ''}
+                                  onChange={(e) => handleNotesChange(attendance.studentId, e.target.value)}
+                                  className={styles.input}
+                                  placeholder="Notas (opcional)"
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+                
+                <div className={styles.buttonContainer}>
+                  <button 
+                    type="button" 
+                    className={styles.altButton}
+                    onClick={() => setShowAddNonRegisteredModal(true)}
+                  >
+                    <FaPlus /> Agregar Asistente
+                  </button>
+                  
+                  <button 
+                    type="submit" 
+                    className={styles.createButton}
+                    disabled={saving}
+                  >
+                    <FaSave /> {saving ? 'Guardando...' : 'Guardar Asistencia'}
+                  </button>
+                </div>
+              </>
+            )}
+          </form>
+        )}
+      </main>
       
-      {/* Modal para añadir estudiante no registrado */}
       {showAddNonRegisteredModal && (
         <div className={styles.modalBackdrop}>
           <div className={styles.modal}>
-            <h2 className={styles.modalTitle}>Añadir Asistente No Registrado</h2>
+            <h2 className={styles.modalTitle}>Agregar Asistente No Registrado</h2>
             <p className={styles.modalDescription}>
-              Ingrese el nombre del asistente que no está registrado en el sistema
+              Esta persona será registrada solo para asistencias, sin acceso a la plataforma.
             </p>
             
-            <div className={styles.modalForm}>
+            <div className={styles.form}>
               <div className={styles.formGroup}>
-                <label htmlFor="studentName">Nombre completo:</label>
+                <label htmlFor="newStudentName">Nombre completo</label>
                 <input
                   type="text"
-                  id="studentName"
+                  id="newStudentName"
                   value={newStudentName}
                   onChange={(e) => setNewStudentName(e.target.value)}
                   className={styles.input}
-                  placeholder="Ej: Juan Pérez"
+                  placeholder="Nombre del asistente"
                   autoFocus
                 />
               </div>
               
-              <div className={styles.modalActions}>
-                <button 
-                  type="button" 
-                  className={styles.confirmButton}
-                  onClick={handleAddNonRegisteredStudent}
-                >
-                  Añadir
-                </button>
-                <button 
-                  type="button" 
+              <div className={styles.formActions}>
+                <button
+                  type="button"
                   className={styles.cancelButton}
                   onClick={() => {
-                    setNewStudentName('');
                     setShowAddNonRegisteredModal(false);
+                    setNewStudentName('');
+                    setError('');
                   }}
                 >
                   Cancelar
+                </button>
+                <button
+                  type="button"
+                  className={styles.submitButton}
+                  onClick={handleAddNonRegisteredStudent}
+                >
+                  Agregar
                 </button>
               </div>
             </div>

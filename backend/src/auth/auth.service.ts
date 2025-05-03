@@ -43,13 +43,13 @@ export class AuthService {
   }
 
   async register(registerDto: RegisterDto): Promise<{ user: any; token: string }> {
-    this.logger.log(`Procesando registro de usuario: ${registerDto.email}`);
+    
     
     try {
       // Verificar si el usuario ya existe
       const existingUser = await this.userModel.findOne({ email: registerDto.email });
       if (existingUser) {
-        this.logger.warn(`Intento de registro con email existente: ${registerDto.email}`);
+        
         throw new UnauthorizedException('El email ya está registrado');
       }
       
@@ -63,11 +63,11 @@ export class AuthService {
         password: hashedPassword,
       });
 
-      this.logger.log(`Usuario registrado exitosamente como estudiante: ${user._id} (${user.email})`);
+      
 
       const token = await this.generateToken(user);
       
-      this.logger.log(`Token JWT generado para el usuario: ${user._id}`);
+      
 
       return {
         user: {
@@ -91,7 +91,7 @@ export class AuthService {
       const user = await this.userModel.findOne({ email });
       
       if (!user) {
-        this.logger.warn(`Intento de login con email inexistente: ${email}`);
+        
         throw new UnauthorizedException('Credenciales inválidas');
       }
       
@@ -99,13 +99,13 @@ export class AuthService {
       const isPasswordValid = await argon2.verify(user.password, password);
       
       if (!isPasswordValid) {
-        this.logger.warn(`Contraseña incorrecta para usuario: ${email}`);
+        
         throw new UnauthorizedException('Credenciales inválidas');
       }
       
       const token = await this.generateToken(user);
       
-      this.logger.log(`Usuario ${user.email} ha iniciado sesión`);
+      
       
       return {
         user: {
@@ -145,7 +145,7 @@ export class AuthService {
       user.role = newRole;
       await user.save();
 
-      this.logger.log(`Rol de usuario ${userId} actualizado a ${newRole} por admin ${adminId}`);
+      
 
       return user;
     } catch (error) {
@@ -166,7 +166,7 @@ export class AuthService {
       user.role = UserRole.SUPER_ADMIN;
       await user.save();
 
-      this.logger.log(`Usuario ${email} promovido a SUPER_ADMIN`);
+      
 
       return user;
     } catch (error) {

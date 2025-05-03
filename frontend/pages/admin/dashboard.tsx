@@ -82,7 +82,7 @@ export default function AdminDashboard() {
         return; // Other roles don't have school access
       }
 
-      console.log(`Fetching schools from endpoint: ${endpoint}`);
+      
 
       // Fetch schools from the API
       const response = await fetch(endpoint, {
@@ -104,7 +104,7 @@ export default function AdminDashboard() {
       }
       
       setUserSchools(schoolsData);
-      console.log('Schools loaded:', schoolsData);
+      
     } catch (error) {
       console.error('Error fetching schools:', error);
     }
@@ -128,8 +128,8 @@ export default function AdminDashboard() {
       // Get the full URL to help with debugging
       const baseUrl = window.location.origin;
       const fullUrl = `${baseUrl}${endpoint}`;
-      console.log(`Full URL being requested: ${fullUrl}`);
-      console.log(`Fetching stats from endpoint: ${endpoint}`);
+      
+      
       
       const response = await fetch(endpoint, {
         headers: {
@@ -137,7 +137,7 @@ export default function AdminDashboard() {
         }
       });
 
-      console.log('Stats API response status:', response.status);
+      
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -147,7 +147,7 @@ export default function AdminDashboard() {
       }
 
       const statsData = await response.json();
-      console.log('Received stats data:', statsData);
+      
       
       if (statsData.error) {
         throw new Error(statsData.error);
@@ -178,26 +178,26 @@ export default function AdminDashboard() {
   // Handle school selection change
   const handleSchoolChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const schoolId = e.target.value;
-    console.log(`School selection changed to: ${schoolId}`);
+    
     setSelectedSchool(schoolId);
     fetchStats(schoolId);
   };
 
   // Function to refresh stats manually
   const refreshStats = () => {
-    console.log(`Manually refreshing stats for school: ${selectedSchool}`);
+    
     fetchStats(selectedSchool);
   };
 
   // Test API connectivity with different URL formats
   const testApiConnectivity = async () => {
-    console.log("Testing API connectivity with different URL formats...");
+    
     
     try {
       // Format 1: Direct /api path (Next.js rewrites this to backend)
       const response1 = await fetch('/api/admin/stats/public-test');
       const data1 = await response1.json();
-      console.log("Format 1 result (/api/admin/stats/public-test):", data1);
+      
     } catch (error) {
       console.error("Format 1 error:", error);
     }
@@ -206,7 +206,7 @@ export default function AdminDashboard() {
       // Format 2: Using the direct-api path (tests without /api prefix)
       const response2 = await fetch('/direct-api/admin/stats/public-test');
       const data2 = await response2.json();
-      console.log("Format 2 result (/direct-api/admin/stats/public-test):", data2);
+      
     } catch (error) {
       console.error("Format 2 error:", error);
     }
@@ -215,7 +215,7 @@ export default function AdminDashboard() {
       // Format 3: Root app controller test route
       const response3 = await fetch('/api/test-route');
       const data3 = await response3.json();
-      console.log("Format 3 result (/api/test-route):", data3);
+      
     } catch (error) {
       console.error("Format 3 error:", error);
     }
@@ -236,11 +236,11 @@ export default function AdminDashboard() {
 
       try {
         const decoded = jwtDecode<DecodedToken>(token);
-        console.log('Dashboard - Token decodificado:', decoded);
+        
         
         // Restaurar temporalmente acceso especial para Augusto durante la depuración
         if (decoded.email && decoded.email.toLowerCase().includes('augusto')) {
-          console.log('Dashboard - Augusto detectado, otorgando acceso especial');
+          
           const userInfo = {
             id: decoded.sub,
             email: decoded.email,
@@ -261,7 +261,7 @@ export default function AdminDashboard() {
         let primaryRole: string;
         
         if (Array.isArray(decoded.role)) {
-          console.log('Dashboard - Múltiples roles detectados:', decoded.role);
+          
           
           // Normalize roles to lowercase for comparison
           const normalizedRoles = decoded.role.map(role => String(role).toLowerCase());
@@ -280,7 +280,7 @@ export default function AdminDashboard() {
             if (matchingRole) {
               // Use the original casing from the token
               foundRole = decoded.role[normalizedRoles.indexOf(matchingRole)];
-              console.log(`Dashboard - Rol con mayor precedencia encontrado: ${foundRole}`);
+              
               break;
             }
           }
@@ -290,21 +290,21 @@ export default function AdminDashboard() {
           primaryRole = decoded.role;
         }
         
-        console.log('Dashboard - Role prioritario:', primaryRole);
+        
         
         // Check if role has admin access
         const normalizedRole = String(primaryRole).toLowerCase();
         const hasAdminAccess = ADMIN_ROLES.some(role => normalizedRole.includes(role.toLowerCase()));
         
-        console.log('Dashboard - ¿Tiene acceso de administrador?', hasAdminAccess);
+        
         
         if (!hasAdminAccess) {
-          console.log('Dashboard - Access denied, redirecting to home');
+          
           router.push('/');
           return;
         }
 
-        console.log('Dashboard - Access granted');
+        
         const userInfo = {
           id: decoded.sub,
           email: decoded.email,

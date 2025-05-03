@@ -9,6 +9,7 @@ import { useApiErrorHandler } from '../../utils/api-error-handler';
 import Link from 'next/link';
 import { format, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { FaUserCheck, FaUserTimes, FaCalendarAlt, FaBook, FaChalkboardTeacher, FaSearch, FaSave } from 'react-icons/fa';
 
 interface Student {
   _id: string;
@@ -77,7 +78,8 @@ export default function AttendanceManagementPage() {
         setSelectedCourse(response.data[0]._id);
       }
     } catch (error) {
-      handleApiError(error, 'Error al cargar los cursos');
+      const errorMsg = handleApiError(error);
+      setError(errorMsg || 'Error al cargar los cursos');
     } finally {
       setLoading(false);
     }
@@ -100,7 +102,8 @@ export default function AttendanceManagementPage() {
         setSelectedClass(response.data[0]._id);
       }
     } catch (error) {
-      handleApiError(error, 'Error al cargar las clases');
+      const errorMsg = handleApiError(error);
+      setError(errorMsg || 'Error al cargar las clases');
     } finally {
       setLoading(false);
     }
@@ -175,6 +178,13 @@ export default function AttendanceManagementPage() {
     }
   }, [selectedClass, fetchAttendances]);
 
+  // Inicializar asistencias si se carga la clase y no hay asistencias
+  useEffect(() => {
+    if (selectedCourse && selectedClass && attendances.length === 0) {
+      initializeAttendances();
+    }
+  }, [selectedCourse, selectedClass, attendances]);
+
   const initializeAttendances = () => {
     if (!selectedCourse) return;
     
@@ -197,13 +207,6 @@ export default function AttendanceManagementPage() {
     
     setAttendances(newAttendances);
   };
-
-  // Inicializar asistencias si se carga la clase y no hay asistencias
-  useEffect(() => {
-    if (selectedCourse && selectedClass && attendances.length === 0) {
-      initializeAttendances();
-    }
-  }, [selectedCourse, selectedClass, attendances]);
 
   const handlePresentChange = (studentId: string, present: boolean) => {
     setAttendances(prev => 
@@ -263,7 +266,8 @@ export default function AttendanceManagementPage() {
       // Actualizar la lista de asistencias
       fetchAttendances(selectedClass);
     } catch (error) {
-      handleApiError(error, 'Error al guardar los datos de asistencia');
+      const errorMsg = handleApiError(error);
+      setError(errorMsg || 'Error al guardar los datos de asistencia');
     } finally {
       setSaving(false);
     }
@@ -294,18 +298,32 @@ export default function AttendanceManagementPage() {
   // Obtener el curso seleccionado para acceder a sus estudiantes
   const selectedCourseObj = courses.find(course => course._id === selectedCourse);
 
+  // Obtener la clase seleccionada
+  const selectedClassObj = classes.find(classItem => classItem._id === selectedClass);
+
   return (
-    <Layout title="Gestión de Asistencia | Dance Platform">
+    <Layout title="Control de Asistencia | Dance Platform">
       <div className={styles.container}>
         <main className={styles.main}>
-          <h1 className={styles.title}>Gestión de Asistencia</h1>
+          <div className={styles.header}>
+            <h1 className={styles.title}>Control de Asistencia</h1>
+            {selectedCourseObj && (
+              <div className={styles.courseInfo}>
+                <FaChalkboardTeacher style={{ marginRight: '6px' }} />
+                <span>{selectedCourseObj.title}</span>
+              </div>
+            )}
+          </div>
           
           {error && <div className={styles.errorMessage}>{error}</div>}
           {success && <div className={styles.successMessage}>{success}</div>}
           
           <div className={styles.controls}>
             <div className={styles.selectGroup}>
-              <label htmlFor="courseSelect">Curso:</label>
+              <label htmlFor="courseSelect">
+                <FaBook style={{ marginRight: '6px' }} />
+                Curso:
+              </label>
               <select
                 id="courseSelect"
                 value={selectedCourse}
@@ -323,7 +341,10 @@ export default function AttendanceManagementPage() {
             </div>
             
             <div className={styles.selectGroup}>
-              <label htmlFor="classSelect">Clase:</label>
+              <label htmlFor="classSelect">
+                <FaChalkboardTeacher style={{ marginRight: '6px' }} />
+                Clase:
+              </label>
               <select
                 id="classSelect"
                 value={selectedClass}
@@ -341,20 +362,37 @@ export default function AttendanceManagementPage() {
             </div>
             
             <div className={styles.selectGroup}>
-              <label htmlFor="date">Fecha:</label>
+              <label htmlFor="date">
+                <FaCalendarAlt style={{ marginRight: '6px' }} />
+                Fecha:
+              </label>
               <input
                 type="date"
+                id="date"
                 value={selectedDate}
                 onChange={handleDateChange}
-                className={styles.select}
+                className={styles.dateInput}
               />
             </div>
           </div>
           
           {loading ? (
-            <div className={styles.loading}>Cargando...</div>
+            <div className={styles.loading}>Cargando datos...</div>
           ) : selectedCourse && selectedClass && selectedCourseObj ? (
             <form onSubmit={handleSubmit} className={styles.attendanceForm}>
+              {selectedClassObj && (
+                <div className={styles.classInfo}>
+                  <h2>
+                    <FaChalkboardTeacher style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                    {selectedClassObj.title}
+                  </h2>
+                  <p>
+                    <FaCalendarAlt style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                    Fecha: {new Date(selectedClassObj.date).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'})}
+                  </p>
+                </div>
+              )}
+              
               <div className={styles.attendanceTable}>
                 <div className={styles.tableHeader}>
                   <div className={styles.studentColumn}>Estudiante</div>
@@ -388,6 +426,7 @@ export default function AttendanceManagementPage() {
                                   onChange={() => handlePresentChange(student._id, true)}
                                   className={styles.radioInput}
                                 />
+                                <FaUserCheck style={{ marginRight: '4px', color: '#38a169' }} />
                                 Presente
                               </label>
                               <label className={styles.radioLabel}>
@@ -398,6 +437,7 @@ export default function AttendanceManagementPage() {
                                   onChange={() => handlePresentChange(student._id, false)}
                                   className={styles.radioInput}
                                 />
+                                <FaUserTimes style={{ marginRight: '4px', color: '#e53e3e' }} />
                                 Ausente
                               </label>
                             </div>
@@ -430,6 +470,7 @@ export default function AttendanceManagementPage() {
                     className={styles.saveButton}
                     disabled={saving}
                   >
+                    <FaSave style={{ marginRight: '8px' }} />
                     {saving ? 'Guardando...' : 'Guardar Asistencia'}
                   </button>
                 </div>

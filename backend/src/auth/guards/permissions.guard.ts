@@ -82,12 +82,6 @@ export class PermissionsGuard implements CanActivate {
     
     const targetUserId = request.params.userId || request.params.id || request.body.userId;
 
-    // Registrar información para depuración
-    console.log(`[PermissionsGuard] Verificando permisos para usuario ${user.sub || user._id}`);
-    console.log(`[PermissionsGuard] Permisos requeridos: ${requiredPermissions.join(', ')}`);
-    console.log(`[PermissionsGuard] Contexto - schoolId: ${schoolId}, courseId: ${courseId}, targetUserId: ${targetUserId}`);
-    console.log(`[PermissionsGuard] Ruta: ${request.method} ${request.path}`);
-
     // Verificar cada permiso requerido
     for (const permission of requiredPermissions) {
       const hasPermission = await this.hasPermission(
@@ -99,12 +93,10 @@ export class PermissionsGuard implements CanActivate {
       );
       
       if (!hasPermission) {
-        console.log(`[PermissionsGuard] Permiso denegado: ${permission}`);
         return false;
       }
     }
 
-    console.log(`[PermissionsGuard] Todos los permisos concedidos`);
     return true;
   }
 

@@ -30,7 +30,7 @@ export class EnrollmentsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SCHOOL_OWNER, UserRole.SUPER_ADMIN)
   async findAll(@Req() req) {
-    this.logger.log('Getting all enrollments');
+    
     const userId = req.user.sub;
     return this.coursesService.getAllEnrollments(userId);
   }
@@ -38,7 +38,7 @@ export class EnrollmentsController {
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string, @Req() req) {
-    this.logger.log(`Getting enrollment with id: ${id}`);
+    
     const userId = req.user.sub;
     const userRole = req.user.role;
     
@@ -53,7 +53,7 @@ export class EnrollmentsController {
     @Body() updateEnrollmentDto: UpdateEnrollmentDto,
     @Req() req
   ) {
-    this.logger.log(`Updating enrollment with id: ${id}`);
+    
     
     const userId = req.user.sub;
     updateEnrollmentDto.updatedBy = userId;
@@ -65,7 +65,7 @@ export class EnrollmentsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SCHOOL_OWNER, UserRole.SUPER_ADMIN)
   async remove(@Param('id') id: string, @Req() req) {
-    this.logger.log(`Deleting enrollment with id: ${id}`);
+    
     const userId = req.user.sub;
     
     return this.coursesService.removeEnrollment(id, userId);

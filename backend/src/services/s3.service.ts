@@ -20,12 +20,12 @@ export class S3Service {
       region: this.configService.get<string>('aws.region'),
     });
     this.bucketName = this.configService.get<string>('aws.s3.bucketName');
-    this.logger.log(`S3Service inicializado con bucket: ${this.bucketName}`);
+    
   }
 
   async uploadVideo(file: Express.Multer.File): Promise<string> {
     try {
-      this.logger.log(`Intentando subir video a S3: ${file.originalname}`);
+      
       const fileExtension = file.originalname.split('.').pop();
       const key = `videos/${uuidv4()}.${fileExtension}`;
 
@@ -49,24 +49,24 @@ export class S3Service {
         ContentEncoding: 'identity'
       };
 
-      this.logger.log(`Parámetros de carga: bucket=${this.bucketName}, key=${key}, contentType=video/mp4`);
+      
       
       const uploadResult = await this.s3.upload(uploadParams).promise();
 
-      this.logger.log(`Video uploaded successfully to ${uploadResult.Location}`);
+      
       
       // Priorizar el uso de CloudFront como fuente de la URL
       if (this.cloudFrontService) {
         try {
           // Generar URL firmada de CloudFront con expiración de 24 horas
           const cloudFrontUrl = await this.cloudFrontService.getSignedUrl(key, 86400);
-          this.logger.log(`URL de CloudFront generada para video: ${key}`);
+          
           return cloudFrontUrl;
         } catch (cloudFrontError) {
-          this.logger.warn(`Error al generar URL de CloudFront: ${cloudFrontError.message}. Intentando URL firmada de S3.`);
+          
         }
       } else {
-        this.logger.warn(`CloudFront no está configurado. Intentando URL firmada de S3.`);
+        
       }
       
       // Fallback: Generar URL firmada para S3 directamente si CloudFront falla
@@ -79,7 +79,7 @@ export class S3Service {
         };
         
         const signedUrl = await this.s3.getSignedUrlPromise('getObject', signedUrlParams);
-        this.logger.log(`URL firmada de S3 generada para video con expiración de 1 semana`);
+        
         return signedUrl;
       } catch (signError) {
         this.logger.error(`Error generando URL firmada de S3: ${signError.message}`, signError.stack);
@@ -109,7 +109,7 @@ export class S3Service {
     let cleanKey = key;
     if (key.includes('amazonaws.com')) {
       cleanKey = this.getKeyFromUrl(key);
-      this.logger.log(`Se extrajo la key ${cleanKey} de la URL ${key}`);
+      
     }
 
     // Determinar el tipo de contenido basado en la extensión del archivo si no se proporciona
@@ -139,9 +139,9 @@ export class S3Service {
     };
 
     try {
-      this.logger.log(`Generando URL firmada para S3. Bucket: ${this.bucketName}, Key: ${cleanKey}, ContentType: ${contentType}`);
+      
       const url = await this.s3.getSignedUrlPromise('getObject', params);
-      this.logger.log(`URL firmada generada exitosamente (longitud: ${url.length})`);
+      
       return url;
     } catch (error) {
       this.logger.error(`Error al generar URL firmada: ${error.message}`, error.stack);
@@ -157,7 +157,7 @@ export class S3Service {
         Key: key,
       }).promise();
 
-      this.logger.log(`Video deleted successfully: ${key}`);
+      
     } catch (error) {
       this.logger.error('Error deleting video from S3:', error);
       throw error;
@@ -166,13 +166,13 @@ export class S3Service {
 
   public getKeyFromUrl(url: string): string {
     try {
-      this.logger.log(`Procesando URL para extraer key: ${url}`);
+      
       
       // Si la URL contiene parámetros de consulta, los eliminamos
       let cleanUrl = url;
       if (url.includes('?')) {
         cleanUrl = url.split('?')[0];
-        this.logger.log(`URL limpia (sin parámetros): ${cleanUrl}`);
+        
       }
       
       try {
@@ -189,11 +189,11 @@ export class S3Service {
           pathname = pathname.substring(1);
         }
         
-        this.logger.log(`URL parseada: hostname=${hostname}, pathname=${pathname}`);
+        
         
         // Caso 1: URL en formato bucket-name.s3.region.amazonaws.com
         if (hostname.includes(this.bucketName)) {
-          this.logger.log(`Caso 1: URL con formato bucket-name.s3.region... - key extraída: ${pathname}`);
+          
           return pathname;
         }
         
@@ -203,14 +203,14 @@ export class S3Service {
           // Si el primer segmento de la ruta es el nombre del bucket
           if (pathParts[0] === this.bucketName) {
             const key = pathParts.slice(1).join('/');
-            this.logger.log(`Caso 2: URL con formato s3.region.amazonaws.com/bucket... - key extraída: ${key}`);
+            
             return key;
           }
         }
         
         // Si llegamos aquí, no pudimos determinar la key basándonos en la estructura de la URL
         // Asumimos que la URL ya contiene la key directamente
-        this.logger.warn(`No se pudo determinar la key de manera precisa. Devolviendo pathname: ${pathname}`);
+        
         return pathname;
         
       } catch (parseError) {
@@ -220,7 +220,7 @@ export class S3Service {
         if (cleanUrl.includes('/videos/')) {
           const parts = cleanUrl.split('/videos/');
           const key = `videos/${parts[1]}`;
-          this.logger.log(`Extracción basada en patrón '/videos/' - key extraída: ${key}`);
+          
           return key;
         }
         
@@ -270,11 +270,11 @@ export class S3Service {
         CacheControl: 'max-age=31536000'
       };
       
-      this.logger.log(`Subiendo archivo a S3. Bucket: ${this.bucketName}, Key: ${key}, ContentType: ${contentType}`);
+      
       
       // Subir archivo a S3
       const upload = await this.s3.upload(uploadParams).promise();
-      this.logger.log(`Archivo subido exitosamente: ${upload.Location}`);
+      
       
       // Variable para almacenar la URL final
       let url = upload.Location;
@@ -284,9 +284,9 @@ export class S3Service {
         try {
           // Generar URL firmada de CloudFront con expiración de 24 horas
           url = await this.cloudFrontService.getSignedUrl(key, 86400);
-          this.logger.log(`URL de CloudFront generada para archivo: ${key}`);
+          
         } catch (cloudFrontError) {
-          this.logger.warn(`Error al generar URL de CloudFront: ${cloudFrontError.message}. Intentando URL firmada de S3.`);
+          
           
           // Fallback: Generar URL firmada para S3 directamente si CloudFront falla
           try {
@@ -298,15 +298,15 @@ export class S3Service {
             };
             
             url = await this.s3.getSignedUrlPromise('getObject', signedUrlParams);
-            this.logger.log(`URL firmada de S3 generada para archivo con expiración de 1 semana`);
+            
           } catch (signError) {
             this.logger.error(`Error generando URL firmada de S3: ${signError.message}`, signError.stack);
             // Mantener la URL original como último recurso
-            this.logger.warn(`Usando URL sin firmar como último recurso (puede no funcionar)`);
+            
           }
         }
       } else {
-        this.logger.warn(`CloudFront no está configurado. Intentando URL firmada de S3.`);
+        
         
         // Intentar generar URL firmada de S3 si CloudFront no está disponible
         try {
@@ -318,11 +318,11 @@ export class S3Service {
           };
           
           url = await this.s3.getSignedUrlPromise('getObject', signedUrlParams);
-          this.logger.log(`URL firmada de S3 generada para archivo con expiración de 1 semana`);
+          
         } catch (signError) {
           this.logger.error(`Error generando URL firmada de S3: ${signError.message}`, signError.stack);
           // Mantener la URL original como último recurso
-          this.logger.warn(`Usando URL sin firmar como último recurso (puede no funcionar)`);
+          
         }
       }
       
@@ -352,7 +352,7 @@ export class S3Service {
    */
   async uploadImage(file: Express.Multer.File): Promise<string> {
     try {
-      this.logger.log(`Intentando subir imagen a S3: ${file.originalname}`);
+      
       
       // Obtener extensión del archivo original
       const fileExtension = file.originalname.split('.').pop() || 'jpg';
@@ -380,31 +380,31 @@ export class S3Service {
         }
       };
 
-      this.logger.log(`Parámetros de carga de imagen: bucket=${this.bucketName}, key=${key}, contentType=${file.mimetype}`);
+      
       
       // Subir la imagen a S3
       const uploadResult = await this.s3.upload(uploadParams).promise();
-      this.logger.log(`Imagen subida exitosamente a ${uploadResult.Location}`);
+      
       
       // Priorizar el uso de CloudFront para todas las imágenes (similar a como funciona para videos)
       if (this.cloudFrontService) {
         try {
           // Generar URL firmada de CloudFront con 24 horas de expiración
           const cloudFrontUrl = await this.cloudFrontService.getSignedUrl(key, 86400);
-          this.logger.log(`URL de CloudFront generada para imagen: ${key}`);
+          
           
           // Añadir parámetro anti-cache
           const imageUrl = cloudFrontUrl.includes('?') 
             ? `${cloudFrontUrl}&t=${timestamp}` 
             : `${cloudFrontUrl}?t=${timestamp}`;
           
-          this.logger.log(`Retornando URL de CloudFront con anti-cache: ${imageUrl}`);
+          
           return imageUrl;
         } catch (cloudFrontError) {
-          this.logger.warn(`Error al generar URL de CloudFront: ${cloudFrontError.message}. Intentando URL firmada de S3.`);
+          
         }
       } else {
-        this.logger.warn(`CloudFront no está configurado. Intentando URL firmada de S3.`);
+        
       }
       
       // Fallback: Generar URL firmada para S3 directamente si CloudFront falla
@@ -417,7 +417,7 @@ export class S3Service {
         };
         
         const signedUrl = await this.s3.getSignedUrlPromise('getObject', signedUrlParams);
-        this.logger.log(`URL firmada de S3 generada para imagen con expiración de 1 semana`);
+        
         
         // Añadir parámetro anti-cache
         const imageUrl = signedUrl.includes('?') 

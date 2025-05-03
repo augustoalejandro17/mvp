@@ -54,7 +54,7 @@ const ClassDetail: React.FC = () => {
         const decoded = jwtDecode<DecodedToken>(token);
         setUserRole(decoded.role);
         setUserId(decoded.userId);
-        console.log('User role:', decoded.role);
+        
         return true;
       } catch (err) {
         Cookies.remove('token');
@@ -148,32 +148,21 @@ const ClassDetail: React.FC = () => {
       return false;
     }
     const result = classData.createdBy._id === userId;
-    console.log('isClassTeacher check:', { 
-      teacherId: classData.createdBy._id, 
-      userId, 
-      isTeacher: result 
-    });
+    
     return result;
   }, [classData, userId]);
 
   const canModify = useCallback((): boolean => {
     if (!userRole) return false;
     const result = canModifyClass(userRole, isClassTeacher());
-    console.log('canModify check:', { 
-      userRole, 
-      isTeacher: isClassTeacher(), 
-      canModify: result 
-    });
+    
     return result;
   }, [userRole, isClassTeacher]);
 
   const canManageVideo = useCallback((): boolean => {
     if (!userRole) return false;
     const result = canManageVideos(userRole);
-    console.log('canManageVideo check:', { 
-      userRole, 
-      canManage: result 
-    });
+    
     return result;
   }, [userRole]);
 

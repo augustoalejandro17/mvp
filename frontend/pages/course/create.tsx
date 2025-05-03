@@ -47,7 +47,7 @@ export default function CreateCourse() {
 
     try {
       const decoded = jwtDecode<DecodedToken>(token);
-      console.log('Token decodificado:', decoded);
+      
       
       // Solo admin y teacher pueden crear cursos
       if (!['admin', 'teacher'].includes(decoded.role)) {
@@ -76,7 +76,7 @@ export default function CreateCourse() {
         ? `${apiUrl}/api/schools` 
         : `${apiUrl}/api/schools/teacher/${userId}`;
       
-      console.log(`Obteniendo escuelas desde: ${endpoint}`);
+      
       
       const response = await axios.get(endpoint, {
         headers: {
@@ -84,7 +84,7 @@ export default function CreateCourse() {
         }
       });
       
-      console.log('Respuesta de escuelas:', response.data);
+      
       
       setSchools(response.data);
       
@@ -92,7 +92,7 @@ export default function CreateCourse() {
       if (response.data.length > 0) {
         setSchoolId(response.data[0]._id);
       } else {
-        console.log('No se encontraron escuelas para este usuario');
+        
       }
     } catch (error) {
       console.error('Error al cargar escuelas:', error);
@@ -132,11 +132,7 @@ export default function CreateCourse() {
       let userInfo = '';
       try {
         const decoded = jwtDecode<any>(token);
-        console.log('Información de usuario para logs:', {
-          sub: decoded.sub,
-          email: decoded.email,
-          role: decoded.role
-        });
+        
         userInfo = `Usuario: ${decoded.email} (${decoded.role}), ID: ${decoded.sub}`;
       } catch (e) {
         console.error('Error al decodificar token para logs:', e);
@@ -166,13 +162,10 @@ export default function CreateCourse() {
       
       setDebugInfo(debugData);
       
-      console.log('Enviando solicitud para crear curso:', courseData);
-      console.log('URL API:', `${apiUrl}/api/courses`);
-      console.log('Token presente:', !!token);
-      console.log('Headers:', { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token.substring(0, 20)}...` 
-      });
+      
+      
+      
+      
       
       const response = await axios.post(
         `${apiUrl}/api/courses`, 
@@ -185,7 +178,7 @@ export default function CreateCourse() {
         }
       );
       
-      console.log('Respuesta del servidor:', response.data);
+      
       
       setSuccess(true);
       setDebugInfo(debugInfo + `\n\nRespuesta: ${JSON.stringify(response.data, null, 2)}`);

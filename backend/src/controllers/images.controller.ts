@@ -18,10 +18,10 @@ export class ImagesController {
    */
   @Get('refresh-url')
   async refreshImageUrl(@Query('key') key: string): Promise<{ url: string }> {
-    this.logger.log(`Solicitud de refresco de URL para imagen con key: ${key}`);
+    
     
     if (!key) {
-      this.logger.warn('Solicitud de refresco sin key');
+      
       throw new Error('Se requiere el parámetro "key"');
     }
     
@@ -31,16 +31,16 @@ export class ImagesController {
         try {
           // Generar URL firmada de CloudFront con expiración de 24 horas
           const cloudFrontUrl = await this.cloudFrontService.getSignedUrl(key, 86400);
-          this.logger.log(`URL CloudFront generada exitosamente para: ${key}`);
+          
           return { url: cloudFrontUrl };
         } catch (cloudFrontError) {
-          this.logger.warn(`Error con CloudFront: ${cloudFrontError.message}. Fallback a S3.`);
+          
         }
       }
       
       // Fallback a S3 si CloudFront no está disponible
       const signedUrl = await this.s3Service.getSignedUrl(key, 86400);
-      this.logger.log(`URL S3 refrescada generada exitosamente para: ${key}`);
+      
       
       return { url: signedUrl };
     } catch (error) {

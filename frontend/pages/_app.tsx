@@ -44,17 +44,17 @@ function MyApp({ Component, pageProps }: AppProps) {
     
     // Debug the dropdown menu visibility
     const checkDropdownItems = () => {
-      console.log('Debugging dropdown menu...');
+      
       const dropdownContent = document.querySelector('.dropdown-content');
-      console.log('Dropdown content element:', dropdownContent);
+      
       
       if (dropdownContent) {
         const items = dropdownContent.querySelectorAll('a, button');
-        console.log('Dropdown items:', items);
-        console.log('Items count:', items.length);
+        
+        
         
         Array.from(items).forEach((item, index) => {
-          console.log(`Item ${index}:`, item.textContent, 'Visible:', window.getComputedStyle(item).display !== 'none');
+          
         });
       }
     };

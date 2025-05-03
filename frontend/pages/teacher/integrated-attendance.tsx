@@ -8,6 +8,7 @@ import Layout from '../../components/Layout';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import Link from 'next/link';
 import { format } from 'date-fns';
+import { FaUserCheck, FaUserTimes, FaCalendarAlt, FaBook, FaChalkboardTeacher, FaCreditCard, FaSave, FaMoneyBillWave } from 'react-icons/fa';
 
 interface Student {
   _id: string;
@@ -96,7 +97,8 @@ export default function IntegratedAttendancePage() {
         setSelectedCourse(response.data[0]._id);
       }
     } catch (error) {
-      handleApiError(error, 'Error al cargar los cursos');
+      const errorMsg = handleApiError(error);
+      setError(errorMsg || 'Error al cargar los cursos');
     } finally {
       setLoading(false);
     }
@@ -116,7 +118,8 @@ export default function IntegratedAttendancePage() {
       
       setEnrollments(response.data);
     } catch (error) {
-      handleApiError(error, 'Error al cargar las inscripciones');
+      const errorMsg = handleApiError(error);
+      setError(errorMsg || 'Error al cargar las inscripciones');
     } finally {
       setLoading(false);
     }
@@ -280,7 +283,8 @@ export default function IntegratedAttendancePage() {
       // Actualizar asistencias
       fetchAttendances(selectedCourse, date);
     } catch (error) {
-      handleApiError(error, 'Error al guardar la asistencia');
+      const errorMsg = handleApiError(error);
+      setError(errorMsg || 'Error al guardar la asistencia');
     } finally {
       setSaving(false);
     }
@@ -295,18 +299,38 @@ export default function IntegratedAttendancePage() {
     setDate(e.target.value);
   };
 
+  // Obtener el curso seleccionado para acceder a sus estudiantes
+  const selectedCourseObj = courses.find(course => course._id === selectedCourse);
+
+  // Calcular estadísticas
+  const countPresent = studentRecords.filter(record => record.present).length;
+  const countAbsent = studentRecords.length - countPresent;
+  const countPaid = studentRecords.filter(record => record.paymentStatus).length;
+  const countUnpaid = studentRecords.length - countPaid;
+
   return (
-    <Layout title="Control de Asistencia | Dance Platform">
+    <Layout title="Control de Asistencia y Pagos | Dance Platform">
       <div className={styles.container}>
         <main className={styles.main}>
-          <h1 className={styles.title}>Control de Asistencia y Pagos</h1>
+          <div className={styles.header}>
+            <h1 className={styles.title}>Control de Asistencia y Pagos</h1>
+            {selectedCourseObj && (
+              <div className={styles.courseInfo}>
+                <FaChalkboardTeacher style={{ marginRight: '6px' }} />
+                <span>{selectedCourseObj.title}</span>
+              </div>
+            )}
+          </div>
           
           {error && <div className={styles.errorMessage}>{error}</div>}
           {success && <div className={styles.successMessage}>{success}</div>}
           
           <div className={styles.controls}>
             <div className={styles.selectGroup}>
-              <label htmlFor="courseSelect">Curso:</label>
+              <label htmlFor="courseSelect">
+                <FaBook style={{ marginRight: '6px' }} />
+                Curso:
+              </label>
               <select
                 id="courseSelect"
                 value={selectedCourse}
@@ -324,7 +348,10 @@ export default function IntegratedAttendancePage() {
             </div>
             
             <div className={styles.selectGroup}>
-              <label htmlFor="date">Fecha:</label>
+              <label htmlFor="date">
+                <FaCalendarAlt style={{ marginRight: '6px' }} />
+                Fecha:
+              </label>
               <input
                 type="date"
                 id="date"
@@ -337,9 +364,53 @@ export default function IntegratedAttendancePage() {
           </div>
           
           {loading ? (
-            <div className={styles.loading}>Cargando...</div>
+            <div className={styles.loading}>Cargando datos...</div>
           ) : selectedCourse && studentRecords.length > 0 ? (
             <form onSubmit={handleSubmit} className={styles.attendanceForm}>
+              <div className={styles.statsContainer}>
+                <div className={styles.statCard}>
+                  <div className={styles.statTitle}>
+                    <FaUserCheck style={{ color: '#38a169', marginRight: '6px' }} />
+                    Asistencia
+                  </div>
+                  <div className={styles.statNumbers}>
+                    <div className={styles.statItem}>
+                      <span className={styles.statValue}>{countPresent}</span>
+                      <span className={styles.statLabel}>Presentes</span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statValue}>{countAbsent}</span>
+                      <span className={styles.statLabel}>Ausentes</span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statValue}>{studentRecords.length}</span>
+                      <span className={styles.statLabel}>Total</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className={styles.statCard}>
+                  <div className={styles.statTitle}>
+                    <FaMoneyBillWave style={{ color: '#38a169', marginRight: '6px' }} />
+                    Pagos
+                  </div>
+                  <div className={styles.statNumbers}>
+                    <div className={styles.statItem}>
+                      <span className={styles.statValue}>{countPaid}</span>
+                      <span className={styles.statLabel}>Pagados</span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statValue}>{countUnpaid}</span>
+                      <span className={styles.statLabel}>Pendientes</span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statValue}>{studentRecords.length}</span>
+                      <span className={styles.statLabel}>Total</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
               <div className={styles.attendanceTable}>
                 <div className={styles.tableHeader}>
                   <div className={styles.studentColumn}>Estudiante</div>
@@ -366,6 +437,7 @@ export default function IntegratedAttendancePage() {
                               onChange={() => handlePresentChange(student._id, true)}
                               className={styles.radioInput}
                             />
+                            <FaUserCheck style={{ marginRight: '4px', color: '#38a169' }} />
                             Presente
                           </label>
                           <label className={styles.radioLabel}>
@@ -376,6 +448,7 @@ export default function IntegratedAttendancePage() {
                               onChange={() => handlePresentChange(student._id, false)}
                               className={styles.radioInput}
                             />
+                            <FaUserTimes style={{ marginRight: '4px', color: '#e53e3e' }} />
                             Ausente
                           </label>
                         </div>
@@ -397,10 +470,21 @@ export default function IntegratedAttendancePage() {
                             ? styles.paymentStatusPaid 
                             : styles.paymentStatusUnpaid
                         }>
-                          {student.paymentStatus ? 'Pagado' : 'Pendiente'}
+                          {student.paymentStatus ? (
+                            <>
+                              <FaCreditCard style={{ marginRight: '4px' }} />
+                              Pagado
+                            </>
+                          ) : (
+                            <>
+                              <FaMoneyBillWave style={{ marginRight: '4px' }} />
+                              Pendiente
+                            </>
+                          )}
                         </span>
                         {student.lastPaymentDate && (
                           <div className={styles.lastPaymentDate}>
+                            <FaCalendarAlt style={{ marginRight: '4px', fontSize: '0.8rem' }} />
                             Último pago: {new Date(student.lastPaymentDate).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'})}
                           </div>
                         )}
@@ -421,6 +505,7 @@ export default function IntegratedAttendancePage() {
                   className={styles.saveButton}
                   disabled={saving}
                 >
+                  <FaSave style={{ marginRight: '8px' }} />
                   {saving ? 'Guardando...' : 'Guardar Asistencia'}
                 </button>
               </div>

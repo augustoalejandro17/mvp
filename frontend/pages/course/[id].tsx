@@ -71,12 +71,7 @@ export default function CourseDetail() {
       if (token) {
         try {
           const decoded = jwtDecode<DecodedToken>(token);
-          console.log('User token decoded:', {
-            role: decoded.role,
-            sub: decoded.sub,
-            email: decoded.email,
-            name: decoded.name
-          });
+          
           
           setUser({
             id: decoded.sub,
@@ -139,11 +134,7 @@ export default function CourseDetail() {
 
   useEffect(() => {
     if (course) {
-      console.log('Course data loaded:', {
-        courseId: course._id,
-        teacherId: course.teacher._id,
-        title: course.title
-      });
+      
     }
   }, [course]);
 
@@ -168,14 +159,14 @@ export default function CourseDetail() {
   const canModifyClassItem = useCallback((teacherId: string | undefined): boolean => {
     if (!user?.role || !teacherId) return false;
     const hasPermission = canModifyClass(user.role, isClassTeacher(teacherId));
-    console.log('canModifyClass check:', { role: user.role, isTeacher: isClassTeacher(teacherId), hasPermission });
+    
     return hasPermission;
   }, [user, isClassTeacher]);
 
   const canTakeAttendance = useCallback((teacherId: string | undefined): boolean => {
     if (!user?.role || !teacherId) return false;
     const hasPermission = canManageAttendance(user.role, isClassTeacher(teacherId));
-    console.log('canManageAttendance check:', { role: user.role, isTeacher: isClassTeacher(teacherId), hasPermission });
+    
     return hasPermission;
   }, [user, isClassTeacher]);
 
@@ -263,7 +254,7 @@ export default function CourseDetail() {
       const response = await axios.get(`${apiUrl}/api/classes/${classId}/stream-url`, { headers });
       if (response.data && response.data.url) {
         setVideoStreamUrl(response.data.url);
-        console.log('Nueva URL de streaming obtenida:', response.data.url);
+        
       } else {
         setVideoStreamUrl(null);
         console.error('No se pudo obtener URL de streaming válida');
@@ -280,12 +271,7 @@ export default function CourseDetail() {
       const canModify = canModifyClassItem(course.teacher._id);
       const canAttend = canTakeAttendance(course.teacher._id);
       
-      console.log('Permission checks:', {
-        userRole: user.role,
-        isTeacherOfCourse: isTeacher,
-        canModifyCourse: canModify,
-        canManageAttendance: canAttend
-      });
+      
     }
   }, [user, course, isClassTeacher, canModifyClassItem, canTakeAttendance]);
 
@@ -432,7 +418,7 @@ export default function CourseDetail() {
                       autoPlay={false}
                       onError={(e) => {
                         console.error('Error al cargar el video:', e);
-                        console.log('URL problemática:', videoStreamUrl || selectedClass.videoUrl);
+                        
                         
                         // Mostrar mensaje alternativo
                         const videoContainer = document.querySelector(`.${styles.videoContainer}`);

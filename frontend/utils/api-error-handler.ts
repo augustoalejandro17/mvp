@@ -25,7 +25,7 @@ export const useApiErrorHandler = () => {
         errorMessage = 'No autorizado. Por favor, inicia sesión nuevamente.';
         // Redirigir al login si es necesario
         if (typeof window !== 'undefined') {
-          console.log('Redirigiendo al login por error 401');
+          
           setTimeout(() => {
             window.location.href = '/login';
           }, 2000);

@@ -115,45 +115,35 @@ export class AuthorizationService {
    */
   async isSchoolAdmin(userId: string, schoolId: string): Promise<boolean> {
     if (!userId || !schoolId) {
-      console.log(`isSchoolAdmin: userId (${userId}) o schoolId (${schoolId}) no proporcionados`);
       return false;
     }
     
-    console.log(`isSchoolAdmin: verificando permisos para usuario ${userId} en escuela ${schoolId}`);
     
     const user = await this.userModel.findById(userId);
     if (!user) {
-      console.log(`isSchoolAdmin: Usuario ${userId} no encontrado`);
       return false;
     }
     
-    console.log(`isSchoolAdmin: Usuario encontrado - ${user.name}, rol: ${user.role}`);
-    
     // Super admin siempre tiene permisos administrativos
     if (user.role === UserRole.SUPER_ADMIN) {
-      console.log(`isSchoolAdmin: Usuario es SUPER_ADMIN, permiso concedido`);
       return true;
     }
     
     // Verificar rol específico en la escuela
     const schoolRole = await this.getUserRoleInSchool(userId, schoolId);
     if (schoolRole === UserRole.SCHOOL_OWNER || schoolRole === UserRole.ADMIN) {
-      console.log(`isSchoolAdmin: Usuario tiene rol administrativo (${schoolRole}) en la escuela`);
       return true;
     }
     
     // Para compatibilidad con el modelo anterior
     if (user.role === UserRole.SCHOOL_OWNER && user.ownedSchools.some(id => id.toString() === schoolId)) {
-      console.log(`isSchoolAdmin: Usuario es SCHOOL_OWNER, verificando propiedad: true`);
       return true;
     }
     
     if (user.role === UserRole.ADMIN && user.administratedSchools.some(id => id.toString() === schoolId)) {
-      console.log(`isSchoolAdmin: Usuario es ADMIN, verificando administración: true`);
       return true;
     }
     
-    console.log(`isSchoolAdmin: Sin permisos administrativos`);
     return false;
   }
 

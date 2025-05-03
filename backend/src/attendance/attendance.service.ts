@@ -20,7 +20,7 @@ export class AttendanceService {
 
   // Registrar asistencia individual
   async create(createAttendanceDto: CreateAttendanceDto, teacherId: string): Promise<Attendance> {
-    this.logger.log(`Registrando asistencia para el estudiante ${createAttendanceDto.studentId} en el curso ${createAttendanceDto.courseId}`);
+    
     
     // Verificar que el curso existe
     const course = await this.courseModel.findById(createAttendanceDto.courseId);
@@ -93,7 +93,7 @@ export class AttendanceService {
 
   // Registrar asistencia masiva (para múltiples estudiantes a la vez)
   async createBulk(bulkAttendanceDto: BulkAttendanceDto, teacherId: string): Promise<Attendance[]> {
-    this.logger.log(`Registrando asistencia masiva para ${bulkAttendanceDto.attendances.length} estudiantes en el curso ${bulkAttendanceDto.courseId}`);
+    
     
     // Verificar que el curso existe
     const course = await this.courseModel.findById(bulkAttendanceDto.courseId);
@@ -313,7 +313,7 @@ export class AttendanceService {
 
   // Obtener todos los registros de asistencia (para encontrar usuarios no registrados)
   async findAllRecords(): Promise<Attendance[]> {
-    this.logger.log('Buscando todos los registros de asistencia para extraer usuarios no registrados');
+    
     
     // Obtener todos los registros, incluidos aquellos donde el estudiante podría ser un string
     const records = await this.attendanceModel.find()
@@ -362,7 +362,7 @@ export class AttendanceService {
 
   // Crear asistencia para un usuario no registrado (solo nombre)
   async createForNonRegisteredUser(courseId: string, studentName: string, date: Date, present: boolean, notes: string, teacherId: string): Promise<Attendance> {
-    this.logger.log(`Registrando asistencia para estudiante no registrado: ${studentName} en curso: ${courseId}`);
+    
     
     // Verificar que el curso existe
     const course = await this.courseModel.findById(courseId).populate('school');
@@ -390,7 +390,7 @@ export class AttendanceService {
       schoolId = new Types.ObjectId().toString();
     }
     
-    this.logger.log(`Curso encontrado: ${course.title}, Escuela: ${schoolName}, ID Escuela: ${schoolId}`);
+    
     
     try {
       // Buscar si existe un usuario con el mismo nombre y role UNREGISTERED
@@ -401,7 +401,7 @@ export class AttendanceService {
       
       // Si no existe, crear un nuevo usuario no registrado
       if (!unregisteredUser) {
-        this.logger.log(`Creando nuevo usuario no registrado: ${studentName}`);
+        
         try {
           // Convertir IDs a ObjectId
           const courseObjectId = new Types.ObjectId(courseId);
@@ -423,34 +423,34 @@ export class AttendanceService {
           unregisteredUser = new this.userModel(newUserData);
           await unregisteredUser.save();
           
-          this.logger.log(`Usuario no registrado creado exitosamente con ID: ${unregisteredUser._id}`);
-          this.logger.log(`Usuario no registrado asociado a escuela: ${schoolId}`);
+          
+          
           
           // Agregar el usuario al curso si no está ya
           if (!course.students || !course.students.some(s => s?.toString() === unregisteredUser._id.toString())) {
             course.students = course.students || [];
             course.students.push(unregisteredUser._id as any);
             await course.save();
-            this.logger.log(`Usuario no registrado añadido al curso ${courseId}`);
+            
           }
         } catch (error) {
           this.logger.error(`Error al crear usuario no registrado: ${error.message}`, error.stack);
           throw new BadRequestException(`Error al crear usuario no registrado: ${error.message}`);
         }
       } else {
-        this.logger.log(`Usuario no registrado encontrado: ${unregisteredUser._id}, nombre: ${unregisteredUser.name}`);
+        
         
         // Verificar si el curso ya está en enrolledCourses
         if (!unregisteredUser.enrolledCourses.some(c => c?.toString() === courseId)) {
           unregisteredUser.enrolledCourses.push(new Types.ObjectId(courseId) as any);
-          this.logger.log(`Añadiendo curso ${courseId} a enrolledCourses del usuario ${unregisteredUser._id}`);
+          
         }
         
         // Verificar si la escuela ya está en schools
         if (!unregisteredUser.schools || !unregisteredUser.schools.some(s => s?.toString() === schoolId)) {
           unregisteredUser.schools = unregisteredUser.schools || [];
           unregisteredUser.schools.push(new Types.ObjectId(schoolId) as any);
-          this.logger.log(`Añadiendo escuela ${schoolId} a schools del usuario ${unregisteredUser._id}`);
+          
         }
         
         // Verificar si ya tiene el rol para esta escuela
@@ -460,18 +460,18 @@ export class AttendanceService {
             schoolId: new Types.ObjectId(schoolId) as any,
             role: UserRole.STUDENT
           });
-          this.logger.log(`Añadiendo rol 'student' para escuela ${schoolId} al usuario ${unregisteredUser._id}`);
+          
         }
         
         await unregisteredUser.save();
-        this.logger.log(`Usuario no registrado actualizado con nuevos cursos/escuelas`);
+        
         
         // Verificar si el usuario está en el curso
         if (!course.students || !course.students.some(s => s?.toString() === unregisteredUser._id.toString())) {
           course.students = course.students || [];
           course.students.push(unregisteredUser._id as any);
           await course.save();
-          this.logger.log(`Usuario ${unregisteredUser._id} añadido a students del curso ${courseId}`);
+          
         }
       }
       
@@ -487,7 +487,7 @@ export class AttendanceService {
       });
       
       const savedAttendance = await attendance.save();
-      this.logger.log(`Registro de asistencia creado: ${savedAttendance._id}`);
+      
       
       return savedAttendance;
     } catch (error) {
@@ -498,7 +498,7 @@ export class AttendanceService {
 
   // Vincular asistencias de un usuario no registrado a uno registrado
   async linkAttendancesToRegisteredUser(unregisteredName: string, userId: string): Promise<number> {
-    this.logger.log(`Vinculando asistencias de usuario no registrado "${unregisteredName}" al usuario registrado ${userId}`);
+    
     
     // Verificar que el usuario registrado existe
     const registeredUser = await this.userModel.findById(userId);

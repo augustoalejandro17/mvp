@@ -6,6 +6,9 @@ import { UserRole } from '../auth/enums/user-role.enum';
 import * as argon2 from 'argon2';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { Course } from '../courses/schemas/course.schema';
+import { School } from '../schools/schemas/school.schema';
+import { Attendance as CourseAttendance } from '../attendance/schemas/attendance.schema';
+import { Attendance as ClassAttendance } from '../classes/schemas/attendance.schema';
 
 // DTOs para los nuevos métodos
 class RegisterUnregisteredUserDto {
@@ -23,6 +26,9 @@ export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Course.name) private courseModel: Model<Course>,
+    @InjectModel(School.name) private schoolModel: Model<School>,
+    @InjectModel(CourseAttendance.name) private courseAttendanceModel: Model<CourseAttendance>,
+    @InjectModel(ClassAttendance.name) private classAttendanceModel: Model<ClassAttendance>,
   ) {}
 
   async findAll(): Promise<User[]> {
@@ -47,7 +53,7 @@ export class UsersService {
   }
 
   async createWithCourses(userData: Partial<User>, courseIds: string[] = []): Promise<User> {
-    this.logger.log(`Creando usuario con ${courseIds.length} cursos`);
+    
     
     // Crear usuario básico
     const createdUser = new this.userModel({
@@ -60,7 +66,7 @@ export class UsersService {
     
     // Si hay cursos, actualizar la relación en los cursos también
     if (courseIds && courseIds.length > 0) {
-      this.logger.log(`Matriculando usuario ${savedUser._id} en ${courseIds.length} cursos`);
+      
       
       // Actualizar los cursos para incluir al estudiante
       await this.enrollUserInCourses(savedUser._id, courseIds);
@@ -98,15 +104,105 @@ export class UsersService {
   }
 
   async remove(id: string): Promise<User> {
-    const user = await this.userModel.findByIdAndDelete(id).exec();
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
+    
+
+    try {
+      // Find the user first to ensure it exists
+      const user = await this.userModel.findById(id).exec();
+      if (!user) {
+        
+        throw new NotFoundException(`User with ID ${id} not found`);
+      }
+
+      // Remove user references from courses
+      if (user.enrolledCourses && user.enrolledCourses.length > 0) {
+        
+        await this.courseModel.updateMany(
+          { _id: { $in: user.enrolledCourses } },
+          { $pull: { students: id } }
+        );
+      }
+
+      if (user.teachingCourses && user.teachingCourses.length > 0) {
+        
+        // Note: Not automatically deleting courses - this would require business logic for teacher reassignment
+      }
+
+      // Remove user references from schools
+      if (user.schools && user.schools.length > 0) {
+        
+        await this.schoolModel.updateMany(
+          { _id: { $in: user.schools } },
+          { $pull: { students: id, teachers: id } }
+        );
+      }
+
+      if (user.administratedSchools && user.administratedSchools.length > 0) {
+        
+        // Note: Not automatically reassigning school admins - this would require business logic
+      }
+
+      // Clean up course attendance records
+      // 1. Find course attendance records where this user is the student
+      const studentCourseAttendanceCount = await this.courseAttendanceModel.countDocuments({ 
+        student: id,
+        studentModel: 'User'
+      });
+      
+      if (studentCourseAttendanceCount > 0) {
+        
+        await this.courseAttendanceModel.deleteMany({ 
+          student: id,
+          studentModel: 'User'
+        });
+      }
+      
+      // 2. Find course attendance records where this user marked the attendance
+      const markedCourseAttendanceCount = await this.courseAttendanceModel.countDocuments({ markedBy: id });
+      if (markedCourseAttendanceCount > 0) {
+        
+        await this.courseAttendanceModel.updateMany(
+          { markedBy: id },
+          { $set: { markedBy: null } }
+        );
+      }
+
+      // Clean up class attendance records
+      // 1. Find class attendance records where this user is the student
+      const studentClassAttendanceCount = await this.classAttendanceModel.countDocuments({ 
+        student: id
+      });
+      
+      if (studentClassAttendanceCount > 0) {
+        
+        await this.classAttendanceModel.deleteMany({ 
+          student: id
+        });
+      }
+      
+      // 2. Find class attendance records where this user recorded the attendance
+      const recordedClassAttendanceCount = await this.classAttendanceModel.countDocuments({ recordedBy: id });
+      if (recordedClassAttendanceCount > 0) {
+        
+        await this.classAttendanceModel.updateMany(
+          { recordedBy: id },
+          { $set: { recordedBy: null } }
+        );
+      }
+
+      // Delete the user
+      const deletedUser = await this.userModel.findByIdAndDelete(id).exec();
+      
+      
+      return deletedUser;
+    } catch (error) {
+      this.logger.error(`Error removing user ${id}: ${error.message}`, error.stack);
+      throw error;
     }
-    return user;
   }
 
   async changeRole(userId: string, role: UserRole): Promise<User> {
-    this.logger.log(`Changing role for user ${userId} to ${role}`);
+    
     
     // Validar que el rol sea uno de los permitidos
     if (!Object.values(UserRole).includes(role)) {
@@ -127,7 +223,7 @@ export class UsersService {
   }
 
   async changePassword(userId: string, changePasswordDto: ChangePasswordDto): Promise<User> {
-    this.logger.log(`Attempting to change password for user ${userId}`);
+    
     
     const user = await this.userModel.findById(userId);
     if (!user) {
@@ -137,7 +233,7 @@ export class UsersService {
     // Verify current password
     const isPasswordValid = await argon2.verify(user.password, changePasswordDto.currentPassword);
     if (!isPasswordValid) {
-      this.logger.warn(`Invalid current password for user ${userId}`);
+      
       throw new UnauthorizedException('Current password is incorrect');
     }
     
@@ -158,7 +254,7 @@ export class UsersService {
     user.password = hashedPassword;
     await user.save();
     
-    this.logger.log(`Password changed successfully for user ${userId}`);
+    
     
     return user;
   }
@@ -173,7 +269,7 @@ export class UsersService {
     unregisteredUserId: string, 
     registerData: RegisterUnregisteredUserDto
   ): Promise<User> {
-    this.logger.log(`Convirtiendo usuario no registrado ${unregisteredUserId} a usuario registrado`);
+    
     
     // Verificar que el usuario existe y tiene rol UNREGISTERED
     const user = await this.userModel.findById(unregisteredUserId);
@@ -215,7 +311,7 @@ export class UsersService {
       { new: true }
     );
     
-    this.logger.log(`Usuario ${unregisteredUserId} convertido exitosamente a usuario registrado`);
+    
     
     return updatedUser;
   }
@@ -232,7 +328,7 @@ export class UsersService {
     courseId?: string,
     schoolId?: string
   ): Promise<User> {
-    this.logger.log(`Creando usuario no registrado: ${name}`);
+    
     
     try {
       // Generar un email único para el asistente
@@ -271,7 +367,7 @@ export class UsersService {
       
       // Insertar directamente en MongoDB
       const result = await userCollection.insertOne(userDocument);
-      this.logger.log(`Usuario no registrado creado con ID: ${result.insertedId}`);
+      
       
       // Si hay un courseId, añadir el usuario al curso
       if (courseId) {
@@ -280,7 +376,7 @@ export class UsersService {
             { _id: new Types.ObjectId(courseId) },
             { $addToSet: { students: result.insertedId } }
           );
-          this.logger.log(`Usuario añadido al curso: ${courseId}`);
+          
         } catch (error) {
           this.logger.error(`Error al añadir usuario al curso: ${error.message}`, error.stack);
         }

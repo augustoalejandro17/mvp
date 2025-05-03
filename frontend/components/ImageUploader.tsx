@@ -26,7 +26,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   // Initialize with default image and add cache-busting
   useEffect(() => {
     if (defaultImage) {
-      console.log('Default image URL:', defaultImage);
+      
       // Add cache busting parameter
       const imageUrlWithCache = defaultImage.includes('?') 
         ? `${defaultImage}&t=${Date.now()}` 
@@ -86,7 +86,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       );
 
       if (response.data && response.data.imageUrl) {
-        console.log('Uploaded image URL:', response.data.imageUrl);
+        
         // Add cache busting parameter to ensure we see the latest version
         const imageUrlWithCache = response.data.imageUrl.includes('?') 
           ? `${response.data.imageUrl}&t=${Date.now()}` 
@@ -167,7 +167,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
                 console.error('Failed to load preview image:', previewUrl);
                 // Try one more time with a fresh cache parameter
                 const refreshedUrl = previewUrl.split('?')[0] + '?t=' + Date.now();
-                console.log('Retrying with refreshed URL:', refreshedUrl);
+                
                 e.currentTarget.src = refreshedUrl;
               }}
             />

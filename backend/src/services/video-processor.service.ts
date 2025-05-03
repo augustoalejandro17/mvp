@@ -19,7 +19,7 @@ export class VideoProcessorService implements OnModuleInit {
       if (fs.existsSync(homebrewPath)) {
         ffmpeg.setFfmpegPath(homebrewPath);
         this.ffmpegPath = homebrewPath;
-        this.logger.log(`ffmpeg encontrado y configurado en: ${homebrewPath}`);
+        
         return;
       }
     }
@@ -29,9 +29,9 @@ export class VideoProcessorService implements OnModuleInit {
       const installerPath = require('@ffmpeg-installer/ffmpeg').path;
       ffmpeg.setFfmpegPath(installerPath);
       this.ffmpegPath = installerPath;
-      this.logger.log(`ffmpeg configurado usando @ffmpeg-installer/ffmpeg: ${installerPath}`);
+      
     } catch (error) {
-      this.logger.warn('No se pudo configurar ffmpeg con @ffmpeg-installer/ffmpeg:', error.message);
+      
       
       // Intentar encontrar en el PATH
       try {
@@ -42,7 +42,7 @@ export class VideoProcessorService implements OnModuleInit {
         if (detectedPath) {
           ffmpeg.setFfmpegPath(detectedPath);
           this.ffmpegPath = detectedPath;
-          this.logger.log(`ffmpeg encontrado y configurado en PATH: ${detectedPath}`);
+          
         } else {
           this.logger.error('No se pudo encontrar ffmpeg en el PATH');
         }
@@ -66,11 +66,11 @@ export class VideoProcessorService implements OnModuleInit {
           if (fs.existsSync(potentialPath)) {
             ffmpeg.setFfmpegPath(potentialPath);
             this.ffmpegPath = potentialPath;
-            this.logger.log(`ffmpeg encontrado y configurado en: ${potentialPath}`);
+            
             break;
           }
         } catch (error) {
-          this.logger.debug(`ffmpeg no encontrado en: ${potentialPath}`);
+          
         }
       }
     }
@@ -79,7 +79,7 @@ export class VideoProcessorService implements OnModuleInit {
     if (this.ffmpegPath) {
       try {
         await this.executeCommand(`"${this.ffmpegPath}" -version`);
-        this.logger.log(`ffmpeg verificado y funcional en: ${this.ffmpegPath}`);
+        
       } catch (error) {
         this.logger.error(`Error al verificar ffmpeg: ${error.message}`);
         this.ffmpegPath = null;
@@ -126,14 +126,14 @@ export class VideoProcessorService implements OnModuleInit {
     const tempOutputPath = path.join(tempDir, `output-${uuidv4()}.mp4`);
 
     await fs.promises.writeFile(tempInputPath, inputBuffer);
-    this.logger.log(`Archivo temporal creado: ${tempInputPath}`);
+    
     
     // Comprobar permisos en el directorio de salida
     try {
       const testFile = path.join(tempDir, `test-${uuidv4()}.txt`);
       fs.writeFileSync(testFile, 'test');
       fs.unlinkSync(testFile);
-      this.logger.log(`Verificación de permisos de escritura en ${tempDir}: OK`);
+      
     } catch (err) {
       this.logger.error(`Problemas de permisos en directorio temporal: ${err.message}`);
       throw new Error(`Error de permisos en directorio temporal: ${err.message}`);
@@ -150,15 +150,15 @@ export class VideoProcessorService implements OnModuleInit {
         ])
         .output(tempOutputPath)
         .on('start', (commandLine) => {
-          this.logger.log('Iniciando procesamiento de video con comando: ' + commandLine);
+          
         })
         .on('progress', (progress) => {
           if (progress.percent) {
-            this.logger.log(`Progreso de procesamiento: ${Math.round(progress.percent)}%`);
+            
           }
         })
         .on('end', () => {
-          this.logger.log('Video procesado exitosamente');
+          
           resolve({
             processedFilePath: tempOutputPath,
             cleanup: () => {

@@ -18,17 +18,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       secretOrKey: process.env.JWT_SECRET || 'your-secret-key-here',
     });
     
-    this.logger.log(`JWT Strategy inicializada. Secret: ${process.env.JWT_SECRET ? '***SECRET CONFIGURADO***' : 'USANDO VALOR POR DEFECTO'}`);
+    
   }
 
   async validate(payload: any) {
     try {
-      this.logger.log(`Validando JWT payload: ${JSON.stringify({ sub: payload.sub, email: payload.email, role: payload.role })}`);
-      console.log('JWT Payload completo:', payload);
+      
       
       // Verificamos que el payload contenga la información mínima necesaria
       if (!payload.sub) {
-        this.logger.error('Token JWT sin ID de usuario (sub)');
         throw new UnauthorizedException('Token inválido: falta el ID de usuario');
       }
       
@@ -39,13 +37,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           this.logger.error(`Usuario con ID ${payload.sub} no encontrado en la base de datos`);
           throw new UnauthorizedException('Usuario no encontrado');
         }
-        
-        this.logger.log(`Usuario autenticado: ${user._id} (${user.email})`);
-        console.log('Usuario encontrado en DB:', {
-          id: user._id,
-          email: user.email,
-          role: user.role
-        });
         
         // Devolver un objeto con la información mínima necesaria para la autenticación
         return {

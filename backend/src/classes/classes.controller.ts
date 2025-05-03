@@ -22,7 +22,7 @@ export class ClassesController {
   @Get()
   @UseGuards(JwtAuthGuard)
   async findAll(@Req() req, @Query('courseId') courseId?: string) {
-    this.logger.log(`Procesando solicitud para obtener todas las clases${courseId ? ` del curso ${courseId}` : ''}`);
+    
     const user = req.user as any;
     const userId = user._id || user.sub;
     return this.classesService.findAll(userId, user.role, courseId);
@@ -31,7 +31,7 @@ export class ClassesController {
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string) {
-    this.logger.log(`Procesando solicitud para obtener clase con ID: ${id}`);
+    
     return this.classesService.findOne(id);
   }
 
@@ -80,7 +80,7 @@ export class ClassesController {
       // We'll reuse the streaming URL method but will later modify it to support downloads
       const downloadUrl = await this.classesService.getSignedUrlForStreaming(classItem.videoUrl);
       
-      this.logger.log(`Download URL generated for class ${id} by user ${req.user.sub}`);
+      
       
       return {
         success: true,
@@ -166,13 +166,13 @@ export class ClassesController {
     const userId = req.user.sub || req.user._id?.toString();
     const userRole = req.user.role;
     
-    this.logger.log(`Creating class as user ID: ${userId}, role: ${userRole}`);
+    
     
     if (!file) {
       throw new BadRequestException('No se ha proporcionado ningún archivo de video');
     }
     
-    this.logger.log(`Archivo recibido: ${file.originalname}, tamaño: ${file.size}, tipo: ${file.mimetype}`);
+    
     
     try {
       return await this.classesService.create(createClassDto, userId, file);
@@ -247,19 +247,19 @@ export class ClassesController {
     @Req() req: Request,
     @UploadedFile() file?: Express.Multer.File
   ) {
-    this.logger.log(`Procesando solicitud para actualizar clase con ID: ${id}`);
+    
     const user = req.user as any;
     const userId = user._id || user.sub;
     
     try {
       // Si hay un nuevo video, actualizar con el archivo
       if (file) {
-        this.logger.log(`Archivo recibido para actualización: ${file.originalname}, tamaño: ${file.size}, tipo: ${file.mimetype}`);
+        
         return await this.classesService.updateWithVideo(id, updateClassDto, userId, file);
       } else {
         // Si no hay nuevo video, actualizar solo los datos
         const result = await this.classesService.update(id, updateClassDto, userId);
-        this.logger.log(`Clase actualizada con éxito: ${result._id}`);
+        
         return result;
       }
     } catch (error) {
@@ -271,13 +271,13 @@ export class ClassesController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   async remove(@Param('id') id: string, @Req() req: Request) {
-    this.logger.log(`Procesando solicitud para eliminar clase con ID: ${id}`);
+    
     const user = req.user as any;
     const userId = user._id || user.sub;
     
     try {
       const result = await this.classesService.remove(id, userId);
-      this.logger.log(`Clase eliminada con éxito`);
+      
       return result;
     } catch (error) {
       this.logger.error(`Error al eliminar clase: ${error.message}`, error.stack);

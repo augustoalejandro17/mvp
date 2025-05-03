@@ -48,7 +48,7 @@ export default function CreateClass() {
       
       // Special case for Augusto for debugging
       if (decoded.email && decoded.email.toLowerCase().includes('augusto')) {
-        console.log('Detected Augusto user with special permissions');
+        
         fetchCourses(token);
         return;
       }
@@ -76,14 +76,14 @@ export default function CreateClass() {
       const isSuperAdmin = decoded.role === 'super_admin';
       
       // For super_admin users, let's show all courses
-      console.log(`Fetching courses as role: ${decoded.role}`);
+      
       
       const response = await axios.get(`${apiUrl}/api/courses`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       // Log how many courses were found
-      console.log(`Found ${response.data.length} courses`);
+      
       
       setCourses(response.data);
     } catch (error) {

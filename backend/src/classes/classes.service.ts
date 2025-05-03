@@ -67,7 +67,7 @@ export class ClassesService {
 
   async create(createClassDto: CreateClassDto, teacherId: string, videoFile: Express.Multer.File): Promise<Class> {
     try {
-      this.logger.log(`Iniciando creación de clase por profesor ID: ${teacherId}`);
+      
       
       // Validación de datos requeridos
       if (!teacherId) {
@@ -101,14 +101,14 @@ export class ClassesService {
       if (teacherIdFromCourse !== teacherId) {
         const user = await this.userModel.findById(teacherId);
         if (!user || user.role !== 'admin') {
-          this.logger.warn(`Profesor ${teacherId} no autorizado para crear clase en curso ${course._id}`);
+          
           throw new BadRequestException('No tienes permisos para crear clases en este curso');
         }
       }
 
       // Procesar y subir el video a S3
       try {
-        this.logger.log(`Procesando video: ${videoFile.originalname} (${videoFile.size} bytes)`);
+        
         
         // Procesar el video
         const { processedFilePath, cleanup } = await this.videoProcessorService.processVideo(videoFile.buffer);
@@ -136,7 +136,7 @@ export class ClassesService {
           
           const savedClass = await newClass.save();
           
-          this.logger.log(`Clase creada exitosamente: ${savedClass._id}`);
+          
           return savedClass;
         } finally {
           // Limpiar archivos temporales
@@ -158,7 +158,7 @@ export class ClassesService {
   }
 
   async findAll(userId?: string, role?: UserRole, courseId?: string) {
-    this.logger.log(`Buscando todas las clases${courseId ? ` del curso ${courseId}` : ''}`);
+    
     try {
       let query: any = {};
       
@@ -208,7 +208,7 @@ export class ClassesService {
         }
       }
       
-      this.logger.log(`Se encontraron ${classes.length} clases y se generaron URLs firmadas`);
+      
       return classesWithSignedUrls;
     } catch (error) {
       this.logger.error(`Error al buscar clases: ${error.message}`, error.stack);
@@ -224,19 +224,19 @@ export class ClassesService {
         try {
           // Generamos una URL firmada que expire en 24 horas
           const cloudFrontUrl = await this.cloudFrontService.getSignedUrl(videoKey, 86400);
-          this.logger.log(`URL de CloudFront generada para ${videoKey}`);
+          
           return cloudFrontUrl;
         } catch (cloudFrontError) {
-          this.logger.warn(`CloudFront no disponible: ${cloudFrontError.message}. Usando S3.`);
+          
           // Si hay error con CloudFront, continuamos con S3
         }
       } else {
-        this.logger.warn('CloudFrontService no inicializado correctamente. Usando S3 directamente.');
+        
       }
       
       // S3 como fallback
       const s3Url = await this.s3Service.getSignedUrl(videoKey, 3600);
-      this.logger.log(`URL de S3 generada para ${videoKey}`);
+      
       return s3Url;
       
     } catch (error) {
@@ -246,7 +246,7 @@ export class ClassesService {
   }
 
   async findOne(id: string): Promise<Class> {
-    this.logger.log(`Buscando clase con ID: ${id}`);
+    
     try {
       const classItem = await this.classModel
         .findById(id)
@@ -276,12 +276,12 @@ export class ClassesService {
   }
 
   async update(id: string, updateClassDto: any, userId: string) {
-    this.logger.log(`Actualizando clase con ID: ${id}`);
+    
     try {
       const classItem = await this.classModel.findById(id);
       
       if (!classItem) {
-        this.logger.warn(`Clase con ID ${id} no encontrada`);
+        
         throw new NotFoundException(`Clase con ID ${id} no encontrada`);
       }
       
@@ -294,7 +294,7 @@ export class ClassesService {
         { new: true }
       );
       
-      this.logger.log(`Clase actualizada exitosamente: ${updatedClass._id}`);
+      
       return updatedClass;
     } catch (error) {
       this.logger.error(`Error al actualizar clase ${id}: ${error.message}`, error.stack);
@@ -303,12 +303,12 @@ export class ClassesService {
   }
 
   async remove(id: string, userId: string) {
-    this.logger.log(`Eliminando clase con ID: ${id}, userId: ${userId}`);
+    
     try {
       const classToDelete = await this.classModel.findById(id);
       
       if (!classToDelete) {
-        this.logger.warn(`Clase con ID ${id} no encontrada`);
+        
         throw new NotFoundException(`Clase con ID ${id} no encontrada`);
       }
       
@@ -328,10 +328,10 @@ export class ClassesService {
       const isTeacher = String(course.teacher) === userId;
       const isAdmin = compareRole(user.role, UserRole.ADMIN) || compareRole(user.role, UserRole.SUPER_ADMIN);
       
-      this.logger.log(`Verificando permisos - userId: ${userId}, teacher: ${course.teacher}, isTeacher: ${isTeacher}, userRole: ${user.role}, isAdmin: ${isAdmin}`);
+      
       
       if (!isTeacher && !isAdmin) {
-        this.logger.warn(`Usuario ${userId} no tiene permisos para eliminar la clase ${id}`);
+        
         throw new UnauthorizedException('No tienes permisos para eliminar esta clase');
       }
       
@@ -342,7 +342,7 @@ export class ClassesService {
       
       await this.classModel.findByIdAndDelete(id);
       
-      this.logger.log(`Clase eliminada exitosamente: ${id}`);
+      
       return { success: true };
     } catch (error) {
       this.logger.error(`Error al eliminar clase ${id}: ${error.message}`, error.stack);
@@ -351,7 +351,7 @@ export class ClassesService {
   }
 
   async getSignedUrlForStreaming(videoUrl: string): Promise<string> {
-    this.logger.log(`Generando URL de streaming para video: ${videoUrl}`);
+    
     
     try {
       // Intentar usar CloudFront si está disponible
@@ -360,16 +360,16 @@ export class ClassesService {
           const key = this.s3Service.getKeyFromUrl(videoUrl);
           // Generar URL firmada de CloudFront con mayor tiempo de expiración
           const cloudFrontUrl = await this.cloudFrontService.getSignedUrl(key, 86400); // 24 horas
-          this.logger.log(`URL de CloudFront generada para streaming`);
+          
           return cloudFrontUrl;
         } catch (cloudFrontError) {
-          this.logger.warn(`CloudFront no disponible: ${cloudFrontError.message}. Fallback a S3.`);
+          
         }
       }
       
       // Fallback a S3 si CloudFront no está disponible
       const streamUrl = await this.s3Service.getSignedUrl(videoUrl, 3600); // 1 hora
-      this.logger.log(`URL de S3 generada para streaming`);
+      
       return streamUrl;
     } catch (error) {
       this.logger.error(`Error al generar URL de streaming: ${error.message}`, error.stack);
@@ -403,13 +403,13 @@ export class ClassesService {
         try {
           await this.s3Service.deleteVideo(classToUpdate.videoUrl);
         } catch (error) {
-          this.logger.warn(`Error deleting old video from S3: ${error.message}`);
+          
         }
       }
 
       // Procesar y subir el nuevo video
       try {
-        this.logger.log(`Procesando nuevo video: ${videoFile.originalname} (${videoFile.size} bytes)`);
+        
         
         // Procesar el video
         const { processedFilePath, cleanup } = await this.videoProcessorService.processVideo(videoFile.buffer);
@@ -431,7 +431,7 @@ export class ClassesService {
           classToUpdate.videoMimeType = videoFile.mimetype;
 
           const updatedClass = await classToUpdate.save();
-          this.logger.log(`Video actualizado exitosamente para la clase: ${classId}`);
+          
           return updatedClass as ClassWithVideo;
         } finally {
           // Limpiar archivos temporales
@@ -646,10 +646,10 @@ export class ClassesService {
       if (oldVideoUrl && oldVideoUrl !== updatedClass.videoUrl) {
         try {
           // Handle case where deleteVideo doesn't exist
-          this.logger.warn('Attempting to clean up old video URL: ' + oldVideoUrl);
+          
           // Just log the old URL as we can't directly delete it without the proper method
         } catch (error) {
-          this.logger.warn(`No se pudo eliminar el video anterior: ${error.message}`);
+          
         }
       }
       

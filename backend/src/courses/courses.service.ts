@@ -34,8 +34,7 @@ export class CoursesService {
   ) {}
 
   async create(createCourseDto: CreateCourseDto, teacherId: string): Promise<Course> {
-    this.logger.log(`Creando curso: ${JSON.stringify(createCourseDto)} para profesor: ${teacherId}`);
-    console.log(`Creando curso: ${JSON.stringify(createCourseDto)} para profesor: ${teacherId}`);
+    
     
     try {
       // Verificar que el profesor exista
@@ -44,9 +43,6 @@ export class CoursesService {
         this.logger.error(`Profesor con ID ${teacherId} no encontrado`);
         throw new NotFoundException(`Profesor con ID ${teacherId} no encontrado`);
       }
-      
-      this.logger.log(`Profesor encontrado: ${teacher.name} (${teacher.email}), rol: ${teacher.role}`);
-      console.log(`Profesor encontrado: ID=${teacher._id}, nombre=${teacher.name}, rol=${teacher.role}`);
       
       // Verificar que la escuela exista
       const school = await this.schoolsService.findOne(createCourseDto.schoolId);
@@ -61,36 +57,19 @@ export class CoursesService {
         (typeof school.admin === 'object' && school.admin !== null ? String(school.admin) : String(school.admin)) : 
         'null';
         
-      console.log('Escuela encontrada:', {
-        id: String(school._id),
-        name: school.name,
-        admin: adminId,
-        teachers: Array.isArray(school.teachers) ? 
-          school.teachers.map(t => {
-            if (!t) return 'null';
-            return String(t);
-          }) : 
-          'no es un array',
-      });
-      
       // Convertir IDs a string para comparación segura
       const schoolAdminId = adminId !== 'null' ? adminId : '';
       const teacherIdStr = teacherId ? String(teacherId) : '';
-      
-      console.log(`Comparando teacherId=${teacherIdStr} con schoolAdminId=${schoolAdminId}`);
-      console.log('Datos brutos de school.admin:', school.admin);
       
       // Verificar si el profesor pertenece a la escuela o es admin
       let isTeacherInSchool = false;
       
       // Depurar el contenido del array de profesores
-      console.log('Contenido de school.teachers:', school.teachers);
       
       if (Array.isArray(school.teachers)) {
         isTeacherInSchool = school.teachers.some(t => {
           if (!t) return false;
           const teacherRefId = String(t);
-          console.log(`Comparando profesor de escuela: ${teacherRefId} con ${teacherIdStr}, coincide: ${teacherRefId === teacherIdStr}`);
           return teacherRefId === teacherIdStr;
         });
       }
@@ -107,32 +86,11 @@ export class CoursesService {
         
       const isSchoolInTeacherSchools = teacherSchools.includes(String(createCourseDto.schoolId));
       
-      console.log('Verificando permisos - datos de comparación:', {
-        teacherId: teacherIdStr,
-        schoolAdminId: schoolAdminId,
-        isAdmin,
-        isTeacherInSchool,
-        isSystemAdmin,
-        userRole: teacher.role,
-        teacherSchools,
-        isSchoolInTeacherSchools
-      });
-      
-      this.logger.debug(`Verificando permisos: isAdmin=${isAdmin}, isTeacherInSchool=${isTeacherInSchool}, isSystemAdmin=${isSystemAdmin}, isSchoolInTeacherSchools=${isSchoolInTeacherSchools}`);
-      
       // Si el usuario creó la escuela (es admin) o es profesor de la escuela o es admin del sistema o la escuela está en sus escuelas, permitir la creación
       if (!isTeacherInSchool && !isAdmin && !isSystemAdmin && !isSchoolInTeacherSchools) {
-        console.log(`ACCESO DENEGADO: Usuario ${teacherId} no tiene permisos en la escuela ${createCourseDto.schoolId}`);
-        this.logger.warn(`Acceso denegado: Usuario ${teacherId} no tiene permisos en la escuela ${createCourseDto.schoolId}`);
+        
         throw new UnauthorizedException('No tienes autorización para crear cursos en esta escuela');
       }
-      
-      console.log(`ACCESO CONCEDIDO: Usuario ${teacherId} tiene permisos en la escuela como ${
-        isAdmin ? 'administrador de la escuela' : 
-        isTeacherInSchool ? 'profesor de la escuela' : 
-        isSystemAdmin ? 'administrador del sistema' :
-        isSchoolInTeacherSchools ? 'profesor asignado a la escuela' : 'desconocido'
-      }`);
       
       const createdCourse = new this.courseModel({
         title: createCourseDto.title,
@@ -143,13 +101,13 @@ export class CoursesService {
         teacher: teacherId,
       });
       
-      this.logger.debug(`Datos del curso a guardar: ${JSON.stringify(createdCourse)}`);
+      
       
       const result = await createdCourse.save();
       console.log('Curso guardado exitosamente:', result);
       
       // Añadir el curso a la escuela
-      this.logger.debug(`Añadiendo curso ${String(result._id)} a escuela ${createCourseDto.schoolId}`);
+      
       try {
         await this.schoolsService.addCourse(createCourseDto.schoolId, String(result._id));
         console.log(`Curso añadido exitosamente a la escuela ${createCourseDto.schoolId}`);
@@ -159,7 +117,7 @@ export class CoursesService {
         // No lanzamos la excepción para evitar que falle la creación del curso
       }
       
-      this.logger.log(`Curso guardado exitosamente con ID: ${result._id}`);
+      
       return result;
     } catch (error) {
       console.error('Error al crear curso:', error);
@@ -169,8 +127,8 @@ export class CoursesService {
   }
 
   async findAll(userId?: string, role?: UserRole | string, schoolId?: string) {
-    this.logger.log(`Buscando todos los cursos${schoolId ? ` de la escuela ${schoolId}` : ''}`);
-    this.logger.log(`Usuario: ${userId}, Rol: ${role}`);
+    
+    
     
     try {
       let query: any = {};
@@ -185,12 +143,12 @@ export class CoursesService {
       
       // Super admins pueden ver todos los cursos
       if (roleStr === 'super_admin') {
-        this.logger.log('Usuario es super_admin, mostrando todos los cursos');
+        
         // No aplicamos ningún filtro adicional para super_admin
       }
       // Los usuarios admin también pueden ver todos los cursos
       else if (roleStr === 'admin') {
-        this.logger.log('Usuario es admin, mostrando todos los cursos');
+        
         // No aplicamos ningún filtro adicional para admin
       }
       // Para otros roles, filtramos por cursos públicos o donde esté asociado
@@ -214,14 +172,14 @@ export class CoursesService {
         }
       }
       
-      this.logger.log(`Query de búsqueda: ${JSON.stringify(query)}`);
+      
       
       const courses = await this.courseModel.find(query)
         .populate('school', 'name')
         .populate('teacher', 'name email')
         .select('-students -classes');
       
-      this.logger.log(`Se encontraron ${courses.length} cursos`);
+      
       return courses;
     } catch (error) {
       this.logger.error(`Error al buscar cursos: ${error.message}`, error.stack);
@@ -230,7 +188,7 @@ export class CoursesService {
   }
 
   async findOne(id: string) {
-    this.logger.log(`Buscando curso con ID: ${id}`);
+    
     try {
       const course = await this.courseModel.findById(id)
         .populate('teacher', 'name email')
@@ -242,7 +200,7 @@ export class CoursesService {
         .lean();
       
       if (!course) {
-        this.logger.warn(`Curso con ID ${id} no encontrado`);
+        
         throw new NotFoundException(`Curso con ID ${id} no encontrado`);
       }
       
@@ -261,7 +219,7 @@ export class CoursesService {
         }) : []
       };
       
-      this.logger.log(`Curso encontrado: ${course.title}`);
+      
       return courseWithVisibility;
     } catch (error) {
       this.logger.error(`Error al buscar curso ${id}: ${error.message}`, error.stack);
@@ -270,12 +228,12 @@ export class CoursesService {
   }
 
   async update(id: string, updateCourseDto: any, userId: string) {
-    this.logger.log(`Actualizando curso con ID: ${id}`);
+    
     try {
       const course = await this.courseModel.findById(id);
       
       if (!course) {
-        this.logger.warn(`Curso con ID ${id} no encontrado`);
+        
         throw new NotFoundException(`Curso con ID ${id} no encontrado`);
       }
       
@@ -293,7 +251,7 @@ export class CoursesService {
         { new: true }
       );
       
-      this.logger.log(`Curso actualizado exitosamente: ${updatedCourse._id}`);
+      
       return updatedCourse;
     } catch (error) {
       this.logger.error(`Error al actualizar curso ${id}: ${error.message}`, error.stack);
@@ -302,7 +260,7 @@ export class CoursesService {
   }
 
   async addStudent(courseId: string, studentId: string, userId: string) {
-    this.logger.log(`Añadiendo estudiante ${studentId} a curso ${courseId}`);
+    
     try {
       const course = await this.courseModel.findById(courseId);
       
@@ -336,7 +294,7 @@ export class CoursesService {
         $addToSet: { enrolledCourses: courseId }
       });
       
-      this.logger.log(`Estudiante ${studentId} añadido exitosamente a curso ${courseId}`);
+      
       return { success: true };
     } catch (error) {
       this.logger.error(`Error al añadir estudiante: ${error.message}`, error.stack);
@@ -345,7 +303,7 @@ export class CoursesService {
   }
 
   async removeStudent(courseId: string, studentId: string, userId: string) {
-    this.logger.log(`Eliminando estudiante ${studentId} de curso ${courseId}`);
+    
     try {
       const course = await this.courseModel.findById(courseId);
       
@@ -373,7 +331,7 @@ export class CoursesService {
         $pull: { enrolledCourses: courseId }
       });
       
-      this.logger.log(`Estudiante ${studentId} eliminado exitosamente de curso ${courseId}`);
+      
       return { success: true };
     } catch (error) {
       this.logger.error(`Error al eliminar estudiante: ${error.message}`, error.stack);
@@ -396,12 +354,12 @@ export class CoursesService {
   }
 
   async remove(id: string, userId: string) {
-    this.logger.log(`Eliminando curso con ID: ${id}`);
+    
     try {
       const course = await this.courseModel.findById(id);
       
       if (!course) {
-        this.logger.warn(`Curso con ID ${id} no encontrado`);
+        
         throw new NotFoundException(`Curso con ID ${id} no encontrado`);
       }
       
@@ -411,7 +369,7 @@ export class CoursesService {
       if (!isTeacher) {
         const user = await this.userModel.findById(userId);
         if (!user || !compareRole(user.role, UserRole.ADMIN)) {
-          this.logger.warn(`Usuario ${userId} no tiene permisos para eliminar el curso ${id}`);
+          
           throw new UnauthorizedException('No tiene permisos para eliminar este curso');
         }
       }
@@ -428,7 +386,7 @@ export class CoursesService {
         // No lanzamos excepción para no interrumpir la eliminación del curso
       }
       
-      this.logger.log(`Curso eliminado exitosamente: ${id}`);
+      
       return { success: true, message: 'Curso eliminado exitosamente' };
     } catch (error) {
       this.logger.error(`Error al eliminar curso ${id}: ${error.message}`, error.stack);
@@ -476,7 +434,7 @@ export class CoursesService {
             { _id: courseId },
             { $addToSet: { students: new Types.ObjectId(studentId) } }
           );
-          this.logger.log(`Estudiante ${studentId} añadido a la lista de estudiantes del curso ${courseId}`);
+          
         }
 
         // 2. Agregar el estudiante a la escuela si no existe
@@ -485,7 +443,7 @@ export class CoursesService {
             { _id: schoolId },
             { $addToSet: { students: new Types.ObjectId(studentId) } }
           );
-          this.logger.log(`Estudiante ${studentId} añadido a la lista de estudiantes de la escuela ${schoolId}`);
+          
         }
 
         // 3. Asegurarnos que el curso esté en el array enrolledCourses del usuario
@@ -493,7 +451,7 @@ export class CoursesService {
           // Usar el tipo correcto para ObjectId
           student.enrolledCourses.push(new Types.ObjectId(courseId) as any);
           await student.save();
-          this.logger.log(`Curso ${courseId} añadido a la lista de cursos del estudiante ${studentId}`);
+          
         }
         
         return existingEnrollment;
@@ -524,7 +482,7 @@ export class CoursesService {
           { _id: courseId },
           { $addToSet: { students: new Types.ObjectId(studentId) } }
         ).then(() => {
-          this.logger.log(`Estudiante ${studentId} añadido a la lista de estudiantes del curso ${courseId}`);
+          
         })
       );
     }
@@ -536,7 +494,7 @@ export class CoursesService {
           { _id: schoolId },
           { $addToSet: { students: new Types.ObjectId(studentId) } }
         ).then(() => {
-          this.logger.log(`Estudiante ${studentId} añadido a la lista de estudiantes de la escuela ${schoolId}`);
+          
         })
       );
     }
@@ -547,7 +505,7 @@ export class CoursesService {
       student.enrolledCourses.push(new Types.ObjectId(courseId) as any);
       updatePromises.push(
         student.save().then(() => {
-          this.logger.log(`Curso ${courseId} añadido a la lista de cursos del estudiante ${studentId}`);
+          
         })
       );
     }
@@ -555,7 +513,7 @@ export class CoursesService {
     // Esperar a que todas las actualizaciones se completen
     try {
       await Promise.all(updatePromises);
-      this.logger.log(`Todas las referencias actualizadas para el enrollment ${savedEnrollment._id}`);
+      
     } catch (error) {
       this.logger.error(`Error actualizando referencias: ${error.message}`, error.stack);
       // No lanzar error para no interrumpir el flujo, el enrollment ya se guardó
@@ -649,7 +607,7 @@ export class CoursesService {
       ? (course.school as any)._id?.toString() || String(course.school)
       : String(course.school);
     
-    this.logger.log(`Iniciando proceso de des-inscripción para estudiante ${studentId} del curso ${courseId} de la escuela ${schoolId}`);
+    
     
     // Iniciar actualización de referencias en paralelo para mayor eficiencia
     const updatePromises = [];
@@ -660,7 +618,7 @@ export class CoursesService {
         { _id: courseId },
         { $pull: { students: new Types.ObjectId(studentId) } }
       ).then(() => {
-        this.logger.log(`Estudiante ${studentId} eliminado de la lista de estudiantes del curso ${courseId}`);
+        
       })
     );
     
@@ -671,7 +629,7 @@ export class CoursesService {
       );
       updatePromises.push(
         student.save().then(() => {
-          this.logger.log(`Curso ${courseId} eliminado de la lista de cursos del estudiante ${studentId}`);
+          
         })
       );
     }
@@ -693,17 +651,17 @@ export class CoursesService {
           { _id: schoolId },
           { $pull: { students: new Types.ObjectId(studentId) } }
         ).then(() => {
-          this.logger.log(`Estudiante ${studentId} eliminado de la lista de estudiantes de la escuela ${schoolId}`);
+          
         })
       );
     } else {
-      this.logger.log(`El estudiante ${studentId} permanece en la escuela ${schoolId} por estar inscrito en otros cursos`);
+      
     }
     
     // Esperar a que todas las actualizaciones se completen
     try {
       await Promise.all(updatePromises);
-      this.logger.log(`Todas las referencias actualizadas para el unenrollment del estudiante ${studentId} del curso ${courseId}`);
+      
     } catch (error) {
       this.logger.error(`Error actualizando referencias: ${error.message}`, error.stack);
       // No lanzar error para no interrumpir el flujo, el enrollment ya se marcó como inactivo
@@ -928,7 +886,7 @@ export class CoursesService {
   }
 
   async getTeachingCourses(userId: string, userRole: string) {
-    this.logger.log(`Getting courses taught by user: ${userId} with role: ${userRole}`);
+    
     
     try {
       let courses;
@@ -947,7 +905,7 @@ export class CoursesService {
           .select('-students -classes');
       }
       
-      this.logger.log(`Found ${courses.length} courses taught by user ${userId}`);
+      
       return courses;
     } catch (error) {
       this.logger.error(`Error getting teaching courses: ${error.message}`, error.stack);
@@ -956,26 +914,25 @@ export class CoursesService {
   }
 
   async getEnrolledCourses(userId: string) {
-    this.logger.log(`Getting courses enrolled by user: ${userId}`);
+    
     
     try {
       // Get all enrollments for this student (only active ones)
-      this.logger.log(`Buscando inscripciones activas para userId=${userId}`);
+      
       const enrollments = await this.enrollmentModel.find({ 
         student: new Types.ObjectId(userId),
         isActive: true
       });
       
-      this.logger.log(`Encontradas ${enrollments.length} inscripciones activas para usuario ${userId}`);
+      
       
       if (!enrollments || enrollments.length === 0) {
-        this.logger.log(`No active enrollments found for user ${userId}`);
+        
         return [];
       }
       
       // Log enrollments details for debugging
       enrollments.forEach((enrollment, index) => {
-        this.logger.log(`Enrollment ${index + 1}:`, {
           id: enrollment._id.toString(),
           courseId: enrollment.course.toString(),
           isActive: enrollment.isActive,
@@ -990,7 +947,7 @@ export class CoursesService {
           : new Types.ObjectId(enrollment.course.toString())
       );
       
-      this.logger.log(`Cursos a buscar: ${courseIds.map(id => id.toString())}`);
+      
       
       // Get the courses
       const courses = await this.courseModel.find({
@@ -1000,11 +957,11 @@ export class CoursesService {
         .populate('teacher', 'name email')
         .select('-students -classes');
       
-      this.logger.log(`Encontrados ${courses.length} cursos para usuario ${userId}`);
+      
       
       // Registrar los IDs de los cursos encontrados
       if (courses.length > 0) {
-        this.logger.log(`IDs de cursos encontrados: ${courses.map(c => c._id.toString())}`);
+        
       }
       
       // Add enrollment dates to courses
@@ -1025,7 +982,7 @@ export class CoursesService {
   }
 
   async getCourseForUser(id: string, userId: string, userRole: string) {
-    this.logger.log(`Buscando curso ${id} para usuario ${userId} con rol ${userRole}`);
+    
     try {
       // Obtener el curso
       const course = await this.findOne(id);
@@ -1054,7 +1011,7 @@ export class CoursesService {
           }
         }
       } catch (error) {
-        this.logger.warn(`Error extracting teacher ID: ${error.message}`);
+        
       }
       
       if (teacherId === userId) {
@@ -1121,7 +1078,7 @@ export class CoursesService {
     
     // Si la inscripción estaba inactiva, necesitamos actualizar referencias
     if (wasInactive) {
-      this.logger.log(`Reactivando enrollment ${enrollmentId} que estaba inactivo`);
+      
       
       const courseId = enrollment.course.toString();
       const studentId = enrollment.student.toString();
@@ -1157,7 +1114,7 @@ export class CoursesService {
               { _id: courseId },
               { $addToSet: { students: new Types.ObjectId(studentId) } }
             ).then(() => {
-              this.logger.log(`Estudiante ${studentId} añadido a la lista de estudiantes del curso ${courseId}`);
+              
             })
           );
         }
@@ -1169,7 +1126,7 @@ export class CoursesService {
               { _id: schoolId },
               { $addToSet: { students: new Types.ObjectId(studentId) } }
             ).then(() => {
-              this.logger.log(`Estudiante ${studentId} añadido a la lista de estudiantes de la escuela ${schoolId}`);
+              
             })
           );
         }
@@ -1179,14 +1136,14 @@ export class CoursesService {
           student.enrolledCourses.push(new Types.ObjectId(courseId) as any);
           updatePromises.push(
             student.save().then(() => {
-              this.logger.log(`Curso ${courseId} añadido a la lista de cursos del estudiante ${studentId}`);
+              
             })
           );
         }
         
         // Esperar a que todas las actualizaciones se completen
         await Promise.all(updatePromises);
-        this.logger.log(`Todas las referencias actualizadas al reactivar el enrollment ${enrollmentId}`);
+        
         
       } catch (error) {
         this.logger.error(`Error actualizando referencias al reactivar enrollment: ${error.message}`, error.stack);
@@ -1194,7 +1151,7 @@ export class CoursesService {
       }
     }
     
-    this.logger.log(`Pago de ${paymentData.amount} registrado para enrollment ${enrollmentId} por usuario ${userId}`);
+    
     
     return enrollment;
   }

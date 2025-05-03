@@ -15,8 +15,7 @@ export class SchoolsService {
   ) {}
 
   async create(createSchoolDto: CreateSchoolDto, adminId: string) {
-    this.logger.log(`Creando escuela: ${JSON.stringify(createSchoolDto)} para usuario: ${adminId}`);
-    console.log(`Creando escuela con admin: ${adminId}`, createSchoolDto);
+    
     
     try {
       // Verificar si el usuario existe
@@ -28,12 +27,11 @@ export class SchoolsService {
       
       // Verificar que el usuario tenga rol de admin o profesor
       if (user.role !== UserRole.ADMIN && user.role !== UserRole.TEACHER) {
-        this.logger.warn(`Usuario ${adminId} con rol ${user.role} no autorizado para crear escuelas`);
+        
         throw new BadRequestException('Solo los administradores y profesores pueden crear escuelas');
       }
       
-      this.logger.log(`Usuario validado con rol: ${user.role}`);
-      console.log(`Usuario validado: ${user.name} (${user.email}) con rol: ${user.role}`);
+      
       
       // Preparar la nueva escuela
       const newSchool = {
@@ -47,32 +45,14 @@ export class SchoolsService {
         newSchool.teachers.push(adminId);
       }
       
-      console.log('Datos de la nueva escuela antes de guardar:', {
-        ...newSchool,
-        admin: adminId.toString(),
-        teachers: newSchool.teachers.map(t => t.toString())
-      });
-      
       const createdSchool = new this.schoolModel(newSchool);
-      this.logger.debug(`Datos de la escuela a guardar: ${JSON.stringify(createdSchool)}`);
+      
       
       const result = await createdSchool.save();
-      console.log('Escuela guardada:', {
-        id: result._id.toString(),
-        name: result.name,
-        admin: result.admin.toString(),
-        teachers: result.teachers.map(t => t.toString())
-      });
-      
       // Actualizar el usuario con la referencia a la escuela
       const updateResult = await this.userModel.findByIdAndUpdate(adminId, {
         $addToSet: { schools: result._id }
       }, { new: true });
-      
-      console.log(`Usuario actualizado con la nueva escuela:`, {
-        userId: updateResult._id.toString(),
-        schools: updateResult.schools.map(s => s.toString())
-      });
       
       // Verificar que la escuela se haya asignado correctamente al usuario
       const userHasSchool = updateResult.schools.some(s => 
@@ -80,10 +60,10 @@ export class SchoolsService {
       );
       
       if (!userHasSchool) {
-        this.logger.warn(`¡Advertencia! La escuela ${result._id} no se agregó correctamente al usuario ${adminId}`);
+        
       }
       
-      this.logger.log(`Escuela guardada exitosamente con ID: ${result._id}`);
+      
       return result;
     } catch (error) {
       console.error('Error al guardar escuela:', error);
@@ -93,7 +73,7 @@ export class SchoolsService {
   }
 
   async findAll(userId?: string, role?: UserRole) {
-    this.logger.log('Buscando todas las escuelas');
+    
     try {
       let query = {};
       
@@ -121,7 +101,7 @@ export class SchoolsService {
         .populate('admin', 'name email')
         .select('-teachers -students');
       
-      this.logger.log(`Se encontraron ${schools.length} escuelas`);
+      
       return schools;
     } catch (error) {
       this.logger.error(`Error al buscar escuelas: ${error.message}`, error.stack);
@@ -130,11 +110,11 @@ export class SchoolsService {
   }
 
   async findOne(id: string) {
-    this.logger.log(`Buscando escuela con ID: ${id}`);
+    
     try {
       // Verifica si el ID es válido para MongoDB
       if (!id.match(/^[0-9a-fA-F]{24}$/)) {
-        this.logger.warn(`ID de escuela inválido: ${id}`);
+        
         throw new BadRequestException(`ID de escuela inválido: ${id}`);
       }
 
@@ -148,11 +128,11 @@ export class SchoolsService {
         });
       
       if (!school) {
-        this.logger.warn(`Escuela con ID ${id} no encontrada`);
+        
         throw new NotFoundException(`Escuela con ID ${id} no encontrada`);
       }
       
-      this.logger.log(`Escuela encontrada: ${school.name}`);
+      
       return school;
     } catch (error) {
       this.logger.error(`Error al buscar escuela ${id}: ${error.message}`, error.stack);
@@ -161,69 +141,69 @@ export class SchoolsService {
   }
 
   async update(id: string, updateSchoolDto: any, userId: string) {
-    this.logger.log(`Actualizando escuela con ID: ${id}, userId: ${userId}`);
+    
     try {
       const school = await this.schoolModel.findById(id);
       
       if (!school) {
-        this.logger.warn(`Escuela con ID ${id} no encontrada`);
+        
         throw new NotFoundException(`Escuela con ID ${id} no encontrada`);
       }
       
-      this.logger.log(`Escuela encontrada: ${school.name}, admin: ${school.admin}`);
+      
       
       // Verificar permisos
       const schoolAdminId = school.admin.toString();
-      this.logger.log(`Comparando admin de escuela (${schoolAdminId}) con userId (${userId})`);
+      
       
       if (schoolAdminId !== userId) {
-        this.logger.log(`Usuario no es admin de la escuela, verificando otros roles`);
+        
         const user = await this.userModel.findById(userId);
         if (!user) {
-          this.logger.warn(`Usuario ${userId} no encontrado`);
+          
           throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
         }
         
-        this.logger.log(`Usuario encontrado: ${user.name}, rol: ${user.role}`);
+        
         
         if (user.role !== UserRole.SUPER_ADMIN && user.role !== UserRole.SCHOOL_OWNER && user.role !== UserRole.ADMIN) {
-          this.logger.warn(`Usuario ${userId} con rol ${user.role} no tiene permisos para actualizar escuela`);
+          
           throw new BadRequestException('No tiene permisos para actualizar esta escuela');
         }
         
         // Si es SCHOOL_OWNER, verificar que sea dueño de esta escuela
         if (user.role === UserRole.SCHOOL_OWNER) {
           const isOwner = user.ownedSchools.some(schoolId => schoolId.toString() === id);
-          this.logger.log(`¿Es dueño de la escuela? ${isOwner}`);
+          
           
           if (!isOwner) {
-            this.logger.warn(`Usuario ${userId} no es dueño de la escuela ${id}`);
+            
             throw new BadRequestException('No es dueño de esta escuela');
           }
         }
         
         // Si es ADMIN, verificar si tiene la escuela en administratedSchools
         if (user.role === UserRole.ADMIN) {
-          this.logger.log(`Escuelas administradas: ${user.administratedSchools.map(s => s.toString()).join(', ')}`);
+          
           const isAdmin = user.administratedSchools.some(schoolId => schoolId.toString() === id);
           
           if (!isAdmin) {
-            this.logger.warn(`Admin ${userId} no administra la escuela ${id}`);
+            
             // Aunque podríamos lanzar una excepción aquí, permitimos que los admins puedan editar cualquier escuela
           }
         }
       } else {
-        this.logger.log(`Usuario es el admin de la escuela, permiso concedido`);
+        
       }
       
-      this.logger.log(`Actualizando escuela con datos: ${JSON.stringify(updateSchoolDto)}`);
+      
       const updatedSchool = await this.schoolModel.findByIdAndUpdate(
         id,
         updateSchoolDto,
         { new: true }
       );
       
-      this.logger.log(`Escuela actualizada exitosamente: ${updatedSchool._id}`);
+      
       return updatedSchool;
     } catch (error) {
       this.logger.error(`Error al actualizar escuela ${id}: ${error.message}`, error.stack);
@@ -232,7 +212,7 @@ export class SchoolsService {
   }
 
   async addTeacher(schoolId: string, teacherId: string, adminId: string) {
-    this.logger.log(`Añadiendo profesor ${teacherId} a escuela ${schoolId}`);
+    
     try {
       const school = await this.schoolModel.findById(schoolId);
       
@@ -246,7 +226,7 @@ export class SchoolsService {
       if (schoolAdminId !== adminId) {
         const user = await this.userModel.findById(adminId);
         if (!user || user.role !== UserRole.ADMIN) {
-          this.logger.warn(`Usuario ${adminId} sin permiso para modificar escuela ${schoolId}`);
+          
           throw new BadRequestException('No tiene permisos para modificar esta escuela');
         }
       }
@@ -259,7 +239,7 @@ export class SchoolsService {
       }
       
       if (teacher.role !== UserRole.TEACHER) {
-        this.logger.warn(`Usuario ${teacherId} no tiene rol de profesor (rol actual: ${teacher.role})`);
+        
         throw new BadRequestException('El usuario debe tener rol de profesor');
       }
       
@@ -275,12 +255,9 @@ export class SchoolsService {
       );
       
       if (isTeacherInSchool) {
-        this.logger.log(`El profesor ${teacherId} ya pertenece a la escuela ${schoolId}`);
+        
         return { success: true, message: 'El profesor ya pertenece a esta escuela' };
       }
-      
-      console.log(`Añadiendo profesor ${teacherId} a escuela ${schoolId}, profesores actuales:`, 
-        school.teachers ? school.teachers.map(t => t ? t.toString() : 'null') : 'ninguno');
       
       // Actualizar la escuela
       await this.schoolModel.findByIdAndUpdate(schoolId, {
@@ -292,7 +269,7 @@ export class SchoolsService {
         $addToSet: { schools: schoolId }
       });
       
-      this.logger.log(`Profesor ${teacherId} añadido exitosamente a escuela ${schoolId}`);
+      
       
       // Verificar que la actualización se haya hecho correctamente
       const updatedSchool = await this.schoolModel.findById(schoolId);
@@ -301,7 +278,7 @@ export class SchoolsService {
       );
       
       if (!isTeacherAddedToSchool) {
-        this.logger.warn(`¡Advertencia! El profesor ${teacherId} no se añadió correctamente a la escuela ${schoolId}`);
+        
       }
       
       const updatedTeacher = await this.userModel.findById(teacherId);
@@ -310,7 +287,7 @@ export class SchoolsService {
       );
       
       if (!isSchoolAddedToTeacher) {
-        this.logger.warn(`¡Advertencia! La escuela ${schoolId} no se añadió correctamente al profesor ${teacherId}`);
+        
       }
       
       return { 
@@ -325,7 +302,7 @@ export class SchoolsService {
   }
 
   async addStudent(schoolId: string, studentId: string, userId: string) {
-    this.logger.log(`Añadiendo estudiante ${studentId} a escuela ${schoolId}`);
+    
     try {
       const school = await this.schoolModel.findById(schoolId);
       
@@ -360,7 +337,7 @@ export class SchoolsService {
         $addToSet: { schools: schoolId }
       });
       
-      this.logger.log(`Estudiante ${studentId} añadido exitosamente a escuela ${schoolId}`);
+      
       return { success: true };
     } catch (error) {
       this.logger.error(`Error al añadir estudiante: ${error.message}`, error.stack);
@@ -369,7 +346,7 @@ export class SchoolsService {
   }
 
   async removeTeacher(schoolId: string, teacherId: string, userId: string) {
-    this.logger.log(`Eliminando profesor ${teacherId} de escuela ${schoolId}`);
+    
     try {
       const school = await this.schoolModel.findById(schoolId);
       
@@ -395,7 +372,7 @@ export class SchoolsService {
         $pull: { schools: schoolId }
       });
       
-      this.logger.log(`Profesor ${teacherId} eliminado exitosamente de escuela ${schoolId}`);
+      
       return { success: true };
     } catch (error) {
       this.logger.error(`Error al eliminar profesor: ${error.message}`, error.stack);
@@ -404,7 +381,7 @@ export class SchoolsService {
   }
 
   async removeStudent(schoolId: string, studentId: string, userId: string) {
-    this.logger.log(`Eliminando estudiante ${studentId} de escuela ${schoolId}`);
+    
     try {
       const school = await this.schoolModel.findById(schoolId);
       
@@ -433,7 +410,7 @@ export class SchoolsService {
         $pull: { schools: schoolId }
       });
       
-      this.logger.log(`Estudiante ${studentId} eliminado exitosamente de escuela ${schoolId}`);
+      
       return { success: true };
     } catch (error) {
       this.logger.error(`Error al eliminar estudiante: ${error.message}`, error.stack);
@@ -442,19 +419,19 @@ export class SchoolsService {
   }
 
   async addCourse(schoolId: string, courseId: string): Promise<School> {
-    this.logger.log(`Añadiendo curso ${courseId} a escuela ${schoolId}`);
+    
     
     try {
       const school = await this.schoolModel.findById(schoolId);
       
       if (!school) {
-        this.logger.warn(`Escuela con ID ${schoolId} no encontrada`);
+        
         throw new NotFoundException(`Escuela con ID ${schoolId} no encontrada`);
       }
 
       // Si la escuela no tiene un array de cursos, inicializarlo
       if (!school.courses) {
-        this.logger.debug(`Inicializando array de cursos para escuela ${schoolId}`);
+        
         school.courses = [];
       }
       
@@ -462,7 +439,7 @@ export class SchoolsService {
       const courseExists = school.courses.some(c => c.toString() === courseId);
       
       if (courseExists) {
-        this.logger.debug(`El curso ${courseId} ya existe en la escuela ${schoolId}`);
+        
         return school;
       }
       
@@ -476,7 +453,7 @@ export class SchoolsService {
         throw new NotFoundException(`No se pudo actualizar la escuela con ID ${schoolId}`);
       }
       
-      this.logger.log(`Curso ${courseId} añadido exitosamente a escuela ${schoolId}`);
+      
       return result;
     } catch (error) {
       this.logger.error(`Error al añadir curso a escuela: ${error.message}`, error.stack);
@@ -485,18 +462,18 @@ export class SchoolsService {
   }
 
   async removeCourse(schoolId: string, courseId: string): Promise<School> {
-    this.logger.log(`Eliminando curso ${courseId} de escuela ${schoolId}`);
+    
     
     try {
       const school = await this.schoolModel.findById(schoolId);
       
       if (!school) {
-        this.logger.warn(`Escuela con ID ${schoolId} no encontrada`);
+        
         throw new NotFoundException(`Escuela con ID ${schoolId} no encontrada`);
       }
 
       if (!school.courses || !school.courses.some(c => c.toString() === courseId)) {
-        this.logger.debug(`El curso ${courseId} no existe en la escuela ${schoolId}`);
+        
         return school;
       }
       
@@ -510,7 +487,7 @@ export class SchoolsService {
         throw new NotFoundException(`No se pudo actualizar la escuela con ID ${schoolId}`);
       }
       
-      this.logger.log(`Curso ${courseId} eliminado exitosamente de escuela ${schoolId}`);
+      
       return result;
     } catch (error) {
       this.logger.error(`Error al eliminar curso de escuela: ${error.message}`, error.stack);
@@ -519,12 +496,12 @@ export class SchoolsService {
   }
 
   async remove(id: string, userId: string) {
-    this.logger.log(`Eliminando escuela con ID: ${id}`);
+    
     try {
       const school = await this.schoolModel.findById(id);
       
       if (!school) {
-        this.logger.warn(`Escuela con ID ${id} no encontrada`);
+        
         throw new NotFoundException(`Escuela con ID ${id} no encontrada`);
       }
       
@@ -534,7 +511,7 @@ export class SchoolsService {
       if (!isSchoolAdmin) {
         const user = await this.userModel.findById(userId);
         if (!user || user.role !== UserRole.ADMIN) {
-          this.logger.warn(`Usuario ${userId} no tiene permisos para eliminar la escuela ${id}`);
+          
           throw new UnauthorizedException('No tiene permisos para eliminar esta escuela');
         }
       }
@@ -564,7 +541,7 @@ export class SchoolsService {
       // Eliminar la escuela
       await this.schoolModel.findByIdAndDelete(id);
       
-      this.logger.log(`Escuela eliminada exitosamente: ${id}`);
+      
       return { success: true, message: 'Escuela eliminada exitosamente' };
     } catch (error) {
       this.logger.error(`Error al eliminar escuela ${id}: ${error.message}`, error.stack);
@@ -573,7 +550,7 @@ export class SchoolsService {
   }
 
   async assignOwner(schoolId: string, userId: string) {
-    this.logger.log(`Assigning ownership of school ${schoolId} to user ${userId}`);
+    
     
     try {
       // Check if school exists

@@ -66,7 +66,7 @@ export class UsersController {
   @Post('with-courses')
   @UseGuards(JwtAuthGuard)
   async createWithCourses(@Body() data: { user: Partial<AuthUser>, courses: string[] }): Promise<AuthUser> {
-    this.logger.log(`Creando usuario ${data.user.name} con ${data.courses?.length || 0} cursos`);
+    
     return this.usersService.createWithCourses(data.user, data.courses || []);
   }
 
@@ -104,7 +104,7 @@ export class UsersController {
     // Ensure users can only change their own password
     const userId = req.user['sub'];
     if (id !== userId) {
-      this.logger.warn(`User ${userId} attempted to change password for user ${id}`);
+      
       throw new ForbiddenException('You can only change your own password');
     }
 
@@ -123,7 +123,7 @@ export class UsersController {
     @Body() assignRoleDto: AssignSchoolRoleDto,
     @Req() req: Request,
   ): Promise<{ success: boolean, message: string }> {
-    this.logger.log(`Asignando rol ${assignRoleDto.role} en escuela ${assignRoleDto.schoolId} al usuario ${userId}`);
+    
     
     const authUserId = req.user['sub'] || req.user['_id'];
     const schoolId = assignRoleDto.schoolId;
@@ -136,7 +136,7 @@ export class UsersController {
     );
     
     if (!canManage) {
-      this.logger.warn(`Usuario ${authUserId} sin permisos para asignar rol ${assignRoleDto.role} en escuela ${schoolId}`);
+      
       throw new ForbiddenException('No tiene permisos para asignar este rol en esta escuela');
     }
     
@@ -167,7 +167,7 @@ export class UsersController {
     @Body() registerDto: RegisterUnregisteredUserDto,
     @Req() req: Request,
   ): Promise<{ success: boolean, message: string, user: AuthUser }> {
-    this.logger.log(`Registrando usuario no registrado ${userId} con email ${registerDto.email}`);
+    
     
     const authUserId = req.user['sub'] || req.user['_id'];
     
@@ -199,8 +199,8 @@ export class UsersController {
     @Req() req: Request,
   ): Promise<any> {
     // Log detallado para depurar
-    this.logger.log(`Recibida petición para crear asistente no registrado`);
-    this.logger.log(`Datos recibidos: ${JSON.stringify(createDto)}`);
+    
+    
     
     // Validar datos mínimos
     if (!createDto.name) {
@@ -214,7 +214,7 @@ export class UsersController {
       const courseId = createDto.courseId || undefined;
       const schoolId = createDto.schoolId || undefined;
       
-      this.logger.log(`Creando asistente "${name}" con courseId: ${courseId}, schoolId: ${schoolId}`);
+      
       
       // Crear directamente un usuario con rol UNREGISTERED
       const user = await this.usersService.createUnregisteredUser(
@@ -223,7 +223,7 @@ export class UsersController {
         schoolId
       );
       
-      this.logger.log(`Asistente creado exitosamente con ID: ${user['_id']}`);
+      
       return user;
     } catch (error) {
       this.logger.error(`Error al crear asistente: ${error.message}`, error.stack);
@@ -241,7 +241,7 @@ export class UsersController {
     @Body() body: any,
     @Req() req: Request,
   ): Promise<any> {
-    this.logger.log(`Test de creación de asistente con datos: ${JSON.stringify(body)}`);
+    
     
     try {
       // Acceso directo a la colección de MongoDB sin Mongoose
@@ -265,7 +265,7 @@ export class UsersController {
       
       // Insertar directamente en MongoDB
       const result = await userCollection.insertOne(userDocument);
-      this.logger.log(`Test asistente creado con ID: ${result.insertedId}`);
+      
       
       return { 
         success: true, 
@@ -293,7 +293,7 @@ export class UsersController {
     @Req() req: Request,
     @Body() rawData: any,
   ): Promise<any> {
-    this.logger.log(`Creando asistente via bypass: ${JSON.stringify(rawData)}`);
+    
     
     try {
       const name = rawData.name;

@@ -163,48 +163,48 @@ export default function UserManagement() {
       }
       
       // Obtener usuarios registrados
-      console.log('Obteniendo usuarios...');
+      
       const usersResponse = await axios.get(`${apiUrl}/api/users`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       // Obtener escuelas
-      console.log('Obteniendo escuelas...');
+      
       const schoolsResponse = await axios.get(`${apiUrl}/api/schools`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      console.log('Escuelas recibidas:', schoolsResponse.data);
+      
       
       // Obtener cursos
-      console.log('Obteniendo cursos...');
+      
       const coursesResponse = await axios.get(`${apiUrl}/api/courses`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      console.log('Cursos recibidos:', coursesResponse.data);
+      
       
       // Obtener registros de asistencia para extraer usuarios no registrados
-      console.log('Obteniendo registros de asistencia...');
+      
       const attendanceResponse = await axios.get(`${apiUrl}/api/attendance/records`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      console.log('Registros de asistencia recibidos:', attendanceResponse.data);
+      
 
       // Guardar todos los datos
       const allUsers = usersResponse.data.map((user: User) => ({...user, isRegistered: true}));
       const allSchools = schoolsResponse.data;
       const allCourses = coursesResponse.data;
       
-      console.log('Total de escuelas cargadas:', allSchools.length);
-      console.log('Total de cursos cargados:', allCourses.length);
-      console.log('Total de usuarios cargados:', allUsers.length);
+      
+      
+      
       
       // Identificar usuarios registrados y no registrados
       const registeredUsers = allUsers.filter((u: User) => u.role !== 'unregistered');
       const unregisteredUsers = allUsers.filter((u: User) => u.role === 'unregistered');
       
-      console.log('Usuarios registrados:', registeredUsers.length);
-      console.log('Usuarios no registrados (con entrada en la BD):', unregisteredUsers.length);
+      
+      
       
       // Enriquecer datos de usuarios con información de cursos y escuelas
       const enrichedUsers = await Promise.all(allUsers.map(async (user: User) => {
@@ -267,7 +267,7 @@ export default function UserManagement() {
         }
       }));
       
-      console.log('Usuarios enriquecidos con información de cursos y escuelas:', enrichedUsers.length);
+      
       
       // Actualizar el estado con los usuarios enriquecidos
       setUsers(enrichedUsers);
@@ -282,7 +282,7 @@ export default function UserManagement() {
         
         // Si estamos en la vista de asistentes, asegurarnos de que se muestren
         if (selectedSchool === 'unregistered') {
-          console.log('Estamos en la vista de asistentes, recargando datos específicos');
+          
         }
       }, 500); // pequeño retraso para asegurar que users esté actualizado
       
@@ -355,15 +355,15 @@ export default function UserManagement() {
 
   // Extraer usuarios no registrados de los registros de asistencia
   const processAttendanceForUnregisteredUsers = (attendanceRecords: Attendance[]) => {
-    console.log('===== PROCESANDO USUARIOS NO REGISTRADOS =====');
+    
     const nonRegisteredAttendees = new Map();
     
     // Primero, buscar usuarios con role='unregistered' en la lista de usuarios general
-    console.log(`Buscando usuarios con rol 'unregistered' en la lista principal (${users.length} usuarios)`);
+    
     
     users.forEach(user => {
       if (user.role === 'unregistered') {
-        console.log(`Encontrado asistente en lista de usuarios: ${user.name} (${user._id})`);
+        
         
         // Verificar si ya está en el mapa para evitar duplicados
         if (!nonRegisteredAttendees.has(user._id)) {
@@ -381,11 +381,11 @@ export default function UserManagement() {
       }
     });
     
-    console.log(`Total de asistentes encontrados en la lista de usuarios: ${nonRegisteredAttendees.size}`);
+    
     
     // Procesar registros de asistencia para encontrar usuarios no registrados que no estén en la base de datos
     if (attendanceRecords && attendanceRecords.length > 0) {
-      console.log(`Procesando ${attendanceRecords.length} registros de asistencia para buscar asistentes adicionales`);
+      
       
       // Iterar sobre cada registro de asistencia
       attendanceRecords.forEach(record => {
@@ -399,7 +399,7 @@ export default function UserManagement() {
             ? record.student 
             : (record.student as any)?.name || 'Desconocido';
           
-          console.log(`Encontrado usuario no registrado en asistencias: ${studentName}`);
+          
           
           let existingKey = null;
           
@@ -446,15 +446,15 @@ export default function UserManagement() {
     }
     
     const nonRegisteredUsers = Array.from(nonRegisteredAttendees.values());
-    console.log(`Total final de usuarios no registrados encontrados: ${nonRegisteredUsers.length}`);
+    
     
     if (nonRegisteredUsers.length > 0) {
-      console.log('Primeros 3 asistentes encontrados:');
+      
       nonRegisteredUsers.slice(0, 3).forEach((user, index) => {
-        console.log(`${index + 1}. ${user.name} (${user._id}), cursos: ${user.courses?.length || 0}`);
+        
       });
     } else {
-      console.log('ADVERTENCIA: No se encontraron asistentes. Verificar la configuración de la base de datos.');
+      
     }
     
     setUnregisteredUsers(nonRegisteredUsers);
@@ -462,13 +462,13 @@ export default function UserManagement() {
 
   // Actualizar vista cuando cambie el filtro de escuela o búsqueda
   useEffect(() => {
-    console.log(`Filtro de escuela cambiado a: ${selectedSchool}`);
+    
     
     if (selectedSchool === 'unregistered') {
-      console.log(`Mostrando vista de asistentes. Total: ${unregisteredUsers.length}`);
+      
       // Si no hay asistentes cargados y hay usuarios en la lista, reprocesar para encontrar asistentes
       if (unregisteredUsers.length === 0 && users.length > 0) {
-        console.log('No hay asistentes cargados. Reprocesando lista de usuarios...');
+        
         processAttendanceForUnregisteredUsers(attendanceRecords);
       }
       return;
@@ -489,8 +489,8 @@ export default function UserManagement() {
     
     // Aplicar filtro de escuela
     if (selectedSchool !== '') {
-      console.log(`Filtrando usuarios para escuela: ${selectedSchool}`);
-      console.log(`Total de usuarios antes del filtro: ${filtered.length}`);
+      
+      
       
       // Filtrar usuarios que pertenecen a la escuela seleccionada
       filtered = filtered.filter(user => {
@@ -529,17 +529,14 @@ export default function UserManagement() {
         
         // Debug para verificar asignaciones de escuela
         if (isAssociated) {
-          console.log(`Usuario ${user.name} (${user.role}) asociado a escuela ${selectedSchool}`);
-          if (inSchoolRoles) console.log(` - Por schoolRoles`);
-          if (inSchools) console.log(` - Por schools`);
-          if (inCourses) console.log(` - Por cursos matriculados`);
+          // Se incluye el usuario
         }
         
         // Incluir usuario si está asociado a la escuela por cualquier método
         return isAssociated;
       });
       
-      console.log(`Total de usuarios después del filtro por escuela: ${filtered.length}`);
+      
     }
     
     setFilteredUsers(filtered);
@@ -588,7 +585,7 @@ export default function UserManagement() {
         
       } else {
         // Para usuarios no registrados, debemos crear directamente el usuario
-        console.log('Creando asistente no registrado:', formData.name);
+        
         
         // Verificar que esté seleccionado un curso
         if (!formData.course) {
@@ -611,7 +608,7 @@ export default function UserManagement() {
           Object.assign(createUserData, { schoolId: formData.school });
         }
         
-        console.log('Enviando datos para crear asistente no registrado:', createUserData);
+        
         
         // Crear usuario no registrado usando el endpoint bypass
         const response = await axios.post(
@@ -620,7 +617,7 @@ export default function UserManagement() {
           { headers: { Authorization: `Bearer ${token}` } }
         );
         
-        console.log('Respuesta al crear asistente no registrado:', response.data);
+        
         
         // Añadir manualmente el usuario a la lista de no registrados para visualización inmediata
         const newUnregisteredUser = {
@@ -671,8 +668,6 @@ export default function UserManagement() {
       });
       
     } catch (error: any) {
-      console.error('Error al crear usuario:', error);
-      
       // Mostrar mensaje de error más detallado y específico
       if (error.response && error.response.data) {
         if (error.response.data.message) {
@@ -864,8 +859,8 @@ export default function UserManagement() {
       const allSchools = schoolsResponse.data;
       const allCourses = coursesResponse.data;
       
-      console.log('Escuelas cargadas para modal:', allSchools.length);
-      console.log('Cursos cargados para modal:', allCourses.length);
+      
+      
       
       // Actualizar estados
       setSchools(allSchools);
@@ -913,14 +908,14 @@ export default function UserManagement() {
       const token = Cookies.get('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
-      console.log(`== OBTENIENDO CURSOS PARA USUARIO ${userId} ==`);
+      
       
       // Primero, obtener la información directa del usuario para garantizar acceso a enrolledCourses
       const userResponse = await axios.get(`${apiUrl}/api/users/${userId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      console.log(`Usuario obtenido de BD:`, userResponse.data);
+      
       
       // Verificar si hay enrolledCourses directamente en el usuario
       const hasDirectEnrolledCourses = 
@@ -930,13 +925,8 @@ export default function UserManagement() {
         userResponse.data.enrolledCourses.length > 0;
       
       if (hasDirectEnrolledCourses) {
-        console.log(`Usuario tiene ${userResponse.data.enrolledCourses.length} cursos en DB:`, 
-          userResponse.data.enrolledCourses);
-          
         // Si es un asistente (unregistered), obtener detalles de cursos directamente
         if (userResponse.data.role === 'unregistered') {
-          console.log('Usuario es asistente, obteniendo cursos directamente de enrolledCourses');
-          
           // Obtener detalles de cada curso
           const coursesDetails = await Promise.all(
             userResponse.data.enrolledCourses.map(async (courseId: string) => {
@@ -944,41 +934,31 @@ export default function UserManagement() {
                 const courseResponse = await axios.get(`${apiUrl}/api/courses/${courseId}`, {
                   headers: { Authorization: `Bearer ${token}` }
                 });
-                console.log(`Detalles de curso ${courseId}:`, courseResponse.data.title);
+                
                 return courseResponse.data;
               } catch (error) {
-                console.error(`Error al obtener detalles del curso ${courseId}:`, error);
                 return { _id: courseId, title: 'Curso no disponible' };
               }
             })
           );
           
-          console.log(`Obtenidos detalles de ${coursesDetails.length} cursos para asistente`);
           return coursesDetails.filter(c => c); // Filtrar valores nulos
         }
       }
       
       // Para usuarios registrados o sin cursos directos, intentar con el endpoint
-      console.log('Intentando obtener cursos desde endpoint /courses/enrolled');
-      
       const enrolledResponse = await axios.get(`${apiUrl}/api/courses/enrolled`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { userId }
       });
       
-      console.log(`Respuesta del endpoint /courses/enrolled:`, 
-        enrolledResponse.data ? enrolledResponse.data.length : 'sin datos');
-      
       // Si el endpoint devolvió datos, usarlos
       if (enrolledResponse.data && Array.isArray(enrolledResponse.data) && enrolledResponse.data.length > 0) {
-        console.log(`Usando ${enrolledResponse.data.length} cursos del endpoint`);
         return enrolledResponse.data;
       }
       
       // Si llegamos aquí y hay enrolledCourses, usarlos como respaldo
       if (hasDirectEnrolledCourses) {
-        console.log(`Endpoint no devolvió cursos, usando enrolledCourses como respaldo`);
-        
         // Obtener detalles de cada curso
         const coursesDetails = await Promise.all(
           userResponse.data.enrolledCourses.map(async (courseId: string) => {
@@ -988,21 +968,17 @@ export default function UserManagement() {
               });
               return courseResponse.data;
             } catch (error) {
-              console.error(`Error al obtener detalles del curso ${courseId}:`, error);
               return { _id: courseId, title: 'Curso no disponible' };
             }
           })
         );
         
-        console.log(`Obtenidos detalles de ${coursesDetails.length} cursos como respaldo`);
         return coursesDetails.filter(c => c); // Filtrar valores nulos
       }
       
       // No se encontraron cursos
-      console.log(`No se encontraron cursos para el usuario ${userId}`);
       return [];
     } catch (error) {
-      console.error('Error al obtener cursos del usuario:', error);
       return [];
     }
   };
@@ -1028,7 +1004,7 @@ export default function UserManagement() {
       });
       
     } catch (error) {
-      console.error('Error al actualizar conteo de cursos:', error);
+      // Error silencioso
     }
   };
 
@@ -1042,8 +1018,6 @@ export default function UserManagement() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
       if (!selectedUser || !formData.course) return;
-      
-      console.log('Enrollando usuario:', selectedUser._id, 'en curso:', formData.course);
       
       // Usar el formato correcto del endpoint: /api/courses/:id/enroll/:studentId
       await axios.post(
@@ -1076,8 +1050,6 @@ export default function UserManagement() {
       fetchData();
       
     } catch (error: any) {
-      console.error('Error al enrollar usuario:', error);
-      
       // Preparar mensaje de error detallado para mostrar en modal
       let message = 'Error desconocido al enrollar usuario';
       
@@ -1096,8 +1068,6 @@ export default function UserManagement() {
       } else if (error.message) {
         message = error.message;
       }
-      
-      console.log('Mostrando mensaje de error:', message);
       
       // Mostrar error en modal
       setErrorMessage(message);
@@ -1309,7 +1279,7 @@ export default function UserManagement() {
             </p>
             <button 
               onClick={() => {
-                console.log('Forzando recarga de asistentes...');
+                
                 // Forzar actualización de ambos
                 processAttendanceForUnregisteredUsers(attendanceRecords);
                 // También recargar todos los datos

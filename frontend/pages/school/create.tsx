@@ -38,7 +38,7 @@ export default function CreateSchool() {
 
     try {
       const decoded = jwtDecode<DecodedToken>(token);
-      console.log('Token decodificado:', decoded);
+      
       if (decoded.role !== 'admin' && decoded.role !== 'teacher') {
         router.push('/');
         return;
@@ -85,9 +85,9 @@ export default function CreateSchool() {
         admin: userId
       };
       
-      console.log('Enviando petición a:', `${apiUrl}/api/schools`);
-      console.log('Payload:', payload);
-      console.log('Token:', token ? 'Presente' : 'No presente');
+      
+      
+      
 
       const response = await axios.post(
         `${apiUrl}/api/schools`, 
@@ -100,7 +100,7 @@ export default function CreateSchool() {
         }
       );
       
-      console.log('Respuesta del servidor:', response.data);
+      
       setSuccess(true);
       
       // Redirigir al listado de escuelas después de 2 segundos

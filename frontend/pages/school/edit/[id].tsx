@@ -115,10 +115,10 @@ export default function EditSchool() {
   };
 
   const handleImageUpload = (imageUrl: string) => {
-    console.log('Nueva URL de imagen recibida:', imageUrl);
+    
     // Almacenar la URL sin parámetros de caché para facilitar la comparación
     const cleanUrl = imageUrl.split('?')[0];
-    console.log('URL limpia (sin parámetros):', cleanUrl);
+    
     setLogoUrl(imageUrl);
   };
 
@@ -156,12 +156,12 @@ export default function EditSchool() {
       };
       
       // Log para depuración
-      console.log('Enviando solicitud de actualización:');
-      console.log('URL:', `${apiUrl}/api/schools/${id}`);
-      console.log('Datos:', JSON.stringify(schoolData));
-      console.log('Token presente:', !!token);
-      console.log('Longitud del token:', token ? token.length : 0);
-      console.log('Primeros caracteres del token:', token ? token.substring(0, 20) + '...' : 'N/A');
+      
+      
+      
+      
+      
+      
       
       const response = await axios.put(
         `${apiUrl}/api/schools/${id}`,

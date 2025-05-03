@@ -16,7 +16,7 @@ export class AttendanceController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(Permission.TAKE_ATTENDANCE)
   async create(@Body() createAttendanceDto: CreateAttendanceDto, @Req() req) {
-    this.logger.log(`Registrando asistencia para estudiante: ${createAttendanceDto.studentId} en curso: ${createAttendanceDto.courseId}`);
+    
     const teacherId = req.user.sub || req.user._id;
     return this.attendanceService.create(createAttendanceDto, teacherId);
   }
@@ -25,7 +25,7 @@ export class AttendanceController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(Permission.TAKE_ATTENDANCE)
   async createBulk(@Body() bulkAttendanceDto: BulkAttendanceDto, @Req() req) {
-    this.logger.log(`Registrando asistencia masiva para ${bulkAttendanceDto.attendances.length} estudiantes en curso: ${bulkAttendanceDto.courseId}`);
+    
     const teacherId = req.user.sub || req.user._id;
     return this.attendanceService.createBulk(bulkAttendanceDto, teacherId);
   }
@@ -33,7 +33,7 @@ export class AttendanceController {
   @Get('records')
   @UseGuards(JwtAuthGuard)
   async getAllRecords() {
-    this.logger.log('Obteniendo todos los registros de asistencia');
+    
     return this.attendanceService.findAllRecords();
   }
 
@@ -92,7 +92,7 @@ export class AttendanceController {
   @Post('link-user')
   @UseGuards(JwtAuthGuard)
   async linkUserAttendances(@Body() linkData: { unregisteredName: string; userId: string }) {
-    this.logger.log(`Vinculando asistencias de "${linkData.unregisteredName}" al usuario ${linkData.userId}`);
+    
     const updatedCount = await this.attendanceService.linkAttendancesToRegisteredUser(
       linkData.unregisteredName,
       linkData.userId

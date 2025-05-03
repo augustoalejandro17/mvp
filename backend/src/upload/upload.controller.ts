@@ -33,13 +33,13 @@ export class UploadController {
       throw new BadRequestException('No se ha proporcionado ningún archivo de imagen');
     }
 
-    this.logger.log(`Archivo de imagen recibido: ${file.originalname}, tamaño: ${file.size}, tipo: ${file.mimetype}`);
+    
     
     try {
       const imageUrl = await this.s3Service.uploadImage(file);
       
       // Log de la URL generada para depuración
-      this.logger.log(`URL de imagen generada: ${imageUrl}`);
+      
       
       // Añadir información adicional que puede ser útil para el cliente
       return { 

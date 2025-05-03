@@ -23,8 +23,8 @@ export class CoursesController {
     const userId = getUserIdFromRequest(req);
     const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
     
-    this.logger.log(`Processing request to get all courses${schoolId ? ` from school ${schoolId}` : ''}`);
-    this.logger.log(`User: ${userId}, Role: ${userRole}`);
+    
+    
     
     return this.coursesService.findAll(userId, userRole, schoolId);
   }
@@ -36,8 +36,8 @@ export class CoursesController {
     const userId = getUserIdFromRequest(req);
     const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
     
-    this.logger.log(`Processing request to get courses taught by user: ${userId}`);
-    this.logger.log(`User: ${userId}, Role: ${userRole}`);
+    
+    
     
     return this.coursesService.getTeachingCourses(userId, userRole);
   }
@@ -48,11 +48,11 @@ export class CoursesController {
     const userId = getUserIdFromRequest(req);
     const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
     
-    this.logger.log(`Processing request to get courses enrolled by user: ${targetUserId || userId}`);
+    
     
     // Si se especifica un usuario objetivo y es diferente del usuario actual
     if (targetUserId && targetUserId !== userId) {
-      this.logger.log(`User ${userId} with role ${userRole} is requesting courses for another user ${targetUserId}`);
+      
       
       // Verificar si el usuario tiene permiso para ver los cursos de otros (solo admin, school_owner, teacher)
       const isAllowed = 
@@ -75,13 +75,13 @@ export class CoursesController {
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string, @Req() req) {
-    this.logger.log(`Solicitud para obtener curso con ID: ${id}`);
+    
     try {
       // Get user information from token
       const userId = req.user.sub;
       const userRole = req.user.role;
     
-      this.logger.log(`Usuario ${userId} con rol ${userRole} solicitando curso ${id}`);
+      
       const result = await this.coursesService.getCourseForUser(id, userId, userRole);
       return result;
     } catch (error) {
@@ -96,8 +96,8 @@ export class CoursesController {
   async create(@Body() createCourseDto: CreateCourseDto, @Req() req) {
     const userId = getUserIdFromRequest(req);
     
-    this.logger.log(`Processing course creation request: ${JSON.stringify(createCourseDto)}`);
-    this.logger.log(`User: ${userId}, Role: ${req.user.role}`);
+    
+    
     
     try {
       const result = await this.coursesService.create(createCourseDto, userId);
@@ -111,8 +111,8 @@ export class CoursesController {
         this.logger.error(`Error extracting course ID: ${err.message}`);
       }
       
-      this.logger.log(`Course created successfully: ${courseId}`);
-      this.logger.log(`Course created by teacher: ${userId} for school: ${createCourseDto.schoolId}`);
+      
+      
       
       return result;
     } catch (error) {
@@ -126,12 +126,12 @@ export class CoursesController {
   async update(@Param('id') id: string, @Body() updateCourseDto: any, @Req() req) {
     const userId = getUserIdFromRequest(req);
     
-    this.logger.log(`Processing request to update course with ID: ${id}`);
-    this.logger.log(`Authenticated user: ${userId}, Role: ${req.user.role}`);
+    
+    
     
     try {
       const result = await this.coursesService.update(id, updateCourseDto, userId);
-      this.logger.log(`Course updated successfully`);
+      
       return result;
     } catch (error) {
       this.logger.error(`Error updating course: ${error.message}`, error.stack);
@@ -144,12 +144,12 @@ export class CoursesController {
   async addStudent(@Param('id') id: string, @Param('studentId') studentId: string, @Req() req) {
     const userId = getUserIdFromRequest(req);
     
-    this.logger.log(`Processing request to add student ${studentId} to course ${id}`);
-    this.logger.log(`Authenticated user: ${userId}, Role: ${req.user.role}`);
+    
+    
     
     try {
       const result = await this.coursesService.addStudent(id, studentId, userId);
-      this.logger.log(`Student added successfully to course`);
+      
       return result;
     } catch (error) {
       this.logger.error(`Error adding student: ${error.message}`, error.stack);
@@ -162,12 +162,12 @@ export class CoursesController {
   async removeStudent(@Param('id') id: string, @Param('studentId') studentId: string, @Req() req) {
     const userId = getUserIdFromRequest(req);
     
-    this.logger.log(`Processing request to remove student ${studentId} from course ${id}`);
-    this.logger.log(`Authenticated user: ${userId}, Role: ${req.user.role}`);
+    
+    
     
     try {
       const result = await this.coursesService.removeStudent(id, studentId, userId);
-      this.logger.log(`Student removed successfully from course`);
+      
       return result;
     } catch (error) {
       this.logger.error(`Error removing student: ${error.message}`, error.stack);
@@ -180,12 +180,12 @@ export class CoursesController {
   async remove(@Param('id') id: string, @Req() req) {
     const userId = getUserIdFromRequest(req);
     
-    this.logger.log(`Processing request to delete course with ID: ${id}`);
-    this.logger.log(`Authenticated user: ${userId}, Role: ${req.user.role}`);
+    
+    
     
     try {
       const result = await this.coursesService.remove(id, userId);
-      this.logger.log(`Course deleted successfully`);
+      
       return result;
     } catch (error) {
       this.logger.error(`Error deleting course: ${error.message}`, error.stack);
@@ -259,7 +259,7 @@ export class CoursesController {
     @Req() req,
   ) {
     const userId = getUserIdFromRequest(req);
-    this.logger.log(`Usuario ${userId} desenrollando al estudiante ${studentId} del curso ${courseId}`);
+    
     
     await this.coursesService.unenrollStudent(courseId, studentId, userId);
     return { message: 'Student unenrolled successfully' };
@@ -274,8 +274,8 @@ export class CoursesController {
     @Body() paymentData: PaymentDto,
     @Req() req,
   ) {
-    this.logger.log(`Registrando pago para curso ${courseId}, estudiante ${studentId}`);
-    this.logger.log(`Datos del pago: ${JSON.stringify(paymentData)}`);
+    
+    
     
     const userId = getUserIdFromRequest(req);
     

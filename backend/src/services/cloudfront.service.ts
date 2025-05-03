@@ -22,7 +22,7 @@ export class CloudFrontService {
       this.distributionDomain = rawDomain.replace(/^https?:\/\//, '');
       // Si el dominio original incluía protocolo, registrar que se quitó
       if (rawDomain !== this.distributionDomain) {
-        this.logger.log(`CloudFront domain ajustado: ${rawDomain} -> ${this.distributionDomain}`);
+        
       }
     }
     
@@ -31,12 +31,12 @@ export class CloudFrontService {
 
     // Si no hay dominio de CloudFront configurado, no continuar con la inicialización
     if (!this.distributionDomain) {
-      this.logger.warn('No se ha configurado el dominio de CloudFront (AWS_CLOUDFRONT_DOMAIN). CloudFront no estará disponible.');
+      
       return;
     }
 
     if (!this.keyPairId) {
-      this.logger.warn('No se ha configurado el Key Pair ID de CloudFront (AWS_CLOUDFRONT_KEY_PAIR_ID). CloudFront no estará disponible.');
+      
       return;
     }
 
@@ -58,47 +58,47 @@ export class CloudFrontService {
       if (privateKeyBase64) {
         try {
           privateKey = Buffer.from(privateKeyBase64, 'base64').toString('utf8');
-          this.logger.log('Usando clave privada de CloudFront desde variables de entorno');
+          
         } catch (e) {
-          this.logger.warn(`Error decodificando la clave privada de base64: ${e.message}. CloudFront no estará disponible.`);
+          
           return;
         }
       } 
       // Si no, intentamos leerla desde un archivo
       else if (this.privateKeyPath) {
         try {
-          this.logger.log(`Intentando cargar clave privada desde: ${this.privateKeyPath}`);
+          
           
           // Verificar si la ruta es relativa o absoluta
           const fullPath = this.privateKeyPath.startsWith('/') 
             ? this.privateKeyPath 
             : path.join(process.cwd(), this.privateKeyPath);
           
-          this.logger.log(`Ruta completa de la clave: ${fullPath}`);
+          
           
           // Verificar si el archivo existe
           if (!fs.existsSync(fullPath)) {
-            this.logger.warn(`El archivo de clave privada no existe en: ${fullPath}. CloudFront no estará disponible.`);
+            
             return;
           }
           
           // Leer el archivo
           privateKey = fs.readFileSync(fullPath, 'utf8');
-          this.logger.log(`Clave privada de CloudFront cargada exitosamente (longitud: ${privateKey.length} caracteres)`);
+          
         } catch (e) {
-          this.logger.warn(`Error leyendo archivo de clave privada: ${e.message}. CloudFront no estará disponible.`);
+          
           return;
         }
       } else {
-        this.logger.warn('No se encontró clave privada para CloudFront. No se pueden generar URLs firmadas.');
+        
         return;
       }
 
       // Inicializar el firmante de CloudFront
       this.signer = new AWS.CloudFront.Signer(this.keyPairId, privateKey);
-      this.logger.log('CloudFront signer inicializado correctamente');
+      
     } catch (error) {
-      this.logger.warn(`Error al inicializar CloudFront signer: ${error.message}. CloudFront no estará disponible.`);
+      
       return; // No lanzar error, solo continuar sin CloudFront
     }
   }
@@ -112,7 +112,7 @@ export class CloudFrontService {
   async getSignedUrl(objectKey: string, expiresIn: number = 3600): Promise<string> {
     try {
       if (!this.signer || !this.distributionDomain) {
-        this.logger.warn('CloudFront no está configurado correctamente. Usando URL sin firmar.');
+        
         throw new Error('CloudFront no está disponible');
       }
 
@@ -142,10 +142,10 @@ export class CloudFrontService {
         policy: JSON.stringify(policy)
       });
 
-      this.logger.log(`URL firmada de CloudFront generada para: ${objectKey} (expira en ${expiresIn} segundos)`);
+      
       return signedUrl;
     } catch (error) {
-      this.logger.warn(`Error al generar URL firmada de CloudFront: ${error.message}. Usando fallback.`);
+      
       throw error;
     }
   }
@@ -158,7 +158,7 @@ export class CloudFrontService {
   getCookies(expiresIn: number = 3600): Record<string, string> {
     try {
       if (!this.signer) {
-        this.logger.warn('CloudFront no está configurado correctamente. No se pueden generar cookies.');
+        
         return {};
       }
 
@@ -187,7 +187,7 @@ export class CloudFrontService {
         cookies[key] = signedCookies[key] as string;
       });
 
-      this.logger.log('Cookies firmadas de CloudFront generadas');
+      
       return cookies;
     } catch (error) {
       this.logger.error(`Error al generar cookies firmadas: ${error.message}`, error.stack);
