@@ -99,11 +99,11 @@ export default function AttendancePage() {
     : courses;
 
   return (
-    <div className={styles.container}>
-      <main className={styles.main}>
-        <h1 className={styles.title}>Control de Asistencia</h1>
-        
-        {error && <div className={styles.error}>{error}</div>}
+      <div className={styles.container}>
+        <main className={styles.main}>
+          <h1 className={styles.title}>Control de Asistencia</h1>
+          
+          {error && <div className={styles.error}>{error}</div>}
         
         <div className={styles.controls}>
           <div className={styles.search}>
@@ -117,10 +117,10 @@ export default function AttendancePage() {
             <FaSearch className={styles.searchIcon} />
           </div>
         </div>
-        
-        {loading ? (
-          <div className={styles.loading}>Cargando cursos...</div>
-        ) : (
+          
+          {loading ? (
+            <div className={styles.loading}>Cargando cursos...</div>
+          ) : (
           <>
             {filteredCourses.length > 0 ? (
               <div className={styles.tableContainer}>
@@ -141,14 +141,14 @@ export default function AttendancePage() {
                         <td>
                           <div className={styles.countBadge}>
                             <FaUsers className={styles.iconSpacer} />
-                            {course.students?.length || 0} estudiantes
-                          </div>
+                        {course.students?.length || 0} estudiantes
+                    </div>
                         </td>
                         <td>
                           <div className={styles.actionButtons}>
                             <Link href={`/course/attendance/${course._id}`} className={styles.iconButton}>
                               <FaCalendarAlt /> Asistencia
-                            </Link>
+                  </Link>
                           </div>
                         </td>
                       </tr>
@@ -156,27 +156,27 @@ export default function AttendancePage() {
                   </tbody>
                 </table>
               </div>
-            ) : (
+              ) : (
               <div className={styles.emptyMessage}>
                 {searchTerm ? (
                   <p>No se encontraron cursos que coincidan con su búsqueda.</p>
                 ) : (
                   <>
-                    <p>No tienes cursos disponibles para controlar asistencia.</p>
+                  <p>No tienes cursos disponibles para controlar asistencia.</p>
                     {currentUser?.role === 'admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'school_owner' ? (
                       <div className={styles.centerButtons}>
-                        <Link href="/course/create" className={styles.createButton}>
-                          Crear un nuevo curso
-                        </Link>
+                    <Link href="/course/create" className={styles.createButton}>
+                      Crear un nuevo curso
+                    </Link>
                       </div>
                     ) : null}
                   </>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
           </>
-        )}
-      </main>
-    </div>
+          )}
+        </main>
+      </div>
   );
 } 

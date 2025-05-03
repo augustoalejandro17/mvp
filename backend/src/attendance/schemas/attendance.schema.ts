@@ -8,6 +8,9 @@ export class Attendance {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Course', required: true })
   course: MongooseSchema.Types.ObjectId;
 
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Course', required: true })
+  class: MongooseSchema.Types.ObjectId;
+
   @Prop({ 
     type: MongooseSchema.Types.Mixed, 
     required: true,
@@ -31,6 +34,9 @@ export class Attendance {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   markedBy: MongooseSchema.Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
+  recordedBy: MongooseSchema.Types.ObjectId;
 
   @Prop({ default: Date.now })
   createdAt: Date;

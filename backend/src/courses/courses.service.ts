@@ -933,6 +933,7 @@ export class CoursesService {
       
       // Log enrollments details for debugging
       enrollments.forEach((enrollment, index) => {
+        console.log({
           id: enrollment._id.toString(),
           courseId: enrollment.course.toString(),
           isActive: enrollment.isActive,

@@ -47,14 +47,22 @@ export class AttendanceService {
         throw new BadRequestException(`El estudiante no está matriculado en este curso`);
       }
 
+      // Properly handle the date by ensuring it's a Date object
+      const startDate = new Date(createAttendanceDto.date);
+      const endDate = new Date(createAttendanceDto.date);
+      
+      // Set hours without mutating the original date string
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+
       // Verificar si ya existe un registro para este estudiante en esta fecha para este curso
       const existingAttendance = await this.attendanceModel.findOne({
         course: createAttendanceDto.courseId,
         student: createAttendanceDto.studentId,
         studentModel: 'User',
         date: {
-          $gte: new Date(createAttendanceDto.date.setHours(0, 0, 0, 0)),
-          $lt: new Date(createAttendanceDto.date.setHours(23, 59, 59, 999))
+          $gte: startDate,
+          $lt: endDate
         }
       });
 
@@ -71,10 +79,13 @@ export class AttendanceService {
         course: createAttendanceDto.courseId,
         student: createAttendanceDto.studentId,
         studentModel: 'User',
-        date: createAttendanceDto.date,
+        date: new Date(createAttendanceDto.date), // Ensure we create a new Date object
         present: createAttendanceDto.present,
         notes: createAttendanceDto.notes,
-        markedBy: teacherId
+        markedBy: teacherId,
+        // Add required fields to match schema
+        class: createAttendanceDto.courseId,     // 'class' field maps to course
+        recordedBy: teacherId                    // 'recordedBy' field maps to markedBy
       });
       
       return attendance.save();
@@ -83,7 +94,7 @@ export class AttendanceService {
       return this.createForNonRegisteredUser(
         createAttendanceDto.courseId,
         createAttendanceDto.studentId, // En este caso, el ID es el nombre
-        createAttendanceDto.date,
+        new Date(createAttendanceDto.date), // Ensure we create a new Date object
         createAttendanceDto.present,
         createAttendanceDto.notes || '',
         teacherId
@@ -128,6 +139,12 @@ export class AttendanceService {
         throw new BadRequestException(`Algunos estudiantes no están matriculados en este curso`);
       }
       
+      // Create date range for queries
+      const startDate = new Date(bulkAttendanceDto.date);
+      const endDate = new Date(bulkAttendanceDto.date);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      
       // Procesar cada asistencia de estudiantes registrados
       for (const attendanceData of registeredAttendances) {
         // Buscar si ya existe un registro para este estudiante en esta fecha
@@ -135,8 +152,8 @@ export class AttendanceService {
           course: bulkAttendanceDto.courseId,
           student: attendanceData.studentId,
           date: {
-            $gte: new Date(bulkAttendanceDto.date.setHours(0, 0, 0, 0)),
-            $lt: new Date(bulkAttendanceDto.date.setHours(23, 59, 59, 999))
+            $gte: startDate,
+            $lt: endDate
           }
         });
         
@@ -152,10 +169,13 @@ export class AttendanceService {
             course: bulkAttendanceDto.courseId,
             student: attendanceData.studentId,
             studentModel: 'User',
-            date: bulkAttendanceDto.date,
+            date: new Date(bulkAttendanceDto.date),
             present: attendanceData.present,
             notes: attendanceData.notes,
-            markedBy: teacherId
+            markedBy: teacherId,
+            // Add required fields to match schema
+            class: bulkAttendanceDto.courseId,     // 'class' field maps to course
+            recordedBy: teacherId                  // 'recordedBy' field maps to markedBy
           });
           registeredResults.push(await newAttendance.save());
         }
@@ -166,6 +186,12 @@ export class AttendanceService {
     const nonRegisteredResults: Attendance[] = [];
     
     if (nonRegisteredAttendances.length > 0) {
+      // Create date range for queries
+      const startDate = new Date(bulkAttendanceDto.date);
+      const endDate = new Date(bulkAttendanceDto.date);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      
       // Para cada estudiante no registrado, añadir un registro de asistencia
       for (const attendanceData of nonRegisteredAttendances) {
         // Buscar si ya existe un registro para este nombre en esta fecha
@@ -174,8 +200,8 @@ export class AttendanceService {
           student: attendanceData.studentId,
           studentModel: 'String',
           date: {
-            $gte: new Date(bulkAttendanceDto.date.setHours(0, 0, 0, 0)),
-            $lt: new Date(bulkAttendanceDto.date.setHours(23, 59, 59, 999))
+            $gte: startDate,
+            $lt: endDate
           }
         });
         
@@ -190,7 +216,7 @@ export class AttendanceService {
           const nonRegisteredAttendance = await this.createForNonRegisteredUser(
             bulkAttendanceDto.courseId,
             attendanceData.studentId, // El ID en este caso es el nombre
-            bulkAttendanceDto.date,
+            new Date(bulkAttendanceDto.date),
             attendanceData.present,
             attendanceData.notes || '',
             teacherId
@@ -208,9 +234,11 @@ export class AttendanceService {
   // Obtener asistencia por ID
   async findOne(id: string): Promise<Attendance> {
     const attendance = await this.attendanceModel.findById(id)
-      .populate('student', 'name email')
-      .populate('course', 'title')
-      .populate('markedBy', 'name email');
+      .populate({ path: 'student', strictPopulate: false })
+      .populate({ path: 'course', strictPopulate: false })
+      .populate({ path: 'markedBy', strictPopulate: false })
+      .populate({ path: 'class', strictPopulate: false })
+      .populate({ path: 'recordedBy', strictPopulate: false });
       
     if (!attendance) {
       throw new NotFoundException(`Registro de asistencia con ID ${id} no encontrado`);
@@ -221,15 +249,22 @@ export class AttendanceService {
 
   // Obtener asistencia por curso y fecha
   async findByCourseAndDate(courseId: string, date: Date): Promise<Attendance[]> {
+    // Create date range without mutating the original date
+    const startDate = new Date(date);
+    const endDate = new Date(date);
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
+    
     return this.attendanceModel.find({
       course: courseId,
       date: {
-        $gte: new Date(date.setHours(0, 0, 0, 0)),
-        $lt: new Date(date.setHours(23, 59, 59, 999))
+        $gte: startDate,
+        $lt: endDate
       }
     })
-    .populate('student', 'name email')
-    .sort('student.name');
+    .populate({ path: 'student', strictPopulate: false })
+    .sort('student.name')
+    .exec();
   }
 
   // Obtener estadísticas de asistencia por curso
@@ -317,7 +352,9 @@ export class AttendanceService {
     
     // Obtener todos los registros, incluidos aquellos donde el estudiante podría ser un string
     const records = await this.attendanceModel.find()
-      .populate('course', 'title')
+      .populate({ path: 'student', strictPopulate: false })
+      .populate({ path: 'recordedBy', strictPopulate: false })
+      .populate({ path: 'class', strictPopulate: false })
       .exec();
     
     return records;
@@ -483,7 +520,10 @@ export class AttendanceService {
         date,
         present,
         notes,
-        markedBy: teacherId
+        markedBy: teacherId,
+        // Add properties needed for schema validation
+        class: courseId,       // 'class' is required by the schema
+        recordedBy: teacherId  // 'recordedBy' is required by the schema
       });
       
       const savedAttendance = await attendance.save();

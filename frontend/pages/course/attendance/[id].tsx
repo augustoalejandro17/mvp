@@ -362,12 +362,6 @@ export default function AttendancePage() {
       }
       
       setAttendances(newAttendances);
-      
-      if (newAttendances.length > attendances.length) {
-        setSuccess(`Se inicializaron ${newAttendances.length - attendances.length} nuevos registros de asistencia.`);
-      } else {
-        setSuccess('No se encontraron nuevos estudiantes para inicializar asistencia.');
-      }
     };
     
     processStudents();
@@ -437,34 +431,129 @@ export default function AttendancePage() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
 
-      const promises = attendances.map(async (attendance) => {
-        const data = {
-          student: attendance.studentId,
-          course: id,
-          date,
-          present: attendance.present,
-          notes: attendance.notes || '',
-          isRegistered: attendance.isRegistered,
-          studentName: attendance.studentName
-        };
+      const attendancesToSave = attendances
+        .filter(attendance => 
+          attendance && 
+          attendance.studentName && 
+          attendance.studentName !== 'Usuario no encontrado');
+      
+      console.log('Attendances to save:', attendancesToSave.length);
+      
+      // If we have no attendance records to save, skip
+      if (attendancesToSave.length === 0) {
+        setSuccess('No hay asistencias para guardar');
+        setSaving(false);
+        return;
+      }
+      
+      const promises = attendancesToSave.map(async (attendance) => {
+        try {
+          // Create proper date object with time component set to noon
+          // CRITICAL: Create a string formatted date that won't be modified by the backend
+          // The backend's date.setHours() calls are causing issues because they mutate the date object
+          const dateString = date + 'T12:00:00.000Z';
+          
+          // Only include fields expected by the DTO to avoid validation errors
+          const data: any = {
+            courseId: id as string,
+            studentId: attendance.studentId,
+            date: dateString,
+            present: attendance.present,
+            notes: attendance.notes || '',
+            isRegistered: attendance.isRegistered
+          };
+          
+          // Include studentName for non-registered users
+          if (attendance.studentName && !attendance.isRegistered) {
+            data.studentName = attendance.studentName;
+          }
+          
+          console.log('Sending attendance data:', data);
 
-        if (attendance._id) {
-          return axios.put(`${apiUrl}/api/attendance/${attendance._id}`, data, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-        } else {
-          return axios.post(`${apiUrl}/api/attendance`, data, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          if (attendance._id) {
+            return axios.put(`${apiUrl}/api/attendance/${attendance._id}`, data, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+          } else {
+            // Add more detailed error handling for debugging
+            try {
+              const response = await axios.post(`${apiUrl}/api/attendance`, data, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              return response;
+            } catch (err: any) {
+              // Print specific error details
+              console.error('POST error:', err);
+              
+              // Log the specific error response for better debugging
+              if (err.response) {
+                console.error('Error response status:', err.response.status);
+                console.error('Error response data:', err.response.data);
+                if (err.response.data && err.response.data.message) {
+                  setError('Error API: ' + (typeof err.response.data.message === 'string' ? 
+                    err.response.data.message : 
+                    JSON.stringify(err.response.data.message)));
+                }
+              }
+              
+              console.error('Error request details:', {
+                url: `${apiUrl}/api/attendance`,
+                data: JSON.stringify(data),
+                headers: { Authorization: 'Bearer [token]' }
+              });
+              throw err;
+            }
+          }
+        } catch (error) {
+          console.error('Error processing attendance data:', error);
+          throw error;
         }
       });
 
-      await Promise.all(promises);
+      // Add each promise with its index to help identify which one fails
+      const promiseResults = await Promise.allSettled(promises);
       
-      setSuccess('Asistencia guardada correctamente');
-      fetchAttendances();
-    } catch (error) {
-      setError('Ocurrió un error al guardar los registros de asistencia');
+      // Check if any promise failed
+      const failedPromises = promiseResults.filter(result => result.status === 'rejected');
+      if (failedPromises.length > 0) {
+        console.error(`${failedPromises.length} attendance records failed to save`);
+        failedPromises.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            console.error(`Failed promise ${index}:`, result.reason);
+          }
+        });
+        
+        setError(`Error al guardar ${failedPromises.length} registros de asistencia`);
+      } else {
+        setSuccess('Asistencia guardada correctamente');
+        fetchAttendances();
+      }
+    } catch (error: any) {
+      console.error('Error al guardar asistencia:', error);
+      
+      // Detailed error logging
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        console.error('Error response data:', error.response.data);
+        console.error('Error response status:', error.response.status);
+        console.error('Error response headers:', error.response.headers);
+        
+        // Display more specific error message if available
+        if (error.response.data && error.response.data.message) {
+          setError(`Error: ${error.response.data.message}`);
+        } else {
+          setError(`Error al guardar los registros de asistencia (${error.response.status})`);
+        }
+      } else if (error.request) {
+        // The request was made but no response was received
+        console.error('Error request:', error.request);
+        setError('No se recibió respuesta del servidor');
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        console.error('Error message:', error.message);
+        setError('Ocurrió un error al guardar los registros de asistencia');
+      }
     } finally {
       setSaving(false);
     }
@@ -574,7 +663,8 @@ export default function AttendancePage() {
                     </thead>
                     <tbody>
                       {attendances
-                        .filter(attendance => attendance && 
+                        .filter(attendance => 
+                          attendance && 
                           attendance.studentName && 
                           attendance.studentName !== 'Usuario no encontrado')
                         .map((attendance) => {

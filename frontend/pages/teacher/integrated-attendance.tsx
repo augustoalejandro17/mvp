@@ -260,16 +260,28 @@ export default function IntegratedAttendancePage() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
       
+      // Create proper date string that won't be modified by backend setHours() calls
+      const dateString = date + 'T12:00:00.000Z';
+      
+      if (!dateString) {
+        setError('Formato de fecha inválido');
+        setSaving(false);
+        return;
+      }
+      
       // Preparar los datos de asistencia
+      // Note: Only include fields expected by the DTO to avoid validation errors
       const bulkData = {
         courseId: selectedCourse,
-        date: new Date(date),
+        date: dateString,
         attendances: studentRecords.map(record => ({
           studentId: record._id,
           present: record.present,
           notes: record.attendanceNotes
         }))
       };
+      
+      console.log('Sending bulk attendance data:', bulkData);
       
       await axios.post(`${apiUrl}/api/attendance/bulk`, bulkData, {
         headers: { 
@@ -282,8 +294,16 @@ export default function IntegratedAttendancePage() {
       
       // Actualizar asistencias
       fetchAttendances(selectedCourse, date);
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = handleApiError(error);
+      console.error('Error al guardar la asistencia:', error);
+      
+      // Detailed error logging
+      if (error.response) {
+        console.error('Error response data:', error.response.data);
+        console.error('Error response status:', error.response.status);
+      }
+      
       setError(errorMsg || 'Error al guardar la asistencia');
     } finally {
       setSaving(false);
