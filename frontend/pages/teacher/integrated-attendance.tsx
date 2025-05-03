@@ -401,7 +401,7 @@ export default function IntegratedAttendancePage() {
                         </span>
                         {student.lastPaymentDate && (
                           <div className={styles.lastPaymentDate}>
-                            Último pago: {new Date(student.lastPaymentDate).toLocaleDateString()}
+                            Último pago: {new Date(student.lastPaymentDate).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'})}
                           </div>
                         )}
                         {student.paymentNotes && (

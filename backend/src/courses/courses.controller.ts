@@ -7,6 +7,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../auth/enums/user-role.enum';
 import { Permission, RequirePermissions, PermissionsGuard } from '../auth/guards/permissions.guard';
 import { getUserIdFromRequest, getUserRoleFromRequest } from '../utils/token-handler';
+import { PaymentDto } from './dto/payment.dto';
 
 type ServiceUserRole = any; // Usamos any para evitar los errores de tipo
 
@@ -43,11 +44,31 @@ export class CoursesController {
 
   @Get('enrolled')
   @UseGuards(JwtAuthGuard)
-  async getEnrolledCourses(@Req() req) {
+  async getEnrolledCourses(@Req() req, @Query('userId') targetUserId?: string) {
     const userId = getUserIdFromRequest(req);
+    const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
     
-    this.logger.log(`Processing request to get courses enrolled by user: ${userId}`);
+    this.logger.log(`Processing request to get courses enrolled by user: ${targetUserId || userId}`);
     
+    // Si se especifica un usuario objetivo y es diferente del usuario actual
+    if (targetUserId && targetUserId !== userId) {
+      this.logger.log(`User ${userId} with role ${userRole} is requesting courses for another user ${targetUserId}`);
+      
+      // Verificar si el usuario tiene permiso para ver los cursos de otros (solo admin, school_owner, teacher)
+      const isAllowed = 
+        userRole === UserRole.SUPER_ADMIN || 
+        userRole === UserRole.ADMIN || 
+        userRole === UserRole.SCHOOL_OWNER || 
+        userRole === UserRole.TEACHER;
+        
+      if (!isAllowed) {
+        throw new UnauthorizedException('No tienes permiso para ver los cursos de otros usuarios');
+      }
+      
+      return this.coursesService.getEnrolledCourses(targetUserId);
+    }
+    
+    // Si no se especifica usuario o es el mismo que el autenticado
     return this.coursesService.getEnrolledCourses(userId);
   }
 
@@ -235,8 +256,50 @@ export class CoursesController {
   async unenrollStudent(
     @Param('id') courseId: string,
     @Param('studentId') studentId: string,
+    @Req() req,
   ) {
-    await this.coursesService.unenrollStudent(courseId, studentId);
+    const userId = getUserIdFromRequest(req);
+    this.logger.log(`Usuario ${userId} desenrollando al estudiante ${studentId} del curso ${courseId}`);
+    
+    await this.coursesService.unenrollStudent(courseId, studentId, userId);
     return { message: 'Student unenrolled successfully' };
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.CREATE_COURSE, Permission.UPDATE_COURSE)
+  @Post(':id/enrollment/:studentId/payment')
+  async addPaymentToEnrollment(
+    @Param('id') courseId: string,
+    @Param('studentId') studentId: string,
+    @Body() paymentData: PaymentDto,
+    @Req() req,
+  ) {
+    this.logger.log(`Registrando pago para curso ${courseId}, estudiante ${studentId}`);
+    this.logger.log(`Datos del pago: ${JSON.stringify(paymentData)}`);
+    
+    const userId = getUserIdFromRequest(req);
+    
+    // Primero buscar el enrollment
+    const enrollments = await this.coursesService.getEnrollmentsByCourse(courseId);
+    const enrollment = enrollments.find(e => 
+      (e.student as any)._id.toString() === studentId || e.student.toString() === studentId
+    );
+    
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment not found for this student and course');
+    }
+    
+    // Acceder al ID de forma segura
+    const enrollmentId = enrollment['_id'] ? enrollment['_id'].toString() : '';
+    
+    if (!enrollmentId) {
+      throw new BadRequestException('Invalid enrollment ID');
+    }
+    
+    return this.coursesService.addPaymentToEnrollment(
+      enrollmentId,
+      paymentData,
+      userId
+    );
   }
 } 

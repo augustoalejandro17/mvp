@@ -1,11 +1,11 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Logger, Req, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Logger, Req, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { User } from './schemas/user.schema';
+import { User as AuthUser } from '../auth/schemas/user.schema';
+import { UserRole } from '../auth/enums/user-role.enum';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ChangeRoleDto } from './dto/change-role.dto';
-import { UserRole } from '../auth/schemas/user.schema';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { Request } from 'express';
 import { AuthorizationService } from '../auth/services/authorization.service';
@@ -15,6 +15,23 @@ import { Permission, RequirePermissions, PermissionsGuard } from '../auth/guards
 class AssignSchoolRoleDto {
   schoolId: string;
   role: UserRole;
+}
+
+// DTO para registrar un usuario no registrado
+class RegisterUnregisteredUserDto {
+  email: string;
+  password: string;
+  additionalInfo?: {
+    [key: string]: any;
+  };
+}
+
+// DTO para crear un usuario no registrado
+class CreateUnregisteredUserDto {
+  name: string;
+  schoolId?: string;
+  courseId?: string;
+  role?: string;
 }
 
 @Controller('users')
@@ -42,13 +59,13 @@ export class UsersController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER)
-  async create(@Body() createUserDto: any): Promise<User> {
+  async create(@Body() createUserDto: any): Promise<AuthUser> {
     return this.usersService.create(createUserDto);
   }
 
   @Post('with-courses')
   @UseGuards(JwtAuthGuard)
-  async createWithCourses(@Body() data: { user: Partial<User>, courses: string[] }): Promise<User> {
+  async createWithCourses(@Body() data: { user: Partial<AuthUser>, courses: string[] }): Promise<AuthUser> {
     this.logger.log(`Creando usuario ${data.user.name} con ${data.courses?.length || 0} cursos`);
     return this.usersService.createWithCourses(data.user, data.courses || []);
   }
@@ -56,7 +73,7 @@ export class UsersController {
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER)
-  update(@Param('id') id: string, @Body() updateUserDto: Partial<User>) {
+  update(@Param('id') id: string, @Body() updateUserDto: Partial<AuthUser>) {
     return this.usersService.update(id, updateUserDto);
   }
 
@@ -73,7 +90,7 @@ export class UsersController {
   async changeRole(
     @Param('id') id: string,
     @Body() changeRoleDto: ChangeRoleDto,
-  ): Promise<User> {
+  ): Promise<AuthUser> {
     return this.usersService.changeRole(id, changeRoleDto.role);
   }
 
@@ -136,6 +153,164 @@ export class UsersController {
       };
     } else {
       throw new ForbiddenException('No se pudo asignar el rol al usuario en la escuela');
+    }
+  }
+
+  /**
+   * Convierte un usuario no registrado (asistente) en un usuario registrado con email y password
+   */
+  @Post(':id/register')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.MANAGE_STUDENTS)
+  async registerUnregisteredUser(
+    @Param('id') userId: string,
+    @Body() registerDto: RegisterUnregisteredUserDto,
+    @Req() req: Request,
+  ): Promise<{ success: boolean, message: string, user: AuthUser }> {
+    this.logger.log(`Registrando usuario no registrado ${userId} con email ${registerDto.email}`);
+    
+    const authUserId = req.user['sub'] || req.user['_id'];
+    
+    // Verificar que el usuario tenga permisos para realizar esta acción
+    // Aquí deberías implementar alguna validación adicional si es necesario
+    
+    try {
+      const user = await this.usersService.convertUnregisteredToRegistered(userId, registerDto);
+      
+      return { 
+        success: true, 
+        message: 'Usuario registrado correctamente',
+        user
+      };
+    } catch (error) {
+      this.logger.error(`Error al registrar usuario no registrado: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Crea un usuario no registrado (asistente) directamente
+   */
+  @Post('unregistered')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.MANAGE_STUDENTS)
+  async createUnregisteredUser(
+    @Body() createDto: CreateUnregisteredUserDto,
+    @Req() req: Request,
+  ): Promise<any> {
+    // Log detallado para depurar
+    this.logger.log(`Recibida petición para crear asistente no registrado`);
+    this.logger.log(`Datos recibidos: ${JSON.stringify(createDto)}`);
+    
+    // Validar datos mínimos
+    if (!createDto.name) {
+      this.logger.error('Error: Nombre es requerido para crear un asistente');
+      throw new BadRequestException('El nombre es requerido para crear un asistente');
+    }
+    
+    try {
+      // Extraer cada campo individualmente para mayor claridad
+      const name = createDto.name;
+      const courseId = createDto.courseId || undefined;
+      const schoolId = createDto.schoolId || undefined;
+      
+      this.logger.log(`Creando asistente "${name}" con courseId: ${courseId}, schoolId: ${schoolId}`);
+      
+      // Crear directamente un usuario con rol UNREGISTERED
+      const user = await this.usersService.createUnregisteredUser(
+        name,
+        courseId,
+        schoolId
+      );
+      
+      this.logger.log(`Asistente creado exitosamente con ID: ${user['_id']}`);
+      return user;
+    } catch (error) {
+      this.logger.error(`Error al crear asistente: ${error.message}`, error.stack);
+      throw new BadRequestException(`Error al crear asistente: ${error.message}`);
+    }
+  }
+
+  /**
+   * Endpoint de prueba para diagnosticar problemas con la creación de asistentes
+   */
+  @Post('test-assistant')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.MANAGE_STUDENTS)
+  async testCreateAssistant(
+    @Body() body: any,
+    @Req() req: Request,
+  ): Promise<any> {
+    this.logger.log(`Test de creación de asistente con datos: ${JSON.stringify(body)}`);
+    
+    try {
+      // Acceso directo a la colección de MongoDB sin Mongoose
+      const userCollection = this.usersService['userModel'].collection;
+      
+      // Generar un email único para cada asistente usando timestamp
+      const timestamp = Date.now();
+      const uniqueEmail = `asistente.${timestamp}@temp.local`;
+      
+      // Documento con email único
+      const userDocument: any = {
+        name: body.name || 'Test Assistant',
+        email: uniqueEmail, // Asignar email único para evitar duplicados
+        role: 'unregistered',
+        isActive: true,
+        enrolledCourses: [],
+        schools: [],
+        schoolRoles: [],
+        createdAt: new Date()
+      };
+      
+      // Insertar directamente en MongoDB
+      const result = await userCollection.insertOne(userDocument);
+      this.logger.log(`Test asistente creado con ID: ${result.insertedId}`);
+      
+      return { 
+        success: true, 
+        message: 'Test asistente creado exitosamente',
+        id: result.insertedId,
+        document: userDocument
+      };
+    } catch (error) {
+      this.logger.error(`Error en prueba de creación: ${error.message}`, error.stack);
+      return { 
+        success: false, 
+        error: error.message,
+        stack: error.stack
+      };
+    }
+  }
+
+  /**
+   * Crea un asistente directamente sin usar DTO (bypass)
+   */
+  @Post('bypass-assistant')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.MANAGE_STUDENTS)
+  async createAssistantBypass(
+    @Req() req: Request,
+    @Body() rawData: any,
+  ): Promise<any> {
+    this.logger.log(`Creando asistente via bypass: ${JSON.stringify(rawData)}`);
+    
+    try {
+      const name = rawData.name;
+      const courseId = rawData.courseId;
+      const schoolId = rawData.schoolId;
+      
+      if (!name) {
+        throw new BadRequestException('El nombre es obligatorio');
+      }
+      
+      // Usar el servicio directamente
+      const user = await this.usersService.createUnregisteredUser(name, courseId, schoolId);
+      
+      return user;
+    } catch (error) {
+      this.logger.error(`Error bypass: ${error.message}`, error.stack);
+      throw new BadRequestException(`Error al crear asistente: ${error.message}`);
     }
   }
 } 

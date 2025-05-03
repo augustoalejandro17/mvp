@@ -236,7 +236,7 @@ const PaymentManagement = () => {
                   <td>{enrollment.student.name}</td>
                   <td>{enrollment.student.email}</td>
                   <td>{enrollment.paymentStatus ? 'Paid' : 'Unpaid'}</td>
-                  <td>{enrollment.lastPaymentDate ? new Date(enrollment.lastPaymentDate).toLocaleDateString() : 'N/A'}</td>
+                  <td>{enrollment.lastPaymentDate ? new Date(enrollment.lastPaymentDate).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'}) : 'N/A'}</td>
                   <td>{enrollment.paymentNotes || 'N/A'}</td>
                   <td>
                     <div className={styles.actionsContainer}>

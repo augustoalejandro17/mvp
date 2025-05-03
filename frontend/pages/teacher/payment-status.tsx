@@ -200,7 +200,7 @@ const PaymentStatus = () => {
                       {enrollment.paymentStatus ? 'Paid' : 'Unpaid'}
                     </span>
                   </td>
-                  <td>{enrollment.lastPaymentDate ? new Date(enrollment.lastPaymentDate).toLocaleDateString() : 'N/A'}</td>
+                  <td>{enrollment.lastPaymentDate ? new Date(enrollment.lastPaymentDate).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'}) : 'N/A'}</td>
                   <td>{enrollment.paymentNotes || 'N/A'}</td>
                 </tr>
               ))}

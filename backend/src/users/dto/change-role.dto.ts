@@ -1,5 +1,5 @@
 import { IsEnum, IsNotEmpty } from 'class-validator';
-import { UserRole } from '../../auth/enums/user-role.enum';
+import { UserRole } from '../../auth/schemas/user.schema';
 
 export class ChangeRoleDto {
   @IsNotEmpty()

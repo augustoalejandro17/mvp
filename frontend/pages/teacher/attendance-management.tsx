@@ -334,7 +334,7 @@ export default function AttendanceManagementPage() {
                 <option value="">Seleccionar clase</option>
                 {classes.map(classItem => (
                   <option key={classItem._id} value={classItem._id}>
-                    {classItem.title} - {new Date(classItem.date).toLocaleDateString()}
+                    {classItem.title} - {new Date(classItem.date).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'})}
                   </option>
                 ))}
               </select>

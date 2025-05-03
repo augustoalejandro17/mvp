@@ -447,6 +447,16 @@ export class CoursesService {
       throw new NotFoundException('Student not found');
     }
 
+    // Obtener la escuela asociada al curso
+    const schoolId = typeof course.school === 'object' && course.school !== null
+      ? (course.school as any)._id?.toString() || String(course.school)
+      : String(course.school);
+    
+    const school = await this.schoolModel.findById(schoolId);
+    if (!school) {
+      throw new NotFoundException('School not found');
+    }
+
     // Check if enrollment already exists
     const existingEnrollment = await this.enrollmentModel.findOne({
       course: new Types.ObjectId(courseId),
@@ -454,17 +464,104 @@ export class CoursesService {
     });
 
     if (existingEnrollment) {
+      // Si el enrollment existe pero está inactivo, lo reactivamos
+      if (!existingEnrollment.isActive) {
+        existingEnrollment.isActive = true;
+        existingEnrollment.updatedBy = new Types.ObjectId(userId) as any;
+        await existingEnrollment.save();
+        
+        // 1. Agregar el estudiante al curso si no existe
+        if (!course.students || !course.students.some(id => id.toString() === studentId)) {
+          await this.courseModel.updateOne(
+            { _id: courseId },
+            { $addToSet: { students: new Types.ObjectId(studentId) } }
+          );
+          this.logger.log(`Estudiante ${studentId} añadido a la lista de estudiantes del curso ${courseId}`);
+        }
+
+        // 2. Agregar el estudiante a la escuela si no existe
+        if (!school.students || !school.students.some(id => id.toString() === studentId)) {
+          await this.schoolModel.updateOne(
+            { _id: schoolId },
+            { $addToSet: { students: new Types.ObjectId(studentId) } }
+          );
+          this.logger.log(`Estudiante ${studentId} añadido a la lista de estudiantes de la escuela ${schoolId}`);
+        }
+
+        // 3. Asegurarnos que el curso esté en el array enrolledCourses del usuario
+        if (!student.enrolledCourses.some(id => id.toString() === courseId)) {
+          // Usar el tipo correcto para ObjectId
+          student.enrolledCourses.push(new Types.ObjectId(courseId) as any);
+          await student.save();
+          this.logger.log(`Curso ${courseId} añadido a la lista de cursos del estudiante ${studentId}`);
+        }
+        
+        return existingEnrollment;
+      }
+      
       throw new BadRequestException('Student already enrolled in this course');
     }
 
+    // Crear nueva inscripción
     const enrollment = new this.enrollmentModel({
       course: new Types.ObjectId(courseId),
       student: new Types.ObjectId(studentId),
       paymentStatus: false,
+      isActive: true,
       updatedBy: new Types.ObjectId(userId) as any,
     });
 
-    return enrollment.save();
+    // Guardar la inscripción
+    const savedEnrollment = await enrollment.save();
+    
+    // Iniciar actualización de referencias en paralelo para mayor eficiencia
+    const updatePromises = [];
+    
+    // 1. Actualizar el array students del curso
+    if (!course.students || !course.students.some(id => id.toString() === studentId)) {
+      updatePromises.push(
+        this.courseModel.updateOne(
+          { _id: courseId },
+          { $addToSet: { students: new Types.ObjectId(studentId) } }
+        ).then(() => {
+          this.logger.log(`Estudiante ${studentId} añadido a la lista de estudiantes del curso ${courseId}`);
+        })
+      );
+    }
+    
+    // 2. Actualizar el array students de la escuela
+    if (!school.students || !school.students.some(id => id.toString() === studentId)) {
+      updatePromises.push(
+        this.schoolModel.updateOne(
+          { _id: schoolId },
+          { $addToSet: { students: new Types.ObjectId(studentId) } }
+        ).then(() => {
+          this.logger.log(`Estudiante ${studentId} añadido a la lista de estudiantes de la escuela ${schoolId}`);
+        })
+      );
+    }
+    
+    // 3. Actualizar el array enrolledCourses del usuario
+    if (!student.enrolledCourses.some(id => id.toString() === courseId)) {
+      // Usar el tipo correcto para ObjectId
+      student.enrolledCourses.push(new Types.ObjectId(courseId) as any);
+      updatePromises.push(
+        student.save().then(() => {
+          this.logger.log(`Curso ${courseId} añadido a la lista de cursos del estudiante ${studentId}`);
+        })
+      );
+    }
+    
+    // Esperar a que todas las actualizaciones se completen
+    try {
+      await Promise.all(updatePromises);
+      this.logger.log(`Todas las referencias actualizadas para el enrollment ${savedEnrollment._id}`);
+    } catch (error) {
+      this.logger.error(`Error actualizando referencias: ${error.message}`, error.stack);
+      // No lanzar error para no interrumpir el flujo, el enrollment ya se guardó
+    }
+
+    return savedEnrollment;
   }
 
   async updateEnrollmentPaymentStatus(
@@ -516,14 +613,100 @@ export class CoursesService {
       .exec();
   }
 
-  async unenrollStudent(courseId: string, studentId: string): Promise<void> {
-    const result = await this.enrollmentModel.deleteOne({
+  async unenrollStudent(courseId: string, studentId: string, userId?: string): Promise<void> {
+    // Buscar la inscripción
+    const enrollment = await this.enrollmentModel.findOne({
       course: new Types.ObjectId(courseId),
       student: new Types.ObjectId(studentId),
     });
 
-    if (result.deletedCount === 0) {
+    if (!enrollment) {
       throw new NotFoundException('Enrollment not found');
+    }
+
+    // En lugar de eliminar, marcamos como inactivo para mantener el historial
+    enrollment.isActive = false;
+    
+    // Si se proporciona userId, actualizar quién hizo el cambio
+    if (userId) {
+      enrollment.updatedBy = new Types.ObjectId(userId) as any;
+    }
+    
+    await enrollment.save();
+    
+    // Buscar los objetos relacionados
+    const [course, student] = await Promise.all([
+      this.courseModel.findById(courseId),
+      this.userModel.findById(studentId)
+    ]);
+    
+    if (!course || !student) {
+      throw new NotFoundException('Course or student not found');
+    }
+    
+    // Obtener la escuela asociada al curso
+    const schoolId = typeof course.school === 'object' && course.school !== null
+      ? (course.school as any)._id?.toString() || String(course.school)
+      : String(course.school);
+    
+    this.logger.log(`Iniciando proceso de des-inscripción para estudiante ${studentId} del curso ${courseId} de la escuela ${schoolId}`);
+    
+    // Iniciar actualización de referencias en paralelo para mayor eficiencia
+    const updatePromises = [];
+    
+    // 1. Eliminar el estudiante del array de estudiantes del curso
+    updatePromises.push(
+      this.courseModel.updateOne(
+        { _id: courseId },
+        { $pull: { students: new Types.ObjectId(studentId) } }
+      ).then(() => {
+        this.logger.log(`Estudiante ${studentId} eliminado de la lista de estudiantes del curso ${courseId}`);
+      })
+    );
+    
+    // 2. Eliminar el curso del array enrolledCourses del usuario
+    if (student.enrolledCourses && student.enrolledCourses.length > 0) {
+      student.enrolledCourses = student.enrolledCourses.filter(
+        id => id.toString() !== courseId
+      );
+      updatePromises.push(
+        student.save().then(() => {
+          this.logger.log(`Curso ${courseId} eliminado de la lista de cursos del estudiante ${studentId}`);
+        })
+      );
+    }
+    
+    // 3. Verificar si el estudiante está enrollado en otros cursos de la misma escuela
+    const otherEnrollmentsInSameSchool = await this.enrollmentModel.find({
+      student: new Types.ObjectId(studentId),
+      isActive: true,
+      _id: { $ne: enrollment._id } // Excluir el enrollment actual
+    }).populate({
+      path: 'course',
+      match: { school: schoolId }
+    });
+    
+    // Si no hay otros enrollments activos en cursos de esta escuela, eliminar al estudiante de la escuela
+    if (!otherEnrollmentsInSameSchool.some(e => e.course)) {
+      updatePromises.push(
+        this.schoolModel.updateOne(
+          { _id: schoolId },
+          { $pull: { students: new Types.ObjectId(studentId) } }
+        ).then(() => {
+          this.logger.log(`Estudiante ${studentId} eliminado de la lista de estudiantes de la escuela ${schoolId}`);
+        })
+      );
+    } else {
+      this.logger.log(`El estudiante ${studentId} permanece en la escuela ${schoolId} por estar inscrito en otros cursos`);
+    }
+    
+    // Esperar a que todas las actualizaciones se completen
+    try {
+      await Promise.all(updatePromises);
+      this.logger.log(`Todas las referencias actualizadas para el unenrollment del estudiante ${studentId} del curso ${courseId}`);
+    } catch (error) {
+      this.logger.error(`Error actualizando referencias: ${error.message}`, error.stack);
+      // No lanzar error para no interrumpir el flujo, el enrollment ya se marcó como inactivo
     }
   }
 
@@ -776,15 +959,29 @@ export class CoursesService {
     this.logger.log(`Getting courses enrolled by user: ${userId}`);
     
     try {
-      // Get all enrollments for this student
+      // Get all enrollments for this student (only active ones)
+      this.logger.log(`Buscando inscripciones activas para userId=${userId}`);
       const enrollments = await this.enrollmentModel.find({ 
-        student: new Types.ObjectId(userId) 
+        student: new Types.ObjectId(userId),
+        isActive: true
       });
       
+      this.logger.log(`Encontradas ${enrollments.length} inscripciones activas para usuario ${userId}`);
+      
       if (!enrollments || enrollments.length === 0) {
-        this.logger.log(`No enrollments found for user ${userId}`);
+        this.logger.log(`No active enrollments found for user ${userId}`);
         return [];
       }
+      
+      // Log enrollments details for debugging
+      enrollments.forEach((enrollment, index) => {
+        this.logger.log(`Enrollment ${index + 1}:`, {
+          id: enrollment._id.toString(),
+          courseId: enrollment.course.toString(),
+          isActive: enrollment.isActive,
+          paymentStatus: enrollment.paymentStatus
+        });
+      });
       
       // Extract course IDs from enrollments
       const courseIds = enrollments.map(enrollment => 
@@ -792,6 +989,8 @@ export class CoursesService {
           ? enrollment.course 
           : new Types.ObjectId(enrollment.course.toString())
       );
+      
+      this.logger.log(`Cursos a buscar: ${courseIds.map(id => id.toString())}`);
       
       // Get the courses
       const courses = await this.courseModel.find({
@@ -801,8 +1000,24 @@ export class CoursesService {
         .populate('teacher', 'name email')
         .select('-students -classes');
       
-      this.logger.log(`Found ${courses.length} courses enrolled by user ${userId}`);
-      return courses;
+      this.logger.log(`Encontrados ${courses.length} cursos para usuario ${userId}`);
+      
+      // Registrar los IDs de los cursos encontrados
+      if (courses.length > 0) {
+        this.logger.log(`IDs de cursos encontrados: ${courses.map(c => c._id.toString())}`);
+      }
+      
+      // Add enrollment dates to courses
+      const coursesWithEnrollmentDates = courses.map(course => {
+        const enrollment = enrollments.find(e => e.course.toString() === course._id.toString());
+        const courseObj = course.toObject();
+        if (enrollment) {
+          courseObj.createdAt = enrollment['createdAt'] || enrollment['_doc']?.createdAt;
+        }
+        return courseObj;
+      });
+      
+      return coursesWithEnrollmentDates;
     } catch (error) {
       this.logger.error(`Error getting enrolled courses: ${error.message}`, error.stack);
       throw error;
@@ -858,5 +1073,135 @@ export class CoursesService {
       this.logger.error(`Error getting course for user: ${error.message}`, error.stack);
       throw error;
     }
+  }
+
+  // Añadir una nueva función para registrar un pago mensual
+  async addPaymentToEnrollment(
+    enrollmentId: string,
+    paymentData: {
+      amount: number;
+      notes?: string;
+      month?: string;
+    },
+    userId: string
+  ): Promise<Enrollment> {
+    // Buscar la inscripción
+    const enrollment = await this.enrollmentModel.findById(enrollmentId);
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment not found');
+    }
+    
+    // Si la inscripción estaba inactiva, reactivarla
+    const wasInactive = !enrollment.isActive;
+    enrollment.isActive = true;
+    
+    // Crear nuevo registro de pago
+    const newPayment = {
+      date: new Date(),
+      amount: paymentData.amount,
+      notes: paymentData.notes || '',
+      month: paymentData.month || this.getCurrentMonthAsString(),
+      registeredBy: new Types.ObjectId(userId) as any
+    };
+    
+    // Añadir al historial de pagos
+    enrollment.paymentHistory.push(newPayment);
+    
+    // Actualizar estado de pago general
+    enrollment.paymentStatus = true;
+    enrollment.lastPaymentDate = new Date();
+    enrollment.updatedBy = new Types.ObjectId(userId) as any;
+    
+    if (paymentData.notes) {
+      enrollment.paymentNotes = paymentData.notes;
+    }
+    
+    // Guardar cambios en la inscripción
+    await enrollment.save();
+    
+    // Si la inscripción estaba inactiva, necesitamos actualizar referencias
+    if (wasInactive) {
+      this.logger.log(`Reactivando enrollment ${enrollmentId} que estaba inactivo`);
+      
+      const courseId = enrollment.course.toString();
+      const studentId = enrollment.student.toString();
+      
+      try {
+        // Buscar los objetos relacionados
+        const [course, student] = await Promise.all([
+          this.courseModel.findById(courseId),
+          this.userModel.findById(studentId)
+        ]);
+        
+        if (!course || !student) {
+          throw new NotFoundException('Course or student not found');
+        }
+        
+        // Obtener la escuela asociada al curso
+        const schoolId = typeof course.school === 'object' && course.school !== null
+          ? (course.school as any)._id?.toString() || String(course.school)
+          : String(course.school);
+          
+        const school = await this.schoolModel.findById(schoolId);
+        if (!school) {
+          throw new NotFoundException('School not found');
+        }
+        
+        // Iniciar actualización de referencias en paralelo
+        const updatePromises = [];
+        
+        // 1. Agregar el estudiante al curso si no existe
+        if (!course.students || !course.students.some(id => id.toString() === studentId)) {
+          updatePromises.push(
+            this.courseModel.updateOne(
+              { _id: courseId },
+              { $addToSet: { students: new Types.ObjectId(studentId) } }
+            ).then(() => {
+              this.logger.log(`Estudiante ${studentId} añadido a la lista de estudiantes del curso ${courseId}`);
+            })
+          );
+        }
+        
+        // 2. Agregar el estudiante a la escuela si no existe
+        if (!school.students || !school.students.some(id => id.toString() === studentId)) {
+          updatePromises.push(
+            this.schoolModel.updateOne(
+              { _id: schoolId },
+              { $addToSet: { students: new Types.ObjectId(studentId) } }
+            ).then(() => {
+              this.logger.log(`Estudiante ${studentId} añadido a la lista de estudiantes de la escuela ${schoolId}`);
+            })
+          );
+        }
+        
+        // 3. Asegurarnos que el curso esté en el array enrolledCourses del usuario
+        if (!student.enrolledCourses.some(id => id.toString() === courseId)) {
+          student.enrolledCourses.push(new Types.ObjectId(courseId) as any);
+          updatePromises.push(
+            student.save().then(() => {
+              this.logger.log(`Curso ${courseId} añadido a la lista de cursos del estudiante ${studentId}`);
+            })
+          );
+        }
+        
+        // Esperar a que todas las actualizaciones se completen
+        await Promise.all(updatePromises);
+        this.logger.log(`Todas las referencias actualizadas al reactivar el enrollment ${enrollmentId}`);
+        
+      } catch (error) {
+        this.logger.error(`Error actualizando referencias al reactivar enrollment: ${error.message}`, error.stack);
+        // No lanzar error para no interrumpir el flujo, el pago ya se registró
+      }
+    }
+    
+    this.logger.log(`Pago de ${paymentData.amount} registrado para enrollment ${enrollmentId} por usuario ${userId}`);
+    
+    return enrollment;
+  }
+
+  // Helper para obtener el mes actual en formato YYYY-MM
+  private getCurrentMonthAsString(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }
 } 

@@ -9,6 +9,8 @@ export enum UserRole {
   ADMIN = 'admin',
   TEACHER = 'teacher',
   STUDENT = 'student',
+  ADMINISTRATIVE = 'administrative',
+  UNREGISTERED = 'unregistered',
 }
 
 // Esquema para roles contextuales (por escuela)
@@ -25,10 +27,10 @@ export const UserSchoolRoleSchema = SchemaFactory.createForClass(UserSchoolRole)
 
 @Schema()
 export class User {
-  @Prop({ required: true, unique: true })
+  @Prop({ unique: true, sparse: true })
   email: string;
 
-  @Prop({ required: true })
+  @Prop()
   password: string;
 
   @Prop({ required: true })

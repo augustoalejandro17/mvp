@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Attendance, AttendanceDocument } from './schemas/attendance.schema';
 import { User, UserRole } from '../auth/schemas/user.schema';
 import { Course } from '../courses/schemas/course.schema';
@@ -365,49 +365,198 @@ export class AttendanceService {
     this.logger.log(`Registrando asistencia para estudiante no registrado: ${studentName} en curso: ${courseId}`);
     
     // Verificar que el curso existe
-    const course = await this.courseModel.findById(courseId);
+    const course = await this.courseModel.findById(courseId).populate('school');
     if (!course) {
       throw new NotFoundException(`Curso con ID ${courseId} no encontrado`);
     }
     
-    // Crear un nuevo registro de asistencia
-    const attendance = new this.attendanceModel({
-      course: courseId,
-      student: studentName,  // Usar el nombre como identificador
-      studentModel: 'String', // Indicar que es un string, no un ObjectId
-      date,
-      present,
-      notes,
-      markedBy: teacherId
-    });
+    // Obtener información de la escuela
+    let schoolName = 'Desconocida';
+    let schoolId: string;
     
-    return attendance.save();
+    if (course.school) {
+      if (typeof course.school === 'object' && course.school !== null) {
+        schoolName = course.school['name'] || 'Desconocida';
+        schoolId = course.school['_id'].toString();
+      } else if (course.school) {
+        // Si course.school es un string o ObjectId
+        schoolId = course.school.toString();
+      } else {
+        // Fallback si course.school es null o undefined
+        schoolId = new Types.ObjectId().toString();
+      }
+    } else {
+      // Si no hay escuela, usar un ID genérico
+      schoolId = new Types.ObjectId().toString();
+    }
+    
+    this.logger.log(`Curso encontrado: ${course.title}, Escuela: ${schoolName}, ID Escuela: ${schoolId}`);
+    
+    try {
+      // Buscar si existe un usuario con el mismo nombre y role UNREGISTERED
+      let unregisteredUser = await this.userModel.findOne({
+        name: studentName,
+        role: UserRole.UNREGISTERED
+      });
+      
+      // Si no existe, crear un nuevo usuario no registrado
+      if (!unregisteredUser) {
+        this.logger.log(`Creando nuevo usuario no registrado: ${studentName}`);
+        try {
+          // Convertir IDs a ObjectId
+          const courseObjectId = new Types.ObjectId(courseId);
+          const schoolObjectId = new Types.ObjectId(schoolId);
+          
+          // Crear el nuevo usuario con las propiedades necesarias
+          const newUserData = {
+            name: studentName,
+            role: UserRole.UNREGISTERED,
+            isActive: true,
+            enrolledCourses: [courseObjectId],
+            schools: [schoolObjectId],
+            schoolRoles: [{ 
+              schoolId: schoolObjectId,
+              role: UserRole.STUDENT
+            }]
+          };
+          
+          unregisteredUser = new this.userModel(newUserData);
+          await unregisteredUser.save();
+          
+          this.logger.log(`Usuario no registrado creado exitosamente con ID: ${unregisteredUser._id}`);
+          this.logger.log(`Usuario no registrado asociado a escuela: ${schoolId}`);
+          
+          // Agregar el usuario al curso si no está ya
+          if (!course.students || !course.students.some(s => s?.toString() === unregisteredUser._id.toString())) {
+            course.students = course.students || [];
+            course.students.push(unregisteredUser._id as any);
+            await course.save();
+            this.logger.log(`Usuario no registrado añadido al curso ${courseId}`);
+          }
+        } catch (error) {
+          this.logger.error(`Error al crear usuario no registrado: ${error.message}`, error.stack);
+          throw new BadRequestException(`Error al crear usuario no registrado: ${error.message}`);
+        }
+      } else {
+        this.logger.log(`Usuario no registrado encontrado: ${unregisteredUser._id}, nombre: ${unregisteredUser.name}`);
+        
+        // Verificar si el curso ya está en enrolledCourses
+        if (!unregisteredUser.enrolledCourses.some(c => c?.toString() === courseId)) {
+          unregisteredUser.enrolledCourses.push(new Types.ObjectId(courseId) as any);
+          this.logger.log(`Añadiendo curso ${courseId} a enrolledCourses del usuario ${unregisteredUser._id}`);
+        }
+        
+        // Verificar si la escuela ya está en schools
+        if (!unregisteredUser.schools || !unregisteredUser.schools.some(s => s?.toString() === schoolId)) {
+          unregisteredUser.schools = unregisteredUser.schools || [];
+          unregisteredUser.schools.push(new Types.ObjectId(schoolId) as any);
+          this.logger.log(`Añadiendo escuela ${schoolId} a schools del usuario ${unregisteredUser._id}`);
+        }
+        
+        // Verificar si ya tiene el rol para esta escuela
+        if (!unregisteredUser.schoolRoles || !unregisteredUser.schoolRoles.some(sr => sr.schoolId?.toString() === schoolId)) {
+          unregisteredUser.schoolRoles = unregisteredUser.schoolRoles || [];
+          unregisteredUser.schoolRoles.push({
+            schoolId: new Types.ObjectId(schoolId) as any,
+            role: UserRole.STUDENT
+          });
+          this.logger.log(`Añadiendo rol 'student' para escuela ${schoolId} al usuario ${unregisteredUser._id}`);
+        }
+        
+        await unregisteredUser.save();
+        this.logger.log(`Usuario no registrado actualizado con nuevos cursos/escuelas`);
+        
+        // Verificar si el usuario está en el curso
+        if (!course.students || !course.students.some(s => s?.toString() === unregisteredUser._id.toString())) {
+          course.students = course.students || [];
+          course.students.push(unregisteredUser._id as any);
+          await course.save();
+          this.logger.log(`Usuario ${unregisteredUser._id} añadido a students del curso ${courseId}`);
+        }
+      }
+      
+      // Crear un nuevo registro de asistencia con el usuario no registrado
+      const attendance = new this.attendanceModel({
+        course: courseId,
+        student: unregisteredUser._id,
+        studentModel: 'User', // Ahora es un User, no un String
+        date,
+        present,
+        notes,
+        markedBy: teacherId
+      });
+      
+      const savedAttendance = await attendance.save();
+      this.logger.log(`Registro de asistencia creado: ${savedAttendance._id}`);
+      
+      return savedAttendance;
+    } catch (error) {
+      this.logger.error(`Error en createForNonRegisteredUser: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   // Vincular asistencias de un usuario no registrado a uno registrado
   async linkAttendancesToRegisteredUser(unregisteredName: string, userId: string): Promise<number> {
     this.logger.log(`Vinculando asistencias de usuario no registrado "${unregisteredName}" al usuario registrado ${userId}`);
     
-    // Verificar que el usuario existe
-    const user = await this.userModel.findById(userId);
-    if (!user) {
+    // Verificar que el usuario registrado existe
+    const registeredUser = await this.userModel.findById(userId);
+    if (!registeredUser) {
       throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
     }
     
-    // Actualizar todos los registros que coincidan con el nombre no registrado
+    // Buscar el usuario no registrado por nombre
+    const unregisteredUser = await this.userModel.findOne({
+      name: unregisteredName,
+      role: UserRole.UNREGISTERED
+    });
+    
+    if (!unregisteredUser) {
+      // Si no existe un usuario no registrado, buscar asistencias antiguas con string
+      const result = await this.attendanceModel.updateMany(
+        { 
+          student: unregisteredName,
+          studentModel: 'String'
+        },
+        {
+          $set: {
+            student: userId,
+            studentModel: 'User',
+            updatedAt: new Date()
+          }
+        }
+      );
+      
+      return result.modifiedCount;
+    }
+    
+    // Si existe el usuario no registrado, actualizar sus asistencias
     const result = await this.attendanceModel.updateMany(
       { 
-        student: unregisteredName,
-        studentModel: 'String'
+        student: unregisteredUser._id
       },
       {
         $set: {
           student: userId,
-          studentModel: 'User',
           updatedAt: new Date()
         }
       }
     );
+    
+    // Transferir los cursos del usuario no registrado al registrado
+    if (unregisteredUser.enrolledCourses && unregisteredUser.enrolledCourses.length > 0) {
+      for (const courseId of unregisteredUser.enrolledCourses) {
+        if (!registeredUser.enrolledCourses.some(c => c.toString() === courseId.toString())) {
+          registeredUser.enrolledCourses.push(courseId as any);
+        }
+      }
+      await registeredUser.save();
+    }
+    
+    // Desactivar el usuario no registrado
+    unregisteredUser.isActive = false;
+    await unregisteredUser.save();
     
     return result.modifiedCount;
   }

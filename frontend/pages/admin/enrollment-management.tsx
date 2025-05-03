@@ -317,7 +317,7 @@ export default function EnrollmentManagementPage() {
                     </div>
                     <div className={styles.tableCell}>
                       {enrollment.lastPaymentDate 
-                        ? new Date(enrollment.lastPaymentDate).toLocaleDateString() 
+                        ? new Date(enrollment.lastPaymentDate).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'}) 
                         : 'No registrado'}
                     </div>
                     <div className={styles.tableCell}>
