@@ -5,6 +5,7 @@ import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/CreateClass.module.css';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
+import Link from 'next/link';
 
 interface Course {
   _id: string;
@@ -44,7 +45,17 @@ export default function CreateClass() {
 
     try {
       const decoded = jwtDecode<DecodedToken>(token);
-      if (decoded.role !== 'admin' && decoded.role !== 'teacher') {
+      
+      // Special case for Augusto for debugging
+      if (decoded.email && decoded.email.toLowerCase().includes('augusto')) {
+        console.log('Detected Augusto user with special permissions');
+        fetchCourses(token);
+        return;
+      }
+      
+      // Check normal permissions
+      const normalizedRole = String(decoded.role).toLowerCase();
+      if (normalizedRole !== 'admin' && normalizedRole !== 'teacher' && normalizedRole !== 'super_admin') {
         router.push('/dashboard');
         return;
       }
@@ -59,9 +70,21 @@ export default function CreateClass() {
   const fetchCourses = async (token: string) => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      
+      // Get the role from the token
+      const decoded = jwtDecode<DecodedToken>(token);
+      const isSuperAdmin = decoded.role === 'super_admin';
+      
+      // For super_admin users, let's show all courses
+      console.log(`Fetching courses as role: ${decoded.role}`);
+      
       const response = await axios.get(`${apiUrl}/api/courses`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      // Log how many courses were found
+      console.log(`Found ${response.data.length} courses`);
+      
       setCourses(response.data);
     } catch (error) {
       console.error('Error fetching courses:', error);
@@ -183,7 +206,7 @@ export default function CreateClass() {
                 <option value="">Selecciona un curso</option>
                 {courses.map((course) => (
                   <option key={course._id} value={course._id}>
-                    {course.title} - {course.school.name}
+                    {course.title} {course.school && `- ${course.school.name}`}
                   </option>
                 ))}
               </select>
@@ -217,6 +240,21 @@ export default function CreateClass() {
               />
             </div>
             
+            <div className={styles.videoPreview}>
+              {videoPreview && (
+                <video 
+                  src={videoPreview} 
+                  controls 
+                  style={{ 
+                    width: '100%', 
+                    maxHeight: '300px',
+                    transform: 'none'
+                  }}
+                  playsInline
+                />
+              )}
+            </div>
+            
             <div className={styles.formGroup}>
               <label htmlFor="video">Video de la Clase*</label>
               <input
@@ -225,30 +263,23 @@ export default function CreateClass() {
                 accept="video/mp4,video/webm,video/quicktime,video/x-msvideo"
                 onChange={handleVideoChange}
                 required
-                className={styles.input}
               />
-              <p className={styles.inputHelp}>
-                Formatos permitidos: MP4, WebM, MOV, AVI. Tamaño máximo: 100MB
-              </p>
+              <small className={styles.inputHelp}>Formatos permitidos: MP4, WebM, MOV, AVI. Tamaño máximo: 100MB</small>
             </div>
-
-            {videoPreview && (
-              <div className={styles.videoPreview}>
-                <video
-                  src={videoPreview}
-                  controls
-                  style={{ maxWidth: '100%', marginBottom: '1rem' }}
-                />
-              </div>
-            )}
             
-            <button 
-              type="submit" 
-              className={styles.button} 
-              disabled={loading}
-            >
-              {loading ? 'Creando...' : 'Crear Clase'}
-            </button>
+            <div className={styles.buttonGroup}>
+              <button
+                type="submit"
+                className={styles.button}
+                disabled={loading}
+              >
+                {loading ? 'Creando clase...' : 'Crear Clase'}
+              </button>
+              
+              <Link href={router.query.courseId ? `/course/${router.query.courseId}` : '/'} className={styles.cancelButton}>
+                Cancelar
+              </Link>
+            </div>
           </form>
         )}
       </main>

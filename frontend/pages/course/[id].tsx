@@ -4,7 +4,7 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../../styles/Course.module.css';
-import { FaPlus, FaTrashAlt, FaEye } from 'react-icons/fa';
+import { FaPlus, FaTrashAlt, FaEye, FaEdit, FaUserCheck } from 'react-icons/fa';
 import { jwtDecode } from 'jwt-decode';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import ImageFallback from '../../components/ImageFallback';
@@ -144,21 +144,23 @@ export default function CourseDetail() {
 
   const handleClassClick = (classItem: Class) => {
     setSelectedClass(classItem);
+    // Log para depuración
+    console.log('Video URL:', classItem.videoUrl);
   };
   
-  const isClassTeacher = useCallback((teacherId: string): boolean => {
-    return Boolean(user?.id && teacherId === user.id);
+  const isClassTeacher = useCallback((teacherId: string | undefined): boolean => {
+    return Boolean(user?.id && teacherId && teacherId === user.id);
   }, [user]);
 
-  const canModifyClassItem = useCallback((teacherId: string): boolean => {
-    if (!user?.role) return false;
+  const canModifyClassItem = useCallback((teacherId: string | undefined): boolean => {
+    if (!user?.role || !teacherId) return false;
     const hasPermission = canModifyClass(user.role, isClassTeacher(teacherId));
     console.log('canModifyClass check:', { role: user.role, isTeacher: isClassTeacher(teacherId), hasPermission });
     return hasPermission;
   }, [user, isClassTeacher]);
 
-  const canTakeAttendance = useCallback((teacherId: string): boolean => {
-    if (!user?.role) return false;
+  const canTakeAttendance = useCallback((teacherId: string | undefined): boolean => {
+    if (!user?.role || !teacherId) return false;
     const hasPermission = canManageAttendance(user.role, isClassTeacher(teacherId));
     console.log('canManageAttendance check:', { role: user.role, isTeacher: isClassTeacher(teacherId), hasPermission });
     return hasPermission;
@@ -266,85 +268,75 @@ export default function CourseDetail() {
     <div className={styles.container}>
       <main className={styles.main}>
         <div className={styles.courseHeader}>
-          {course.coverImageUrl ? (
-            <div className={styles.courseCover}>
-              <ImageFallback 
-                src={course.coverImageUrl}
-                alt={course.title}
-              />
-            </div>
-          ) : (
-            <div className={styles.courseImagePlaceholder}>
-              <span>{course.title.substring(0, 2).toUpperCase()}</span>
-            </div>
-          )}
-          
+          <div className={styles.coverImage}>
+            <ImageFallback
+              src={course.coverImageUrl || '/img/default-course.jpg'}
+              alt={course.title}
+              className={styles.coverImg}
+            />
+          </div>
           <div className={styles.courseInfo}>
             <h1 className={styles.title}>{course.title}</h1>
             <p className={styles.description}>{course.description}</p>
             <div className={styles.meta}>
-              <span className={styles.teacher}>
-                Prof. {course.teacher.name}
-              </span>
-              <span className={course.isPublic ? styles.public : styles.private}>
-                {course.isPublic ? 'Público' : 'Privado'}
-              </span>
-              <Link href={`/school/${course.school._id}`} className={styles.schoolLink}>
-                Escuela: {course.school.name}
-              </Link>
+              <p className={styles.teacher}>Prof. {course.teacher.name}</p>
+              <div className={styles.tags}>
+                <span className={styles.publicTag}>{course.isPublic ? 'Público' : 'Privado'}</span>
+                <span className={styles.schoolTag}>Escuela: {course.school.name}</span>
+              </div>
             </div>
           </div>
         </div>
         
         <div className={styles.courseContent}>
-          <div className={styles.classesColumn}>
+          <div className={styles.classesList}>
             <h2 className={styles.sectionTitle}>Clases del Curso</h2>
             
             {classes.length === 0 ? (
-              <p className={styles.noResults}>Este curso aún no tiene clases disponibles.</p>
+              <div className={styles.noClasses}>
+                <p>Este curso aún no tiene clases disponibles.</p>
+              </div>
             ) : (
-              <div className={styles.classesList}>
-                {classes.map((classItem) => {
-                  // Comprobar si el usuario puede modificar esta clase específica
-                  const canDelete = user?.role === 'admin' || 
-                                   user?.role === 'super_admin' || 
-                                   (user?.role === 'teacher' && user?.id === course.teacher._id);
-                  
-                  return (
+              <ul className={styles.classList}>
+                {classes.map((classItem) => (
+                  <li 
+                    key={classItem._id} 
+                    className={`${styles.classItem} ${selectedClass?._id === classItem._id ? styles.active : ''}`}
+                  >
                     <div 
-                      key={classItem._id} 
-                      className={`${styles.classItem} ${selectedClass && selectedClass._id === classItem._id ? styles.selectedClass : ''}`}
+                      className={styles.classContent}
+                      onClick={() => handleClassClick(classItem)}
                     >
-                      <div 
-                        className={styles.classContent}
-                        onClick={() => handleClassClick(classItem)}
-                      >
-                        <div className={styles.classNumber}>{classItem.order}</div>
-                        <div className={styles.classInfo}>
-                          <h3>{classItem.title}</h3>
-                          {classItem.duration && (
-                            <span className={styles.duration}>
-                              {Math.floor(classItem.duration / 60)}:{(classItem.duration % 60).toString().padStart(2, '0')}
-                            </span>
-                          )}
-                        </div>
-                        {!classItem.isPublic && (
-                          <div className={styles.lockIcon}>🔒</div>
+                      <div className={styles.classInfo}>
+                        <h3 className={styles.classTitle}>{classItem.title}</h3>
+                        {classItem.duration && (
+                          <span className={styles.duration}>
+                            {Math.floor(classItem.duration / 60)}:{(classItem.duration % 60).toString().padStart(2, '0')}
+                          </span>
                         )}
                       </div>
+                    </div>
+                    
+                    <div className={styles.classActions}>
+                      <button 
+                        className={styles.classActionBtn}
+                        onClick={() => handleClassClick(classItem)}
+                        title="Ver detalles"
+                      >
+                        <FaEye />
+                      </button>
                       
-                      <div className={styles.classActions}>
-                        <button 
-                          className={styles.classActionBtn}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/class/${classItem._id}`);
-                          }}
-                          title="Ver detalles"
-                        >
-                          <FaEye />
-                        </button>
-                        {canDelete && (
+                      {canModifyClassItem(course.teacher._id) && (
+                        <>
+                          <Link 
+                            href={`/class/edit/${classItem._id}`}
+                            className={styles.classActionBtn}
+                            title="Editar clase"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FaEdit />
+                          </Link>
+                          
                           <button 
                             className={styles.classActionBtn}
                             onClick={(e) => {
@@ -356,88 +348,75 @@ export default function CourseDetail() {
                           >
                             {deletingClassId === classItem._id ? "⏳" : <FaTrashAlt />}
                           </button>
-                        )}
-                      </div>
+                        </>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
+                  </li>
+                ))}
+              </ul>
             )}
             
-            <div className={styles.adminActions}>
-              {canModifyClassItem(course.teacher._id) && (
-                <>
-                  <button 
-                    className={styles.createButton}
-                    onClick={() => router.push(`/class/create?courseId=${course._id}`)}
-                  >
-                    <FaPlus /> Agregar Clase
-                  </button>
-                  
-                  <button 
-                    onClick={handleDeleteCourse} 
-                    className={styles.deleteButton}
-                    disabled={isDeleting}
-                  >
-                    <FaTrashAlt /> {isDeleting ? 'Eliminando...' : 'Eliminar Curso'}
-                  </button>
-                </>
-              )}
-              
-              {canTakeAttendance(course.teacher._id) && (
-                <button 
-                  onClick={() => router.push(`/course/attendance/${course._id}`)} 
-                  className={styles.attendanceButton}
+            {canModifyClassItem(course.teacher._id) && (
+              <div className={styles.courseActions}>
+                <Link href={`/class/create?courseId=${course._id}`} className={styles.addButton}>
+                  <FaPlus className={styles.icon} /> Agregar Clase
+                </Link>
+                <Link href={`/course/edit/${course._id}`} className={styles.editButton}>
+                  <FaEdit className={styles.icon} /> Editar Curso
+                </Link>
+                <button
+                  className={styles.deleteButton}
+                  onClick={handleDeleteCourse}
+                  disabled={isDeleting}
                 >
-                  Control de Asistencia
+                  <FaTrashAlt className={styles.icon} /> Eliminar Curso
                 </button>
-              )}
-            </div>
+              </div>
+            )}
+
+            {course.teacher && canTakeAttendance(course.teacher._id) && (
+              <Link href={`/attendance/${course._id}`} className={styles.attendanceButton}>
+                <FaUserCheck className={styles.icon} /> Control de Asistencia
+              </Link>
+            )}
           </div>
           
           <div className={styles.videoColumn}>
             {selectedClass ? (
               <>
                 <div className={styles.videoContainer}>
-                  {selectedClass && (
-                    <>
-                      <video
-                        src={selectedClass.videoUrl}
-                        controls
-                        playsInline
-                        className={styles.videoPlayer}
-                        poster="/video-placeholder.jpg"
-                        crossOrigin="anonymous"
-                        autoPlay={false}
-                        onLoadStart={() => console.log('Iniciando carga del video:', selectedClass.videoUrl)}
-                        onError={(e) => {
-                          console.error('Error al cargar el video:', e);
-                          console.log('URL problemática:', selectedClass.videoUrl);
-                          
-                          // Intentar abrir el video directamente si está en el curso
-                          const videoContainer = document.querySelector(`.${styles.videoContainer}`);
-                          if (videoContainer) {
-                            videoContainer.innerHTML = `
-                              <div style="padding: 20px; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #000;">
-                                <p style="color: white; margin-bottom: 20px;">No se pudo cargar el video en el reproductor.</p>
-                                <button 
-                                  onclick="window.open('${selectedClass.videoUrl}', '_blank')"
-                                  style="background: #3182ce; color: white; padding: 10px 15px; border-radius: 4px; text-decoration: none; font-weight: bold; border: none; cursor: pointer;"
-                                >
-                                  Abrir video en nueva pestaña
-                                </button>
-                              </div>
-                            `;
-                          }
-                        }}
-                      >
-                        <source src={selectedClass.videoUrl} type="video/mp4" />
-                        <source src={selectedClass.videoUrl} type="video/webm" />
-                        <source src={selectedClass.videoUrl} type="video/quicktime" />
-                        Tu navegador no soporta la reproducción de videos.
-                      </video>
-                    </>
-                  )}
+                  <video
+                    src={selectedClass.videoUrl}
+                    controls
+                    playsInline
+                    className={styles.videoPlayer}
+                    autoPlay={false}
+                    onError={(e) => {
+                      console.error('Error al cargar el video:', e);
+                      console.log('URL problemática:', selectedClass.videoUrl);
+                      
+                      // Mostrar mensaje alternativo
+                      const videoContainer = document.querySelector(`.${styles.videoContainer}`);
+                      if (videoContainer) {
+                        videoContainer.innerHTML = `
+                          <div style="padding: 20px; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #000;">
+                            <p style="color: white; margin-bottom: 20px;">No se pudo cargar el video en el reproductor.</p>
+                            <a 
+                              href="${selectedClass.videoUrl}" 
+                              target="_blank"
+                              style="background: #3182ce; color: white; padding: 10px 15px; border-radius: 4px; text-decoration: none; font-weight: bold;"
+                            >
+                              Abrir video en nueva pestaña
+                            </a>
+                          </div>
+                        `;
+                      }
+                    }}
+                  >
+                    <source src={selectedClass.videoUrl} type="video/mp4" />
+                    <source src={selectedClass.videoUrl} type="video/webm" />
+                    Tu navegador no soporta la reproducción de videos.
+                  </video>
                 </div>
                 <div className={styles.classDetails}>
                   <h2>{selectedClass.title}</h2>

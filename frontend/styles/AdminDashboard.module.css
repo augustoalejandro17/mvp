@@ -97,6 +97,113 @@
   padding: 1rem;
 }
 
+/* School selector styles */
+.schoolSelector {
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  font-size: 1rem;
+}
+
+.schoolSelector label {
+  margin-right: 0.75rem;
+  font-weight: 500;
+  color: #4a5568;
+}
+
+.schoolSelect {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  background-color: #f7fafc;
+  color: #2d3748;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.schoolSelect:hover, .schoolSelect:focus {
+  border-color: #3182ce;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(49, 130, 206, 0.2);
+}
+
+.refreshButton {
+  background-color: #3182ce;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  margin-left: 0.75rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.refreshButton:hover {
+  background-color: #2c5282;
+}
+
+.refreshButton:disabled {
+  background-color: #a0aec0;
+  cursor: not-allowed;
+}
+
+/* Error message styles */
+.errorMessage {
+  background-color: #fff5f5;
+  border: 1px solid #fed7d7;
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.errorMessage p {
+  color: #e53e3e;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.retryButton {
+  background-color: #e53e3e;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.retryButton:hover {
+  background-color: #c53030;
+}
+
+/* Loading indicator for stats */
+.loadingDots {
+  display: inline-block;
+  position: relative;
+  animation: loadingDots 1.4s infinite ease-in-out;
+  color: #3182ce;
+}
+
+@keyframes loadingDots {
+  0%, 20%, 80%, 100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -191,5 +298,18 @@
   
   .statsGrid, .actionsGrid {
     grid-template-columns: 1fr;
+  }
+  
+  .schoolSelector {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .schoolSelector label {
+    margin-bottom: 0.5rem;
+  }
+  
+  .schoolSelect {
+    width: 100%;
   }
 } 

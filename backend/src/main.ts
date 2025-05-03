@@ -42,6 +42,22 @@ async function bootstrap() {
     app.use(express.json({ limit: '50mb' }));
     app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+    // Log all registered routes
+    const server = app.getHttpServer();
+    const router = server._events.request._router;
+    
+    const availableRoutes = router.stack
+      .filter(layer => layer.route)
+      .map(layer => {
+        const route = layer.route;
+        const path = route.path;
+        const method = Object.keys(route.methods)[0].toUpperCase();
+        return `${method} ${path}`;
+      });
+    
+    logger.log('Registered routes:');
+    availableRoutes.forEach(route => logger.log(route));
+
     // Obtener el puerto desde las variables de entorno
     const port = process.env.PORT;
     

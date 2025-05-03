@@ -16,6 +16,10 @@ const nextConfig = {
         source: '/api/:path*',
         destination: 'http://localhost:4000/api/:path*',
       },
+      {
+        source: '/direct-api/:path*',
+        destination: 'http://localhost:4000/:path*',
+      },
     ];
   },
   webpack: (config, { isServer }) => {

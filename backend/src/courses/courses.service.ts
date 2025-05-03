@@ -168,8 +168,10 @@ export class CoursesService {
     }
   }
 
-  async findAll(userId?: string, role?: UserRole, schoolId?: string) {
+  async findAll(userId?: string, role?: UserRole | string, schoolId?: string) {
     this.logger.log(`Buscando todos los cursos${schoolId ? ` de la escuela ${schoolId}` : ''}`);
+    this.logger.log(`Usuario: ${userId}, Rol: ${role}`);
+    
     try {
       let query: any = {};
       
@@ -178,9 +180,22 @@ export class CoursesService {
         query.school = schoolId;
       }
       
-      // Si es un usuario no admin, filtramos por cursos públicos o donde esté asociado
-      if (userId && role !== UserRole.ADMIN) {
-        if (role === UserRole.TEACHER) {
+      // Normalize role for comparison
+      const roleStr = String(role).toLowerCase();
+      
+      // Super admins pueden ver todos los cursos
+      if (roleStr === 'super_admin') {
+        this.logger.log('Usuario es super_admin, mostrando todos los cursos');
+        // No aplicamos ningún filtro adicional para super_admin
+      }
+      // Los usuarios admin también pueden ver todos los cursos
+      else if (roleStr === 'admin') {
+        this.logger.log('Usuario es admin, mostrando todos los cursos');
+        // No aplicamos ningún filtro adicional para admin
+      }
+      // Para otros roles, filtramos por cursos públicos o donde esté asociado
+      else if (userId) {
+        if (roleStr === 'teacher') {
           query = { 
             ...query,
             $or: [
@@ -198,6 +213,8 @@ export class CoursesService {
           };
         }
       }
+      
+      this.logger.log(`Query de búsqueda: ${JSON.stringify(query)}`);
       
       const courses = await this.courseModel.find(query)
         .populate('school', 'name')

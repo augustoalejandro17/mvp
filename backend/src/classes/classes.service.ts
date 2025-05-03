@@ -551,4 +551,55 @@ export class ClassesService {
     await this.attendanceModel.findByIdAndDelete(attendanceId);
     return { success: true, message: 'Attendance record deleted successfully' };
   }
+
+  async updateWithVideo(
+    id: string,
+    updateClassDto: UpdateClassDto,
+    userId: string,
+    file: Express.Multer.File
+  ) {
+    const classItem = await this.classModel.findById(id).exec();
+    
+    if (!classItem) {
+      throw new NotFoundException(`Clase con ID ${id} no encontrada`);
+    }
+    
+    // Verificar permisos
+    await this.checkUpdatePermission(classItem, userId);
+    
+    try {
+      // Guarda la información sobre el video anterior para eliminarlo después si es necesario
+      const oldVideoUrl = classItem.videoUrl;
+      
+      // Procesar el nuevo video
+      const videoProcessingResult = await this.videoProcessorService.processVideo(file);
+      
+      // Actualizar la clase con los nuevos datos
+      classItem.title = updateClassDto.title;
+      classItem.description = updateClassDto.description;
+      classItem.courseId = updateClassDto.courseId;
+      classItem.videoUrl = videoProcessingResult.url;
+      classItem.videoMetadata = videoProcessingResult.metadata;
+      classItem.thumbnailUrl = videoProcessingResult.thumbnailUrl;
+      classItem.updatedAt = new Date();
+      classItem.updatedBy = userId;
+      
+      // Guardar los cambios
+      const updatedClass = await classItem.save();
+      
+      // Eliminar el video anterior si se ha cambiado
+      if (oldVideoUrl && oldVideoUrl !== updatedClass.videoUrl) {
+        try {
+          await this.videoProcessorService.deleteVideo(oldVideoUrl);
+        } catch (error) {
+          this.logger.warn(`No se pudo eliminar el video anterior: ${error.message}`);
+        }
+      }
+      
+      return updatedClass;
+    } catch (error) {
+      this.logger.error(`Error al actualizar la clase con nuevo video: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(`Error al actualizar la clase: ${error.message}`);
+    }
+  }
 } 

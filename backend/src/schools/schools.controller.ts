@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, UseGuards, Req, Logger, Delete, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, UseGuards, Req, Logger, Delete, BadRequestException, UnauthorizedException, HttpException, HttpStatus, Request } from '@nestjs/common';
 import { SchoolsService } from './schools.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -145,5 +145,51 @@ export class SchoolsController {
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async assignOwner(@Param('id') id: string, @Param('userId') userId: string) {
     return this.schoolsService.assignOwner(id, userId);
+  }
+}
+
+@Controller('users/:userId/owned-schools')
+@UseGuards(JwtAuthGuard)
+export class UserOwnedSchoolsController {
+  constructor(private schoolsService: SchoolsService) {}
+
+  @Get()
+  async getUserOwnedSchools(@Param('userId') userId: string, @Request() req) {
+    try {
+      // Check if the requesting user is the same as the userId or a super_admin
+      if (req.user.sub !== userId && req.user.role !== UserRole.SUPER_ADMIN) {
+        throw new UnauthorizedException('No tienes permiso para ver las escuelas de este usuario');
+      }
+      
+      return this.schoolsService.findSchoolsByOwner(userId);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error al obtener escuelas del usuario',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+}
+
+@Controller('users/:userId/administered-schools')
+@UseGuards(JwtAuthGuard)
+export class UserAdministeredSchoolsController {
+  constructor(private schoolsService: SchoolsService) {}
+
+  @Get()
+  async getUserAdministeredSchools(@Param('userId') userId: string, @Request() req) {
+    try {
+      // Check if the requesting user is the same as the userId or a super_admin
+      if (req.user.sub !== userId && req.user.role !== UserRole.SUPER_ADMIN) {
+        throw new UnauthorizedException('No tienes permiso para ver las escuelas de este usuario');
+      }
+      
+      return this.schoolsService.findSchoolsByAdministrator(userId);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error al obtener escuelas administradas por el usuario',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
 } 

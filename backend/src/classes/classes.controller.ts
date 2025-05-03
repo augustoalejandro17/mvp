@@ -164,6 +164,9 @@ export class ClassesController {
     @Req() req
   ) {
     const userId = req.user.sub || req.user._id?.toString();
+    const userRole = req.user.role;
+    
+    this.logger.log(`Creating class as user ID: ${userId}, role: ${userRole}`);
     
     if (!file) {
       throw new BadRequestException('No se ha proporcionado ningún archivo de video');
@@ -181,15 +184,84 @@ export class ClassesController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard)
-  async update(@Param('id') id: string, @Body() updateClassDto: UpdateClassDto, @Req() req: Request) {
+  @UseInterceptors(FileInterceptor('video', {
+    limits: {
+      fileSize: 200 * 1024 * 1024, // 200MB para soportar videos más grandes
+    },
+    fileFilter: (req, file, callback) => {
+      // Durante pruebas, aceptar cualquier archivo
+      if (process.env.NODE_ENV === 'development') {
+        // Forzar el mimetype a video/mp4 para todos los tipos
+        file.mimetype = 'video/mp4';
+        
+        // Cambiar la extensión a .mp4 en el nombre del archivo
+        const nameParts = file.originalname.split('.');
+        if (nameParts.length > 1) {
+          nameParts.pop(); // Eliminar la extensión existente
+        }
+        file.originalname = `${nameParts.join('.')}.mp4`;
+        
+        callback(null, true);
+        return;
+      }
+      
+      // En producción, continuar con la validación normal
+      const allowedMimeTypes = [
+        'video/mp4',
+        'video/webm',
+        'video/quicktime', // .mov
+        'video/x-msvideo', // .avi
+        'video/mpeg',      // .mpeg, .mpg
+        'video/x-matroska', // .mkv
+        'video/3gpp',      // .3gp
+        'video/ogg'        // .ogv
+      ];
+      
+      // Renombrar el mimetype para que todos sean tratados como mp4
+      if (allowedMimeTypes.includes(file.mimetype)) {
+        // Forzar el mimetype a video/mp4 para todos los tipos de video
+        file.mimetype = 'video/mp4';
+        
+        // Cambiar la extensión a .mp4 en el nombre del archivo
+        const nameParts = file.originalname.split('.');
+        if (nameParts.length > 1) {
+          nameParts.pop(); // Eliminar la extensión existente
+        }
+        file.originalname = `${nameParts.join('.')}.mp4`;
+        
+        callback(null, true);
+        return;
+      }
+      
+      callback(
+        new BadRequestException(
+          `Formato de archivo no soportado: ${file.mimetype}. Se admiten solamente archivos de video.`
+        ), 
+        false
+      );
+    }
+  }))
+  async update(
+    @Param('id') id: string, 
+    @Body() updateClassDto: UpdateClassDto, 
+    @Req() req: Request,
+    @UploadedFile() file?: Express.Multer.File
+  ) {
     this.logger.log(`Procesando solicitud para actualizar clase con ID: ${id}`);
     const user = req.user as any;
     const userId = user._id || user.sub;
     
     try {
-      const result = await this.classesService.update(id, updateClassDto, userId);
-      this.logger.log(`Clase actualizada con éxito: ${result._id}`);
-      return result;
+      // Si hay un nuevo video, actualizar con el archivo
+      if (file) {
+        this.logger.log(`Archivo recibido para actualización: ${file.originalname}, tamaño: ${file.size}, tipo: ${file.mimetype}`);
+        return await this.classesService.updateWithVideo(id, updateClassDto, userId, file);
+      } else {
+        // Si no hay nuevo video, actualizar solo los datos
+        const result = await this.classesService.update(id, updateClassDto, userId);
+        this.logger.log(`Clase actualizada con éxito: ${result._id}`);
+        return result;
+      }
     } catch (error) {
       this.logger.error(`Error al actualizar clase: ${error.message}`, error.stack);
       throw error;

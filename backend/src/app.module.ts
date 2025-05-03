@@ -14,6 +14,12 @@ import awsConfig from './config/aws.config';
 import { S3Service } from './services/s3.service';
 import { CloudFrontService } from './services/cloudfront.service';
 import { ImagesController } from './controllers/images.controller';
+import { AdminStatsController } from './controllers/admin-stats.controller';
+import { User, UserSchema } from './auth/schemas/user.schema';
+import { School, SchoolSchema } from './schools/schemas/school.schema';
+import { Course, CourseSchema } from './courses/schemas/course.schema';
+import { Class, ClassSchema } from './classes/schemas/class.schema';
+import { UserOwnedSchoolsController, UserAdministeredSchoolsController } from './schools/schools.controller';
 
 @Module({
   imports: [
@@ -22,6 +28,12 @@ import { ImagesController } from './controllers/images.controller';
       load: [awsConfig],
     }),
     MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/mvp'),
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+      { name: School.name, schema: SchoolSchema },
+      { name: Course.name, schema: CourseSchema },
+      { name: Class.name, schema: ClassSchema },
+    ]),
     AuthModule,
     UsersModule,
     SchoolsModule,
@@ -30,7 +42,13 @@ import { ImagesController } from './controllers/images.controller';
     ServicesModule,
     UploadModule,
   ],
-  controllers: [AppController, ImagesController],
+  controllers: [
+    AppController, 
+    ImagesController, 
+    AdminStatsController,
+    UserOwnedSchoolsController,
+    UserAdministeredSchoolsController
+  ],
   providers: [AppService, S3Service, CloudFrontService],
 })
 export class AppModule {} 

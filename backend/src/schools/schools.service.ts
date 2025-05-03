@@ -621,4 +621,24 @@ export class SchoolsService {
       throw error;
     }
   }
+
+  // Método para encontrar escuelas por propietario
+  async findSchoolsByOwner(userId: string): Promise<School[]> {
+    try {
+      return this.schoolModel.find({ admin: userId }).exec();
+    } catch (error) {
+      this.logger.error(`Error al buscar escuelas por propietario: ${error.message}`);
+      throw new Error('Error al buscar escuelas por propietario');
+    }
+  }
+
+  // Método para encontrar escuelas por administrador
+  async findSchoolsByAdministrator(userId: string): Promise<School[]> {
+    try {
+      return this.schoolModel.find({ teachers: userId }).exec();
+    } catch (error) {
+      this.logger.error(`Error al buscar escuelas por administrador: ${error.message}`);
+      throw new Error('Error al buscar escuelas por administrador');
+    }
+  }
 }

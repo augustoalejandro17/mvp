@@ -40,10 +40,11 @@ export const canModifyClass = (userRole: UserRole | string, isTeacher: boolean):
   if (!userRole) return false;
   const normalizedRole = normalizeRole(userRole);
   
-  // Super_admin, school_owner, admin can modify any class
+  // Super_admin, school_owner, admin, administrative can modify any class
   if (normalizedRole === 'super_admin' ||
       normalizedRole === 'school_owner' ||
-      normalizedRole === 'admin') {
+      normalizedRole === 'admin' ||
+      normalizedRole === 'administrative') {
     return true;
   }
 
