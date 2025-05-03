@@ -37,12 +37,6 @@ export class AttendanceController {
     return this.attendanceService.findAllRecords();
   }
 
-  @Get(':id')
-  @UseGuards(JwtAuthGuard)
-  async findOne(@Param('id') id: string) {
-    return this.attendanceService.findOne(id);
-  }
-
   @Get('course/:courseId')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(Permission.VIEW_ATTENDANCE)
@@ -70,6 +64,12 @@ export class AttendanceController {
     @Param('studentId') studentId: string
   ) {
     return this.attendanceService.getStatsByStudent(courseId, studentId);
+  }
+
+  @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  async findOne(@Param('id') id: string) {
+    return this.attendanceService.findOne(id);
   }
 
   @Patch(':id')

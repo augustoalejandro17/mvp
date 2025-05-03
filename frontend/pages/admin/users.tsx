@@ -5,7 +5,7 @@ import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/Admin.module.css';
 import Link from 'next/link';
-import { FaEdit, FaTrash, FaUserPlus, FaLink, FaUserCheck } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaUserPlus, FaLink, FaUserCheck, FaSearch, FaClock, FaCheckCircle, FaEnvelope, FaUniversity } from 'react-icons/fa';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 
 // Tipos de usuario
@@ -347,32 +347,37 @@ export default function UserManagement() {
           <h1 className={styles.title}>Gestión de Usuarios</h1>
           <div className={styles.controls}>
             <div className={styles.search}>
-              <input
-                type="text"
-                placeholder="Buscar usuarios..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className={styles.searchInput}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  placeholder="Buscar usuarios..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className={styles.searchInput}
+                />
+                <FaSearch style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#4a5568' }} />
+              </div>
             </div>
-            <button 
-              className={styles.createButton}
-              onClick={() => {
-                setCreateUserType(UserType.REGISTERED);
-                setShowCreateUserModal(true);
-              }}
-            >
-              <FaUserPlus /> Crear Usuario
-            </button>
-            <button 
-              className={styles.altButton}
-              onClick={() => {
-                setCreateUserType(UserType.UNREGISTERED);
-                setShowCreateUserModal(true);
-              }}
-            >
-              <FaUserCheck /> Agregar Asistente
-            </button>
+            <div className={styles.buttonsContainer}>
+              <button 
+                className={styles.createButton}
+                onClick={() => {
+                  setCreateUserType(UserType.REGISTERED);
+                  setShowCreateUserModal(true);
+                }}
+              >
+                <FaUserPlus /> Crear Usuario
+              </button>
+              <button 
+                className={styles.altButton}
+                onClick={() => {
+                  setCreateUserType(UserType.UNREGISTERED);
+                  setShowCreateUserModal(true);
+                }}
+              >
+                <FaUserCheck /> Agregar Asistente
+              </button>
+            </div>
           </div>
         </div>
 
@@ -426,11 +431,31 @@ export default function UserManagement() {
                   </tr>
                 ) : (
                   unregisteredUsers.map((user, index) => (
-                    <tr key={index}>
-                      <td>{user.name}</td>
-                      <td>{user.occurrences}</td>
-                      <td>{user.courses.length}</td>
-                      <td>{new Date(user.lastSeen).toLocaleDateString()}</td>
+                    <tr key={index} className={styles.nonRegistered}>
+                      <td>
+                        <div style={{ fontWeight: '500' }}>
+                          {user.name}
+                          <span className={styles.tagNonRegistered}>No Registrado</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <FaCheckCircle style={{ marginRight: '0.5rem', color: '#68d391' }} />
+                          {user.occurrences}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <FaUniversity style={{ marginRight: '0.5rem', opacity: '0.6' }} />
+                          {user.courses.length}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <FaClock style={{ marginRight: '0.5rem', color: '#718096' }} />
+                          {new Date(user.lastSeen).toLocaleDateString()}
+                        </div>
+                      </td>
                       <td>
                         <button 
                           className={styles.iconButton}
@@ -471,15 +496,27 @@ export default function UserManagement() {
                       (user.schoolRoles && user.schoolRoles.some(sr => sr.schoolId === selectedSchool)))
                     .map(user => (
                       <tr key={user._id}>
-                        <td>{user.name}</td>
+                        <td>
+                          <div style={{ fontWeight: '500' }}>{user.name}</div>
+                        </td>
                         <td>{user.email}</td>
                         <td>
                           <span className={`${styles.roleBadge} ${styles[user.role]}`}>
                             {user.role}
                           </span>
                         </td>
-                        <td>{user.enrolledCourses?.length || 0}</td>
-                        <td>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <FaUniversity style={{ marginRight: '0.5rem', opacity: '0.6' }} />
+                            {user.enrolledCourses?.length || 0}
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <FaClock style={{ marginRight: '0.5rem', color: '#718096' }} />
+                            {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                          </div>
+                        </td>
                         <td>
                           <div className={styles.actionButtons}>
                             <button 

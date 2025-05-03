@@ -39,8 +39,34 @@
   color: white;
   padding: 0.25rem 0.75rem;
   border-radius: 20px;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 500;
+  display: inline-block;
+}
+
+.admin {
+  background-color: #fc8181;
+  color: #742a2a;
+}
+
+.super_admin {
+  background-color: #f6ad55;
+  color: #7b341e;
+}
+
+.teacher {
+  background-color: #68d391;
+  color: #276749;
+}
+
+.student {
+  background-color: #63b3ed;
+  color: #2c5282;
+}
+
+.school_owner {
+  background-color: #b794f4;
+  color: #553c9a;
 }
 
 .tabs {
@@ -309,4 +335,292 @@
   .grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Mejorar estilos de la tabla */
+.tableContainer {
+  width: 100%;
+  overflow-x: auto;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.table th,
+.table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.table th {
+  background-color: #f7fafc;
+  font-weight: 600;
+  color: #4a5568;
+  position: sticky;
+  top: 0;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.table tr:hover {
+  background-color: #f7fafc;
+}
+
+/* Estilos para las insignias de rol */
+.roleBadge {
+  background-color: #4a5568;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.admin {
+  background-color: #fc8181;
+  color: #742a2a;
+}
+
+.super_admin {
+  background-color: #f6ad55;
+  color: #7b341e;
+}
+
+.teacher {
+  background-color: #68d391;
+  color: #276749;
+}
+
+.student {
+  background-color: #63b3ed;
+  color: #2c5282;
+}
+
+.school_owner {
+  background-color: #b794f4;
+  color: #553c9a;
+}
+
+/* Estilos para los botones de acción */
+.actionButtons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.iconButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #4a5568;
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.iconButton:hover {
+  background-color: #edf2f7;
+  color: #2d3748;
+}
+
+.deleteButton:hover {
+  color: #e53e3e;
+}
+
+/* Estilos para la sección de control */
+.controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.search {
+  flex: 1;
+  max-width: 300px;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 0.95rem;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: #3182ce;
+  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+}
+
+.buttonsContainer {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.createButton, .altButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.createButton {
+  background-color: #3182ce;
+  color: white;
+}
+
+.createButton:hover {
+  background-color: #2c5282;
+}
+
+.altButton {
+  background-color: #edf2f7;
+  color: #4a5568;
+}
+
+.altButton:hover {
+  background-color: #e2e8f0;
+}
+
+/* Estilos para usuarios no registrados */
+.nonRegistered {
+  background-color: #fff9db;
+}
+
+.tagNonRegistered {
+  font-size: 0.75rem;
+  background-color: #fefcbf;
+  color: #744210;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  margin-left: 0.5rem;
+  white-space: nowrap;
+}
+
+/* Estilos para el modal */
+.modalBackdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.modal {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 2rem;
+  width: 95%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modalTitle {
+  font-size: 1.5rem;
+  margin: 0 0 1.5rem;
+  color: #2d3748;
+}
+
+.modalDescription {
+  color: #4a5568;
+  margin-bottom: 1.5rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.formGroup label {
+  font-weight: 500;
+  color: #4a5568;
+}
+
+.input, .select {
+  padding: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.input:focus, .select:focus {
+  outline: none;
+  border-color: #3182ce;
+  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.submitButton, .cancelButton {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.submitButton {
+  background-color: #3182ce;
+  color: white;
+}
+
+.submitButton:hover {
+  background-color: #2c5282;
+}
+
+.cancelButton {
+  background-color: #edf2f7;
+  color: #4a5568;
+}
+
+.cancelButton:hover {
+  background-color: #e2e8f0;
+}
+
+/* Estilos para mensajes */
+.success {
+  background-color: #c6f6d5;
+  color: #276749;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
 } 
