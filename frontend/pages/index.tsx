@@ -85,14 +85,16 @@ export default function Home() {
           <>
             <div className={styles.userWelcome}>
               <p>Bienvenido, {user.name}</p>
-              {user.role === 'admin' && (
-                <button 
-                  className={styles.createButton}
-                  onClick={() => router.push('/school/create')}
-                >
-                  Crear Nueva Escuela
-                </button>
-              )}
+              <div className={styles.userActions}>
+                {user.role === 'admin' && (
+                  <button 
+                    className={styles.createButton}
+                    onClick={() => router.push('/school/create')}
+                  >
+                    Crear Nueva Escuela
+                  </button>
+                )}
+              </div>
             </div>
             
             {loading ? (

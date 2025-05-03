@@ -32,12 +32,42 @@ function MyApp({ Component, pageProps }: AppProps) {
           padding: 12px;
         }
       }
+      
+      /* Debugging styles for dropdown */
+      .styles_dropdownContent__* {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+      }
     `;
     document.head.appendChild(style);
+    
+    // Debug the dropdown menu visibility
+    const checkDropdownItems = () => {
+      console.log('Debugging dropdown menu...');
+      const dropdownContent = document.querySelector('.dropdown-content');
+      console.log('Dropdown content element:', dropdownContent);
+      
+      if (dropdownContent) {
+        const items = dropdownContent.querySelectorAll('a, button');
+        console.log('Dropdown items:', items);
+        console.log('Items count:', items.length);
+        
+        Array.from(items).forEach((item, index) => {
+          console.log(`Item ${index}:`, item.textContent, 'Visible:', window.getComputedStyle(item).display !== 'none');
+        });
+      }
+    };
+    
+    // Run the check after a short delay to let everything render
+    const timer = setTimeout(() => {
+      checkDropdownItems();
+    }, 2000);
     
     return () => {
       // Clean up
       document.head.removeChild(style);
+      clearTimeout(timer);
     };
   }, []);
 

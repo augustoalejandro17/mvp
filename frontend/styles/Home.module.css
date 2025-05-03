@@ -45,6 +45,10 @@
   margin: 0;
 }
 
+.userActions {
+  display: none;
+}
+
 .createButton {
   background-color: #3182ce;
   color: white;
@@ -59,6 +63,10 @@
 
 .createButton:hover {
   background-color: #2c5282;
+}
+
+.adminButton {
+  display: none;
 }
 
 .grid {

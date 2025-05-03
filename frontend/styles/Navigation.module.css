@@ -90,6 +90,33 @@
   border-radius: 2px;
 }
 
+/* Estilo especial para el enlace al panel de control */
+.adminLink {
+  background-color: #6b46c1;
+  color: white !important;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+}
+
+.adminLink:hover {
+  background-color: #553c9a;
+  color: white !important;
+  transform: none;
+}
+
+.adminLink.active {
+  background-color: #4c299d;
+  color: white !important;
+  font-weight: 600;
+}
+
+.adminLink.active::after {
+  display: none;
+}
+
 .dropdown {
   position: relative;
   display: inline-block;
@@ -154,6 +181,8 @@
   visibility: visible !important;
   transform: translateY(0);
   display: block !important;
+  max-height: initial !important;
+  overflow: visible !important;
 }
 
 .dropdownItem {
@@ -327,10 +356,11 @@
   }
   
   .dropdown.open .dropdownContent {
-    max-height: 300px;
-    opacity: 1;
-    visibility: visible;
-    display: block;
+    max-height: 300px !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: block !important;
+    overflow: visible !important;
   }
   
   .dropdownItem {

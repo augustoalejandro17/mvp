@@ -7,15 +7,34 @@ import styles from '../styles/Navigation.module.css';
 
 interface DecodedToken {
   sub: string;
-  role: string;
+  role: string | string[]; // Can be string or array of strings
   email: string;
   name: string;
   exp: number;
 }
 
+// Define role precedence - highest priority first
+const ROLE_PRECEDENCE = [
+  'super_admin', 
+  'SUPER_ADMIN', 
+  'superadmin', 
+  'SUPERADMIN',
+  'school_owner', 
+  'SCHOOL_OWNER',
+  'administrative', 
+  'ADMINISTRATIVE',
+  'admin',
+  'ADMIN',
+  'teacher',
+  'TEACHER',
+  'student',
+  'STUDENT'
+];
+
 const Navigation: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -26,8 +45,48 @@ const Navigation: React.FC = () => {
     if (token) {
       try {
         const decoded = jwtDecode<DecodedToken>(token as string);
+        console.log('Token decodificado completo:', decoded); 
+        
+        // Handle the case where the role is an array
+        let primaryRole: string;
+        if (Array.isArray(decoded.role)) {
+          console.log('Múltiples roles detectados:', decoded.role);
+          
+          // Normalize roles to lowercase for comparison
+          const normalizedRoles = decoded.role.map(role => String(role).toLowerCase());
+          console.log('Roles normalizados:', normalizedRoles);
+          
+          // Find the highest precedence role in the array
+          const normalizedPrecedence = ROLE_PRECEDENCE.map(role => role.toLowerCase());
+          
+          // Find first matching role based on precedence order
+          let foundRole = null;
+          for (const precedenceRole of normalizedPrecedence) {
+            const matchingRole = normalizedRoles.find(role => 
+              role === precedenceRole || 
+              role.includes(precedenceRole) || 
+              precedenceRole.includes(role)
+            );
+            if (matchingRole) {
+              // Use the original casing from the token
+              foundRole = decoded.role[normalizedRoles.indexOf(matchingRole)];
+              console.log(`Rol con mayor precedencia encontrado: ${foundRole}`);
+              break;
+            }
+          }
+          
+          primaryRole = foundRole || decoded.role[0]; // Use the highest precedence or default to first
+          console.log('Rol prioritario final seleccionado:', primaryRole);
+        } else {
+          primaryRole = decoded.role;
+        }
+        
+        console.log('Rol principal asignado:', primaryRole);
+        console.log('Email detectado:', decoded.email);
+        
         setIsAuthenticated(true);
-        setUserRole(decoded.role);
+        setUserRole(primaryRole);
+        setUserEmail(decoded.email);
       } catch (error) {
         console.error('Error decoding token:', error);
       }
@@ -38,6 +97,7 @@ const Navigation: React.FC = () => {
     document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     setIsAuthenticated(false);
     setUserRole(null);
+    setUserEmail(null);
     setIsDropdownOpen(false);
     router.push('/login');
   }, [router]);
@@ -82,6 +142,59 @@ const Navigation: React.FC = () => {
     return router.pathname === path ? styles.active : '';
   };
 
+  // Helper function to check admin roles
+  const hasAdminAccess = () => {
+    if (!userRole) {
+      console.log('hasAdminAccess: No user role found');
+      return false;
+    }
+    
+    // Use lowercase for all comparisons
+    const role = String(userRole).toLowerCase();
+    console.log('hasAdminAccess - checking role:', role);
+    
+    // Restaurar temporalmente el acceso especial para Augusto durante la depuración
+    if (userEmail && userEmail.toLowerCase().includes('augusto')) {
+      console.log('hasAdminAccess - Augusto detected, granting admin access');
+      return true;
+    }
+    
+    // Check for admin roles - only super_admin, school_owner, and administrative have admin access
+    const adminRoles = ['super_admin', 'superadmin', 'school_owner', 'administrative', 'admin'];
+    const isAdmin = adminRoles.some(adminRole => {
+      const matches = role.includes(adminRole);
+      console.log(`hasAdminAccess - checking if ${role} includes ${adminRole}:`, matches);
+      return matches;
+    });
+      
+    console.log('User role check for admin access:', {
+      role,
+      isAdmin
+    });
+    
+    return isAdmin;
+  };
+
+  // Handle navigation to admin dashboard
+  const navigateToAdminDashboard = (e: React.MouseEvent) => {
+    e.preventDefault();
+    console.log('Navigating to admin dashboard...');
+    setIsDropdownOpen(false);
+    
+    console.log('About to navigate to /admin/dashboard');
+    // Use direct navigation without timeout
+    router.push('/admin/dashboard');
+  };
+
+  // Debug effect to log authentication state
+  useEffect(() => {
+    console.log('*** ESTADO DE AUTENTICACIÓN ACTUAL ***');
+    console.log('isAuthenticated:', isAuthenticated);
+    console.log('userRole:', userRole);
+    console.log('userEmail:', userEmail);
+    console.log('hasAdminAccess() result:', hasAdminAccess());
+  }, [isAuthenticated, userRole, userEmail]);
+
   return (
     <nav className={styles.navbar}>
       <div className={styles.container}>
@@ -109,15 +222,10 @@ const Navigation: React.FC = () => {
                     Mis Cursos
                   </Link>
                 )}
-                {userRole === 'admin' && (
-                  <>
-                    <Link href="/admin/dashboard" className={`${styles.navLink} ${isActive('/admin/dashboard')}`}>
-                      Dashboard
-                    </Link>
-                    <Link href="/admin/payment-management" className={`${styles.navLink} ${isActive('/admin/payment-management')}`}>
-                      Pagos
-                    </Link>
-                  </>
+                {(userRole === 'admin' || userRole === 'ADMIN') && (
+                  <Link href="/admin/payment-management" className={`${styles.navLink} ${isActive('/admin/payment-management')}`}>
+                    Pagos
+                  </Link>
                 )}
                 <div className={`${styles.dropdown} ${isDropdownOpen ? styles.open : ''}`} ref={dropdownRef}>
                   <button
@@ -132,6 +240,24 @@ const Navigation: React.FC = () => {
                     <Link href="/profile" className={styles.dropdownItem} onClick={() => setIsDropdownOpen(false)}>
                       Perfil
                     </Link>
+                    {(() => {
+                      // Debugging roles directly from the token
+                      const hasAccess = hasAdminAccess();
+                      console.log('Rendering admin button check:', { userRole, hasAccess });
+                      
+                      return hasAccess ? (
+                        <a 
+                          href="/admin/dashboard"
+                          className={styles.dropdownItem}
+                          onClick={() => {
+                            console.log('Admin panel button clicked');
+                            setIsDropdownOpen(false);
+                          }}
+                        >
+                          Panel de Control
+                        </a>
+                      ) : null;
+                    })()}
                     <button onClick={handleLogout} className={styles.dropdownItem}>
                       Cerrar Sesión
                     </button>
