@@ -63,6 +63,7 @@ export default function CourseDetail() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deletingClassId, setDeletingClassId] = useState<string | null>(null);
   const { handleApiError } = useApiErrorHandler();
+  const [videoStreamUrl, setVideoStreamUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -120,6 +121,10 @@ export default function CourseDetail() {
         // Seleccionar la primera clase por defecto si hay clases disponibles
         if (sortedClasses.length > 0) {
           setSelectedClass(sortedClasses[0]);
+          // Pre-cargar URL de streaming para la primera clase
+          if (sortedClasses[0]._id) {
+            getVideoStreamUrl(sortedClasses[0]._id);
+          }
         }
       } catch (error) {
         console.error('Error al obtener datos:', error);
@@ -144,8 +149,16 @@ export default function CourseDetail() {
 
   const handleClassClick = (classItem: Class) => {
     setSelectedClass(classItem);
-    // Log para depuración
-    console.log('Video URL:', classItem.videoUrl);
+    setVideoStreamUrl(null); // Resetear la URL de streaming para mostrar el mensaje "Cargando video..."
+    
+    // Usar la URL directa de inmediato para mostrar el video
+    // mientras obtenemos la URL de streaming optimizada
+    setVideoStreamUrl(classItem.videoUrl);
+    
+    // Obtener URL de streaming para el video en segundo plano
+    if (classItem._id) {
+      getVideoStreamUrl(classItem._id);
+    }
   };
   
   const isClassTeacher = useCallback((teacherId: string | undefined): boolean => {
@@ -234,6 +247,30 @@ export default function CourseDetail() {
       setError(handleApiError(error));
     } finally {
       setDeletingClassId(null);
+    }
+  };
+
+  const getVideoStreamUrl = async (classId: string) => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const token = Cookies.get('token');
+      
+      const headers = { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
+      
+      const response = await axios.get(`${apiUrl}/api/classes/${classId}/stream-url`, { headers });
+      if (response.data && response.data.url) {
+        setVideoStreamUrl(response.data.url);
+        console.log('Nueva URL de streaming obtenida:', response.data.url);
+      } else {
+        setVideoStreamUrl(null);
+        console.error('No se pudo obtener URL de streaming válida');
+      }
+    } catch (error) {
+      console.error('Error al obtener URL de streaming:', error);
+      setVideoStreamUrl(null);
     }
   };
 
@@ -385,38 +422,54 @@ export default function CourseDetail() {
             {selectedClass ? (
               <>
                 <div className={styles.videoContainer}>
-                  <video
-                    src={selectedClass.videoUrl}
-                    controls
-                    playsInline
-                    className={styles.videoPlayer}
-                    autoPlay={false}
-                    onError={(e) => {
-                      console.error('Error al cargar el video:', e);
-                      console.log('URL problemática:', selectedClass.videoUrl);
-                      
-                      // Mostrar mensaje alternativo
-                      const videoContainer = document.querySelector(`.${styles.videoContainer}`);
-                      if (videoContainer) {
-                        videoContainer.innerHTML = `
-                          <div style="padding: 20px; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #000;">
-                            <p style="color: white; margin-bottom: 20px;">No se pudo cargar el video en el reproductor.</p>
-                            <a 
-                              href="${selectedClass.videoUrl}" 
-                              target="_blank"
-                              style="background: #3182ce; color: white; padding: 10px 15px; border-radius: 4px; text-decoration: none; font-weight: bold;"
-                            >
-                              Abrir video en nueva pestaña
-                            </a>
-                          </div>
-                        `;
-                      }
-                    }}
-                  >
-                    <source src={selectedClass.videoUrl} type="video/mp4" />
-                    <source src={selectedClass.videoUrl} type="video/webm" />
-                    Tu navegador no soporta la reproducción de videos.
-                  </video>
+                  {selectedClass.videoUrl ? (
+                    <video
+                      key={videoStreamUrl || selectedClass.videoUrl} // Usar cualquier URL disponible
+                      src={videoStreamUrl || selectedClass.videoUrl}
+                      controls
+                      playsInline
+                      className={styles.videoPlayer}
+                      autoPlay={false}
+                      onError={(e) => {
+                        console.error('Error al cargar el video:', e);
+                        console.log('URL problemática:', videoStreamUrl || selectedClass.videoUrl);
+                        
+                        // Mostrar mensaje alternativo
+                        const videoContainer = document.querySelector(`.${styles.videoContainer}`);
+                        if (videoContainer) {
+                          videoContainer.innerHTML = `
+                            <div style="padding: 20px; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #000;">
+                              <p style="color: white; margin-bottom: 20px;">No se pudo cargar el video en el reproductor.</p>
+                              <a 
+                                href="${videoStreamUrl || selectedClass.videoUrl}" 
+                                target="_blank"
+                                style="background: #3182ce; color: white; padding: 10px 15px; border-radius: 4px; text-decoration: none; font-weight: bold;"
+                              >
+                                Abrir video en nueva pestaña
+                              </a>
+                            </div>
+                          `;
+                        }
+                      }}
+                    >
+                      <source src={videoStreamUrl || selectedClass.videoUrl} type="video/mp4" />
+                      <source src={videoStreamUrl || selectedClass.videoUrl} type="video/webm" />
+                      Tu navegador no soporta la reproducción de videos.
+                    </video>
+                  ) : (
+                    <div style={{
+                      padding: "20px",
+                      textAlign: "center",
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      background: "#000"
+                    }}>
+                      <p style={{color: "white", marginBottom: "20px"}}>No hay video disponible</p>
+                    </div>
+                  )}
                 </div>
                 <div className={styles.classDetails}>
                   <h2>{selectedClass.title}</h2>
