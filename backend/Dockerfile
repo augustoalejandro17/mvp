@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
@@ -29,6 +30,12 @@ RUN npm run build
 # Production stage
 FROM node:18-slim
 
+# Install ffmpeg and runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /usr/src/app
 
 # Copy package files
@@ -41,9 +48,17 @@ RUN npm ci --only=production
 COPY --from=builder /usr/src/app/dist ./dist
 COPY --from=builder /usr/src/app/node_modules ./node_modules
 
+# Create directory for temporary files
+RUN mkdir -p /tmp/videos && chmod 777 /tmp/videos
+
 # Create a non-root user and use it
 RUN useradd -r nodejs && \
-    chown -R nodejs:nodejs /usr/src/app
+    chown -R nodejs:nodejs /usr/src/app && \
+    chown -R nodejs:nodejs /tmp/videos
+
+# Set environment variable for temporary directory
+ENV TEMP_VIDEO_DIR=/tmp/videos
+
 USER nodejs
 
 # Add health check

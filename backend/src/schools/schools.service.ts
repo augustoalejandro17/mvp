@@ -78,20 +78,23 @@ export class SchoolsService {
       let query = {};
       
       // Si es un usuario no admin, filtramos por escuelas públicas o donde esté asociado
-      if (userId && role !== UserRole.ADMIN) {
+      if (userId && role !== UserRole.ADMIN && role !== UserRole.SUPER_ADMIN) {
+        // Necesitamos asegurarnos de que userId sea un string válido
+        const safeUserId = userId.toString();
+        
         if (role === UserRole.TEACHER) {
           query = { 
             $or: [
               { isPublic: true },
-              { teachers: userId },
-              { admin: userId }
+              { teachers: safeUserId },
+              { admin: safeUserId }
             ] 
           };
         } else {
           query = { 
             $or: [
               { isPublic: true },
-              { students: userId }
+              { students: safeUserId }
             ] 
           };
         }

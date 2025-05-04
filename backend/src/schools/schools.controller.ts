@@ -16,8 +16,13 @@ export class SchoolsController {
   @Get()
   @UseGuards(JwtAuthGuard)
   async findAll(@Req() req) {
+    // Asegurarnos de obtener el ID de usuario correctamente, independientemente de la estructura
+    const userId = req.user.sub || (req.user._id ? req.user._id.toString() : null);
+    const userRole = req.user.role;
     
-    return this.schoolsService.findAll(req.user._id, req.user.role);
+    this.logger.log(`Buscando escuelas para usuario: ${userId}, rol: ${userRole}`);
+    
+    return this.schoolsService.findAll(userId, userRole);
   }
 
   @Get('teacher/:id')

@@ -24,11 +24,17 @@ export class AdminStatsController {
   @Get()
   async getStats(@Query('schoolId') schoolId: string, @Request() req) {
     try {
+      // Asegurarnos de obtener el ID de usuario correctamente
       const user = req.user;
+      // Normalizar user._id para asegurarse de que es un string
+      const userId = user.sub || (user._id ? user._id.toString() : null);
+      if (!userId) {
+        throw new Error('ID de usuario no disponible');
+      }
+      
       const stats: any = {};
       
-      
-      // If schoolId is provided and not 'all', check access rights
+      // Si schoolId es provided y no es 'all', verificar acceso
       if (schoolId && schoolId !== 'all') {
         const hasAccess = await this.checkSchoolAccess(user, schoolId);
         
@@ -47,7 +53,7 @@ export class AdminStatsController {
           stats.classes = await this.classModel.countDocuments();
         } else if (user.role === UserRole.SCHOOL_OWNER) {
           // School owner sees stats for their schools
-          const ownedSchools = await this.schoolModel.find({ admin: user._id });
+          const ownedSchools = await this.schoolModel.find({ admin: userId });
           const schoolIds = ownedSchools.map(school => school._id);
           
           stats.users = await this.getUserCountForSchools(schoolIds);
@@ -56,7 +62,7 @@ export class AdminStatsController {
           stats.classes = await this.getClassCountForSchools(schoolIds);
         } else if (user.role === UserRole.ADMIN) {
           // Admin sees stats for administered schools
-          const adminSchools = await this.schoolModel.find({ teachers: user._id });
+          const adminSchools = await this.schoolModel.find({ teachers: userId });
           const schoolIds = adminSchools.map(school => school._id);
           
           stats.users = await this.getUserCountForSchools(schoolIds);
@@ -100,6 +106,12 @@ export class AdminStatsController {
 
   // Helper methods
   private async checkSchoolAccess(user: any, schoolId: string): Promise<boolean> {
+    // Normalizar el ID del usuario
+    const userId = user.sub || (user._id ? user._id.toString() : null);
+    if (!userId) {
+      return false;
+    }
+    
     if (user.role === UserRole.SUPER_ADMIN) {
       return true; // Super admin has access to all schools
     }
@@ -110,9 +122,9 @@ export class AdminStatsController {
     }
     
     // Check if user is admin or teacher
-    const isAdmin = school.admin && school.admin.toString() === user._id.toString();
+    const isAdmin = school.admin && school.admin.toString() === userId;
     const isTeacher = school.teachers && 
-      school.teachers.some(teacherId => teacherId.toString() === user._id.toString());
+      school.teachers.some(teacherId => teacherId.toString() === userId);
     
     return isAdmin || isTeacher;
   }
