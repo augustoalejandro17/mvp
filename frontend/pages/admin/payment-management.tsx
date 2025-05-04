@@ -50,6 +50,9 @@ interface ModalState {
   isPaid: boolean;
 }
 
+// Define the PaymentStatus type
+type PaymentStatus = 'pending' | 'paid' | 'overdue';
+
 const PaymentManagement = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<string>('');

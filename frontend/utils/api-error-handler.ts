@@ -8,8 +8,8 @@ import { AxiosError } from 'axios';
 export const useApiErrorHandler = () => {
   const [error, setError] = useState<string | null>(null);
 
-  const handleApiError = useCallback((err: unknown): string => {
-    let errorMessage = 'Ha ocurrido un error inesperado';
+  const handleApiError = useCallback((err: unknown, customMessage?: string): string => {
+    let errorMessage = customMessage || 'Ha ocurrido un error inesperado';
 
     if (err instanceof AxiosError) {
       // Extraer mensaje de error de la respuesta de axios

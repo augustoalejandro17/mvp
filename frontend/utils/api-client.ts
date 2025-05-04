@@ -1,5 +1,10 @@
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import Cookies from 'js-cookie';
+
+// Define extended interface for Axios instance with custom method
+interface CustomAxiosInstance extends AxiosInstance {
+  refreshImageUrl: (key: string) => Promise<string | null>;
+}
 
 // Create an Axios instance with default config
 const api = axios.create({
@@ -8,7 +13,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-});
+}) as CustomAxiosInstance;
 
 // Request interceptor to add auth token to all requests
 api.interceptors.request.use(
