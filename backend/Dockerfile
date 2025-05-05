@@ -9,7 +9,6 @@ RUN apk add --no-cache \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-
 WORKDIR /usr/src/app
 
 # Copy package files first for better caching
@@ -47,19 +46,25 @@ RUN npm ci --only=production
 COPY --from=builder /usr/src/app/dist ./dist
 COPY --from=builder /usr/src/app/node_modules ./node_modules
 
+# Create directory for CloudFront keys and set correct path
+RUN mkdir -p /usr/src/app/keys
+# The private_key.pem will be mounted via volume in docker-compose.yml
+
 # Create directory for temporary files
 RUN mkdir -p /tmp/videos && chmod 777 /tmp/videos
 
-# Add a non-root user
+# Create a non-root user and use it
 RUN addgroup -S nodejs && adduser -S nodejs -G nodejs
 
 # Set permissions
 RUN chown -R nodejs:nodejs /usr/src/app && \
     chown -R nodejs:nodejs /tmp/videos
 
-# Set environment variable for temporary directory
+# Set environment variable for temporary directory and CloudFront key path
 ENV TEMP_VIDEO_DIR=/tmp/videos
+ENV AWS_CLOUDFRONT_PRIVATE_KEY_PATH=/usr/src/app/keys/private_key.pem
 
+# Switch to non-root user
 USER nodejs
 
 # Add health check
