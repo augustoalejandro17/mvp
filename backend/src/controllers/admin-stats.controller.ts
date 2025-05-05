@@ -94,17 +94,6 @@ export class AdminStatsController {
     };
   }
 
-  @Get('public-test')
-  @UseGuards()
-  publicTestEndpoint() {
-    return { 
-      message: 'Public admin stats test endpoint is working without auth!',
-      path: '/admin/stats/public-test',
-      timestamp: new Date().toISOString()
-    };
-  }
-
-  // Helper methods
   private async checkSchoolAccess(user: any, schoolId: string): Promise<boolean> {
     // Normalizar el ID del usuario
     const userId = user.sub || (user._id ? user._id.toString() : null);

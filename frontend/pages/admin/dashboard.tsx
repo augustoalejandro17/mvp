@@ -118,36 +118,48 @@ export default function AdminDashboard() {
       const token = Cookies.get('token');
       if (!token) return;
 
-      // NOTE: The Next.js config rewrites /api/* to the backend at http://localhost:4000/api/*
-      // So we need to use /api/ here which gets sent to the right endpoint
-      let endpoint = '/api/admin/stats';
-      if (schoolId !== 'all') {
-        endpoint = `/api/admin/stats?schoolId=${schoolId}`;
+      // Get API URL from environment variables or use default
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      
+      // Determine endpoint based on current environment
+      let endpoint = '';
+      
+      // When running in Docker, we need to use the full URL
+      if (process.env.NODE_ENV === 'production' || window.location.hostname !== 'localhost') {
+        endpoint = `${apiBaseUrl}/api/admin/stats`;
+        if (schoolId !== 'all') {
+          endpoint = `${apiBaseUrl}/api/admin/stats?schoolId=${schoolId}`;
+        }
+      } else {
+        // In local development, we can use relative paths
+        endpoint = '/api/admin/stats';
+        if (schoolId !== 'all') {
+          endpoint = `/api/admin/stats?schoolId=${schoolId}`;
+        }
       }
-
-      // Get the full URL to help with debugging
-      const baseUrl = window.location.origin;
-      const fullUrl = `${baseUrl}${endpoint}`;
       
-      
+      console.log('Fetching stats from:', endpoint);
       
       const response = await fetch(endpoint, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
         }
       });
-
-      
       
       if (!response.ok) {
-        const errorText = await response.text();
         console.error('Error response from stats API:', response.status, response.statusText);
-        console.error('Error response body:', errorText);
         throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
 
+      // Check if the response is valid JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('Invalid content type:', contentType);
+        throw new Error('Invalid response format');
+      }
+
       const statsData = await response.json();
-      
       
       if (statsData.error) {
         throw new Error(statsData.error);
@@ -191,33 +203,37 @@ export default function AdminDashboard() {
 
   // Test API connectivity with different URL formats
   const testApiConnectivity = async () => {
-    
-    
     try {
-      // Format 1: Direct /api path (Next.js rewrites this to backend)
-      const response1 = await fetch('/api/admin/stats/public-test');
-      const data1 = await response1.json();
+      console.log('Testing API connectivity...');
       
-    } catch (error) {
-      console.error("Format 1 error:", error);
-    }
-
-    try {
-      // Format 2: Using the direct-api path (tests without /api prefix)
-      const response2 = await fetch('/direct-api/admin/stats/public-test');
-      const data2 = await response2.json();
+      // Usamos rutas relativas para que Next.js se encargue de la redirección
+      // Prueba de endpoint de estadísticas públicas
+      console.log('Testing public stats endpoint...');
       
-    } catch (error) {
-      console.error("Format 2 error:", error);
-    }
-
-    try {
-      // Format 3: Root app controller test route
-      const response3 = await fetch('/api/test-route');
-      const data3 = await response3.json();
+      // Usamos fetch con la ruta relativa, que es interceptada por Next.js y redirigida según la configuración
+      const response = await fetch('/api/admin/stats/public-test', {
+        headers: { 'Accept': 'application/json' }
+      });
       
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ API connectivity test successful:', data);
+      } else {
+        console.error('❌ API connectivity test failed:', response.status, response.statusText);
+        // Si hay error, intentamos con el endpoint de salud
+        console.log('Trying health endpoint as fallback...');
+        const healthResponse = await fetch('/api/health', {
+          headers: { 'Accept': 'application/json' }
+        });
+        
+        if (healthResponse.ok) {
+          console.log('✅ Health endpoint is working');
+        } else {
+          console.error('❌ Health endpoint also failed');
+        }
+      }
     } catch (error) {
-      console.error("Format 3 error:", error);
+      console.error("Error testing API connectivity:", error);
     }
   };
 

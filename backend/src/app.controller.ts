@@ -28,6 +28,15 @@ export class AppController {
     };
   }
 
+  @Get('admin/stats/public-test')
+  publicStatsTest() {
+    return { 
+      message: 'Public admin stats test endpoint is working without auth!',
+      path: '/admin/stats/public-test',
+      timestamp: new Date().toISOString()
+    };
+  }
+
   @Get('health')
   healthCheck() {
     return {
@@ -38,7 +47,8 @@ export class AppController {
         domain: process.env.AWS_CLOUDFRONT_DOMAIN,
         keyPairId: process.env.AWS_CLOUDFRONT_KEY_PAIR_ID ? '✓' : '✗',
         privateKey: process.env.AWS_CLOUDFRONT_PRIVATE_KEY_PATH ? '✓' : '✗',
-      }
+      },
+      environment: process.env.NODE_ENV || 'development'
     };
   }
 

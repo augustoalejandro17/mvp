@@ -1,14 +1,14 @@
 # Build stage
-FROM node:18 AS builder
+FROM node:18-alpine AS builder
 
 # Install dependencies needed for building
-RUN apt-get update && apt-get install -y \
-    build-essential \
+RUN apk add --no-cache \
     python3 \
     make \
     g++ \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
+
 
 WORKDIR /usr/src/app
 
@@ -28,13 +28,12 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:18-slim
+FROM node:18-alpine
 
 # Install ffmpeg and runtime dependencies
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     ffmpeg \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+    curl
 
 WORKDIR /usr/src/app
 
@@ -51,9 +50,11 @@ COPY --from=builder /usr/src/app/node_modules ./node_modules
 # Create directory for temporary files
 RUN mkdir -p /tmp/videos && chmod 777 /tmp/videos
 
-# Create a non-root user and use it
-RUN useradd -r nodejs && \
-    chown -R nodejs:nodejs /usr/src/app && \
+# Add a non-root user
+RUN addgroup -S nodejs && adduser -S nodejs -G nodejs
+
+# Set permissions
+RUN chown -R nodejs:nodejs /usr/src/app && \
     chown -R nodejs:nodejs /tmp/videos
 
 # Set environment variable for temporary directory
