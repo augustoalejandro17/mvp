@@ -8,11 +8,18 @@ if ! docker info > /dev/null 2>&1; then
   exit 1
 fi
 
+# Generar archivo .env.local para frontend con valores de desarrollo
+echo "📝 Generando variables de entorno para desarrollo local..."
+cat > ./frontend/.env.local << EOL
+NEXT_PUBLIC_API_URL=http://localhost:4000
+EOL
+echo "✅ Archivo .env.local creado para frontend."
+
 echo "🛑 Deteniendo contenedores actuales..."
 docker compose down
 
 echo "🔨 Reconstruyendo imágenes..."
-docker compose build --no-cache
+docker compose build --no-cache --build-arg NEXT_PUBLIC_API_URL=http://localhost:4000
 
 echo "🚀 Iniciando contenedores reconstruidos..."
 docker compose up -d

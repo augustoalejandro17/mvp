@@ -41,4 +41,26 @@ export class AppController {
       }
     };
   }
+
+  @Get('debug/cloudfront')
+  debugCloudFront() {
+    const cloudFrontDomain = process.env.AWS_CLOUDFRONT_DOMAIN || 'no configurado';
+    const cloudFrontKeyPairId = process.env.AWS_CLOUDFRONT_KEY_PAIR_ID || 'no configurado';
+    const hasPrivateKeyBase64 = !!process.env.AWS_CLOUDFRONT_PRIVATE_KEY_BASE64;
+    const hasPrivateKeyPath = !!process.env.AWS_CLOUDFRONT_PRIVATE_KEY_PATH;
+    const privateKeyMethod = hasPrivateKeyBase64 
+      ? 'Base64' 
+      : (hasPrivateKeyPath ? 'Path' : 'No configurado');
+    
+    return {
+      cloudFrontDomain,
+      cloudFrontKeyPairId,
+      privateKeyMethod,
+      hasPrivateKeyBase64,
+      hasPrivateKeyPath,
+      region: process.env.AWS_REGION || 'us-east-1',
+      s3BucketName: process.env.AWS_S3_BUCKET_NAME || 'no configurado',
+      credsAvailable: !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY),
+    };
+  }
 } 

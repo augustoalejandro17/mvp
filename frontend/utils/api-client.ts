@@ -6,9 +6,25 @@ interface CustomAxiosInstance extends AxiosInstance {
   refreshImageUrl: (key: string) => Promise<string | null>;
 }
 
+// Determinar la baseURL usando la variable de entorno o fallback a '/api'
+let baseURL = '/api'; // Valor por defecto para desarrollo
+if (process.env.NEXT_PUBLIC_API_URL) {
+  // Evitar duplicación de /api en la URL
+  baseURL = process.env.NEXT_PUBLIC_API_URL;
+  if (!baseURL.endsWith('/')) baseURL += '/';
+  // Eliminar /api del final si existe
+  if (baseURL.endsWith('/api/')) {
+    baseURL = baseURL.slice(0, -5); // Eliminar '/api/'
+  } else if (baseURL.endsWith('/api')) {
+    baseURL = baseURL.slice(0, -4); // Eliminar '/api'
+  }
+}
+
+console.log('API Base URL:', baseURL); // Para debugging
+
 // Create an Axios instance with default config
 const api = axios.create({
-  baseURL: '/api', // Base URL for API endpoints
+  baseURL, // Usar la URL de la API configurada
   timeout: 30000, // 30 seconds timeout
   headers: {
     'Content-Type': 'application/json',

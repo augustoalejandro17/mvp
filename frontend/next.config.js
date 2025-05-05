@@ -11,16 +11,25 @@ const nextConfig = {
     domains: ['img.youtube.com'],
   },
   async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: 'http://localhost:4000/api/:path*',
-      },
-      {
-        source: '/direct-api/:path*',
-        destination: 'http://localhost:4000/:path*',
-      },
-    ];
+    // Obtener la URL del backend desde la variable de entorno
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    
+    // Solo aplicar rewrites en desarrollo
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Using API URL for rewrites:', apiUrl);
+      return [
+        {
+          source: '/api/:path*',
+          destination: `${apiUrl}/api/:path*`,
+        },
+        {
+          source: '/direct-api/:path*',
+          destination: `${apiUrl}/:path*`,
+        },
+      ];
+    }
+    // No aplicar rewrites en producción
+    return [];
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {

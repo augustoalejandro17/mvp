@@ -55,12 +55,16 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
       const urlObj = new URL(url);
       const pathname = urlObj.pathname;
       
+      console.log('Extracting key from pathname:', pathname);
+      
       // Para URLs de CloudFront o S3
       if (pathname.includes('/images/')) {
         // Extraer la parte después de /images/
         const pathParts = pathname.split('/images/');
         if (pathParts.length > 1) {
-          return `images/${pathParts[1].split('?')[0]}`; // Eliminar query params
+          const key = `images/${pathParts[1].split('?')[0]}`; // Eliminar query params
+          console.log('Extracted key (images):', key);
+          return key;
         }
       }
       
@@ -68,14 +72,18 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
       if (pathname.includes('/videos/')) {
         const pathParts = pathname.split('/videos/');
         if (pathParts.length > 1) {
-          return `videos/${pathParts[1].split('?')[0]}`; // Eliminar query params
+          const key = `videos/${pathParts[1].split('?')[0]}`; // Eliminar query params
+          console.log('Extracted key (videos):', key);
+          return key;
         }
       }
       
       // Si no encontramos un patrón conocido, retornar la ruta completa sin query params
-      return pathname.startsWith('/') ? pathname.substring(1).split('?')[0] : pathname.split('?')[0];
+      const key = pathname.startsWith('/') ? pathname.substring(1).split('?')[0] : pathname.split('?')[0];
+      console.log('Extracted key (fallback):', key);
+      return key;
     } catch (e) {
-      console.error('Error extracting S3 key:', e);
+      console.error('Error extracting S3 key from URL:', url, e);
       return null;
     }
   };
@@ -89,16 +97,27 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
         return null;
       }
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const response = await axios.get(`${apiUrl}/api/images/refresh-url`, {
+      // Calcular baseURL para la API como en api-client.ts
+      let apiBaseUrl = '/api';
+      if (process.env.NEXT_PUBLIC_API_URL) {
+        apiBaseUrl = process.env.NEXT_PUBLIC_API_URL.endsWith('/api') 
+          ? process.env.NEXT_PUBLIC_API_URL 
+          : `${process.env.NEXT_PUBLIC_API_URL}/api`;
+      }
+      
+      console.log('Refreshing image URL with key:', key);
+      console.log('Using API base URL:', apiBaseUrl);
+      
+      const response = await axios.get(`${apiBaseUrl}/images/refresh-url`, {
         params: { key }
       });
       
       if (response.data && response.data.url) {
-        
+        console.log('Received refreshed URL:', response.data.url);
         return response.data.url;
       }
       
+      console.warn('API returned success but no URL in the response');
       return null;
     } catch (e) {
       console.error('Error refreshing image URL:', e);
@@ -116,7 +135,7 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
     
     // Si hemos alcanzado el máximo de intentos, mostrar placeholder
     if (newRetryCount > MAX_RETRIES) {
-      
+      console.error('Maximum retries reached, showing placeholder');
       setImgError(true);
       return;
     }
@@ -127,15 +146,15 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
     if (newRetryCount === 1) {
       // Primer intento: añadir cache-busting
       const bustedUrl = cacheBustUrl(src);
-      
+      console.log('Retry with cache busting:', bustedUrl);
       setImgSrc(bustedUrl);
     } else {
       // Segundo intento: refrescar la URL a través de la API
-      
+      console.log('Trying to refresh URL via API');
       
       const refreshedUrl = await refreshImageUrl(src);
       if (refreshedUrl) {
-        
+        console.log('Using refreshed URL:', refreshedUrl);
         setImgSrc(refreshedUrl);
       } else {
         console.warn('Failed to refresh URL via API, using placeholder');

@@ -149,7 +149,7 @@ export class VideoProcessorService implements OnModuleInit {
       } catch (mkdirErr) {
         this.logger.error(`No se pudo crear el directorio temporal: ${mkdirErr.message}`);
         throw new Error(`No hay directorio temporal disponible: ${mkdirErr.message}`);
-      }
+    }
     }
     
     // Crear nombres de archivo únicos con timestamp para evitar colisiones
@@ -160,7 +160,7 @@ export class VideoProcessorService implements OnModuleInit {
 
     try {
       // Escribir el buffer a un archivo
-      await fs.promises.writeFile(tempInputPath, inputBuffer);
+    await fs.promises.writeFile(tempInputPath, inputBuffer);
       this.logger.log(`Archivo de entrada escrito: ${tempInputPath} (${inputBuffer.length} bytes)`);
     } catch (writeErr) {
       this.logger.error(`Error al escribir archivo de entrada: ${writeErr.message}`);
@@ -168,7 +168,7 @@ export class VideoProcessorService implements OnModuleInit {
     }
     
     this.logger.log(`Procesando video... Input: ${tempInputPath}, Output: ${tempOutputPath}`);
-    
+
     return new Promise((resolve, reject) => {
       // Verificar que el archivo de entrada existe
       if (!fs.existsSync(tempInputPath)) {
@@ -219,24 +219,24 @@ export class VideoProcessorService implements OnModuleInit {
         }
       } else {
         // Usar fluent-ffmpeg (método original)
-        ffmpeg(tempInputPath)
-          .outputOptions([
-            '-c:v libx264',            // Codec H.264
-            '-preset fast',            // Balance velocidad/calidad
-            '-metadata:s:v rotate=0',  // Resetear metadatos de rotación
-            '-acodec copy',            // Copiar audio sin recodificar
-            '-movflags +faststart'     // Para reproducción web
-          ])
-          .output(tempOutputPath)
-          .on('start', (commandLine) => {
+      ffmpeg(tempInputPath)
+        .outputOptions([
+          '-c:v libx264',            // Codec H.264
+          '-preset fast',            // Balance velocidad/calidad
+          '-metadata:s:v rotate=0',  // Resetear metadatos de rotación
+          '-acodec copy',            // Copiar audio sin recodificar
+          '-movflags +faststart'     // Para reproducción web
+        ])
+        .output(tempOutputPath)
+        .on('start', (commandLine) => {
             this.logger.log(`Comando ffmpeg iniciado: ${commandLine}`);
-          })
-          .on('progress', (progress) => {
-            if (progress.percent) {
+        })
+        .on('progress', (progress) => {
+          if (progress.percent) {
               this.logger.verbose(`Progreso del procesamiento: ${progress.percent}%`);
-            }
-          })
-          .on('end', () => {
+          }
+        })
+        .on('end', () => {
             this.logger.log('Procesamiento de video completado con éxito');
             
             // Verificar que el archivo de salida existe y tiene tamaño
@@ -256,25 +256,25 @@ export class VideoProcessorService implements OnModuleInit {
               reject(statErr);
               return;
             }
-            
-            resolve({
-              processedFilePath: tempOutputPath,
-              cleanup: () => {
-                fs.unlink(tempInputPath, (err) => {
-                  if (err) this.logger.error(`Error limpiando archivo temporal: ${err.message}`);
-                });
-                fs.unlink(tempOutputPath, (err) => {
-                  if (err) this.logger.error(`Error limpiando archivo temporal: ${err.message}`);
-                });
-              }
-            });
-          })
-          .on('error', (err) => {
-            this.logger.error(`Error procesando video: ${err.message}`);
-            fs.unlink(tempInputPath, () => {});
-            reject(err);
-          })
-          .run();
+          
+          resolve({
+            processedFilePath: tempOutputPath,
+            cleanup: () => {
+              fs.unlink(tempInputPath, (err) => {
+                if (err) this.logger.error(`Error limpiando archivo temporal: ${err.message}`);
+              });
+              fs.unlink(tempOutputPath, (err) => {
+                if (err) this.logger.error(`Error limpiando archivo temporal: ${err.message}`);
+              });
+            }
+          });
+        })
+        .on('error', (err) => {
+          this.logger.error(`Error procesando video: ${err.message}`);
+          fs.unlink(tempInputPath, () => {});
+          reject(err);
+        })
+        .run();
       }
     });
   }

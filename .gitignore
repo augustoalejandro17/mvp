@@ -62,3 +62,4 @@ coverage/
 .docker/
 data/
 mongodb/ 
+frontend/.env.production

@@ -46,7 +46,7 @@ else
 fi
 
 echo "📝 Para ver los logs en tiempo real, ejecuta: docker compose logs -f"
-echo "🛑 Para detener los contenedores, ejecuta: ./stop-containers.sh"
+echo "🛑 Para detener los contenedores, ejecuta: ./stop-containers.sh" 
 
 # Check if containers started successfully
 if [ $? -eq 0 ]; then

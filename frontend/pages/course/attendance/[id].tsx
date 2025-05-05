@@ -312,7 +312,7 @@ export default function AttendancePage() {
           }
         });
         
-        if (!exists) {
+      if (!exists) {
           let studentId = '';
           let studentName = '';
           
@@ -351,17 +351,17 @@ export default function AttendancePage() {
             studentName = 'Estudiante sin nombre';
           }
           
-          newAttendances.push({
+        newAttendances.push({
             studentId: studentId,
             studentName: studentName,
-            present: true,
-            notes: '',
-            isRegistered: true
-          });
-        }
+          present: true,
+          notes: '',
+          isRegistered: true
+        });
       }
-      
-      setAttendances(newAttendances);
+      }
+    
+    setAttendances(newAttendances);
     };
     
     processStudents();
@@ -408,10 +408,10 @@ export default function AttendancePage() {
     
     const newAttendance = {
       studentId: tempId,
-      studentName: studentName,
-      present: true,
-      notes: '',
-      isRegistered: false
+        studentName: studentName,
+        present: true,
+        notes: '',
+        isRegistered: false
     };
     
     setAttendances(prev => [...prev, newAttendance]);
@@ -423,14 +423,14 @@ export default function AttendancePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    setError('');
-    setSuccess('');
-
+      setSaving(true);
+      setError('');
+      setSuccess('');
+      
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
-
+      
       const attendancesToSave = attendances
         .filter(attendance => 
           attendance && 
@@ -479,7 +479,7 @@ export default function AttendancePage() {
             try {
               const response = await axios.post(`${apiUrl}/api/attendance`, data, {
                 headers: { Authorization: `Bearer ${token}` }
-              });
+      });
               return response;
             } catch (err: any) {
               // Print specific error details
@@ -526,7 +526,7 @@ export default function AttendancePage() {
         setError(`Error al guardar ${failedPromises.length} registros de asistencia`);
       } else {
         setSuccess('Asistencia guardada correctamente');
-        fetchAttendances();
+      fetchAttendances();
       }
     } catch (error: any) {
       console.error('Error al guardar asistencia:', error);
@@ -623,12 +623,12 @@ export default function AttendancePage() {
               onChange={(e) => setDate(e.target.value)}
               className={styles.dateInput}
             />
-          </div>
         </div>
-        
-        {error && <div className={styles.error}>{error}</div>}
-        {success && <div className={styles.success}>{success}</div>}
-        
+      </div>
+      
+      {error && <div className={styles.error}>{error}</div>}
+      {success && <div className={styles.success}>{success}</div>}
+      
         {loading ? (
           <div className={styles.loading}>Cargando registros de asistencia...</div>
         ) : (
@@ -652,16 +652,16 @@ export default function AttendancePage() {
               </div>
             ) : (
               <>
-                <div className={styles.tableContainer}>
+        <div className={styles.tableContainer}>
                   <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th>Estudiante</th>
-                        <th>Asistencia</th>
+            <thead>
+              <tr>
+                <th>Estudiante</th>
+                <th>Asistencia</th>
                         <th>Notas (opcional)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+              </tr>
+            </thead>
+            <tbody>
                       {attendances
                         .filter(attendance => 
                           attendance && 
@@ -678,45 +678,45 @@ export default function AttendancePage() {
                                     <span className={`${styles.roleBadge} ${styles.unregistered}`}>no registrado</span>
                                   )}
                                 </div>
-                              </td>
+                  </td>
                               <td>
                                 <div className={styles.studentPresent}>
                                   <label className={styles.radioLabel}>
-                                    <input
-                                      type="radio"
-                                      name={`present-${attendance.studentId}`}
-                                      checked={attendance.present}
-                                      onChange={() => handlePresentChange(attendance.studentId, true)}
-                                    />
+                          <input
+                            type="radio"
+                            name={`present-${attendance.studentId}`}
+                            checked={attendance.present}
+                            onChange={() => handlePresentChange(attendance.studentId, true)}
+                          />
                                     <FaCheck style={{ color: '#38a169' }} /> Presente
-                                  </label>
+                        </label>
                                   <label className={styles.radioLabel}>
-                                    <input
-                                      type="radio"
-                                      name={`present-${attendance.studentId}`}
-                                      checked={!attendance.present}
-                                      onChange={() => handlePresentChange(attendance.studentId, false)}
-                                    />
+                          <input
+                            type="radio"
+                            name={`present-${attendance.studentId}`}
+                            checked={!attendance.present}
+                            onChange={() => handlePresentChange(attendance.studentId, false)}
+                          />
                                     <FaTimes style={{ color: '#e53e3e' }} /> Ausente
-                                  </label>
-                                </div>
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  value={attendance.notes || ''}
-                                  onChange={(e) => handleNotesChange(attendance.studentId, e.target.value)}
+                        </label>
+                      </div>
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        value={attendance.notes || ''}
+                        onChange={(e) => handleNotesChange(attendance.studentId, e.target.value)}
                                   className={styles.input}
-                                  placeholder="Notas (opcional)"
-                                />
-                              </td>
-                            </tr>
+                        placeholder="Notas (opcional)"
+                      />
+                    </td>
+                  </tr>
                           );
                         })}
-                    </tbody>
-                  </table>
-                </div>
-                
+            </tbody>
+          </table>
+        </div>
+        
                 <div className={styles.buttonContainer}>
                   <button 
                     type="button" 
@@ -726,17 +726,17 @@ export default function AttendancePage() {
                     <FaPlus /> Agregar Asistente
                   </button>
                   
-                  <button 
-                    type="submit" 
+          <button 
+            type="submit" 
                     className={styles.createButton}
                     disabled={saving}
-                  >
+          >
                     <FaSave /> {saving ? 'Guardando...' : 'Guardar Asistencia'}
-                  </button>
-                </div>
+          </button>
+        </div>
               </>
             )}
-          </form>
+      </form>
         )}
       </main>
       
@@ -763,8 +763,8 @@ export default function AttendancePage() {
               </div>
               
               <div className={styles.formActions}>
-                <button
-                  type="button"
+                <button 
+                  type="button" 
                   className={styles.cancelButton}
                   onClick={() => {
                     setShowAddNonRegisteredModal(false);

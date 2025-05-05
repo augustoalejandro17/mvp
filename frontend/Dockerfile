@@ -16,6 +16,9 @@ COPY . .
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
+# Output environment for debugging
+RUN echo "Building with NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL"
+
 # Build the application
 RUN npm run build
 
@@ -23,6 +26,9 @@ RUN npm run build
 FROM node:18-alpine
 
 WORKDIR /app
+
+# Copy environment variables from the builder
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 # Install only production dependencies
 COPY package*.json ./
