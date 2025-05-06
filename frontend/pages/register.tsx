@@ -31,10 +31,9 @@ export default function Register() {
       
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
-      // Always register as student
       const response = await axios.post(
         `${apiUrl}/api/auth/register`, 
-        { name, email, password, role: 'student' },
+        { name, email, password },
         { headers: { 'Content-Type': 'application/json' } }
       );
       
