@@ -4,7 +4,7 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../../styles/School.module.css';
-import { FaTrashAlt, FaEdit } from 'react-icons/fa';
+import { FaTrashAlt, FaEdit, FaPlus } from 'react-icons/fa';
 import { jwtDecode } from 'jwt-decode';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import ImageFallback from '../../components/ImageFallback';
@@ -137,21 +137,55 @@ export default function SchoolDetail() {
     router.push(`/course/${courseId}`);
   };
   
+  const handleCreateCourseClick = () => {
+    if (!school) return;
+    
+    console.log('Redirigiendo a crear curso para la escuela:', school._id);
+    
+    // Usar window.open para garantizar que se abre en la misma ventana
+    const baseUrl = window.location.origin;
+    const url = `${baseUrl}/course/create?schoolId=${school._id}`;
+    console.log('URL de redirección:', url);
+    
+    // Implementación más robusta con fallback
+    try {
+      // Intento 1: usando window.location.href
+      window.location.href = url;
+    } catch (error) {
+      console.error('Error al redirigir usando window.location.href:', error);
+      try {
+        // Intento 2: usando window.open
+        window.open(url, '_self');
+      } catch (error2) {
+        console.error('Error al redirigir usando window.open:', error2);
+        // Intento 3: usando Next.js router como último recurso
+        router.push(`/course/create?schoolId=${school._id}`);
+      }
+    }
+  };
+  
   const isTeacherOrAdmin = () => {
     if (!user || !school) return false;
     
+    // Super admin y admin global pueden editar cualquier escuela
     if (user.role === 'super_admin' || user.role === 'admin') return true;
     
+    // Verificar si el usuario es profesor o administrador de esta escuela específica
     return school.teachers?.some(teacher => teacher._id === user.id) || 
-           school.admin?._id === user.id;
+           school.admin?._id === user.id || 
+           user.role === 'school_owner' && school.admin?._id === user.id || 
+           user.role === 'administrative' && school.teachers?.some(teacher => teacher._id === user.id);
   };
 
   const isSchoolAdmin = () => {
     if (!user || !school) return false;
     
+    // Super admin y admin global pueden administrar cualquier escuela
     if (user.role === 'super_admin' || user.role === 'admin') return true;
     
-    return school.admin?._id === user.id;
+    // Solo el admin de la escuela (school owner) puede administrarla
+    return school.admin?._id === user.id || 
+           user.role === 'school_owner' && school.admin?._id === user.id;
   };
   
   const handleDeleteSchool = async () => {
@@ -275,12 +309,20 @@ export default function SchoolDetail() {
         
         {isTeacherOrAdmin() && (
           <div className={styles.adminActions}>
-            <button 
+            <a 
+              href={`/course/create?schoolId=${school._id}`}
               className={styles.createButton}
-              onClick={() => router.push(`/course/create?schoolId=${school._id}`)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textDecoration: 'none',
+                fontWeight: '500',
+                cursor: 'pointer',
+              }}
             >
-              Crear Nuevo Curso
-            </button>
+              <FaPlus style={{ marginRight: '8px' }} /> Crear Nuevo Curso
+            </a>
             
             {isSchoolAdmin() && (
               <>

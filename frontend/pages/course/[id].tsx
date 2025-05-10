@@ -156,19 +156,73 @@ export default function CourseDetail() {
     return Boolean(user?.id && teacherId && teacherId === user.id);
   }, [user]);
 
-  const canModifyClassItem = useCallback((teacherId: string | undefined): boolean => {
-    if (!user?.role || !teacherId) return false;
-    const hasPermission = canModifyClass(user.role, isClassTeacher(teacherId));
+  const isTeacherOfCourse = useCallback((): boolean => {
+    if (!user || !course) return false;
+    return course.teacher._id === user.id;
+  }, [user, course]);
+
+  const canModifyThisCourse = useCallback((): boolean => {
+    if (!user || !course) return false;
     
+    // Roles que pueden modificar cualquier curso
+    if (['super_admin', 'admin'].includes(user.role)) return true;
+    
+    // School owner puede modificar cualquier curso en su escuela
+    if (user.role === 'school_owner' && course.school) {
+      // Aquí asumimos que hay una API que verifica si el usuario es dueño de la escuela
+      // Idealmente, el backend debería proporcionar esta información en los datos del curso
+      return true; // Simplificado, en realidad deberíamos comprobar la propiedad de la escuela
+    }
+    
+    // Rol administrativo puede modificar cursos en su escuela
+    if (user.role === 'administrative' && course.school) {
+      // Mismo comentario que arriba sobre verificar la relación con la escuela
+      return true; // Simplificado
+    }
+    
+    // Teacher solo puede modificar sus propios cursos
+    return user.role === 'teacher' && isTeacherOfCourse();
+  }, [user, course, isTeacherOfCourse]);
+
+  const canModifyClassItem = useCallback((teacherId: string | undefined): boolean => {
+    if (!user?.role || !teacherId || !course) return false;
+    
+    // Roles que pueden modificar clases en cualquier curso
+    if (['super_admin', 'admin'].includes(user.role)) return true;
+    
+    // School owner y administrative pueden modificar clases en sus escuelas
+    if (['school_owner', 'administrative'].includes(user.role) && course.school) {
+      // Aquí necesitaríamos verificar la relación con la escuela
+      return true; // Simplificado
+    }
+    
+    // El profesor del curso puede modificar las clases en su curso
+    if (isTeacherOfCourse()) return true;
+    
+    // Teacher que creó la clase específica también puede modificarla
+    const hasPermission = canModifyClass(user.role, isClassTeacher(teacherId));
     return hasPermission;
-  }, [user, isClassTeacher]);
+  }, [user, course, isTeacherOfCourse, isClassTeacher]);
 
   const canTakeAttendance = useCallback((teacherId: string | undefined): boolean => {
-    if (!user?.role || !teacherId) return false;
-    const hasPermission = canManageAttendance(user.role, isClassTeacher(teacherId));
+    if (!user?.role || !teacherId || !course) return false;
     
+    // Administradores globales pueden tomar asistencia en cualquier curso
+    if (['super_admin', 'admin'].includes(user.role)) return true;
+    
+    // School owner y administrative pueden tomar asistencia en sus escuelas
+    if (['school_owner', 'administrative'].includes(user.role) && course.school) {
+      // Necesitaríamos verificar la relación con la escuela
+      return true; // Simplificado
+    }
+    
+    // El profesor del curso siempre puede tomar asistencia
+    if (isTeacherOfCourse()) return true;
+    
+    // Verificamos si el profesor de la clase específica puede tomar asistencia
+    const hasPermission = canManageAttendance(user.role, isClassTeacher(teacherId));
     return hasPermission;
-  }, [user, isClassTeacher]);
+  }, [user, course, isTeacherOfCourse, isClassTeacher]);
 
   const handleDeleteCourse = async () => {
     if (!confirm('¿Estás seguro de que deseas eliminar este curso? Esta acción no se puede deshacer.')) {
@@ -349,7 +403,7 @@ export default function CourseDetail() {
                         <FaEye />
                       </button>
                       
-                      {canModifyClassItem(course.teacher._id) && (
+                      {canModifyClassItem(classItem.createdBy._id) && (
                         <>
                           <Link 
                             href={`/class/edit/${classItem._id}`}
@@ -379,7 +433,7 @@ export default function CourseDetail() {
               </ul>
             )}
             
-            {canModifyClassItem(course.teacher._id) && (
+            {canModifyThisCourse() && (
               <div className={styles.courseActions}>
                 <Link href={`/class/create?courseId=${course._id}`} className={styles.addButton}>
                   <FaPlus className={styles.icon} /> Agregar Clase

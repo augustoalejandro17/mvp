@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { FaEdit, FaTrash, FaUserPlus, FaLink, FaUserCheck, FaSearch, FaClock, FaCheckCircle, FaEnvelope, FaUniversity, FaList, FaGraduationCap, FaCalendarAlt, FaMoneyBillWave } from 'react-icons/fa';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import PaymentRegistrationModal from '../../components/PaymentRegistrationModal';
+import UserSearch from '../../components/UserSearch';
+import AssignSchoolRoleModal from '../../components/AssignSchoolRoleModal';
 
 // Tipos de usuario
 enum UserType {
@@ -108,6 +110,9 @@ export default function UserManagement() {
     school: '',
     course: '',
   });
+
+  const [showAssignRoleModal, setShowAssignRoleModal] = useState(false);
+  const [selectedUserForRole, setSelectedUserForRole] = useState<User | null>(null);
 
   const router = useRouter();
   const { handleApiError } = useApiErrorHandler();
@@ -1195,6 +1200,46 @@ export default function UserManagement() {
     }
   };
 
+  // Función para manejar la selección de un usuario desde la búsqueda
+  const handleUserSelected = (user: any) => {
+    // Agregar el usuario al listado si no existe
+    if (!users.some(u => u._id === user._id)) {
+      setUsers([...users, user]);
+      setFilteredUsers([...filteredUsers, user]);
+      setSuccess(`Usuario "${user.name}" añadido al listado`);
+      
+      // Limpiar el mensaje de éxito después de 3 segundos
+      setTimeout(() => {
+        setSuccess('');
+      }, 3000);
+    } else {
+      setError(`El usuario "${user.name}" ya está en el listado`);
+      
+      // Limpiar el mensaje de error después de 3 segundos
+      setTimeout(() => {
+        setError('');
+      }, 3000);
+    }
+  };
+
+  // Función para abrir el modal de asignación de roles
+  const handleAssignRole = (user: any) => {
+    setSelectedUserForRole(user);
+    setShowAssignRoleModal(true);
+  };
+
+  // Función para actualizar la lista después de asignar un rol
+  const handleRoleAssigned = () => {
+    // Recargar usuarios para mostrar roles actualizados
+    fetchData();
+    setSuccess('Rol asignado correctamente');
+    
+    // Limpiar el mensaje de éxito después de 3 segundos
+    setTimeout(() => {
+      setSuccess('');
+    }, 3000);
+  };
+
   if (loading && users.length === 0) {
     return <div className={styles.loading}>Cargando...</div>;
   }
@@ -1204,55 +1249,87 @@ export default function UserManagement() {
       <main className={styles.main}>
         <div className={styles.header}>
           <h1 className={styles.title}>Gestión de Usuarios</h1>
-          <div className={styles.controls}>
-            <div className={styles.search}>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  placeholder="Buscar usuarios..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className={styles.searchInput}
+        </div>
+
+        <div className={styles.controlPanel}>
+          {user?.role === 'super_admin' || user?.role === 'admin' || 
+            user?.role === 'school_owner' || user?.role === 'administrative' ? (
+            <div className={styles.searchFilterRow}>
+              <div className={styles.searchWrapper}>
+                <UserSearch 
+                  onSelectUser={handleUserSelected}
+                  onAssignRole={handleAssignRole}
+                  availableSchools={userSchools}
+                  selectedSchool={selectedSchool}
                 />
-                <FaSearch style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#4a5568' }} />
+              </div>
+              <div className={styles.filterWrapper}>
+                <select
+                  className={styles.select}
+                  value={selectedSchool}
+                  onChange={(e) => setSelectedSchool(e.target.value)}
+                >
+                  <option value="">Todas las escuelas</option>
+                  <option value="unregistered">Asistentes sin registro</option>
+                  {userSchools.map(school => (
+                    <option key={school._id} value={school._id}>
+                      {school.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <select
-                className={styles.select}
-                value={selectedSchool}
-                onChange={(e) => setSelectedSchool(e.target.value)}
-                style={{ minWidth: '200px' }}
-              >
-                <option value="">Todas las escuelas</option>
-                <option value="unregistered">Asistentes sin registro</option>
-                {userSchools.map(school => (
-                  <option key={school._id} value={school._id}>
-                    {school.name}
-                  </option>
-                ))}
-              </select>
-              <div className={styles.buttonsContainer}>
-                <button 
-                  className={styles.createButton}
-                  onClick={() => {
-                    setCreateUserType(UserType.REGISTERED);
-                    setShowCreateUserModal(true);
-                  }}
+          ) : (
+            <div className={styles.searchFilterRow}>
+              <div className={styles.searchWrapper}>
+                <div className={styles.simpleSearchWrapper}>
+                  <input
+                    type="text"
+                    placeholder="Buscar usuarios..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className={styles.searchInput}
+                  />
+                  <FaSearch className={styles.searchIcon} />
+                </div>
+              </div>
+              <div className={styles.filterWrapper}>
+                <select
+                  className={styles.select}
+                  value={selectedSchool}
+                  onChange={(e) => setSelectedSchool(e.target.value)}
                 >
-                  <FaUserPlus /> Crear Usuario
-                </button>
-                <button 
-                  className={styles.altButton}
-                  onClick={() => {
-                    setCreateUserType(UserType.UNREGISTERED);
-                    setShowCreateUserModal(true);
-                  }}
-                >
-                  <FaUserCheck /> Agregar Asistente
-                </button>
+                  <option value="">Todas las escuelas</option>
+                  <option value="unregistered">Asistentes sin registro</option>
+                  {userSchools.map(school => (
+                    <option key={school._id} value={school._id}>
+                      {school.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
+          )}
+          
+          <div className={styles.actionButtonsRow}>
+            <button 
+              className={styles.createButton}
+              onClick={() => {
+                setCreateUserType(UserType.REGISTERED);
+                setShowCreateUserModal(true);
+              }}
+            >
+              <FaUserPlus /> Crear Usuario
+            </button>
+            <button 
+              className={styles.altButton}
+              onClick={() => {
+                setCreateUserType(UserType.UNREGISTERED);
+                setShowCreateUserModal(true);
+              }}
+            >
+              <FaUserCheck /> Agregar Asistente
+            </button>
           </div>
         </div>
 
@@ -2079,6 +2156,14 @@ export default function UserManagement() {
           userCourses={userCourses}
         />
       )}
+
+      {/* Modal para asignar rol en escuela */}
+      <AssignSchoolRoleModal
+        isOpen={showAssignRoleModal}
+        onClose={() => setShowAssignRoleModal(false)}
+        user={selectedUserForRole}
+        onSuccess={handleRoleAssigned}
+      />
     </div>
   );
 } 

@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, UnauthorizedException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { User } from '../auth/schemas/user.schema';
@@ -220,6 +220,144 @@ export class UsersService {
     }
     
     return user;
+  }
+
+  async findByRole(role: UserRole): Promise<User[]> {
+    this.logger.log(`Buscando usuarios con rol: ${role}`);
+    
+    // Validar que el rol sea uno de los permitidos
+    if (!Object.values(UserRole).includes(role)) {
+      throw new BadRequestException('Invalid role');
+    }
+    
+    return this.userModel.find({ role }).select('_id name email role').exec();
+  }
+
+  async findTeachersBySchool(schoolId: string): Promise<User[]> {
+    this.logger.log(`Buscando profesores para la escuela: ${schoolId}`);
+    
+    // Verificar que la escuela exista
+    const school = await this.schoolModel.findById(schoolId);
+    if (!school) {
+      throw new NotFoundException(`Escuela con ID ${schoolId} no encontrada`);
+    }
+    
+    // Buscar usuarios que:
+    // 1. Tengan rol global TEACHER y estén en la escuela, O
+    // 2. Tengan un schoolRole de 'teacher' para esta escuela específica
+    const teachers = await this.userModel.find({
+      $and: [
+        { schools: schoolId }, // Deben estar asociados a la escuela
+        {
+          $or: [
+            { role: UserRole.TEACHER }, // Rol global es TEACHER
+            { 'schoolRoles': { 
+                $elemMatch: { 
+                  'schoolId': new Types.ObjectId(schoolId), 
+                  'role': 'teacher'
+                } 
+              }
+            } // O tienen un rol específico de 'teacher' en esta escuela
+          ]
+        }
+      ]
+    }).select('_id name email').exec();
+    
+    this.logger.log(`Se encontraron ${teachers.length} profesores para la escuela ${schoolId}`);
+    
+    return teachers;
+  }
+
+  async searchUsersByEmail(email: string, requestingUserId: string, requestingUserRole: string, schoolId?: string): Promise<User[]> {
+    this.logger.log(`Buscando usuarios con email similar a: ${email} por usuario: ${requestingUserId} (${requestingUserRole})`);
+    
+    // Validar entrada
+    if (!email || email.length < 3) {
+      throw new BadRequestException('La búsqueda debe tener al menos 3 caracteres');
+    }
+    
+    // Construir la consulta base - buscar por email
+    let query: any = { 
+      email: { $regex: email, $options: 'i' }  // Case insensitive
+    };
+    
+    // Restricción basada en roles
+    const isSuperAdmin = requestingUserRole === UserRole.SUPER_ADMIN;
+    const isAdmin = requestingUserRole === UserRole.ADMIN;
+    const isSchoolOwner = requestingUserRole === UserRole.SCHOOL_OWNER;
+    const isAdministrative = requestingUserRole === UserRole.ADMINISTRATIVE;
+    
+    // Super admin y admin pueden hacer búsquedas globales sin restricciones
+    if (isSuperAdmin || isAdmin) {
+      // No añadir restricciones adicionales - búsqueda global
+      
+      // Si se especifica una escuela, filtrar por esa escuela como opción adicional
+      if (schoolId) {
+        // Filtrado opcional por escuela, pero no obligatorio para estos roles
+        query.schools = schoolId;
+      }
+    } 
+    // School owner y administrative pueden hacer búsquedas globales pero deben tener la información de sus escuelas
+    else if (isSchoolOwner || isAdministrative) {
+      // Obtener las escuelas que puede gestionar el usuario solicitante
+      const requestingUser = await this.userModel.findById(requestingUserId);
+      if (!requestingUser) {
+        throw new NotFoundException('Usuario no encontrado');
+      }
+      
+      // Determinar qué escuelas puede gestionar
+      let userSchoolIds = [];
+      if (isSchoolOwner) {
+        userSchoolIds = requestingUser.ownedSchools?.map(id => id.toString()) || [];
+      } else if (isAdministrative) {
+        userSchoolIds = requestingUser.administratedSchools?.map(id => id.toString()) || [];
+      }
+      
+      // Si se especifica una escuela específica, verificar que tenga permisos para ella
+      if (schoolId) {
+        const canManageSchool = await this.canManageSchool(requestingUserId, schoolId);
+        if (!canManageSchool) {
+          throw new ForbiddenException('No tienes permiso para ver usuarios de esta escuela');
+        }
+        
+        // Solo filtrar por esa escuela si el usuario tiene permiso
+        query.schools = schoolId;
+      } 
+      // Si no se especifica escuela, no filtramos por escuela - permitiendo búsqueda global
+      // pero mantenemos la información de las escuelas que puede gestionar para la lógica de asignación
+    } else {
+      // Otros roles como teacher o student solo pueden buscar en su propia escuela
+      throw new ForbiddenException('No tienes permisos para buscar usuarios');
+    }
+    
+    // Ejecutar la consulta con fields específicos para proteger datos sensibles
+    return this.userModel.find(query)
+      .select('_id name email role schoolRoles')
+      .limit(10)  // Limitar resultados para evitar cargar demasiados datos
+      .exec();
+  }
+  
+  private async canManageSchool(userId: string, schoolId: string): Promise<boolean> {
+    const user = await this.userModel.findById(userId);
+    if (!user) return false;
+    
+    // Super admin puede gestionar cualquier escuela
+    if (user.role === UserRole.SUPER_ADMIN) return true;
+    
+    // Admin global puede gestionar cualquier escuela
+    if (user.role === UserRole.ADMIN) return true;
+    
+    // School owner puede gestionar sus propias escuelas
+    if (user.role === UserRole.SCHOOL_OWNER) {
+      return user.ownedSchools.some(id => id.toString() === schoolId);
+    }
+    
+    // Administrative puede gestionar las escuelas que administra
+    if (user.role === UserRole.ADMINISTRATIVE) {
+      return user.administratedSchools.some(id => id.toString() === schoolId);
+    }
+    
+    return false;
   }
 
   async changePassword(userId: string, changePasswordDto: ChangePasswordDto): Promise<User> {

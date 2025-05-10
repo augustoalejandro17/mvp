@@ -15,6 +15,13 @@ interface DecodedToken {
   exp: number;
 }
 
+interface User {
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
 export default function CreateSchool() {
   const router = useRouter();
   const [name, setName] = useState('');
@@ -27,6 +34,13 @@ export default function CreateSchool() {
   const [userId, setUserId] = useState('');
   const [userRole, setUserRole] = useState('');
   const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [schoolOwners, setSchoolOwners] = useState<User[]>([]);
+  const [selectedOwnerId, setSelectedOwnerId] = useState('');
+  const [teachers, setTeachers] = useState<User[]>([]);
+  const [selectedTeachers, setSelectedTeachers] = useState<string[]>([]);
+  const [administratives, setAdministratives] = useState<User[]>([]);
+  const [selectedAdministratives, setSelectedAdministratives] = useState<string[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
   useEffect(() => {
     // Verificar autenticación
@@ -39,20 +53,104 @@ export default function CreateSchool() {
     try {
       const decoded = jwtDecode<DecodedToken>(token);
       
-      if (decoded.role !== 'admin' && decoded.role !== 'teacher') {
+      // Permitir a super_admin, admin y teacher crear escuelas
+      if (!['super_admin', 'admin', 'teacher', 'school_owner'].includes(decoded.role)) {
+        console.log('Usuario sin permisos suficientes:', decoded.role);
         router.push('/');
         return;
       }
+      
       setUserId(decoded.sub);
       setUserRole(decoded.role);
+      
+      // Al crear una escuela como admin, super_admin se muestra un dropdown para seleccionar school_owner
+      if (['super_admin', 'admin'].includes(decoded.role)) {
+        fetchSchoolOwners(token);
+      } else {
+        // Si no es admin o super_admin, el creador será el school_owner
+        setSelectedOwnerId(decoded.sub);
+      }
+      
+      // Cargar profesores y administrativos para las listas de selección
+      fetchUsersByRole(token, 'teacher');
+      fetchUsersByRole(token, 'administrative');
+      
     } catch (error) {
       console.error('Error decodificando token:', error);
       router.push('/login');
     }
   }, [router]);
+  
+  const fetchSchoolOwners = async (token: string) => {
+    try {
+      setLoadingUsers(true);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      
+      const response = await axios.get(
+        `${apiUrl}/api/users/by-role/school_owner`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      
+      setSchoolOwners(response.data);
+      
+      // Si hay school owners, seleccionar el primero por defecto
+      if (response.data.length > 0) {
+        setSelectedOwnerId(response.data[0]._id);
+      }
+    } catch (error) {
+      console.error('Error al cargar school owners:', error);
+      setError('No se pudieron cargar los dueños de escuela');
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+  
+  const fetchUsersByRole = async (token: string, role: string) => {
+    try {
+      setLoadingUsers(true);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      
+      const response = await axios.get(
+        `${apiUrl}/api/users/by-role/${role}`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      
+      if (role === 'teacher') {
+        setTeachers(response.data);
+      } else if (role === 'administrative') {
+        setAdministratives(response.data);
+      }
+    } catch (error) {
+      console.error(`Error al cargar usuarios con rol ${role}:`, error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
 
   const handleImageUpload = (imageUrl: string) => {
     setLogoUrl(imageUrl);
+  };
+  
+  const handleTeacherSelection = (teacherId: string) => {
+    setSelectedTeachers(prev => {
+      // Si ya está seleccionado, lo quitamos
+      if (prev.includes(teacherId)) {
+        return prev.filter(id => id !== teacherId);
+      }
+      // Si no está seleccionado, lo añadimos
+      return [...prev, teacherId];
+    });
+  };
+  
+  const handleAdministrativeSelection = (adminId: string) => {
+    setSelectedAdministratives(prev => {
+      // Si ya está seleccionado, lo quitamos
+      if (prev.includes(adminId)) {
+        return prev.filter(id => id !== adminId);
+      }
+      // Si no está seleccionado, lo añadimos
+      return [...prev, adminId];
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,6 +167,12 @@ export default function CreateSchool() {
       return;
     }
     
+    // Validar que se haya seleccionado un school owner
+    if (!selectedOwnerId) {
+      setError('Debes seleccionar un dueño de escuela');
+      return;
+    }
+    
     try {
       setLoading(true);
       setError('');
@@ -82,13 +186,11 @@ export default function CreateSchool() {
         description, 
         logoUrl: logoUrl || undefined, 
         isPublic,
-        admin: userId
+        admin: selectedOwnerId,
+        teachers: selectedTeachers.length ? selectedTeachers : undefined,
+        administratives: selectedAdministratives.length ? selectedAdministratives : undefined
       };
       
-      
-      
-      
-
       const response = await axios.post(
         `${apiUrl}/api/schools`, 
         payload,
@@ -99,7 +201,6 @@ export default function CreateSchool() {
           } 
         }
       );
-      
       
       setSuccess(true);
       
@@ -140,7 +241,7 @@ export default function CreateSchool() {
     }
   };
 
-  if (!userId) {
+  if (loadingUsers) {
     return <div className={styles.loadingContainer}>Cargando...</div>;
   }
 
@@ -156,6 +257,20 @@ export default function CreateSchool() {
         ) : (
           <form className={styles.form} onSubmit={handleSubmit}>
             {error && <p className={styles.error}>{error}</p>}
+            
+            {/* Mensaje para super_admin */}
+            {userRole === 'super_admin' && (
+              <div className={styles.adminInfo} style={{
+                background: '#e3f2fd',
+                padding: '12px',
+                borderRadius: '4px',
+                marginBottom: '20px'
+              }}>
+                <p style={{ margin: 0 }}>
+                  <strong>Modo Super Admin:</strong> Tienes privilegios para crear cualquier tipo de escuela.
+                </p>
+              </div>
+            )}
             
             <div className={styles.formGroup}>
               <label htmlFor="name">Nombre de la Escuela*</label>
@@ -182,6 +297,76 @@ export default function CreateSchool() {
                 className={styles.textarea}
               ></textarea>
               <p className={styles.inputHelp}>Mínimo 10 caracteres</p>
+            </div>
+            
+            {/* Selección de School Owner (solo para admin y super_admin) */}
+            {['super_admin', 'admin'].includes(userRole) && (
+              <div className={styles.formGroup}>
+                <label htmlFor="ownerId">Dueño de la Escuela*</label>
+                <select
+                  id="ownerId"
+                  value={selectedOwnerId}
+                  onChange={(e) => setSelectedOwnerId(e.target.value)}
+                  required
+                  className={styles.select}
+                >
+                  <option value="">Seleccionar un dueño</option>
+                  {schoolOwners.map((owner) => (
+                    <option key={owner._id} value={owner._id}>
+                      {owner.name} ({owner.email})
+                    </option>
+                  ))}
+                </select>
+                <p className={styles.inputHelp}>El usuario que será dueño y administrador principal de la escuela</p>
+              </div>
+            )}
+            
+            {/* Selección de Profesores */}
+            <div className={styles.formGroup}>
+              <label>Profesores</label>
+              <div className={styles.multiSelect}>
+                {teachers.length === 0 ? (
+                  <p className={styles.inputHelp}>No hay profesores disponibles</p>
+                ) : (
+                  teachers.map((teacher) => (
+                    <div key={teacher._id} className={styles.checkboxItem}>
+                      <label className={styles.checkboxLabel}>
+                        <input
+                          type="checkbox"
+                          checked={selectedTeachers.includes(teacher._id)}
+                          onChange={() => handleTeacherSelection(teacher._id)}
+                        />
+                        <span>{teacher.name} ({teacher.email})</span>
+                      </label>
+                    </div>
+                  ))
+                )}
+              </div>
+              <p className={styles.inputHelp}>Selecciona los profesores que pertenecerán a esta escuela</p>
+            </div>
+            
+            {/* Selección de Administrativos */}
+            <div className={styles.formGroup}>
+              <label>Personal Administrativo</label>
+              <div className={styles.multiSelect}>
+                {administratives.length === 0 ? (
+                  <p className={styles.inputHelp}>No hay personal administrativo disponible</p>
+                ) : (
+                  administratives.map((admin) => (
+                    <div key={admin._id} className={styles.checkboxItem}>
+                      <label className={styles.checkboxLabel}>
+                        <input
+                          type="checkbox"
+                          checked={selectedAdministratives.includes(admin._id)}
+                          onChange={() => handleAdministrativeSelection(admin._id)}
+                        />
+                        <span>{admin.name} ({admin.email})</span>
+                      </label>
+                    </div>
+                  ))
+                )}
+              </div>
+              <p className={styles.inputHelp}>Selecciona el personal administrativo que pertenecerá a esta escuela</p>
             </div>
             
             <div className={styles.formGroup}>

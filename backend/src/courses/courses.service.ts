@@ -36,69 +36,60 @@ export class CoursesService {
   async create(createCourseDto: CreateCourseDto, teacherId: string): Promise<Course> {
     
     
+    console.log('Datos para crear curso:', JSON.stringify(createCourseDto));
+    
     try {
-      // Verificar que el profesor exista
-      const teacher = await this.userModel.findById(teacherId);
-      if (!teacher) {
-        this.logger.error(`Profesor con ID ${teacherId} no encontrado`);
-        throw new NotFoundException(`Profesor con ID ${teacherId} no encontrado`);
-      }
-      
       // Verificar que la escuela exista
-      const school = await this.schoolsService.findOne(createCourseDto.schoolId);
-      
+      const school = await this.schoolModel.findById(createCourseDto.schoolId);
       if (!school) {
-        this.logger.error(`Escuela con ID ${createCourseDto.schoolId} no encontrada`);
-        throw new NotFoundException(`Escuela con ID ${createCourseDto.schoolId} no encontrada`);
+        throw new BadRequestException(`La escuela con ID ${createCourseDto.schoolId} no existe`);
       }
       
-      // Para evitar errores de tipo, usar el operador de acceso seguro
-      const adminId = school.admin ? 
-        (typeof school.admin === 'object' && school.admin !== null ? String(school.admin) : String(school.admin)) : 
-        'null';
-        
-      // Convertir IDs a string para comparación segura
-      const schoolAdminId = adminId !== 'null' ? adminId : '';
-      const teacherIdStr = teacherId ? String(teacherId) : '';
+      // Configurar profesor principal (puede ser el que se proporciona en el DTO o el usuario actual)
+      const mainTeacherId = createCourseDto.teacher || teacherId;
       
-      // Verificar si el profesor pertenece a la escuela o es admin
-      let isTeacherInSchool = false;
-      
-      // Depurar el contenido del array de profesores
-      
-      if (Array.isArray(school.teachers)) {
-        isTeacherInSchool = school.teachers.some(t => {
-          if (!t) return false;
-          const teacherRefId = String(t);
-          return teacherRefId === teacherIdStr;
-        });
+      // Verificar que el profesor principal exista
+      const mainTeacher = await this.userModel.findById(mainTeacherId);
+      if (!mainTeacher) {
+        throw new BadRequestException(`El profesor principal con ID ${mainTeacherId} no existe`);
       }
       
-      const isAdmin = schoolAdminId === teacherIdStr;
+      // Procesar lista de profesores adicionales
+      let teachersArray = [mainTeacherId]; // Incluir profesor principal como el primer profesor
       
-      // Verificar también si es administrador de sistema
-      const isSystemAdmin = compareRole(teacher.role, UserRole.ADMINISTRATIVE);
-      
-      // Verificar las escuelas asignadas al profesor
-      const teacherSchools = Array.isArray(teacher.schools) ? 
-        teacher.schools.map(s => String(s)) : 
-        [];
+      // Si se proporcionaron profesores adicionales
+      if (createCourseDto.teachers && createCourseDto.teachers.length > 0) {
+        // Verificar que no exceda el límite de 5 profesores
+        if (createCourseDto.teachers.length > 4) { // 4 + 1 principal = 5 total
+          throw new BadRequestException('Un curso no puede tener más de 5 profesores');
+        }
         
-      const isSchoolInTeacherSchools = teacherSchools.includes(String(createCourseDto.schoolId));
-      
-      // Si el usuario creó la escuela (es admin) o es profesor de la escuela o es admin del sistema o la escuela está en sus escuelas, permitir la creación
-      if (!isTeacherInSchool && !isAdmin && !isSystemAdmin && !isSchoolInTeacherSchools) {
+        // Verificar que los profesores existan y eliminar duplicados
+        const uniqueTeachers = new Set<string>([mainTeacherId]);
         
-        throw new UnauthorizedException('No tienes autorización para crear cursos en esta escuela');
+        for (const teacherId of createCourseDto.teachers) {
+          if (!uniqueTeachers.has(teacherId)) {
+            const teacher = await this.userModel.findById(teacherId);
+            if (!teacher) {
+              throw new BadRequestException(`El profesor con ID ${teacherId} no existe`);
+            }
+            uniqueTeachers.add(teacherId);
+          }
+        }
+        
+        // Convertir el Set a un array para asignar a teachersArray
+        teachersArray = Array.from(uniqueTeachers);
       }
       
+      // Crear el curso con los profesores
       const createdCourse = new this.courseModel({
         title: createCourseDto.title,
         description: createCourseDto.description,
-        coverImageUrl: createCourseDto.coverImageUrl || 'https://via.placeholder.com/300?text=Curso',
-        isPublic: createCourseDto.isPublic !== undefined ? createCourseDto.isPublic : false,
+        coverImageUrl: createCourseDto.coverImageUrl,
+        isPublic: createCourseDto.isPublic || false,
         school: createCourseDto.schoolId,
-        teacher: teacherId,
+        teacher: mainTeacherId, // Profesor principal (para compatibilidad)
+        teachers: teachersArray // Array de profesores
       });
       
       
@@ -117,6 +108,16 @@ export class CoursesService {
         // No lanzamos la excepción para evitar que falle la creación del curso
       }
       
+      // Añadir el curso a los profesores adicionales
+      for (const tId of teachersArray) {
+        try {
+          await this.userModel.findByIdAndUpdate(tId, {
+            $addToSet: { teachingCourses: result._id }
+          });
+        } catch (error) {
+          this.logger.error(`Error al añadir curso al profesor ${tId}: ${error.message}`, error.stack);
+        }
+      }
       
       return result;
     } catch (error) {
@@ -192,6 +193,7 @@ export class CoursesService {
     try {
       const course = await this.courseModel.findById(id)
         .populate('teacher', 'name email')
+        .populate('teachers', 'name email')
         .populate('school', 'name logoUrl')
         .populate({
           path: 'classes',

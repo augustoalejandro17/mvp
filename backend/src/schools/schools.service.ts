@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Logger, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { School } from './schemas/school.schema';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { User, UserRole } from '../auth/schemas/user.schema';
@@ -14,60 +14,78 @@ export class SchoolsService {
     @InjectModel(User.name) private userModel: Model<User>,
   ) {}
 
-  async create(createSchoolDto: CreateSchoolDto, adminId: string) {
-    
+  async create(createSchoolDto: CreateSchoolDto, userId: string) {
+    const { name, description, logoUrl, isPublic, admin, teachers, administratives } = createSchoolDto;
     
     try {
-      // Verificar si el usuario existe
-      const user = await this.userModel.findById(adminId);
-      if (!user) {
-        this.logger.error(`Usuario con ID ${adminId} no encontrado`);
-        throw new NotFoundException('Usuario no encontrado');
-      }
+      // Validate user permissions for creating schools
       
-      // Verificar que el usuario tenga rol de admin o profesor
-      if (user.role !== UserRole.ADMIN && user.role !== UserRole.TEACHER) {
+      // Create the school
+      const school = new this.schoolModel({
+        name,
+        description,
+        logoUrl,
+        isPublic,
+        admin: admin || userId,
+      });
+      
+      // Add teachers if provided
+      if (teachers && teachers.length > 0) {
+        // Instead of setting the entire array, use the $addToSet operation in the update
+        const teacherIds = teachers.map(id => id);
         
-        throw new BadRequestException('Solo los administradores y profesores pueden crear escuelas');
+        // Update each teacher to include this school in their schools array
+        for (const teacherId of teacherIds) {
+          await this.userModel.findByIdAndUpdate(
+            teacherId,
+            { $addToSet: { schools: school._id } }
+          );
+        }
+        
+        // Use $addToSet in the final update to add the teachers
+        await this.schoolModel.findByIdAndUpdate(
+          school._id,
+          { $addToSet: { teachers: { $each: teacherIds } } }
+        );
       }
       
-      
-      
-      // Preparar la nueva escuela
-      const newSchool = {
-        ...createSchoolDto,
-        admin: adminId,
-        teachers: [] // Inicializar el array de profesores
-      };
-      
-      // Si es profesor, también agregarlo como profesor de la escuela
-      if (user.role === UserRole.TEACHER) {
-        newSchool.teachers.push(adminId);
+      // Add administratives if provided
+      if (administratives && administratives.length > 0) {
+        // Instead of setting the entire array, use the $addToSet operation in the update
+        const adminIds = administratives.map(id => id);
+        
+        // Update each administrative to include this school in their schools array
+        for (const adminId of adminIds) {
+          await this.userModel.findByIdAndUpdate(
+            adminId,
+            { $addToSet: { schools: school._id, administratedSchools: school._id } }
+          );
+        }
+        
+        // Use $addToSet in the final update to add the administratives
+        await this.schoolModel.findByIdAndUpdate(
+          school._id,
+          { $addToSet: { administratives: { $each: adminIds } } }
+        );
       }
       
-      const createdSchool = new this.schoolModel(newSchool);
+      // Save the school
+      const result = await this.schoolModel.findById(school._id);
       
-      
-      const result = await createdSchool.save();
-      // Actualizar el usuario con la referencia a la escuela
-      const updateResult = await this.userModel.findByIdAndUpdate(adminId, {
-        $addToSet: { schools: result._id }
-      }, { new: true });
-      
-      // Verificar que la escuela se haya asignado correctamente al usuario
-      const userHasSchool = updateResult.schools.some(s => 
-        s.toString() === result._id.toString()
+      // Update the owner's (admin) document to include this school
+      await this.userModel.findByIdAndUpdate(
+        admin || userId,
+        { 
+          $addToSet: { 
+            schools: result._id,
+            ownedSchools: result._id 
+          } 
+        }
       );
-      
-      if (!userHasSchool) {
-        
-      }
-      
       
       return result;
     } catch (error) {
-      console.error('Error al guardar escuela:', error);
-      this.logger.error(`Error al guardar escuela: ${error.message}`, error.stack);
+      this.logger.error(`Error al crear escuela: ${error.message}`, error.stack);
       throw error;
     }
   }

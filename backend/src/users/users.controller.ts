@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Logger, Req, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Logger, Req, ForbiddenException, BadRequestException, Query, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { User as AuthUser } from '../auth/schemas/user.schema';
 import { UserRole } from '../auth/enums/user-role.enum';
@@ -10,11 +10,15 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { Request } from 'express';
 import { AuthorizationService } from '../auth/services/authorization.service';
 import { Permission, RequirePermissions, PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Types } from 'mongoose';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { School } from '../schools/schemas/school.schema';
 
 // DTO para la asignación de roles contextuales
 class AssignSchoolRoleDto {
   schoolId: string;
-  role: UserRole;
+  role: string;
 }
 
 // DTO para registrar un usuario no registrado
@@ -40,7 +44,8 @@ export class UsersController {
 
   constructor(
     private readonly usersService: UsersService,
-    private readonly authorizationService: AuthorizationService
+    private readonly authorizationService: AuthorizationService,
+    @InjectModel(School.name) private readonly schoolModel: Model<School>
   ) {}
 
   @Get()
@@ -48,6 +53,35 @@ export class UsersController {
   @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER)
   findAll() {
     return this.usersService.findAll();
+  }
+
+  @Get('search-by-email')
+  @UseGuards(JwtAuthGuard)
+  async searchUsersByEmail(
+    @Query('email') email: string,
+    @Req() req: Request,
+    @Query('schoolId') schoolId?: string
+  ) {
+    this.logger.log(`Buscando usuarios con email similar a: ${email}`);
+    const userId = req.user['sub'] || req.user['_id'];
+    const userRole = req.user['role'];
+    
+    return this.usersService.searchUsersByEmail(email, userId, userRole, schoolId);
+  }
+
+  @Get('by-role/:role')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SCHOOL_OWNER)
+  async findByRole(@Param('role') role: UserRole) {
+    this.logger.log(`Buscando usuarios con rol: ${role}`);
+    return this.usersService.findByRole(role);
+  }
+
+  @Get('teachers-by-school/:schoolId')
+  @UseGuards(JwtAuthGuard)
+  async findTeachersBySchool(@Param('schoolId') schoolId: string) {
+    this.logger.log(`Buscando profesores para la escuela: ${schoolId}`);
+    return this.usersService.findTeachersBySchool(schoolId);
   }
 
   @Get(':id')
@@ -124,6 +158,22 @@ export class UsersController {
     @Req() req: Request,
   ): Promise<{ success: boolean, message: string }> {
     
+    this.logger.log(`Intentando asignar rol en escuela: ${JSON.stringify(assignRoleDto)}`);
+    
+    // Validación básica de datos
+    if (!assignRoleDto.schoolId) {
+      throw new BadRequestException('El ID de la escuela es obligatorio');
+    }
+    
+    if (!assignRoleDto.role) {
+      throw new BadRequestException('El rol es obligatorio');
+    }
+    
+    // Validar que el rol sea uno de los permitidos
+    const allowedRoles = ['teacher', 'administrative', 'student'];
+    if (!allowedRoles.includes(assignRoleDto.role)) {
+      throw new BadRequestException(`Rol inválido. Los roles permitidos son: ${allowedRoles.join(', ')}`);
+    }
     
     const authUserId = req.user['sub'] || req.user['_id'];
     const schoolId = assignRoleDto.schoolId;
@@ -140,10 +190,11 @@ export class UsersController {
       throw new ForbiddenException('No tiene permisos para asignar este rol en esta escuela');
     }
     
+    // Pasar el rol como string al servicio
     const success = await this.authorizationService.assignRoleInSchool(
       userId,
       schoolId,
-      assignRoleDto.role
+      assignRoleDto.role // esto ahora es un string, no un UserRole
     );
     
     if (success) {
@@ -311,6 +362,92 @@ export class UsersController {
     } catch (error) {
       this.logger.error(`Error bypass: ${error.message}`, error.stack);
       throw new BadRequestException(`Error al crear asistente: ${error.message}`);
+    }
+  }
+
+  /**
+   * Asigna un rol específico a un usuario en una escuela (endpoint simplificado)
+   */
+  @Post(':id/assign-role-in-school')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.MANAGE_ADMINS, Permission.MANAGE_TEACHERS, Permission.MANAGE_STUDENTS)
+  async assignRoleInSchool(
+    @Param('id') userId: string,
+    @Body() body: { schoolId: string; role: string },
+    @Req() req: Request,
+  ): Promise<{ success: boolean, message: string }> {
+    
+    this.logger.log(`Intentando asignar rol en escuela: ${JSON.stringify(body)}`);
+    
+    // Validación básica de datos
+    if (!body.schoolId) {
+      throw new BadRequestException('El ID de la escuela es obligatorio');
+    }
+    
+    if (!body.role) {
+      throw new BadRequestException('El rol es obligatorio');
+    }
+    
+    const authUserId = req.user['sub'] || req.user['_id'];
+    const userRole = req.user['role'];
+    const schoolId = body.schoolId;
+    
+    // Definir los roles permitidos según el rol del usuario que hace la petición
+    let allowedRoles = ['teacher', 'administrative', 'student'];
+    
+    // Super admin puede asignar cualquier rol
+    if (userRole === 'super_admin') {
+      allowedRoles = ['super_admin', 'admin', 'school_owner', 'teacher', 'administrative', 'student', 'unregistered'];
+    } 
+    // Admin y school_owner pueden asignar roles por debajo de ellos
+    else if (userRole === 'admin' || userRole === 'school_owner') {
+      allowedRoles = ['teacher', 'administrative', 'student'];
+    }
+    // Teacher solo puede manejar estudiantes
+    else if (userRole === 'teacher') {
+      allowedRoles = ['student'];
+    }
+    
+    // Validar que el rol sea uno de los permitidos para este usuario
+    if (!allowedRoles.includes(body.role)) {
+      throw new BadRequestException(`Rol inválido. Los roles permitidos para su nivel son: ${allowedRoles.join(', ')}`);
+    }
+    
+    // Para super admin, omitir verificación de permisos específicos
+    let canManage = userRole === 'super_admin';
+    
+    // Para otros roles, verificar permisos específicos
+    if (!canManage) {
+      canManage = await this.authorizationService.canManageUserInSchool(
+        authUserId,
+        userId,
+        schoolId
+      );
+    }
+    
+    if (!canManage) {
+      throw new ForbiddenException('No tiene permisos para asignar este rol en esta escuela');
+    }
+    
+    try {
+      // Usar el servicio de autorización para asignar el rol
+      const success = await this.authorizationService.assignRoleInSchool(
+        userId,
+        schoolId,
+        body.role
+      );
+      
+      if (success) {
+        return { 
+          success: true, 
+          message: `Rol ${body.role} asignado correctamente al usuario en la escuela`
+        };
+      } else {
+        throw new BadRequestException('No se pudo asignar el rol al usuario');
+      }
+    } catch (error) {
+      this.logger.error(`Error al asignar rol: ${error.message}`);
+      throw new BadRequestException(`Error al asignar rol: ${error.message}`);
     }
   }
 } 

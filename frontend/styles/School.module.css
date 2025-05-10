@@ -204,6 +204,7 @@
 
 .createButton:hover {
   background-color: #2c5282;
+  color: white;
 }
 
 .actionButton {

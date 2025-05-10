@@ -1,0 +1,292 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import Cookies from 'js-cookie';
+import styles from '../styles/Modal.module.css';
+import { FaTimes, FaSchool, FaUserTag } from 'react-icons/fa';
+
+interface School {
+  _id: string;
+  name: string;
+}
+
+interface User {
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
+interface AssignSchoolRoleModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  user: User | null;
+  onSuccess: () => void;
+}
+
+const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  user, 
+  onSuccess 
+}) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [schools, setSchools] = useState<School[]>([]);
+  const [selectedSchool, setSelectedSchool] = useState('');
+  const [selectedRole, setSelectedRole] = useState('teacher');
+  const [loadingSchools, setLoadingSchools] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState<string>('');
+
+  useEffect(() => {
+    if (isOpen && user) {
+      fetchSchools();
+      getCurrentUserRole();
+    }
+  }, [isOpen, user]);
+
+  const getCurrentUserRole = async () => {
+    try {
+      const token = Cookies.get('token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      
+      // Obtener información del usuario actual
+      const response = await axios.get(
+        `${apiUrl}/api/auth/profile`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      if (response.data && response.data.role) {
+        setCurrentUserRole(response.data.role);
+      }
+    } catch (error) {
+      console.error('Error al obtener información del usuario:', error);
+    }
+  };
+
+  const fetchSchools = async () => {
+    setLoadingSchools(true);
+    setError('');
+    
+    try {
+      const token = Cookies.get('token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      
+      const response = await axios.get(
+        `${apiUrl}/api/schools`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setSchools(response.data);
+      if (response.data.length > 0) {
+        setSelectedSchool(response.data[0]._id);
+      }
+    } catch (error) {
+      console.error('Error al cargar escuelas:', error);
+      setError('No se pudieron cargar las escuelas');
+    } finally {
+      setLoadingSchools(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedSchool) {
+      setError('Debes seleccionar una escuela');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      const token = Cookies.get('token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      
+      // Datos a enviar
+      const postData = {
+        schoolId: selectedSchool,
+        role: selectedRole
+      };
+      
+      // Imprimir los datos para depuración
+      console.log('Enviando datos para asignar rol:', postData);
+      
+      // Usar el nuevo endpoint simplificado
+      const response = await axios.post(
+        `${apiUrl}/api/users/${user?._id}/assign-role-in-school`,
+        postData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      console.log('Respuesta del servidor:', response.data);
+      setSuccess('Rol asignado correctamente');
+      
+      // Notificar al componente padre para que actualice la lista
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 1500);
+    } catch (error: any) {
+      console.error('Error al asignar rol:', error);
+      
+      // Mostrar datos detallados del error para ayudar en depuración
+      if (error.response) {
+        console.error('Respuesta de error del servidor:', error.response.data);
+        console.error('Estado HTTP:', error.response.status);
+        console.error('Cabeceras:', error.response.headers);
+      } else if (error.request) {
+        console.error('No se recibió respuesta:', error.request);
+      } else {
+        console.error('Error al configurar la petición:', error.message);
+      }
+      
+      // Mostrar mensaje de error más descriptivo
+      if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else if (error.response?.status === 400) {
+        setError('Error en los datos: Verifica que la escuela y el rol sean válidos');
+      } else if (error.response?.status === 403) {
+        setError('No tienes permisos para asignar este rol en esta escuela');
+      } else {
+        setError(error.message || 'Error al asignar rol');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Determinar qué roles mostrar según el rol del usuario actual
+  const getRoleOptions = () => {
+    // Por defecto, mostrar solo roles básicos
+    const defaultRoles = (
+      <>
+        <option value="teacher">Profesor</option>
+        <option value="administrative">Administrativo</option>
+        <option value="student">Estudiante</option>
+      </>
+    );
+
+    // Super admin puede asignar cualquier rol
+    if (currentUserRole === 'super_admin') {
+      return (
+        <>
+          <option value="super_admin">Super Administrador</option>
+          <option value="admin">Administrador</option>
+          <option value="school_owner">Dueño de Escuela</option>
+          <option value="teacher">Profesor</option>
+          <option value="administrative">Administrativo</option>
+          <option value="student">Estudiante</option>
+          <option value="unregistered">No Registrado</option>
+        </>
+      );
+    }
+    
+    // Admin y school_owner pueden asignar roles por debajo de ellos
+    if (currentUserRole === 'admin' || currentUserRole === 'school_owner') {
+      return defaultRoles;
+    }
+    
+    // Teacher solo puede manejar estudiantes
+    if (currentUserRole === 'teacher') {
+      return <option value="student">Estudiante</option>;
+    }
+    
+    return defaultRoles;
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className={styles.modalOverlay}>
+      <div className={styles.modal}>
+        <header className={styles.modalHeader}>
+          <h2>Asignar Rol en Escuela</h2>
+          <button className={styles.closeButton} onClick={onClose}>
+            <FaTimes />
+          </button>
+        </header>
+        
+        <div className={styles.modalBody}>
+          {user && (
+            <div className={styles.userInfo}>
+              <p><strong>Usuario:</strong> {user.name}</p>
+              <p><strong>Email:</strong> {user.email}</p>
+              <p><strong>Rol global:</strong> {user.role}</p>
+            </div>
+          )}
+          
+          {error && <div className={styles.error}>{error}</div>}
+          {success && <div className={styles.success}>{success}</div>}
+          
+          <form onSubmit={handleSubmit}>
+            <div className={styles.formGroup}>
+              <label htmlFor="school">
+                <FaSchool /> Escuela:
+              </label>
+              {loadingSchools ? (
+                <p>Cargando escuelas...</p>
+              ) : schools.length === 0 ? (
+                <p>No hay escuelas disponibles</p>
+              ) : (
+                <select
+                  id="school"
+                  value={selectedSchool}
+                  onChange={(e) => setSelectedSchool(e.target.value)}
+                  required
+                  className={styles.select}
+                  disabled={loading}
+                >
+                  <option value="">Seleccionar escuela</option>
+                  {schools.map((school) => (
+                    <option key={school._id} value={school._id}>
+                      {school.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            
+            <div className={styles.formGroup}>
+              <label htmlFor="role">
+                <FaUserTag /> Rol en la escuela:
+              </label>
+              <select
+                id="role"
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                required
+                className={styles.select}
+                disabled={loading}
+              >
+                {getRoleOptions()}
+              </select>
+            </div>
+            
+            <div className={styles.buttonContainer}>
+              <button
+                type="button"
+                className={styles.cancelButton}
+                onClick={onClose}
+                disabled={loading}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className={styles.submitButton}
+                disabled={loading || !selectedSchool}
+              >
+                {loading ? 'Asignando...' : 'Asignar Rol'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AssignSchoolRoleModal; 

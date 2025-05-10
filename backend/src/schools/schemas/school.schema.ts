@@ -31,6 +31,9 @@ export class School {
   teachers: MongooseSchema.Types.ObjectId[];
 
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], default: [] })
+  administratives: MongooseSchema.Types.ObjectId[];
+
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], default: [] })
   students: MongooseSchema.Types.ObjectId[];
 
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Course' }], default: [] })

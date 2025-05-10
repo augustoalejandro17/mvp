@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsUrl, MinLength, IsNotEmpty, IsMongoId } from 'class-validator';
+import { IsString, IsOptional, IsUrl, MinLength, IsNotEmpty, IsMongoId, IsArray, ArrayMaxSize, ArrayMinSize, ValidateIf } from 'class-validator';
 
 export class CreateCourseDto {
   @IsString()
@@ -18,6 +18,16 @@ export class CreateCourseDto {
   @IsMongoId({ message: 'El ID de la escuela debe ser un ID válido' })
   @IsNotEmpty({ message: 'El ID de la escuela es obligatorio' })
   schoolId: string;
+
+  @IsMongoId({ message: 'El ID del profesor principal debe ser un ID válido' })
+  @IsNotEmpty({ message: 'El profesor principal es obligatorio' })
+  teacher: string;
+
+  @IsOptional()
+  @IsArray({ message: 'Los profesores adicionales deben ser un arreglo' })
+  @ArrayMaxSize(5, { message: 'Un curso puede tener un máximo de 5 profesores' })
+  @IsMongoId({ each: true, message: 'Cada ID de profesor debe ser un ID válido' })
+  teachers?: string[];
 
   @IsOptional()
   isPublic?: boolean;
