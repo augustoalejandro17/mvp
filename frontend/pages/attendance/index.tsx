@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import Cookies from 'js-cookie';
@@ -37,32 +37,7 @@ export default function AttendancePage() {
   const [currentUser, setCurrentUser] = useState<DecodedToken | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    const token = Cookies.get('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    try {
-      const decoded = jwtDecode<DecodedToken>(token);
-      setCurrentUser(decoded);
-      
-      // Solo los profesores y administradores pueden acceder a esta página
-      if (decoded.role !== 'teacher' && decoded.role !== 'admin' && decoded.role !== 'school_owner' && decoded.role !== 'super_admin') {
-        router.push('/');
-        return;
-      }
-    } catch (error) {
-      console.error('Error al decodificar token:', error);
-      router.push('/login');
-      return;
-    }
-
-    fetchCourses();
-  }, [router]);
-
-  const fetchCourses = async () => {
+  const fetchCourses = useCallback(async () => {
     try {
       setLoading(true);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -89,7 +64,32 @@ export default function AttendancePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser]);
+
+  useEffect(() => {
+    const token = Cookies.get('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      setCurrentUser(decoded);
+      
+      // Solo los profesores y administradores pueden acceder a esta página
+      if (decoded.role !== 'teacher' && decoded.role !== 'admin' && decoded.role !== 'school_owner' && decoded.role !== 'super_admin') {
+        router.push('/');
+        return;
+      }
+    } catch (error) {
+      console.error('Error al decodificar token:', error);
+      router.push('/login');
+      return;
+    }
+
+    fetchCourses();
+  }, [router, fetchCourses]);
 
   const filteredCourses = searchTerm 
     ? courses.filter(course => 

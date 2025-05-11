@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import Cookies from 'js-cookie';
@@ -47,7 +47,10 @@ export default function AttendancePage() {
   const { id } = router.query; // id del curso
   const [course, setCourse] = useState<Course | null>(null);
   const [attendances, setAttendances] = useState<Attendance[]>([]);
-  const [date, setDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [date, setDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -56,34 +59,7 @@ export default function AttendancePage() {
   const [showAddNonRegisteredModal, setShowAddNonRegisteredModal] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
 
-  useEffect(() => {
-    const token = Cookies.get('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    try {
-      const decoded = jwtDecode<DecodedToken>(token);
-      setCurrentUser(decoded);
-      
-      // Solo los profesores y administradores pueden acceder a esta página
-      if (decoded.role !== 'teacher' && decoded.role !== 'admin' && decoded.role !== 'school_owner' && decoded.role !== 'super_admin') {
-        router.push('/');
-        return;
-      }
-    } catch (error) {
-      router.push('/login');
-      return;
-    }
-
-    if (id) {
-      fetchCourse();
-      fetchAttendances();
-    }
-  }, [id, date, router]);
-
-  const fetchCourse = async () => {
+  const fetchCourse = useCallback(async () => {
     try {
       setLoading(true);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -124,9 +100,9 @@ export default function AttendancePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
-  const fetchAttendances = async () => {
+  const fetchAttendances = useCallback(async () => {
     try {
       setLoading(true);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -285,97 +261,57 @@ export default function AttendancePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, date]);
 
-  const initializeAttendances = () => {
+  const initializeAttendances = useCallback(() => {
     if (!course || !course.students) {
       return;
     }
     
-    const newAttendances = [...attendances];
+    // En lugar de modificar el estado existente, crear una nueva lista
+    // sin depender del estado actual de attendances
+    const newAttendances: Attendance[] = [];
     
-    const loadStudentDetails = async (studentId: string) => {
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-        const token = Cookies.get('token');
-        
-        const response = await axios.get(`${apiUrl}/api/users/${studentId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        if (response.data && response.data.name) {
-          return response.data.name;
+    // Procesar los estudiantes y crear registros de asistencia
+    course.students.forEach(student => {
+      // Verificar si ya existe este estudiante en la lista actual
+      // Pero no hacer que este método dependa del estado attendances
+      const exists = attendances.some(a => {
+        if (typeof student === 'object' && student !== null) {
+          return a.studentId === student._id;
+        } else {
+          return a.studentId === String(student);
         }
-      } catch (error) {
-        // Error silencioso
-      }
-      return null;
-    };
-    
-    const processStudents = async () => {
-      for (const student of course.students) {
-        const exists = attendances.some(a => {
-          if (typeof student === 'object' && student !== null) {
-            return a.studentId === student._id;
-          } else {
-            return a.studentId === String(student);
-          }
-        });
-        
+      });
+      
       if (!exists) {
-          let studentId = '';
-          let studentName = '';
+        let studentId = '';
+        let studentName = '';
+        
+        if (typeof student === 'object' && student !== null) {
+          studentId = student._id || '';
+          studentName = student.name || '';
           
-          if (typeof student === 'object' && student !== null) {
-            studentId = student._id || '';
-            studentName = student.name || '';
-            
-            if (studentName === 'Usuario no encontrado') {
-              continue;
-            }
-          } else {
-            studentId = String(student);
-            
-            const additionalName = await loadStudentDetails(studentId);
-            if (additionalName) {
-              studentName = additionalName;
-              
-              if (studentName === 'Usuario no encontrado') {
-                continue;
-              }
-            } else {
-              const existingAttendance = attendances.find(a => a.studentId === studentId);
-              if (existingAttendance && existingAttendance.studentName) {
-                studentName = existingAttendance.studentName;
-                
-                if (studentName === 'Usuario no encontrado') {
-                  continue;
-                }
-              } else {
-                studentName = 'Estudiante sin nombre';
-              }
-            }
+          if (studentName === 'Usuario no encontrado') {
+            return; // Skip this student
           }
           
-          if (!studentName) {
-            studentName = 'Estudiante sin nombre';
-          }
-          
-        newAttendances.push({
-            studentId: studentId,
-            studentName: studentName,
+          newAttendances.push({
+            studentId,
+            studentName,
             present: null,
             notes: '',
             isRegistered: true
-        });
+          });
+        }
       }
-      }
+    });
     
-    setAttendances(newAttendances);
-    };
-    
-    processStudents();
-  };
+    // Solo si hay nuevos registros, añadirlos a los existentes
+    if (newAttendances.length > 0) {
+      setAttendances(prev => [...prev, ...newAttendances]);
+    }
+  }, [course]); // Remover 'attendances' de las dependencias
 
   const handlePresentChange = (studentId: string, present: boolean) => {
     setAttendances(prev => 
@@ -582,7 +518,7 @@ export default function AttendancePage() {
     if (course) {
       initializeAttendances();
     }
-  }, [course]);
+  }, [course, initializeAttendances]);
 
   // Función para ayudar a depurar el problema con Test User
   const debugTestUser = async (studentId: string) => {
@@ -610,6 +546,40 @@ export default function AttendancePage() {
       return null;
     }
   };
+
+  useEffect(() => {
+    const token = Cookies.get('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      setCurrentUser(decoded);
+      
+      // Solo los profesores y administradores pueden acceder a esta página
+      if (decoded.role !== 'teacher' && decoded.role !== 'admin' && decoded.role !== 'school_owner' && decoded.role !== 'super_admin') {
+        router.push('/');
+        return;
+      }
+    } catch (error) {
+      router.push('/login');
+      return;
+    }
+
+    // Solo cargar el curso una vez cuando el ID está disponible
+    if (id) {
+      fetchCourse();
+    }
+  }, [id, router, fetchCourse]);
+  
+  // Efecto separado para cargar las asistencias cuando cambia la fecha
+  useEffect(() => {
+    if (id && date) {
+      fetchAttendances();
+    }
+  }, [id, date, fetchAttendances]);
 
   if (loading && !course) {
     return <div className={styles.loading}>Cargando...</div>;

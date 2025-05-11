@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import axios from 'axios';
@@ -43,21 +43,7 @@ export default function EditSchool() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    // Verificar si hay un token
-    const token = Cookies.get('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    // Asegurarse de que id sea un string válido
-    if (id && typeof id === 'string') {
-      fetchSchool(id, token);
-    }
-  }, [id, router]);
-
-  const fetchSchool = async (schoolId: string, token: string) => {
+  const fetchSchool = useCallback(async (schoolId: string, token: string) => {
     setLoading(true);
     setError('');
     
@@ -112,7 +98,20 @@ export default function EditSchool() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
+
+  useEffect(() => {
+    const token = Cookies.get('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    // Asegurarse de que id sea un string válido
+    if (id && typeof id === 'string') {
+      fetchSchool(id, token);
+    }
+  }, [id, router, fetchSchool]);
 
   const handleImageUpload = (imageUrl: string) => {
     

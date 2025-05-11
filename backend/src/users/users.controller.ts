@@ -51,8 +51,11 @@ export class UsersController {
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER)
-  findAll() {
-    return this.usersService.findAll();
+  findAll(@Req() req: Request) {
+    const userId = req.user['sub'] || req.user['_id'];
+    const userRole = req.user['role'];
+    this.logger.log(`User ${userId} with role ${userRole} is requesting all users`);
+    return this.usersService.findAll(userId, userRole);
   }
 
   @Get('search-by-email')
@@ -144,6 +147,23 @@ export class UsersController {
 
     await this.usersService.changePassword(id, changePasswordDto);
     return { message: 'Password changed successfully' };
+  }
+
+  @Patch(':id/admin-password')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER)
+  async adminChangePassword(
+    @Param('id') id: string,
+    @Body() changePasswordDto: ChangePasswordDto,
+    @Req() req: Request,
+  ): Promise<{ message: string }> {
+    this.logger.log(`Admin changing password for user: ${id}`);
+    // Ensure we have a password field in the DTO
+    if (!changePasswordDto.password && !changePasswordDto.newPassword) {
+      throw new BadRequestException('Either password or newPassword must be provided');
+    }
+    await this.usersService.changePassword(id, changePasswordDto);
+    return { message: 'Password changed successfully by admin' };
   }
 
   /**

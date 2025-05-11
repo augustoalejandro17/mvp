@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
@@ -22,6 +22,30 @@ export default function EditClass() {
   const [classData, setClassData] = useState<any>(null);
   const [courseId, setCourseId] = useState('');
   const { handleApiError } = useApiErrorHandler();
+
+  const fetchClassData = useCallback(async () => {
+    if (!id) return;
+    
+    try {
+      setLoading(true);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const token = Cookies.get('token');
+      
+      const headers = { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
+      
+      const response = await axios.get(`${apiUrl}/api/classes/${id}`, { headers });
+      setClassData(response.data);
+      setCourseId(response.data.courseId || response.data.course?._id);
+    } catch (error) {
+      console.error('Error al obtener datos de la clase:', error);
+      setError(handleApiError(error));
+    } finally {
+      setLoading(false);
+    }
+  }, [id, handleApiError]);
 
   useEffect(() => {
     const token = Cookies.get('token');
@@ -50,33 +74,8 @@ export default function EditClass() {
   }, [router]);
 
   useEffect(() => {
-    if (!id) return;
-    
-    // Fetch class data to get courseId
-    const fetchClassData = async () => {
-      try {
-        setLoading(true);
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-        const token = Cookies.get('token');
-        
-        const headers = { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        };
-        
-        const response = await axios.get(`${apiUrl}/api/classes/${id}`, { headers });
-        setClassData(response.data);
-        setCourseId(response.data.courseId || response.data.course?._id);
-      } catch (error) {
-        console.error('Error al obtener datos de la clase:', error);
-        setError(handleApiError(error));
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     fetchClassData();
-  }, [id]);
+  }, [fetchClassData]);
 
   const handleRedirectToCourse = () => {
     if (courseId) {

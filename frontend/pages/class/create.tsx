@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import Cookies from 'js-cookie';
@@ -37,38 +37,7 @@ export default function CreateClass() {
   const [loadingCourses, setLoadingCourses] = useState(true);
   const { handleApiError } = useApiErrorHandler();
 
-  useEffect(() => {
-    const token = Cookies.get('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    try {
-      const decoded = jwtDecode<DecodedToken>(token);
-      
-      // Special case for Augusto for debugging
-      if (decoded.email && decoded.email.toLowerCase().includes('augusto')) {
-        
-        fetchCourses(token);
-        return;
-      }
-      
-      // Check normal permissions
-      const normalizedRole = String(decoded.role).toLowerCase();
-      if (normalizedRole !== 'admin' && normalizedRole !== 'teacher' && normalizedRole !== 'super_admin') {
-        router.push('/dashboard');
-        return;
-      }
-
-      fetchCourses(token);
-    } catch (error) {
-      console.error('Error decodificando token:', error);
-      router.push('/login');
-    }
-  }, [router]);
-
-  const fetchCourses = async (token: string) => {
+  const fetchCourses = useCallback(async (token: string) => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
@@ -93,7 +62,38 @@ export default function CreateClass() {
     } finally {
       setLoadingCourses(false);
     }
-  };
+  }, [handleApiError]);
+
+  useEffect(() => {
+    const token = Cookies.get('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+    
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      
+      // Special case for Augusto for debugging
+      if (decoded.email && decoded.email.toLowerCase().includes('augusto')) {
+        
+        fetchCourses(token);
+        return;
+      }
+      
+      // Check normal permissions
+      const normalizedRole = String(decoded.role).toLowerCase();
+      if (normalizedRole !== 'admin' && normalizedRole !== 'teacher' && normalizedRole !== 'super_admin') {
+        router.push('/dashboard');
+        return;
+      }
+
+      fetchCourses(token);
+    } catch (error) {
+      console.error('Error decodificando token:', error);
+      router.push('/login');
+    }
+  }, [router, fetchCourses]);
 
   const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

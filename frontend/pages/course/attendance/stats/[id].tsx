@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import Cookies from 'js-cookie';
@@ -44,6 +44,25 @@ export default function AttendanceStatsPage() {
   const [error, setError] = useState('');
   const [currentUser, setCurrentUser] = useState<DecodedToken | null>(null);
 
+  const fetchStats = useCallback(async () => {
+    try {
+      setLoading(true);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const token = Cookies.get('token');
+      
+      const response = await axios.get(`${apiUrl}/api/attendance/stats/course/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setStats(response.data);
+    } catch (error) {
+      console.error('Error al obtener estadísticas de asistencia:', error);
+      setError('No se pudieron cargar las estadísticas de asistencia');
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     const token = Cookies.get('token');
     if (!token) {
@@ -69,26 +88,7 @@ export default function AttendanceStatsPage() {
     if (id) {
       fetchStats();
     }
-  }, [id, router]);
-
-  const fetchStats = async () => {
-    try {
-      setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const token = Cookies.get('token');
-      
-      const response = await axios.get(`${apiUrl}/api/attendance/stats/course/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      setStats(response.data);
-    } catch (error) {
-      console.error('Error al obtener estadísticas de asistencia:', error);
-      setError('No se pudieron cargar las estadísticas de asistencia');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [id, router, fetchStats]);
 
   if (loading) {
     return <div className={styles.loading}>Cargando estadísticas...</div>;

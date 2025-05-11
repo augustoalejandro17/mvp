@@ -53,27 +53,6 @@ const PaymentStatus = () => {
   const router = useRouter();
   const { handleApiError } = useApiErrorHandler();
 
-  useEffect(() => {
-    const token = Cookies.get('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    try {
-      const decoded: DecodedToken = jwtDecode(token);
-      if (decoded.role !== 'teacher' && decoded.role !== 'admin' && decoded.role !== 'super_admin') {
-        router.push('/');
-        return;
-      }
-
-      fetchCourses();
-    } catch (error) {
-      setError(handleApiError(error, 'Invalid authentication token'));
-      router.push('/login');
-    }
-  }, [router, handleApiError]);
-
   const fetchCourses = useCallback(async () => {
     try {
       setLoading(true);
@@ -111,6 +90,27 @@ const PaymentStatus = () => {
       setLoading(false);
     }
   }, [handleApiError]);
+
+  useEffect(() => {
+    const token = Cookies.get('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    try {
+      const decoded: DecodedToken = jwtDecode(token);
+      if (decoded.role !== 'teacher' && decoded.role !== 'admin' && decoded.role !== 'super_admin') {
+        router.push('/');
+        return;
+      }
+
+      fetchCourses();
+    } catch (error) {
+      setError(handleApiError(error, 'Invalid authentication token'));
+      router.push('/login');
+    }
+  }, [router, handleApiError, fetchCourses]);
 
   const handleCourseChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const courseId = e.target.value;

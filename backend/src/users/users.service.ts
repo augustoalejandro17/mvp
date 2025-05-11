@@ -31,8 +31,59 @@ export class UsersService {
     @InjectModel(ClassAttendance.name) private classAttendanceModel: Model<ClassAttendance>,
   ) {}
 
-  async findAll(): Promise<User[]> {
-    return this.userModel.find().exec();
+  async findAll(requestUserId?: string, requestUserRole?: string): Promise<User[]> {
+    // If no role info provided, return all users (backwards compatibility)
+    if (!requestUserId || !requestUserRole) {
+      return this.userModel.find().exec();
+    }
+
+    // Super admin and admin can see all users
+    if (requestUserRole === UserRole.SUPER_ADMIN || requestUserRole === UserRole.ADMIN) {
+      return this.userModel.find().exec();
+    }
+
+    // For school owners, show only users associated with their schools
+    if (requestUserRole === UserRole.SCHOOL_OWNER || requestUserRole === UserRole.ADMINISTRATIVE) {
+      // Get the requesting user with their school associations
+      const requestingUser = await this.userModel.findById(requestUserId).exec();
+      if (!requestingUser) {
+        throw new NotFoundException(`User with ID ${requestUserId} not found`);
+      }
+
+      // Get the schools this user can manage
+      let managedSchoolIds: string[] = [];
+      
+      if (requestUserRole === UserRole.SCHOOL_OWNER) {
+        managedSchoolIds = requestingUser.ownedSchools?.map(id => id.toString()) || [];
+      } else if (requestUserRole === UserRole.ADMINISTRATIVE) {
+        managedSchoolIds = requestingUser.administratedSchools?.map(id => id.toString()) || [];
+      }
+
+      if (managedSchoolIds.length === 0) {
+        // If user has no schools, return empty array
+        return [];
+      }
+
+      this.logger.log(`School owner/admin with schools: ${managedSchoolIds.join(', ')} is requesting users`);
+      
+      // Find users associated with any of these schools
+      // Users can be associated via:
+      // 1. schools array
+      // 2. schoolRoles
+      // 3. enrolledCourses (indirectly through courses that belong to these schools)
+      
+      return this.userModel.find({
+        $or: [
+          { schools: { $in: managedSchoolIds } },
+          { 'schoolRoles.schoolId': { $in: managedSchoolIds.map(id => new Types.ObjectId(id)) } },
+          { ownedSchools: { $in: managedSchoolIds } },
+          { administratedSchools: { $in: managedSchoolIds } }
+        ]
+      }).exec();
+    }
+
+    // Default fallback - return empty list for other roles
+    return [];
   }
 
   async findOne(id: string): Promise<User> {
@@ -484,20 +535,29 @@ export class UsersService {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
     
-    // Verify current password
-    const isPasswordValid = await argon2.verify(user.password, changePasswordDto.currentPassword);
-    if (!isPasswordValid) {
+    // Only verify current password if it's provided
+    if (changePasswordDto.currentPassword) {
+      // Verify current password
+      const isPasswordValid = await argon2.verify(user.password, changePasswordDto.currentPassword);
+      if (!isPasswordValid) {
+        
+        throw new UnauthorizedException('Current password is incorrect');
+      }
       
-      throw new UnauthorizedException('Current password is incorrect');
+      // Check if new password is the same as the current one
+      if (changePasswordDto.currentPassword === changePasswordDto.newPassword) {
+        throw new BadRequestException('New password must be different from the current password');
+      }
     }
     
-    // Check if new password is the same as the current one
-    if (changePasswordDto.currentPassword === changePasswordDto.newPassword) {
-      throw new BadRequestException('New password must be different from the current password');
+    // Hash new password (either newPassword or password field)
+    const passwordToHash = changePasswordDto.newPassword || changePasswordDto.password;
+    if (!passwordToHash) {
+      throw new BadRequestException('No password provided for update');
     }
     
     // Hash new password
-    const hashedPassword = await argon2.hash(changePasswordDto.newPassword, {
+    const hashedPassword = await argon2.hash(passwordToHash, {
       type: argon2.argon2id,
       memoryCost: 2**16,
       timeCost: 3,

@@ -92,34 +92,53 @@ export default function CourseDetail() {
   }, []);
 
   useEffect(() => {
-    if (!id) return;
-    
     const fetchCourseAndClasses = async () => {
+      if (!id) return;
       try {
         setLoading(true);
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
         const token = Cookies.get('token');
         
-        const headers: any = { 'Content-Type': 'application/json' };
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
+        if (!token) {
+          setError('Debes iniciar sesión para ver este curso');
+          setLoading(false);
+          return;
         }
         
-        // Obtener información del curso
-        const courseResponse = await axios.get(`${apiUrl}/api/courses/${id}`, { headers });
+        const headers = { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        };
+        
+        const [courseResponse, classesResponse] = await Promise.all([
+          axios.get(`${apiUrl}/api/courses/${id}`, { headers }),
+          axios.get(`${apiUrl}/api/classes?courseId=${id}`, { headers })
+        ]);
+        
         setCourse(courseResponse.data);
         
-        // Obtener clases del curso
-        const classesResponse = await axios.get(`${apiUrl}/api/classes?courseId=${id}`, { headers });
-        const sortedClasses = classesResponse.data.sort((a: Class, b: Class) => a.order - b.order);
-        setClasses(sortedClasses);
-        
-        // Seleccionar la primera clase por defecto si hay clases disponibles
-        if (sortedClasses.length > 0) {
-          setSelectedClass(sortedClasses[0]);
-          // Pre-cargar URL de streaming para la primera clase
-          if (sortedClasses[0]._id) {
-            getVideoStreamUrl(sortedClasses[0]._id);
+        const fetchedClasses = classesResponse.data;
+        if (fetchedClasses && Array.isArray(fetchedClasses)) {
+          // Ordenar clases por orden (si existe el campo) o por fecha de creación
+          const sortedClasses = [...fetchedClasses].sort((a, b) => {
+            // Si ambas clases tienen un campo 'order', ordenar por ese campo
+            if (a.order !== undefined && b.order !== undefined) {
+              return a.order - b.order;
+            }
+            // Si no, usar el campo '_id' como fallback para tener un orden consistente
+            return a._id.localeCompare(b._id);
+          });
+          
+          setClasses(sortedClasses);
+          
+          // Seleccionar la primera clase por defecto
+          if (sortedClasses.length > 0) {
+            setSelectedClass(sortedClasses[0]);
+            
+            // Pre-cargar URL de streaming para la primera clase
+            if (sortedClasses[0]._id) {
+              getVideoStreamUrl(sortedClasses[0]._id);
+            }
           }
         }
       } catch (error) {
@@ -131,7 +150,7 @@ export default function CourseDetail() {
     };
 
     fetchCourseAndClasses();
-  }, [id]);
+  }, [id, handleApiError]);
 
   useEffect(() => {
     if (course) {

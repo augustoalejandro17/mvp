@@ -28,7 +28,7 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
       setRetriesCount(0);
       setImgError(false);
     }
-  }, [src]);
+  }, [src, imgSrc, fallbackActive]);
 
   // Función para añadir un parámetro de cache-busting a la URL
   const cacheBustUrl = (url: string): string => {

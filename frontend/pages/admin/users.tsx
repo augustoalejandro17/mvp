@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/Admin.module.css';
 import Link from 'next/link';
-import { FaEdit, FaTrash, FaUserPlus, FaLink, FaUserCheck, FaSearch, FaClock, FaCheckCircle, FaEnvelope, FaUniversity, FaList, FaGraduationCap, FaCalendarAlt, FaMoneyBillWave } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaUserPlus, FaLink, FaUserCheck, FaSearch, FaClock, FaCheckCircle, FaEnvelope, FaUniversity, FaList, FaGraduationCap, FaCalendarAlt, FaMoneyBillWave, FaSpinner } from 'react-icons/fa';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import PaymentRegistrationModal from '../../components/PaymentRegistrationModal';
 import UserSearch from '../../components/UserSearch';
@@ -67,11 +67,26 @@ interface DecodedToken {
   role: string;
 }
 
+// Añadir un componente LoadingSpinner
+const LoadingSpinner = ({ message }: { message: string }) => {
+  return (
+    <div className={styles.loadingOverlay}>
+      <div className={styles.loadingContainer}>
+        <FaSpinner className={styles.loadingSpinner} />
+        <p>{message}</p>
+        <p className={styles.loadingSubtext}>Esto puede tomar unos segundos</p>
+      </div>
+    </div>
+  );
+};
+
 export default function UserManagement() {
   // Estados
   const [users, setUsers] = useState<User[]>([]);
   const [unregisteredUsers, setUnregisteredUsers] = useState<any[]>([]); // Usuarios sin registro
   const [loading, setLoading] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState('Cargando usuarios...');
+  const [dataReady, setDataReady] = useState(false); // Nuevo estado para controlar cuando los datos están realmente listos
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [user, setUser] = useState<DecodedToken | null>(null);
@@ -117,49 +132,92 @@ export default function UserManagement() {
   const router = useRouter();
   const { handleApiError } = useApiErrorHandler();
 
-  // Verificar autenticación
-  useEffect(() => {
-    const token = Cookies.get('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    try {
-      const decoded = jwtDecode<DecodedToken>(token);
-      setUser(decoded);
-
-      // Solo permitir acceso a administradores
-      if (!['admin', 'super_admin', 'school_owner'].includes(decoded.role)) {
-        router.push('/');
-        return;
-      }
-
-      // Cargar datos iniciales
-      fetchData();
-
-    } catch (error) {
-      console.error('Error al decodificar token:', error);
-      Cookies.remove('token');
-      router.push('/login');
-    }
-  }, [router]);
-
-  // Cargar escuelas y cursos cuando el usuario cambia
-  useEffect(() => {
-    if (user) {
-      loadSchoolsAndCourses();
-    }
-  }, [user]);
-
-  // Obtener datos iniciales
-  const fetchData = async () => {
-    setLoading(true);
-    setError('');
-
+  // Obtener cursos de un usuario específico
+  const getUserCourses = useCallback(async (userId: string) => {
     try {
       const token = Cookies.get('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      
+      // Primero, obtener la información directa del usuario para garantizar acceso a enrolledCourses
+      const userResponse = await axios.get(`${apiUrl}/api/users/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Verificar si hay enrolledCourses directamente en el usuario
+      const hasDirectEnrolledCourses = 
+        userResponse.data && 
+        userResponse.data.enrolledCourses && 
+        Array.isArray(userResponse.data.enrolledCourses) && 
+        userResponse.data.enrolledCourses.length > 0;
+      
+      if (hasDirectEnrolledCourses) {
+        // Si es un asistente (unregistered), obtener detalles de cursos directamente
+        if (userResponse.data.role === 'unregistered') {
+          // Obtener detalles de cada curso
+          const coursesDetails = await Promise.all(
+            userResponse.data.enrolledCourses.map(async (courseId: string) => {
+              try {
+                const courseResponse = await axios.get(`${apiUrl}/api/courses/${courseId}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                
+                return courseResponse.data;
+              } catch (error) {
+                return { _id: courseId, title: 'Curso no disponible' };
+              }
+            })
+          );
+          
+          return coursesDetails.filter(c => c); // Filtrar valores nulos
+        }
+      }
+      
+      // Para usuarios registrados o sin cursos directos, intentar con el endpoint
+      const enrolledResponse = await axios.get(`${apiUrl}/api/courses/enrolled`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { userId }
+      });
+      
+      // Si el endpoint devolvió datos, usarlos
+      if (enrolledResponse.data && Array.isArray(enrolledResponse.data) && enrolledResponse.data.length > 0) {
+        return enrolledResponse.data;
+      }
+      
+      // Si llegamos aquí y hay enrolledCourses, usarlos como respaldo
+      if (hasDirectEnrolledCourses) {
+        // Obtener detalles de cada curso
+        const coursesDetails = await Promise.all(
+          userResponse.data.enrolledCourses.map(async (courseId: string) => {
+            try {
+              const courseResponse = await axios.get(`${apiUrl}/api/courses/${courseId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              return courseResponse.data;
+            } catch (error) {
+              return { _id: courseId, title: 'Curso no disponible' };
+            }
+          })
+        );
+        
+        return coursesDetails.filter(c => c); // Filtrar valores nulos
+      }
+      
+      // No se encontraron cursos
+      return [];
+    } catch (error) {
+      return [];
+    }
+  }, []);
+
+  // Obtener datos iniciales - definido con useCallback para poder usarlo como dependencia
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setDataReady(false); // Indicar que los datos no están listos
+      setLoadingMessage('Obteniendo usuarios...');
+      
+      const token = Cookies.get('token');
       
       if (!token) {
         setError('No hay un token de autenticación disponible');
@@ -167,42 +225,36 @@ export default function UserManagement() {
         return;
       }
       
-      // Obtener usuarios registrados
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
-      const usersResponse = await axios.get(`${apiUrl}/api/users`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      // Realizar peticiones en paralelo para mejorar rendimiento
+      setLoadingMessage('Cargando información de escuelas y cursos...');
+      const [usersResponse, schoolsResponse, coursesResponse] = await Promise.all([
+        axios.get(`${apiUrl}/api/users`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get(`${apiUrl}/api/schools`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get(`${apiUrl}/api/courses`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      ]);
       
-      // Obtener escuelas
-      
-      const schoolsResponse = await axios.get(`${apiUrl}/api/schools`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      
-      // Obtener cursos
-      
-      const coursesResponse = await axios.get(`${apiUrl}/api/courses`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      
-      // Obtener registros de asistencia para extraer usuarios no registrados
-      
-      const attendanceResponse = await axios.get(`${apiUrl}/api/attendance/records`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      
-
       // Guardar todos los datos
-      const allUsers = usersResponse.data.map((user: User) => ({...user, isRegistered: true}));
+      const rawUsers = usersResponse.data;
       const allSchools = schoolsResponse.data;
       const allCourses = coursesResponse.data;
       
-      
-      
-      
+      setLoadingMessage('Procesando registros de asistencia...');
+      // Obtener registros de asistencia de manera separada
+      const attendanceResponse = await axios.get(`${apiUrl}/api/attendance/records`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setLoadingMessage('Enriqueciendo datos de usuarios...');
+      // Añadir propiedad isRegistered a todos los usuarios
+      const allUsers = rawUsers.map((user: User) => ({...user, isRegistered: true}));
       
       // Identificar usuarios registrados y no registrados
       const registeredUsers = allUsers.filter((u: User) => u.role !== 'unregistered');
@@ -350,25 +402,144 @@ export default function UserManagement() {
       // Calcular total de páginas basado en el número de usuarios
       setTotalPages(Math.ceil(enrichedUsers.length / itemsPerPage));
       
+      // Establecer dataReady a true para indicar que los datos están completamente cargados
+      setDataReady(true);
+      
     } catch (error) {
       console.error('Error al obtener datos:', error);
       setError(handleApiError(error));
+      setDataReady(false); // En caso de error, indicar que los datos no están listos
     } finally {
-      setLoading(false);
+      // Pequeño retraso antes de ocultar el spinner para asegurar que la UI se actualice
+      setTimeout(() => {
+        setLoading(false);
+      }, 300);
     }
-  };
+  }, [handleApiError, getUserCourses, itemsPerPage, selectedSchool, user?.role, user?.sub]);
+
+  // Cargar escuelas y cursos específicamente - definido con useCallback
+  const loadSchoolsAndCourses = useCallback(async () => {
+    try {
+      setLoading(true); // Indicar carga
+      setDataReady(false); // Indicar que los datos no están listos
+      setLoadingMessage('Cargando escuelas y cursos...');
+      
+      const token = Cookies.get('token');
+      if (!token) {
+        setError('No hay un token de autenticación disponible');
+        setDataReady(false);
+        setTimeout(() => {
+          setLoading(false);
+        }, 300);
+        return false;
+      }
+      
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      
+      // Cargar escuelas
+      const schoolsResponse = await axios.get(`${apiUrl}/api/schools`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Cargar cursos
+      const coursesResponse = await axios.get(`${apiUrl}/api/courses`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const allSchools = schoolsResponse.data;
+      const allCourses = coursesResponse.data;
+      
+      // Actualizar estados
+      setSchools(allSchools);
+      setCourses(allCourses);
+      
+      // Determinar qué escuelas puede ver el usuario actual
+      // Siempre permitimos ver todas las escuelas disponibles por ahora
+      setUserSchools(allSchools);
+      
+      // Marcar que los datos están listos
+      setDataReady(true);
+      
+      setTimeout(() => {
+        setLoading(false);
+      }, 300);
+      return true;
+    } catch (error) {
+      console.error('Error al cargar escuelas y cursos:', error);
+      setError(handleApiError(error));
+      setDataReady(false);
+      setTimeout(() => {
+        setLoading(false);
+      }, 300);
+      return false;
+    }
+  }, [handleApiError]);
+
+  // Verificar autenticación
+  useEffect(() => {
+    const token = Cookies.get('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      setUser(decoded);
+
+      // Solo permitir acceso a administradores
+      if (!['admin', 'super_admin', 'school_owner'].includes(decoded.role)) {
+        router.push('/');
+        return;
+      }
+
+      // Cargar datos iniciales
+      fetchData();
+
+    } catch (error) {
+      console.error('Error al decodificar token:', error);
+      Cookies.remove('token');
+      router.push('/login');
+    }
+  }, [router, fetchData]);
+
+  // Cargar escuelas y cursos cuando el usuario cambia
+  useEffect(() => {
+    if (user) {
+      loadSchoolsAndCourses();
+    }
+  }, [user, loadSchoolsAndCourses]);
 
   // Extraer usuarios no registrados de los registros de asistencia
-  const processAttendanceForUnregisteredUsers = (attendanceRecords: Attendance[]) => {
+  const processAttendanceForUnregisteredUsers = useCallback((attendanceRecords: Attendance[]) => {
+    setDataReady(false);
+    setLoading(true);
+    setLoadingMessage('Procesando asistentes...');
     
     const nonRegisteredAttendees = new Map();
     
+    // Determinar si debemos filtrar por escuelas del usuario
+    const shouldFilterBySchool = user?.role === 'school_owner' || user?.role === 'administrative';
+    const userOwnedSchoolIds = userSchools.map(school => school._id);
+    
     // Primero, buscar usuarios con role='unregistered' en la lista de usuarios general
-    
-    
     users.forEach(user => {
       if (user.role === 'unregistered') {
-        
+        // Para school_owner y administrative, filtrar solo los unregistered que pertenecen a sus escuelas
+        if (shouldFilterBySchool) {
+          // Verificar si el usuario no registrado está asociado con alguna escuela del usuario actual
+          const userSchoolIds = user.schools || [];
+          const hasSchoolAssociation = userSchoolIds.some(schoolId => 
+            userOwnedSchoolIds.includes(typeof schoolId === 'string' 
+              ? schoolId 
+              : (schoolId as any).toString())
+          );
+          
+          // Si el usuario no está asociado con ninguna escuela del owner/administrative, omitirlo
+          if (!hasSchoolAssociation) {
+            return;
+          }
+        }
         
         // Verificar si ya está en el mapa para evitar duplicados
         if (!nonRegisteredAttendees.has(user._id)) {
@@ -386,14 +557,32 @@ export default function UserManagement() {
       }
     });
     
-    
-    
     // Procesar registros de asistencia para encontrar usuarios no registrados que no estén en la base de datos
     if (attendanceRecords && attendanceRecords.length > 0) {
+      // Para school_owner, necesitamos filtrar registros de asistencia por escuela también
+      let filteredAttendanceRecords = attendanceRecords;
       
+      if (shouldFilterBySchool) {
+        // Filtrar registros de asistencia por las escuelas asociadas al curso
+        filteredAttendanceRecords = attendanceRecords.filter(record => {
+          // Si no tiene curso, no podemos saber a qué escuela pertenece
+          if (!record.course) return false;
+          
+          // Buscar el curso para obtener la escuela
+          const course = courses.find(c => c._id === record.course);
+          if (!course) return false;
+          
+          // Verificar si la escuela del curso está entre las escuelas del school_owner
+          const courseSchoolId = typeof course.school === 'string' 
+            ? course.school 
+            : (course.school as School)?._id;
+            
+          return userOwnedSchoolIds.includes(courseSchoolId);
+        });
+      }
       
-      // Iterar sobre cada registro de asistencia
-      attendanceRecords.forEach(record => {
+      // Iterar sobre cada registro de asistencia (filtrado si es necesario)
+      filteredAttendanceRecords.forEach(record => {
         // Solo procesar si el estudiante es un string (nombre) o si studentModel es 'String'
         const isNonRegistered = 
           typeof record.student === 'string' || 
@@ -403,8 +592,6 @@ export default function UserManagement() {
           const studentName = typeof record.student === 'string' 
             ? record.student 
             : (record.student as any)?.name || 'Desconocido';
-          
-          
           
           let existingKey = null;
           
@@ -452,9 +639,7 @@ export default function UserManagement() {
     
     const nonRegisteredUsers = Array.from(nonRegisteredAttendees.values());
     
-    
     if (nonRegisteredUsers.length > 0) {
-      
       nonRegisteredUsers.slice(0, 3).forEach((user, index) => {
         
       });
@@ -463,24 +648,54 @@ export default function UserManagement() {
     }
     
     setUnregisteredUsers(nonRegisteredUsers);
-  };
+    
+    // Marcar que los datos están listos
+    setDataReady(true);
+    
+    // Pequeño retraso antes de ocultar el spinner
+    setTimeout(() => {
+      setLoading(false);
+    }, 300);
+    
+  }, [users, courses, userSchools, user?.role, user?.sub]);
 
   // Actualizar vista cuando cambie el filtro de escuela o búsqueda
   useEffect(() => {
+    // Solo procesar los filtros si los datos están realmente cargados
+    if (!dataReady) return;
     
-    
+    // Para mostrar asistentes sin registro
     if (selectedSchool === 'unregistered') {
-      
       // Si no hay asistentes cargados y hay usuarios en la lista, reprocesar para encontrar asistentes
       if (unregisteredUsers.length === 0 && users.length > 0) {
-        
         processAttendanceForUnregisteredUsers(attendanceRecords);
       }
+      
+      // No necesitamos actualizar filteredUsers ya que los asistentes se muestran directamente
       return;
     }
     
     // Para otros filtros, comenzar con todos los usuarios
     let filtered = users;
+    
+    // Si es un school_owner o administrative, solo mostrar usuarios de sus escuelas
+    // Esto puede ser redundante con el filtrado del backend, pero es una capa adicional de seguridad
+    if ((user?.role === 'school_owner' || user?.role === 'administrative') && userSchools.length > 0) {
+      const userOwnedSchoolIds = userSchools.map(school => school._id);
+      
+      // Solo incluir usuarios asociados a las escuelas de este school_owner o administrative
+      filtered = filtered.filter(user => {
+        // Verificar asociaciones de escuela
+        const userSchoolIds = user.schools || [];
+        const hasSchoolAssociation = userSchoolIds.some(schoolId => 
+          userOwnedSchoolIds.includes(typeof schoolId === 'string' 
+            ? schoolId 
+            : (schoolId as any).toString())
+        );
+        
+        return hasSchoolAssociation;
+      });
+    }
     
     // Aplicar filtro de búsqueda
     if (searchTerm !== '') {
@@ -494,9 +709,6 @@ export default function UserManagement() {
     
     // Aplicar filtro de escuela
     if (selectedSchool !== '') {
-      
-      
-      
       // Filtrar usuarios que pertenecen a la escuela seleccionada
       filtered = filtered.filter(user => {
         // Verificar en schoolRoles
@@ -532,16 +744,9 @@ export default function UserManagement() {
         
         const isAssociated = inSchoolRoles || inSchools || inCourses;
         
-        // Debug para verificar asignaciones de escuela
-        if (isAssociated) {
-          // Se incluye el usuario
-        }
-        
         // Incluir usuario si está asociado a la escuela por cualquier método
         return isAssociated;
       });
-      
-      
     }
     
     setFilteredUsers(filtered);
@@ -552,7 +757,7 @@ export default function UserManagement() {
     // Resetear a la página 1 cuando cambian los filtros
     setCurrentPage(1);
     
-  }, [searchTerm, users, selectedSchool, itemsPerPage, unregisteredUsers, courses, attendanceRecords]);
+  }, [searchTerm, users, selectedSchool, itemsPerPage, unregisteredUsers, courses, attendanceRecords, user?.role, userSchools, processAttendanceForUnregisteredUsers, dataReady]);
 
   // Manejar cambios en el formulario
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -808,13 +1013,22 @@ export default function UserManagement() {
       
       if (!selectedUser) return;
       
-      const response = await axios.put(
+      // If there's a password, update it separately first
+      if (formData.password) {
+        await axios.patch(
+          `${apiUrl}/api/users/${selectedUser._id}/admin-password`,
+          { password: formData.password },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+      
+      // Update other user data
+      const response = await axios.patch(
         `${apiUrl}/api/users/${selectedUser._id}`, 
         {
           name: formData.name,
           email: formData.email,
           role: formData.role,
-          ...(formData.password ? { password: formData.password } : {}),
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -838,53 +1052,6 @@ export default function UserManagement() {
     }
   };
 
-  // Cargar escuelas y cursos específicamente
-  const loadSchoolsAndCourses = async () => {
-    try {
-      setLoading(true); // Indicar carga
-      const token = Cookies.get('token');
-      if (!token) {
-        setError('No hay un token de autenticación disponible');
-        setLoading(false);
-        return false;
-      }
-      
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      
-      // Cargar escuelas
-      const schoolsResponse = await axios.get(`${apiUrl}/api/schools`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      // Cargar cursos
-      const coursesResponse = await axios.get(`${apiUrl}/api/courses`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      const allSchools = schoolsResponse.data;
-      const allCourses = coursesResponse.data;
-      
-      
-      
-      
-      // Actualizar estados
-      setSchools(allSchools);
-      setCourses(allCourses);
-      
-      // Determinar qué escuelas puede ver el usuario actual
-      // Siempre permitimos ver todas las escuelas disponibles por ahora
-      setUserSchools(allSchools);
-      
-      setLoading(false);
-      return true;
-    } catch (error) {
-      console.error('Error al cargar escuelas y cursos:', error);
-      setError(handleApiError(error));
-      setLoading(false);
-      return false;
-    }
-  };
-
   // Mostrar modal para enrollar usuario
   const handleEnrollUser = async (userToEnroll: User) => {
     setSelectedUser(userToEnroll);
@@ -904,87 +1071,6 @@ export default function UserManagement() {
     if (!loaded) {
       // Mostrar mensaje de error solo si falla la carga
       setError('Error al cargar escuelas y cursos');
-    }
-  };
-
-  // Obtener cursos de un usuario específico
-  const getUserCourses = async (userId: string) => {
-    try {
-      const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      
-      
-      
-      // Primero, obtener la información directa del usuario para garantizar acceso a enrolledCourses
-      const userResponse = await axios.get(`${apiUrl}/api/users/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      
-      
-      // Verificar si hay enrolledCourses directamente en el usuario
-      const hasDirectEnrolledCourses = 
-        userResponse.data && 
-        userResponse.data.enrolledCourses && 
-        Array.isArray(userResponse.data.enrolledCourses) && 
-        userResponse.data.enrolledCourses.length > 0;
-      
-      if (hasDirectEnrolledCourses) {
-        // Si es un asistente (unregistered), obtener detalles de cursos directamente
-        if (userResponse.data.role === 'unregistered') {
-          // Obtener detalles de cada curso
-          const coursesDetails = await Promise.all(
-            userResponse.data.enrolledCourses.map(async (courseId: string) => {
-              try {
-                const courseResponse = await axios.get(`${apiUrl}/api/courses/${courseId}`, {
-                  headers: { Authorization: `Bearer ${token}` }
-                });
-                
-                return courseResponse.data;
-              } catch (error) {
-                return { _id: courseId, title: 'Curso no disponible' };
-              }
-            })
-          );
-          
-          return coursesDetails.filter(c => c); // Filtrar valores nulos
-        }
-      }
-      
-      // Para usuarios registrados o sin cursos directos, intentar con el endpoint
-      const enrolledResponse = await axios.get(`${apiUrl}/api/courses/enrolled`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { userId }
-      });
-      
-      // Si el endpoint devolvió datos, usarlos
-      if (enrolledResponse.data && Array.isArray(enrolledResponse.data) && enrolledResponse.data.length > 0) {
-        return enrolledResponse.data;
-      }
-      
-      // Si llegamos aquí y hay enrolledCourses, usarlos como respaldo
-      if (hasDirectEnrolledCourses) {
-        // Obtener detalles de cada curso
-        const coursesDetails = await Promise.all(
-          userResponse.data.enrolledCourses.map(async (courseId: string) => {
-            try {
-              const courseResponse = await axios.get(`${apiUrl}/api/courses/${courseId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-              });
-              return courseResponse.data;
-            } catch (error) {
-              return { _id: courseId, title: 'Curso no disponible' };
-            }
-          })
-        );
-        
-        return coursesDetails.filter(c => c); // Filtrar valores nulos
-      }
-      
-      // No se encontraron cursos
-      return [];
-    } catch (error) {
-      return [];
     }
   };
 
@@ -1240,78 +1326,82 @@ export default function UserManagement() {
     }, 3000);
   };
 
-  if (loading && users.length === 0) {
-    return <div className={styles.loading}>Cargando...</div>;
-  }
-
   return (
     <div className={styles.container}>
       <main className={styles.main}>
-        <div className={styles.header}>
-          <h1 className={styles.title}>Gestión de Usuarios</h1>
-        </div>
-
-        <div className={styles.controlPanel}>
-          {user?.role === 'super_admin' || user?.role === 'admin' || 
-            user?.role === 'school_owner' || user?.role === 'administrative' ? (
-            <div className={styles.searchFilterRow}>
-              <div className={styles.searchWrapper}>
-                <UserSearch 
-                  onSelectUser={handleUserSelected}
-                  onAssignRole={handleAssignRole}
-                  availableSchools={userSchools}
-                  selectedSchool={selectedSchool}
-                />
-              </div>
-              <div className={styles.filterWrapper}>
-                <select
-                  className={styles.select}
-                  value={selectedSchool}
-                  onChange={(e) => setSelectedSchool(e.target.value)}
-                >
-                  <option value="">Todas las escuelas</option>
-                  <option value="unregistered">Asistentes sin registro</option>
-                  {userSchools.map(school => (
-                    <option key={school._id} value={school._id}>
-                      {school.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+        {/* Si está cargando y los datos no están listos, SOLO mostrar el spinner centrado en pantalla */}
+        {loading && !dataReady ? (
+          <div className={styles.fullPageSpinner}>
+            <LoadingSpinner message={loadingMessage} />
+          </div>
+        ) : (
+          /* Cuando no está cargando o los datos están listos, mostrar el contenido completo */
+          <>
+            <div className={styles.header}>
+              <h1 className={styles.title}>Gestión de Usuarios</h1>
             </div>
-          ) : (
-            <div className={styles.searchFilterRow}>
-              <div className={styles.searchWrapper}>
-                <div className={styles.simpleSearchWrapper}>
-                <input
-                  type="text"
-                  placeholder="Buscar usuarios..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className={styles.searchInput}
-                />
-                  <FaSearch className={styles.searchIcon} />
-              </div>
-            </div>
-              <div className={styles.filterWrapper}>
-              <select
-                className={styles.select}
-                value={selectedSchool}
-                onChange={(e) => setSelectedSchool(e.target.value)}
-              >
-                <option value="">Todas las escuelas</option>
-                <option value="unregistered">Asistentes sin registro</option>
-                {userSchools.map(school => (
-                  <option key={school._id} value={school._id}>
-                    {school.name}
-                  </option>
-                ))}
-              </select>
-              </div>
-            </div>
-          )}
-          
-          <div className={styles.actionButtonsRow}>
+    
+            <div className={styles.controlPanel}>
+              {user?.role === 'super_admin' || user?.role === 'admin' || 
+                user?.role === 'school_owner' || user?.role === 'administrative' ? (
+                <div className={styles.searchFilterRow}>
+                  <div className={styles.searchWrapper}>
+                    <UserSearch 
+                      onSelectUser={handleUserSelected}
+                      onAssignRole={handleAssignRole}
+                      availableSchools={userSchools}
+                      selectedSchool={selectedSchool}
+                    />
+                  </div>
+                  <div className={styles.filterWrapper}>
+                    <select
+                      className={styles.select}
+                      value={selectedSchool}
+                      onChange={(e) => setSelectedSchool(e.target.value)}
+                    >
+                      <option value="">Todas las escuelas</option>
+                      <option value="unregistered">Asistentes sin registro</option>
+                      {userSchools.map(school => (
+                        <option key={school._id} value={school._id}>
+                          {school.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.searchFilterRow}>
+                  <div className={styles.searchWrapper}>
+                    <div className={styles.simpleSearchWrapper}>
+                      <input
+                        type="text"
+                        placeholder="Buscar usuarios..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className={styles.searchInput}
+                      />
+                      <FaSearch className={styles.searchIcon} />
+                    </div>
+                  </div>
+                  <div className={styles.filterWrapper}>
+                    <select
+                      className={styles.select}
+                      value={selectedSchool}
+                      onChange={(e) => setSelectedSchool(e.target.value)}
+                    >
+                      <option value="">Todas las escuelas</option>
+                      <option value="unregistered">Asistentes sin registro</option>
+                      {userSchools.map(school => (
+                        <option key={school._id} value={school._id}>
+                          {school.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+              
+              <div className={styles.actionButtonsRow}>
                 <button 
                   className={styles.createButton}
                   onClick={() => {
@@ -1330,234 +1420,128 @@ export default function UserManagement() {
                 >
                   <FaUserCheck /> Agregar Asistente
                 </button>
-          </div>
-        </div>
-
-        {error && <div className={styles.error}>{error}</div>}
-        {success && <div className={styles.success}>{success}</div>}
-        
-        {/* Componente de depuración - solo visible para superadmin cuando hay problemas */}
-        {user?.role === 'super_admin' && 
-         selectedSchool === 'unregistered' && 
-         unregisteredUsers.length === 0 && 
-         users.some(u => u.role === 'unregistered') && (
-          <div className={styles.debugInfo} style={{ 
-            background: '#f8f9fa', 
-            border: '1px solid #dee2e6',
-            padding: '15px',
-            borderRadius: '4px',
-            marginBottom: '15px',
-            fontSize: '0.9rem'
-          }}>
-            <h3 style={{ margin: '0 0 10px 0', color: '#4a5568' }}>Información de Depuración</h3>
-            <p style={{ margin: '0 0 10px 0' }}>
-              Se detectaron <strong>{users.filter(u => u.role === 'unregistered').length}</strong> asistentes en la base de datos, 
-              pero no se están mostrando en la vista.
-            </p>
-            <button 
-              onClick={() => {
-                
-                // Forzar actualización de ambos
-                processAttendanceForUnregisteredUsers(attendanceRecords);
-                // También recargar todos los datos
-                fetchData();
-              }}
-              style={{
-                padding: '8px 15px',
-                background: '#3182ce',
-                color: 'white',
-                border: 'none',
+              </div>
+            </div>
+    
+            {error && <div className={styles.error}>{error}</div>}
+            {success && <div className={styles.success}>{success}</div>}
+            
+            {/* Componente de depuración - solo visible para superadmin cuando hay problemas */}
+            {user?.role === 'super_admin' && 
+             selectedSchool === 'unregistered' && 
+             unregisteredUsers.length === 0 && 
+             users.some(u => u.role === 'unregistered') && (
+              <div className={styles.debugInfo} style={{ 
+                background: '#f8f9fa', 
+                border: '1px solid #dee2e6',
+                padding: '15px',
                 borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              Forzar recarga de asistentes
-            </button>
-          </div>
-        )}
-
-        <div className={styles.tableContainer}>
-          {selectedSchool === 'unregistered' ? (
-            // Tabla de usuarios no registrados
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Nombre</th>
-                  {user?.role === 'super_admin' && (
-                    <>
-                      <th>Asistencias</th>
-                      <th>Cursos</th>
-                      <th>Escuela</th>
-                      <th>Última Asistencia</th>
-                    </>
-                  )}
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {unregisteredUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={user?.role === 'super_admin' ? 6 : 2} className={styles.emptyMessage}>
-                      No hay asistentes sin registro en el sistema.
-                      {users.some(u => u.role === 'unregistered') && (
-                        <div style={{ marginTop: '10px', fontStyle: 'italic' }}>
-                          Hay asistentes en la base de datos, pero no se están mostrando.
-                          <button 
-                            onClick={() => processAttendanceForUnregisteredUsers(attendanceRecords)}
-                            style={{
-                              marginLeft: '10px',
-                              padding: '5px 10px',
-                              background: '#3182ce',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Recargar asistentes
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ) : (
-                  unregisteredUsers.map((nonRegUser, index) => (
-                    <tr key={index} className={styles.nonRegistered}>
-                      <td>
-                        <div style={{ fontWeight: '500' }}>
-                          {nonRegUser.name}
-                          <span className={styles.tagNonRegistered}>No Registrado</span>
-                        </div>
-                      </td>
+                marginBottom: '15px',
+                fontSize: '0.9rem'
+              }}>
+                <h3 style={{ margin: '0 0 10px 0', color: '#4a5568' }}>Información de Depuración</h3>
+                <p style={{ margin: '0 0 10px 0' }}>
+                  Se detectaron <strong>{users.filter(u => u.role === 'unregistered').length}</strong> asistentes en la base de datos, 
+                  pero no se están mostrando en la vista.
+                </p>
+                <button 
+                  onClick={() => {
+                    
+                    // Forzar actualización de ambos
+                    processAttendanceForUnregisteredUsers(attendanceRecords);
+                    // También recargar todos los datos
+                    fetchData();
+                  }}
+                  style={{
+                    padding: '8px 15px',
+                    background: '#3182ce',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Forzar recarga de asistentes
+                </button>
+              </div>
+            )}
+    
+            <div className={styles.tableContainer}>
+              {selectedSchool === 'unregistered' ? (
+                // Tabla de usuarios no registrados
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
                       {user?.role === 'super_admin' && (
                         <>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center' }}>
-                              <FaCheckCircle style={{ marginRight: '0.5rem', color: '#68d391' }} />
-                              {nonRegUser.occurrences || 1}
-                            </div>
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center' }}>
-                              <FaUniversity style={{ marginRight: '0.5rem', opacity: '0.6' }} />
-                              {Array.isArray(nonRegUser.courses) ? nonRegUser.courses.length : 0}
-                              {Array.isArray(nonRegUser.courses) && nonRegUser.courses.length > 0 && (
-                                <button 
-                                  className={styles.iconButton}
-                                  title="Ver cursos"
-                                  onClick={() => handleViewUserCourses({
-                                    ...nonRegUser,
-                                    _id: nonRegUser._id || 'temp-id',
-                                    email: '',
-                                    role: 'unregistered',
-                                    enrolledCourses: nonRegUser.courses
-                                  } as User)}
-                                  style={{ marginLeft: '5px', color: '#3182ce' }}
-                                >
-                                  <FaList />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center' }}>
-                              <FaUniversity style={{ marginRight: '0.5rem', color: '#4299e1' }} />
-                              {nonRegUser.schools && nonRegUser.schools.length > 0 ? 
-                                schools.find(s => nonRegUser.schools?.includes(s._id))?.name || 'Sin escuela' : 
-                                'Sin escuela'}
-                            </div>
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center' }}>
-                              <FaClock style={{ marginRight: '0.5rem', color: '#718096' }} />
-                              {nonRegUser.lastSeen ? new Date(nonRegUser.lastSeen).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'}) : 'N/A'}
-                            </div>
-                          </td>
+                          <th>Asistencias</th>
+                          <th>Cursos</th>
+                          <th>Escuela</th>
+                          <th>Última Asistencia</th>
                         </>
                       )}
-                      <td>
-                        <button 
-                          className={styles.iconButton}
-                          onClick={() => handleLinkUser(nonRegUser)}
-                          title="Vincular a cuenta registrada"
-                        >
-                          <FaLink />
-                        </button>
-                        <button 
-                          className={styles.iconButton}
-                          title="Registrar pago"
-                          onClick={() => handleShowPaymentModal({
-                            ...nonRegUser,
-                            _id: nonRegUser._id || 'temp-id',
-                            email: '',
-                            role: 'unregistered',
-                            enrolledCourses: nonRegUser.courses
-                          } as User)}
-                          style={{ color: '#38a169' }}
-                        >
-                          <FaMoneyBillWave />
-                        </button>
-                      </td>
+                      <th>Acciones</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          ) : (
-            // Tabla de usuarios registrados con paginación
-            <>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Nombre</th>
-                    <th>Email</th>
-                    {user?.role === 'super_admin' && (
-                      <>
-                        <th>Rol</th>
-                        <th>Cursos</th>
-                        <th>Fecha Registro</th>
-                      </>
-                    )}
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan={user?.role === 'super_admin' ? 6 : 3} className={styles.emptyMessage}>
-                        No se encontraron usuarios.
-                      </td>
-                    </tr>
-                  ) : (
-                    // Aplicar paginación a los usuarios filtrados
-                    filteredUsers
-                      .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                      .map(userItem => (
-                        <tr key={userItem._id}>
+                  </thead>
+                  <tbody>
+                    {unregisteredUsers.length === 0 && dataReady ? (
+                      <tr>
+                        <td colSpan={user?.role === 'super_admin' ? 6 : 2} className={styles.emptyMessage}>
+                          No hay asistentes sin registro en el sistema.
+                          {users.some(u => u.role === 'unregistered') && (
+                            <div style={{ marginTop: '10px', fontStyle: 'italic' }}>
+                              Hay asistentes en la base de datos, pero no se están mostrando.
+                              <button 
+                                onClick={() => processAttendanceForUnregisteredUsers(attendanceRecords)}
+                                style={{
+                                  marginLeft: '10px',
+                                  padding: '5px 10px',
+                                  background: '#3182ce',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Recargar asistentes
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ) : (
+                      unregisteredUsers.map((nonRegUser, index) => (
+                        <tr key={index} className={styles.nonRegistered}>
                           <td>
                             <div style={{ fontWeight: '500' }}>
-                              {userItem.name}
-                              {userItem.role === 'unregistered' && 
-                                <span className={styles.tagNonRegistered} style={{ marginLeft: '5px' }}>Asistente</span>}
+                              {nonRegUser.name}
+                              <span className={styles.tagNonRegistered}>No Registrado</span>
                             </div>
                           </td>
-                          <td>{userItem.email}</td>
                           {user?.role === 'super_admin' && (
                             <>
                               <td>
-                                <span className={`${styles.roleBadge} ${styles[userItem.role]}`}>
-                                  {userItem.role}
-                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                  <FaCheckCircle style={{ marginRight: '0.5rem', color: '#68d391' }} />
+                                  {nonRegUser.occurrences || 1}
+                                </div>
                               </td>
                               <td>
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
                                   <FaUniversity style={{ marginRight: '0.5rem', opacity: '0.6' }} />
-                                  {Array.isArray(userItem.enrolledCourses) ? userItem.enrolledCourses.length : 0}
-                                  {Array.isArray(userItem.enrolledCourses) && userItem.enrolledCourses.length > 0 && (
+                                  {Array.isArray(nonRegUser.courses) ? nonRegUser.courses.length : 0}
+                                  {Array.isArray(nonRegUser.courses) && nonRegUser.courses.length > 0 && (
                                     <button 
                                       className={styles.iconButton}
                                       title="Ver cursos"
-                                      onClick={() => handleViewUserCourses(userItem)}
+                                      onClick={() => handleViewUserCourses({
+                                        ...nonRegUser,
+                                        _id: nonRegUser._id || 'temp-id',
+                                        email: '',
+                                        role: 'unregistered',
+                                        enrolledCourses: nonRegUser.courses
+                                      } as User)}
                                       style={{ marginLeft: '5px', color: '#3182ce' }}
                                     >
                                       <FaList />
@@ -1567,97 +1551,211 @@ export default function UserManagement() {
                               </td>
                               <td>
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
+                                  <FaUniversity style={{ marginRight: '0.5rem', color: '#4299e1' }} />
+                                  {nonRegUser.schools && nonRegUser.schools.length > 0 ? 
+                                    schools.find(s => nonRegUser.schools?.includes(s._id))?.name || 'Sin escuela' : 
+                                    'Sin escuela'}
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
                                   <FaClock style={{ marginRight: '0.5rem', color: '#718096' }} />
-                                  {userItem.createdAt ? new Date(userItem.createdAt).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'}) : 'N/A'}
+                                  {nonRegUser.lastSeen ? new Date(nonRegUser.lastSeen).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'}) : 'N/A'}
                                 </div>
                               </td>
                             </>
                           )}
                           <td>
-                            <div className={styles.actionButtons}>
-                              <button 
-                                className={styles.iconButton}
-                                title="Editar usuario"
-                                onClick={() => handleEditUser(userItem)}
-                              >
-                                <FaEdit />
-                              </button>
-                              <button 
-                                className={styles.iconButton}
-                                title="Enrollar en curso"
-                                onClick={() => handleEnrollUser(userItem)}
-                              >
-                                <FaUniversity />
-                              </button>
-                              <button 
-                                className={styles.iconButton}
-                                title="Registrar pago"
-                                onClick={() => handleShowPaymentModal(userItem)}
-                                style={{ color: '#38a169' }}
-                              >
-                                <FaMoneyBillWave />
-                              </button>
-                              {user?.role === 'super_admin' && (
-                                <button 
-                                  className={`${styles.iconButton} ${styles.deleteButton}`}
-                                  title="Eliminar usuario"
-                                  onClick={() => handleDeleteUser(userItem._id, userItem.name)}
-                                >
-                                  <FaTrash />
-                                </button>
-                              )}
-                            </div>
+                            <button 
+                              className={styles.iconButton}
+                              onClick={() => handleLinkUser(nonRegUser)}
+                              title="Vincular a cuenta registrada"
+                            >
+                              <FaLink />
+                            </button>
+                            <button 
+                              className={styles.iconButton}
+                              title="Registrar pago"
+                              onClick={() => handleShowPaymentModal({
+                                ...nonRegUser,
+                                _id: nonRegUser._id || 'temp-id',
+                                email: '',
+                                role: 'unregistered',
+                                enrolledCourses: nonRegUser.courses
+                              } as User)}
+                              style={{ color: '#38a169' }}
+                            >
+                              <FaMoneyBillWave />
+                            </button>
                           </td>
                         </tr>
                       ))
+                    )}
+                  </tbody>
+                </table>
+              ) : (
+                // Tabla de usuarios registrados con paginación
+                <>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Nombre</th>
+                        <th>Email</th>
+                        {user?.role === 'super_admin' && (
+                          <>
+                            <th>Rol</th>
+                            <th>Cursos</th>
+                            <th>Fecha Registro</th>
+                          </>
+                        )}
+                        <th>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredUsers.length === 0 && dataReady ? (
+                        <tr>
+                          <td colSpan={user?.role === 'super_admin' ? 6 : 3} className={styles.emptyMessage}>
+                            No se encontraron usuarios que coincidan con los criterios de búsqueda.
+                            {selectedSchool && (
+                              <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#718096' }}>
+                                Prueba cambiando los filtros o volviendo a "Todas las escuelas".
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ) : (
+                        // Si hay usuarios o los datos aún no están listos, mostrar la lista paginada
+                        filteredUsers
+                          .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                          .map(userItem => (
+                            <tr key={userItem._id}>
+                              <td>
+                                <div style={{ fontWeight: '500' }}>
+                                  {userItem.name}
+                                  {userItem.role === 'unregistered' && 
+                                    <span className={styles.tagNonRegistered} style={{ marginLeft: '5px' }}>Asistente</span>}
+                                </div>
+                              </td>
+                              <td>{userItem.email}</td>
+                              {user?.role === 'super_admin' && (
+                                <>
+                                  <td>
+                                    <span className={`${styles.roleBadge} ${styles[userItem.role]}`}>
+                                      {userItem.role}
+                                    </span>
+                                  </td>
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                      <FaUniversity style={{ marginRight: '0.5rem', opacity: '0.6' }} />
+                                      {Array.isArray(userItem.enrolledCourses) ? userItem.enrolledCourses.length : 0}
+                                      {Array.isArray(userItem.enrolledCourses) && userItem.enrolledCourses.length > 0 && (
+                                        <button 
+                                          className={styles.iconButton}
+                                          title="Ver cursos"
+                                          onClick={() => handleViewUserCourses(userItem)}
+                                          style={{ marginLeft: '5px', color: '#3182ce' }}
+                                        >
+                                          <FaList />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                      <FaClock style={{ marginRight: '0.5rem', color: '#718096' }} />
+                                      {userItem.createdAt ? new Date(userItem.createdAt).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'}) : 'N/A'}
+                                    </div>
+                                  </td>
+                                </>
+                              )}
+                              <td>
+                                <div className={styles.actionButtons}>
+                                  <button 
+                                    className={styles.iconButton}
+                                    title="Editar usuario"
+                                    onClick={() => handleEditUser(userItem)}
+                                  >
+                                    <FaEdit />
+                                  </button>
+                                  <button 
+                                    className={styles.iconButton}
+                                    title="Enrollar en curso"
+                                    onClick={() => handleEnrollUser(userItem)}
+                                  >
+                                    <FaUniversity />
+                                  </button>
+                                  <button 
+                                    className={styles.iconButton}
+                                    title="Registrar pago"
+                                    onClick={() => handleShowPaymentModal(userItem)}
+                                    style={{ color: '#38a169' }}
+                                  >
+                                    <FaMoneyBillWave />
+                                  </button>
+                                  {user?.role === 'super_admin' && (
+                                    <button 
+                                      className={`${styles.iconButton} ${styles.deleteButton}`}
+                                      title="Eliminar usuario"
+                                      onClick={() => handleDeleteUser(userItem._id, userItem.name)}
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                      )}
+                    </tbody>
+                  </table>
+                  
+                  {/* Controles de paginación - solo mostrar si hay datos y están listos */}
+                  {filteredUsers.length > 0 && dataReady && (
+                    <div className={styles.pagination}>
+                      <div className={styles.paginationControls}>
+                        <button 
+                          className={styles.paginationButton}
+                          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                          disabled={currentPage === 1}
+                        >
+                          Anterior
+                        </button>
+                        <span className={styles.pageInfo}>
+                          Página {currentPage} de {totalPages}
+                        </span>
+                        <button 
+                          className={styles.paginationButton}
+                          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                          disabled={currentPage === totalPages}
+                        >
+                          Siguiente
+                        </button>
+                      </div>
+                      <div className={styles.itemsPerPageControl}>
+                        <label htmlFor="itemsPerPage">Por página:</label>
+                        <select
+                          id="itemsPerPage"
+                          className={styles.select}
+                          value={itemsPerPage}
+                          onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                          style={{ width: '80px', marginLeft: '8px' }}
+                        >
+                          <option value="10">10</option>
+                          <option value="20">20</option>
+                          <option value="50">50</option>
+                          <option value="100">100</option>
+                        </select>
+                      </div>
+                    </div>
                   )}
-                </tbody>
-              </table>
-              
-              {/* Controles de paginación */}
-              {filteredUsers.length > 0 && (
-                <div className={styles.pagination}>
-                  <div className={styles.paginationControls}>
-                    <button 
-                      className={styles.paginationButton}
-                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                      disabled={currentPage === 1}
-                    >
-                      Anterior
-                    </button>
-                    <span className={styles.pageInfo}>
-                      Página {currentPage} de {totalPages}
-                    </span>
-                    <button 
-                      className={styles.paginationButton}
-                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                      disabled={currentPage === totalPages}
-                    >
-                      Siguiente
-                    </button>
-                  </div>
-                  <div className={styles.itemsPerPageControl}>
-                    <label htmlFor="itemsPerPage">Por página:</label>
-                    <select
-                      id="itemsPerPage"
-                      className={styles.select}
-                      value={itemsPerPage}
-                      onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                      style={{ width: '80px', marginLeft: '8px' }}
-                    >
-                      <option value="10">10</option>
-                      <option value="20">20</option>
-                      <option value="50">50</option>
-                      <option value="100">100</option>
-                    </select>
-                  </div>
-                </div>
+                </>
               )}
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </main>
 
+      {/* Modales */}
       {/* Modal Crear Usuario */}
       {showCreateUserModal && (
         <div className={styles.modalBackdrop}>

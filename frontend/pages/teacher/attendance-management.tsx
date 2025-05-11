@@ -178,14 +178,7 @@ export default function AttendanceManagementPage() {
     }
   }, [selectedClass, fetchAttendances]);
 
-  // Inicializar asistencias si se carga la clase y no hay asistencias
-  useEffect(() => {
-    if (selectedCourse && selectedClass && attendances.length === 0) {
-      initializeAttendances();
-    }
-  }, [selectedCourse, selectedClass, attendances]);
-
-  const initializeAttendances = () => {
+  const initializeAttendances = useCallback(() => {
     if (!selectedCourse) return;
     
     const selectedCourseObj = courses.find(course => course._id === selectedCourse);
@@ -206,7 +199,14 @@ export default function AttendanceManagementPage() {
     });
     
     setAttendances(newAttendances);
-  };
+  }, [selectedCourse, courses, attendances]);
+
+  // Inicializar asistencias si se carga la clase y no hay asistencias
+  useEffect(() => {
+    if (selectedCourse && selectedClass && attendances.length === 0) {
+      initializeAttendances();
+    }
+  }, [selectedCourse, selectedClass, attendances, initializeAttendances]);
 
   const handlePresentChange = (studentId: string, present: boolean) => {
     setAttendances(prev => 

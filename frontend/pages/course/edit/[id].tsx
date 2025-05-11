@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import axios from 'axios';
@@ -7,6 +7,14 @@ import styles from '../../../styles/CourseForm.module.css';
 import { useApiErrorHandler } from '../../../utils/api-error-handler';
 import ImageUploader from '../../../components/ImageUploader';
 import { FaTimes } from 'react-icons/fa';
+import { jwtDecode } from 'jwt-decode';
+
+interface DecodedToken {
+  sub: string;
+  email: string;
+  name: string;
+  role: string;
+}
 
 interface School {
   _id: string;
@@ -52,29 +60,7 @@ export default function EditCourse() {
   const [saving, setSaving] = useState(false);
   const { handleApiError } = useApiErrorHandler();
 
-  useEffect(() => {
-    // Check if there is a token
-    const token = Cookies.get('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    // Make sure id is a valid string
-    if (id && typeof id === 'string') {
-      fetchCourse(id, token);
-      fetchSchools(token);
-    }
-  }, [id, router]);
-
-  // Cargar profesores cuando cambia la escuela
-  useEffect(() => {
-    if (schoolId) {
-      fetchTeachersBySchool(schoolId);
-    }
-  }, [schoolId]);
-
-  const fetchCourse = async (courseId: string, token: string) => {
+  const fetchCourse = useCallback(async (courseId: string, token: string) => {
     setLoading(true);
     setError('');
     
@@ -137,29 +123,9 @@ export default function EditCourse() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [handleApiError, teacherId]);
 
-  const fetchSchools = async (token: string) => {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const response = await axios.get(
-        `${apiUrl}/api/schools`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-      
-      setSchools(response.data);
-    } catch (error) {
-      console.error('Error fetching schools:', error);
-      // Don't block the UI for this error, just show a message
-      setError(prev => prev || 'Could not load schools. Some options may not be available.');
-    }
-  };
-
-  const fetchTeachersBySchool = async (schoolId: string) => {
+  const fetchTeachersBySchool = useCallback(async (schoolId: string) => {
     if (!schoolId) return;
     
     setLoadingTeachers(true);
@@ -187,6 +153,62 @@ export default function EditCourse() {
       setError(handleApiError(error));
     } finally {
       setLoadingTeachers(false);
+    }
+  }, [handleApiError]);
+
+  useEffect(() => {
+    const token = Cookies.get('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      const userRole = String(decoded.role).toLowerCase();
+      
+      const hasPermission = ['super_admin', 'admin', 'school_owner', 'administrative', 'teacher'].includes(userRole);
+      
+      if (!hasPermission) {
+        router.push('/');
+        return;
+      }
+    } catch (error) {
+      router.push('/login');
+      return;
+    }
+
+    // Make sure id is a valid string
+    if (id && typeof id === 'string') {
+      fetchCourse(id, token);
+      fetchSchools(token);
+    }
+  }, [id, router, fetchCourse]);
+
+  // Cargar profesores cuando cambia la escuela
+  useEffect(() => {
+    if (schoolId) {
+      fetchTeachersBySchool(schoolId);
+    }
+  }, [schoolId, fetchTeachersBySchool]);
+
+  const fetchSchools = async (token: string) => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await axios.get(
+        `${apiUrl}/api/schools`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      
+      setSchools(response.data);
+    } catch (error) {
+      console.error('Error fetching schools:', error);
+      // Don't block the UI for this error, just show a message
+      setError(prev => prev || 'Could not load schools. Some options may not be available.');
     }
   };
 

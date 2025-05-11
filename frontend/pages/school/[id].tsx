@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import Cookies from 'js-cookie';
@@ -66,6 +66,42 @@ export default function SchoolDetail() {
   const [isDeleting, setIsDeleting] = useState(false);
   const { handleApiError } = useApiErrorHandler();
 
+  const fetchSchoolAndCourses = useCallback(async () => {
+    try {
+      setLoading(true);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const token = Cookies.get('token');
+      
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+      
+      const headers = { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
+      
+      // Get school details
+      const schoolResponse = await axios.get(`${apiUrl}/api/schools/${id}`, { headers });
+      setSchool(schoolResponse.data);
+      
+      // Get courses for this school
+      const coursesResponse = await axios.get(`${apiUrl}/api/courses?schoolId=${id}`, { headers });
+      setCourses(coursesResponse.data);
+      
+    } catch (error) {
+      console.error('Error al obtener datos:', error);
+      setError(handleApiError(error));
+    } finally {
+      setLoading(false);
+    }
+  }, [id, router, handleApiError]);
+
+  useEffect(() => {
+    fetchSchoolAndCourses();
+  }, [fetchSchoolAndCourses]);
+
   useEffect(() => {
     const checkAuth = () => {
       const token = Cookies.get('token');
@@ -86,64 +122,6 @@ export default function SchoolDetail() {
     
     checkAuth();
   }, []);
-
-  useEffect(() => {
-    if (!id) return;
-    
-    const fetchSchoolAndCourses = async () => {
-      try {
-        setLoading(true);
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-        const token = Cookies.get('token');
-        
-        const headers: any = { 'Content-Type': 'application/json' };
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-        
-        // Obtener información de la escuela
-        const schoolResponse = await axios.get(`${apiUrl}/api/schools/${id}`, { headers })
-          .catch(error => {
-            console.error('Error al obtener información de la escuela:', error);
-            if (error.response) {
-              console.error('Respuesta del servidor:', error.response.status, error.response.data);
-            }
-            throw error;
-          });
-        
-        setSchool(schoolResponse.data);
-        
-        // Obtener cursos de la escuela
-        const coursesResponse = await axios.get(`${apiUrl}/api/courses?schoolId=${id}`, { headers })
-          .catch(error => {
-            console.error('Error al obtener cursos de la escuela:', error);
-            if (error.response) {
-              console.error('Respuesta del servidor:', error.response.status, error.response.data);
-            }
-            throw error;
-          });
-        
-        // Sort courses by promotionOrder and then alphabetically by title
-        const sortedCourses = [...coursesResponse.data].sort((a, b) => {
-          // Primero ordenar por promotionOrder (los números más bajos primero)
-          if (a.promotionOrder !== b.promotionOrder) {
-            return (a.promotionOrder || 999) - (b.promotionOrder || 999);
-          }
-          // Luego ordenar alfabéticamente por título
-          return a.title.localeCompare(b.title, 'es', { sensitivity: 'accent' });
-        });
-        
-        setCourses(sortedCourses);
-      } catch (error) {
-        console.error('Error al obtener datos:', error);
-        setError(handleApiError(error));
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSchoolAndCourses();
-  }, [id]);
 
   const handleCourseClick = (courseId: string) => {
     router.push(`/course/${courseId}`);

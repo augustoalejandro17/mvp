@@ -60,6 +60,7 @@ const PaymentManagement = () => {
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [success, setSuccess] = useState<string>('');
+  const [user, setUser] = useState<DecodedToken | null>(null);
   const router = useRouter();
   const { handleApiError } = useApiErrorHandler();
   
@@ -74,27 +75,6 @@ const PaymentManagement = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<PaymentStatus>('pending');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-
-  useEffect(() => {
-    const token = Cookies.get('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    try {
-      const decoded: DecodedToken = jwtDecode(token);
-      if (decoded.role !== 'admin' && decoded.role !== 'school_owner' && decoded.role !== 'super_admin') {
-        router.push('/');
-        return;
-      }
-
-      fetchCourses();
-    } catch (error) {
-      setError(handleApiError(error, 'Invalid authentication token'));
-      router.push('/login');
-    }
-  }, [router, handleApiError]);
 
   const fetchCourses = useCallback(async () => {
     try {
@@ -133,6 +113,36 @@ const PaymentManagement = () => {
       setLoading(false);
     }
   }, [handleApiError]);
+
+  useEffect(() => {
+    try {
+      const token = Cookies.get('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      try {
+        const decoded = jwtDecode<DecodedToken>(token);
+        setUser(decoded);
+
+        // Only allow admin and super_admin roles
+        if (!['admin', 'super_admin', 'school_owner'].includes(decoded.role)) {
+          router.push('/dashboard');
+          return;
+        }
+      } catch (error) {
+        Cookies.remove('token');
+        router.push('/login');
+        return;
+      }
+
+      fetchCourses();
+    } catch (error) {
+      setError(handleApiError(error, 'Invalid authentication token'));
+      router.push('/login');
+    }
+  }, [router, handleApiError, fetchCourses]);
 
   const handleCourseChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const courseId = e.target.value;
@@ -285,7 +295,7 @@ const PaymentManagement = () => {
         onClose={closePaymentModal}
         onSave={handlePaymentUpdate}
         initialNotes={modal.notes}
-        isPaid={!modal.isPaid}
+        isPaid={modal.isPaid}
         studentId={modal.studentId}
       />
     </div>

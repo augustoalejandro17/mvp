@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import styles from '../styles/UserSearch.module.css';
@@ -31,61 +31,15 @@ const UserSearch: React.FC<UserSearchProps> = ({
   selectedSchool 
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [users, setUsers] = useState<User[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [globalSearch, setGlobalSearch] = useState(true);
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    // Ocultar resultados cuando cambia la escuela seleccionada
-    setShowResults(false);
-    setUsers([]);
-  }, [selectedSchool]);
-
-  // Manejar la búsqueda cuando el usuario ingresa más de 3 caracteres
-  useEffect(() => {
-    if (searchTerm.length >= 3) {
-      const delayDebounceFn = setTimeout(() => {
-        handleSearch();
-      }, 500);
-      
-      return () => clearTimeout(delayDebounceFn);
-    } else {
-      setUsers([]);
-      if (searchTerm.length === 0) {
-        setShowResults(false);
-      }
-    }
-  }, [searchTerm]);
-
-  // Detectar clics fuera del componente para cerrar los resultados
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowResults(false);
-      }
-    };
-
-    // Detectar la tecla ESC para cerrar el modal
-    const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setShowResults(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscKey);
-    
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscKey);
-    };
-  }, []);
-
-  const handleSearch = async () => {
+  const handleSearch = useCallback(async () => {
     if (searchTerm.length < 3) {
       setError('Ingresa al menos 3 caracteres para buscar');
       return;
@@ -115,7 +69,53 @@ const UserSearch: React.FC<UserSearchProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchTerm]);
+
+  useEffect(() => {
+    // Ocultar resultados cuando cambia la escuela seleccionada
+    setShowResults(false);
+    setUsers([]);
+  }, [selectedSchool]);
+
+  // Manejar la búsqueda cuando el usuario ingresa más de 3 caracteres
+  useEffect(() => {
+    if (searchTerm.length >= 3) {
+      const delayDebounceFn = setTimeout(() => {
+        handleSearch();
+      }, 500);
+      
+      return () => clearTimeout(delayDebounceFn);
+    } else {
+      setUsers([]);
+      if (searchTerm.length === 0) {
+        setShowResults(false);
+      }
+    }
+  }, [searchTerm, handleSearch]);
+
+  // Detectar clics fuera del componente para cerrar los resultados
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowResults(false);
+      }
+    };
+
+    // Detectar la tecla ESC para cerrar el modal
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowResults(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscKey);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscKey);
+    };
+  }, []);
 
   const handleSelectUser = (user: User) => {
     onSelectUser(user);
