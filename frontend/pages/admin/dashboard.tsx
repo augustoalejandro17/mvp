@@ -352,7 +352,7 @@ export default function AdminDashboard() {
     <div className={styles.container}>
       <div className={styles.dashboardHeader}>
         <h1>Panel de Administración</h1>
-        <p>Bienvenido/a, {user?.name}. Desde aquí podrás gestionar todos los aspectos de Conecta. Aprende. Crece.</p>
+        <p>Bienvenido/a, {user?.name}. Desde aquí podrás gestionar todos los aspectos de tu cuenta.</p>
       </div>
 
       <div className={styles.content}>
