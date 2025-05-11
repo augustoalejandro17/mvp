@@ -12,7 +12,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'LearnHub' }) => {
     <div className={styles.container}>
       <Head>
         <title>{title}</title>
-        <meta name="description" content="Learning Platform" />
+        <meta name="description" content="Conecta. Aprende. Crece." />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
