@@ -4,7 +4,7 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../../styles/Course.module.css';
-import { FaPlus, FaTrashAlt, FaEye, FaEdit, FaUserCheck } from 'react-icons/fa';
+import { FaPlus, FaTrashAlt, FaEye, FaEdit, FaUserCheck, FaSpinner } from 'react-icons/fa';
 import { jwtDecode } from 'jwt-decode';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import ImageFallback from '../../components/ImageFallback';
@@ -64,6 +64,7 @@ export default function CourseDetail() {
   const [deletingClassId, setDeletingClassId] = useState<string | null>(null);
   const { handleApiError } = useApiErrorHandler();
   const [videoStreamUrl, setVideoStreamUrl] = useState<string | null>(null);
+  const [videoLoadError, setVideoLoadError] = useState(false);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -141,6 +142,7 @@ export default function CourseDetail() {
   const handleClassClick = (classItem: Class) => {
     setSelectedClass(classItem);
     setVideoStreamUrl(null); // Resetear la URL de streaming para mostrar el mensaje "Cargando video..."
+    setVideoLoadError(false); // Resetear el estado de error al cambiar de clase
     
     // Usar la URL directa de inmediato para mostrar el video
     // mientras obtenemos la URL de streaming optimizada
@@ -403,7 +405,7 @@ export default function CourseDetail() {
                         <FaEye />
                       </button>
                       
-                      {classItem.createdBy && canModifyClassItem(classItem.createdBy._id) && (
+                      {(user?.role === 'super_admin' || (classItem.createdBy && canModifyClassItem(classItem.createdBy._id))) && (
                         <>
                           <Link 
                             href={`/class/edit/${classItem._id}`}
@@ -423,7 +425,11 @@ export default function CourseDetail() {
                             disabled={deletingClassId === classItem._id}
                             title="Eliminar clase"
                           >
-                            {deletingClassId === classItem._id ? "⏳" : <FaTrashAlt />}
+                            {deletingClassId === classItem._id ? (
+                              <FaSpinner className={styles.spinner} />
+                            ) : (
+                              <FaTrashAlt />
+                            )}
                           </button>
                         </>
                       )}
@@ -463,39 +469,48 @@ export default function CourseDetail() {
               <>
                 <div className={styles.videoContainer}>
                   {selectedClass.videoUrl ? (
-                    <video
-                      key={videoStreamUrl || selectedClass.videoUrl} // Usar cualquier URL disponible
-                      src={videoStreamUrl || selectedClass.videoUrl}
-                      controls
-                      playsInline
-                      className={styles.videoPlayer}
-                      autoPlay={false}
-                      onError={(e) => {
-                        console.error('Error al cargar el video:', e);
-                        
-                        
-                        // Mostrar mensaje alternativo
-                        const videoContainer = document.querySelector(`.${styles.videoContainer}`);
-                        if (videoContainer) {
-                          videoContainer.innerHTML = `
-                            <div style="padding: 20px; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #000;">
-                              <p style="color: white; margin-bottom: 20px;">No se pudo cargar el video en el reproductor.</p>
-                              <a 
-                                href="${videoStreamUrl || selectedClass.videoUrl}" 
-                                target="_blank"
-                                style="background: #3182ce; color: white; padding: 10px 15px; border-radius: 4px; text-decoration: none; font-weight: bold;"
-                              >
-                                Abrir video en nueva pestaña
-                              </a>
-                            </div>
-                          `;
-                        }
-                      }}
-                    >
-                      <source src={videoStreamUrl || selectedClass.videoUrl} type="video/mp4" />
-                      <source src={videoStreamUrl || selectedClass.videoUrl} type="video/webm" />
-                      Tu navegador no soporta la reproducción de videos.
-                    </video>
+                    videoLoadError ? (
+                      <div style={{
+                        padding: "20px", 
+                        textAlign: "center",
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        background: "#000",
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%"
+                      }}>
+                        <p style={{color: "white", marginBottom: "20px"}}>No se pudo cargar el video en el reproductor.</p>
+                        <a 
+                          href={videoStreamUrl || selectedClass.videoUrl} 
+                          target="_blank"
+                          style={{background: "#3182ce", color: "white", padding: "10px 15px", borderRadius: "4px", textDecoration: "none", fontWeight: "bold"}}
+                        >
+                          Abrir video en nueva pestaña
+                        </a>
+                      </div>
+                    ) : (
+                      <video
+                        key={videoStreamUrl || selectedClass.videoUrl} // Usar cualquier URL disponible
+                        src={videoStreamUrl || selectedClass.videoUrl}
+                        controls
+                        playsInline
+                        className={styles.videoPlayer}
+                        autoPlay={false}
+                        onError={(e) => {
+                          console.error('Error al cargar el video:', e);
+                          setVideoLoadError(true);
+                        }}
+                      >
+                        <source src={videoStreamUrl || selectedClass.videoUrl} type="video/mp4" />
+                        <source src={videoStreamUrl || selectedClass.videoUrl} type="video/webm" />
+                        Tu navegador no soporta la reproducción de videos.
+                      </video>
+                    )
                   ) : (
                     <div style={{
                       padding: "20px",
@@ -505,7 +520,11 @@ export default function CourseDetail() {
                       flexDirection: "column",
                       justifyContent: "center",
                       alignItems: "center",
-                      background: "#000"
+                      background: "#000",
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%"
                     }}>
                       <p style={{color: "white", marginBottom: "20px"}}>No hay video disponible</p>
                     </div>

@@ -6,6 +6,7 @@ import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/CreateClass.module.css';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import Link from 'next/link';
+import { FaSpinner } from 'react-icons/fa';
 
 interface Course {
   _id: string;
@@ -194,6 +195,15 @@ export default function CreateClass() {
           <form onSubmit={handleSubmit} className={styles.form}>
             {error && <div className={styles.error}>{error}</div>}
             
+            {loading && (
+              <div className={styles.formOverlay}>
+                <div className={styles.overlayContent}>
+                  <FaSpinner className={styles.overlaySpinner} />
+                  <p>Creando clase...</p>
+                </div>
+              </div>
+            )}
+            
             <div className={styles.formGroup}>
               <label htmlFor="courseId">Curso*</label>
               <select
@@ -202,6 +212,7 @@ export default function CreateClass() {
                 onChange={(e) => setCourseId(e.target.value)}
                 required
                 className={styles.select}
+                disabled={loading}
               >
                 <option value="">Selecciona un curso</option>
                 {courses.map((course) => (
@@ -223,6 +234,7 @@ export default function CreateClass() {
                 minLength={3}
                 placeholder="Ej: Introducción a los pasos básicos"
                 className={styles.input}
+                disabled={loading}
               />
             </div>
             
@@ -237,6 +249,7 @@ export default function CreateClass() {
                 rows={4}
                 placeholder="Describe el contenido de la clase, objetivos, etc."
                 className={styles.textarea}
+                disabled={loading}
               />
             </div>
             
@@ -263,6 +276,7 @@ export default function CreateClass() {
                 accept="video/mp4,video/webm,video/quicktime,video/x-msvideo"
                 onChange={handleVideoChange}
                 required
+                disabled={loading}
               />
               <small className={styles.inputHelp}>Formatos permitidos: MP4, WebM, MOV, AVI. Tamaño máximo: 100MB</small>
             </div>
@@ -273,10 +287,20 @@ export default function CreateClass() {
                 className={styles.button}
                 disabled={loading}
               >
-                {loading ? 'Creando clase...' : 'Crear Clase'}
+                {loading ? (
+                  <>
+                    <FaSpinner className={styles.spinner} />
+                    <span>Creando clase...</span>
+                  </>
+                ) : 'Crear Clase'}
               </button>
               
-              <Link href={router.query.courseId ? `/course/${router.query.courseId}` : '/'} className={styles.cancelButton}>
+              <Link 
+                href={router.query.courseId ? `/course/${router.query.courseId}` : '/'} 
+                className={`${styles.cancelButton} ${loading ? styles.disabled : ''}`}
+                onClick={(e) => loading && e.preventDefault()}
+                tabIndex={loading ? -1 : undefined}
+              >
                 Cancelar
               </Link>
             </div>

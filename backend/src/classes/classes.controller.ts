@@ -271,16 +271,33 @@ export class ClassesController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   async remove(@Param('id') id: string, @Req() req: Request) {
-    
     const user = req.user as any;
     const userId = user._id || user.sub;
     
     try {
       const result = await this.classesService.remove(id, userId);
       
-      return result;
+      return {
+        ...result,
+        status: 'success',
+        timestamp: new Date().toISOString()
+      };
     } catch (error) {
       this.logger.error(`Error al eliminar clase: ${error.message}`, error.stack);
+      
+      // Si es un error de permisos de AWS, dar un mensaje más amigable
+      if (
+        error.message?.includes('not authorized to perform: s3:DeleteObject') || 
+        error.message?.includes('identity-based policy') ||
+        error.code === 'AccessDenied'
+      ) {
+        throw new InternalServerErrorException({
+          message: 'La clase se eliminó de la base de datos, pero el video podría permanecer en el servidor debido a permisos insuficientes. Esto no afecta el funcionamiento del sistema.',
+          status: 'partial_success',
+          details: 'Contacta al administrador si necesitas eliminar también el archivo de video.'
+        });
+      }
+      
       throw error;
     }
   }

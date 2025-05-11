@@ -303,12 +303,11 @@ export class ClassesService {
   }
 
   async remove(id: string, userId: string) {
-    
     try {
       const classToDelete = await this.classModel.findById(id);
       
       if (!classToDelete) {
-        
+        this.logger.warn(`Clase con ID ${id} no encontrada para eliminación`);
         throw new NotFoundException(`Clase con ID ${id} no encontrada`);
       }
       
@@ -328,24 +327,43 @@ export class ClassesService {
       const isTeacher = String(course.teacher) === userId;
       const isAdmin = compareRole(user.role, UserRole.ADMIN) || compareRole(user.role, UserRole.SUPER_ADMIN);
       
-      
-      
       if (!isTeacher && !isAdmin) {
-        
         throw new UnauthorizedException('No tienes permisos para eliminar esta clase');
       }
       
-      // Eliminar el video de S3
+      // Eliminar el video de S3 si existe
+      let videoDeleteError = null;
       if (classToDelete.videoUrl) {
-        await this.s3Service.deleteVideo(classToDelete.videoUrl);
+        try {
+          await this.s3Service.deleteVideo(classToDelete.videoUrl);
+        } catch (s3Error) {
+          // Registramos el error pero continuamos con la eliminación de la clase
+          this.logger.warn(`No se pudo eliminar el video asociado a la clase: ${s3Error.message}`);
+          videoDeleteError = s3Error.message;
+        }
       }
       
+      // Eliminar la clase de la base de datos
       await this.classModel.findByIdAndDelete(id);
       
+      // Incluir mensaje de advertencia si hubo error al eliminar el video
+      if (videoDeleteError) {
+        return { 
+          success: true, 
+          message: 'La clase fue eliminada correctamente, pero el video podría permanecer en el servidor. Esto no afecta el funcionamiento del sistema.',
+          videoWarning: true
+        };
+      }
       
-      return { success: true };
+      return { success: true, message: 'Clase eliminada correctamente' };
     } catch (error) {
       this.logger.error(`Error al eliminar clase ${id}: ${error.message}`, error.stack);
+      
+      // Mejorar los mensajes de error para mejor diagnóstico
+      if (error.name === 'AccessDenied' || error.code === 'AccessDenied') {
+        throw new InternalServerErrorException('No se pudo eliminar el archivo de video asociado a la clase debido a permisos insuficientes. Contacta al administrador del sistema.');
+      }
+      
       throw error;
     }
   }

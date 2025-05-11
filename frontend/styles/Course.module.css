@@ -285,8 +285,8 @@
 }
 
 .classActionBtn[title="Eliminar clase"]:hover {
-  background-color: #fff1f1;
-  border-color: #feb2b2;
+  border-color: #e53e3e;
+  background-color: #fff5f5;
 }
 
 .classActionBtn[title="Editar clase"] {
@@ -305,6 +305,8 @@
   color: #e53e3e;
   font-style: italic;
   padding: 0 0.5rem;
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .videoColumn {
@@ -540,6 +542,15 @@
   flex-direction: column;
   gap: 0.5rem;
   margin-top: 1rem;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 @media (max-width: 768px) {

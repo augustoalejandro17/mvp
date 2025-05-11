@@ -151,16 +151,35 @@ export class S3Service {
 
   async deleteVideo(videoUrl: string): Promise<void> {
     try {
-      const key = this.getKeyFromUrl(videoUrl);
-      await this.s3.deleteObject({
-        Bucket: this.bucketName,
-        Key: key,
-      }).promise();
+      if (!videoUrl) {
+        this.logger.warn('Se intentó eliminar un video con URL vacía');
+        return;
+      }
 
-      
+      const key = this.getKeyFromUrl(videoUrl);
+      try {
+        await this.s3.deleteObject({
+          Bucket: this.bucketName,
+          Key: key,
+        }).promise();
+        
+        this.logger.log(`Video eliminado correctamente: ${key}`);
+      } catch (s3Error) {
+        // Capturar errores específicos de permisos en S3
+        if (s3Error.code === 'AccessDenied' || s3Error.name === 'AccessDenied') {
+          this.logger.warn(`Acceso denegado al intentar eliminar el video ${key}. El archivo permanecerá en S3.`);
+          // No lanzamos error en este caso, simplemente registramos y continuamos
+          return;
+        }
+        
+        // Para otros tipos de errores, registramos pero no interrumpimos el flujo
+        this.logger.error(`Error al eliminar video de S3 (${key}): ${s3Error.message}`, s3Error.stack);
+        // No lanzamos el error para permitir que el proceso de eliminación de la clase continúe
+      }
     } catch (error) {
-      this.logger.error('Error deleting video from S3:', error);
-      throw error;
+      // Errores en la lógica de la función (ej. al obtener la clave)
+      this.logger.error(`Error al procesar la eliminación del video: ${error.message}`, error.stack);
+      // No lanzamos el error para permitir que el proceso de eliminación de la clase continúe
     }
   }
 

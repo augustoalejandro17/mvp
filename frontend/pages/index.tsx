@@ -79,22 +79,21 @@ export default function Home() {
   return (
     <div className={styles.container}>
       <main className={styles.main}>
-        <h1 className={styles.title}>Conecta. Aprende. Crece.</h1>
-        
         {user ? (
           <>
             <div className={styles.userWelcome}>
-              <p>Bienvenido, {user.name}</p>
-              <div className={styles.userActions}>
-                {user.role === 'admin' && (
+              <h1 className={styles.title}>Bienvenido, {user.name}</h1>
+              <p className={styles.slogan}>Conecta. Aprende. Crece.</p>
+              {user.role === 'admin' && (
+                <div className={styles.userActions}>
                   <button 
                     className={styles.createButton}
                     onClick={() => router.push('/school/create')}
                   >
                     Crear Nueva Escuela
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
             
             {loading ? (
@@ -144,6 +143,9 @@ export default function Home() {
           </>
         ) : (
           <>
+            <h1 className={styles.title}>Bienvenido</h1>
+            <p className={styles.slogan}>Conecta. Aprende. Crece.</p>
+            
             <div className={styles.description}>
               <p>Descubre escuelas y academias de baile cerca de ti</p>
             </div>

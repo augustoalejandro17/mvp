@@ -22,6 +22,15 @@
   color: #2d3748;
 }
 
+.slogan {
+  text-align: center;
+  font-size: 1.4rem;
+  color: #4a5568;
+  margin-top: -0.5rem;
+  margin-bottom: 1.5rem;
+  font-weight: 500;
+}
+
 .description {
   text-align: center;
   margin-bottom: 2rem;
@@ -34,9 +43,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1.5rem;
+  flex-direction: column;
+  gap: 0.5rem;
   margin-bottom: 2rem;
-  flex-wrap: wrap;
+  width: 100%;
 }
 
 .userWelcome p {
@@ -46,7 +56,9 @@
 }
 
 .userActions {
-  display: none;
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
 }
 
 .createButton {
