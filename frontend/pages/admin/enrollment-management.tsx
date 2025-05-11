@@ -261,11 +261,13 @@ export default function EnrollmentManagementPage() {
                   required
                 >
                   <option value="">Selecciona un estudiante</option>
-                  {students.map(student => (
-                    <option key={student._id} value={student._id}>
-                      {student.name} - {student.email}
-                    </option>
-                  ))}
+                  {[...students]
+                    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+                    .map(student => (
+                      <option key={student._id} value={student._id}>
+                        {student.name} - {student.email}
+                      </option>
+                    ))}
                 </select>
               </div>
               
@@ -294,43 +296,45 @@ export default function EnrollmentManagementPage() {
                   <div className={styles.tableCell}>Acciones</div>
                 </div>
                 
-                {enrollments.map(enrollment => (
-                  <div key={enrollment._id} className={styles.tableRow}>
-                    <div className={styles.tableCell}>
-                      <div>{enrollment.student.name}</div>
-                      <div className={styles.emailText}>{enrollment.student.email}</div>
-                    </div>
-                    <div className={styles.tableCell}>
-                      <div>{enrollment.course.title}</div>
-                      <div className={styles.schoolText}>
-                        {enrollment.course.school?.name || 'Sin escuela'}
+                {[...enrollments]
+                  .sort((a, b) => a.student.name.localeCompare(b.student.name, undefined, { sensitivity: 'base' }))
+                  .map(enrollment => (
+                    <div key={enrollment._id} className={styles.tableRow}>
+                      <div className={styles.tableCell}>
+                        <div>{enrollment.student.name}</div>
+                        <div className={styles.emailText}>{enrollment.student.email}</div>
+                      </div>
+                      <div className={styles.tableCell}>
+                        <div>{enrollment.course.title}</div>
+                        <div className={styles.schoolText}>
+                          {enrollment.course.school?.name || 'Sin escuela'}
+                        </div>
+                      </div>
+                      <div className={styles.tableCell}>
+                        <span className={
+                          enrollment.paymentStatus 
+                            ? styles.paymentStatusPaid 
+                            : styles.paymentStatusUnpaid
+                        }>
+                          {enrollment.paymentStatus ? 'Pagado' : 'Pendiente'}
+                        </span>
+                      </div>
+                      <div className={styles.tableCell}>
+                        {enrollment.lastPaymentDate 
+                          ? new Date(enrollment.lastPaymentDate).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'}) 
+                          : 'No registrado'}
+                      </div>
+                      <div className={styles.tableCell}>
+                        <button
+                          onClick={() => handleUnenrollStudent(enrollment._id)}
+                          className={styles.unenrollButton}
+                          disabled={isUnenrolling}
+                        >
+                          {isUnenrolling ? 'Eliminando...' : 'Eliminar'}
+                        </button>
                       </div>
                     </div>
-                    <div className={styles.tableCell}>
-                      <span className={
-                        enrollment.paymentStatus 
-                          ? styles.paymentStatusPaid 
-                          : styles.paymentStatusUnpaid
-                      }>
-                        {enrollment.paymentStatus ? 'Pagado' : 'Pendiente'}
-                      </span>
-                    </div>
-                    <div className={styles.tableCell}>
-                      {enrollment.lastPaymentDate 
-                        ? new Date(enrollment.lastPaymentDate).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'}) 
-                        : 'No registrado'}
-                    </div>
-                    <div className={styles.tableCell}>
-                      <button
-                        onClick={() => handleUnenrollStudent(enrollment._id)}
-                        className={styles.unenrollButton}
-                        disabled={isUnenrolling}
-                      >
-                        {isUnenrolling ? 'Eliminando...' : 'Eliminar'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             ) : (
               <div className={styles.noEnrollments}>

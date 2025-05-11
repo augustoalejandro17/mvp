@@ -234,42 +234,45 @@ const PaymentManagement = () => {
               </tr>
             </thead>
             <tbody>
-              {enrollments.map((enrollment) => (
-                <tr key={enrollment._id} className={enrollment.paymentStatus ? styles.paid : styles.unpaid}>
-                  <td>{enrollment.student.name}</td>
-                  <td>{enrollment.student.email}</td>
-                  <td>{enrollment.paymentStatus ? 'Paid' : 'Unpaid'}</td>
-                  <td>{enrollment.lastPaymentDate ? new Date(enrollment.lastPaymentDate).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'}) : 'N/A'}</td>
-                  <td>{enrollment.paymentNotes || 'N/A'}</td>
-                  <td>
-                    <div className={styles.actionsContainer}>
-                      {enrollment.paymentStatus ? (
-                        <button 
-                          className={styles.unpaidButton}
-                          onClick={() => openPaymentModal(
-                            enrollment.student._id, 
-                            enrollment.paymentStatus,
-                            enrollment.paymentNotes
-                          )}
-                        >
-                          Mark as Unpaid
-                        </button>
-                      ) : (
-                        <button 
-                          className={styles.paidButton}
-                          onClick={() => openPaymentModal(
-                            enrollment.student._id, 
-                            enrollment.paymentStatus,
-                            enrollment.paymentNotes
-                          )}
-                        >
-                          Mark as Paid
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {/* Sort enrollments alphabetically by student name */}
+              {[...enrollments]
+                .sort((a, b) => a.student.name.localeCompare(b.student.name, undefined, { sensitivity: 'base' }))
+                .map((enrollment) => (
+                  <tr key={enrollment._id} className={enrollment.paymentStatus ? styles.paid : styles.unpaid}>
+                    <td>{enrollment.student.name}</td>
+                    <td>{enrollment.student.email}</td>
+                    <td>{enrollment.paymentStatus ? 'Paid' : 'Unpaid'}</td>
+                    <td>{enrollment.lastPaymentDate ? new Date(enrollment.lastPaymentDate).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'}) : 'N/A'}</td>
+                    <td>{enrollment.paymentNotes || 'N/A'}</td>
+                    <td>
+                      <div className={styles.actionsContainer}>
+                        {enrollment.paymentStatus ? (
+                          <button 
+                            className={styles.unpaidButton}
+                            onClick={() => openPaymentModal(
+                              enrollment.student._id, 
+                              enrollment.paymentStatus,
+                              enrollment.paymentNotes
+                            )}
+                          >
+                            Mark as Unpaid
+                          </button>
+                        ) : (
+                          <button 
+                            className={styles.paidButton}
+                            onClick={() => openPaymentModal(
+                              enrollment.student._id, 
+                              enrollment.paymentStatus,
+                              enrollment.paymentNotes
+                            )}
+                          >
+                            Mark as Paid
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>

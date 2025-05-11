@@ -7,7 +7,7 @@ import styles from '../../../styles/Admin.module.css';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { FaPlus, FaCheck, FaTimes, FaArrowLeft, FaCalendarAlt, FaSave } from 'react-icons/fa';
+import { FaPlus, FaCheck, FaTimes, FaArrowLeft, FaCalendarAlt, FaSave, FaChalkboardTeacher } from 'react-icons/fa';
 
 interface Student {
   _id: string;
@@ -269,7 +269,9 @@ export default function AttendancePage() {
         });
         
         const mappedAttendances = (await Promise.all(mappedAttendancesPromises))
-          .filter(attendance => attendance !== null);
+          .filter(attendance => attendance !== null)
+          // Sort alphabetically by student name
+          .sort((a, b) => (a.studentName || '').localeCompare((b.studentName || ''), undefined, { sensitivity: 'base' }));
         
         console.log('Mapped attendance records:', mappedAttendances);
         
@@ -620,7 +622,7 @@ export default function AttendancePage() {
         <h2 className={styles.courseTitle}>{course?.title || 'Cargando curso...'}</h2>
         
         <div className={styles.controlBar}>
-          <Link href="/attendance" className={styles.backLink}>
+          <Link href={`/course/${id}`} className={styles.backLink}>
             <FaArrowLeft /> Volver al Curso
           </Link>
           
@@ -632,124 +634,126 @@ export default function AttendancePage() {
               type="date"
               id="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={handleDateChange}
               className={styles.dateInput}
             />
-        </div>
+          </div>
       </div>
       
       {error && <div className={styles.error}>{error}</div>}
       {success && <div className={styles.success}>{success}</div>}
-      
-        {loading ? (
-          <div className={styles.loading}>Cargando registros de asistencia...</div>
-        ) : (
-          <form onSubmit={handleSubmit} className={styles.form}>
-            {attendances.length === 0 && (!course?.students || course.students.length === 0) ? (
-              <div className={styles.emptyMessage}>
-                No hay estudiantes en este curso. Agregue estudiantes desde la gestión del curso.
-              </div>
-            ) : attendances.length === 0 ? (
-              <div className={styles.emptyMessage}>
-                No hay registros de asistencia para este día. Inicialice la asistencia para generar los registros.
-                <div className={styles.centerButtons}>
-                  <button 
-                    type="button" 
-                    className={styles.createButton}
-                    onClick={initializeAttendances}
-                  >
-                    Inicializar Asistencia
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-        <div className={styles.tableContainer}>
-                  <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Estudiante</th>
-                <th>Asistencia</th>
-                        <th>Notas (opcional)</th>
-              </tr>
-            </thead>
-            <tbody>
-                      {attendances
-                        .filter(attendance => 
-                          attendance && 
-                          attendance.studentName && 
-                          attendance.studentName !== 'Usuario no encontrado')
-                        .map((attendance) => {
-                          const name = attendance.studentName;
-                          return (
-                            <tr key={attendance.studentId}>
-                              <td>
-                                <div className={styles.studentName}>
-                                  <span className={styles.name}>{name}</span>
-                                  {!attendance.isRegistered && (
-                                    <span className={`${styles.roleBadge} ${styles.unregistered}`}>no registrado</span>
-                                  )}
-                                </div>
-                  </td>
-                              <td>
-                                <div className={styles.studentPresent}>
-                                  <label className={styles.radioLabel}>
-                          <input
-                            type="radio"
-                            name={`present-${attendance.studentId}`}
-                            checked={attendance.present === true}
-                            onChange={() => handlePresentChange(attendance.studentId, true)}
-                          />
-                                    <FaCheck style={{ color: '#38a169' }} /> Presente
-                        </label>
-                                  <label className={styles.radioLabel}>
-                          <input
-                            type="radio"
-                            name={`present-${attendance.studentId}`}
-                            checked={attendance.present === false}
-                            onChange={() => handlePresentChange(attendance.studentId, false)}
-                          />
-                                    <FaTimes style={{ color: '#e53e3e' }} /> Ausente
-                        </label>
-                      </div>
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        value={attendance.notes || ''}
-                        onChange={(e) => handleNotesChange(attendance.studentId, e.target.value)}
-                                  className={styles.input}
-                        placeholder="Notas (opcional)"
-                      />
-                    </td>
-                  </tr>
-                          );
-                        })}
-            </tbody>
-          </table>
-        </div>
         
-                <div className={styles.buttonContainer}>
-                  <button 
-                    type="button" 
-                    className={styles.altButton}
-                    onClick={() => setShowAddNonRegisteredModal(true)}
-                  >
-                    <FaPlus /> Agregar Asistente
-                  </button>
-                  
-          <button 
-            type="submit" 
-                    className={styles.createButton}
-                    disabled={saving}
-          >
-                    <FaSave /> {saving ? 'Guardando...' : 'Guardar Asistencia'}
-          </button>
-        </div>
-              </>
-            )}
-      </form>
-        )}
+      {loading ? (
+        <div className={styles.loading}>Cargando registros de asistencia...</div>
+      ) : (
+        <form onSubmit={handleSubmit} className={styles.form}>
+          {attendances.length === 0 && (!course?.students || course.students.length === 0) ? (
+            <div className={styles.emptyMessage}>
+              No hay estudiantes en este curso. Agregue estudiantes desde la gestión del curso.
+            </div>
+          ) : attendances.length === 0 ? (
+            <div className={styles.emptyMessage}>
+              No hay registros de asistencia para este día. Inicialice la asistencia para generar los registros.
+              <div className={styles.centerButtons}>
+                <button 
+                  type="button" 
+                  className={styles.createButton}
+                  onClick={initializeAttendances}
+                >
+                  Inicializar Asistencia
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className={styles.tableContainer}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Estudiante</th>
+                      <th>Asistencia</th>
+                      <th>Notas (opcional)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Sort attendances alphabetically by student name */}
+                    {[...attendances]
+                      .filter(attendance => 
+                        attendance && 
+                        attendance.studentName && 
+                        attendance.studentName !== 'Usuario no encontrado')
+                      .sort((a, b) => (a.studentName || '').localeCompare((b.studentName || ''), undefined, { sensitivity: 'base' }))
+                      .map((attendance) => {
+                        const name = attendance.studentName;
+                        return (
+                          <tr key={attendance.studentId}>
+                            <td>
+                              <div className={styles.studentName}>
+                                <span className={styles.name}>{name}</span>
+                                {!attendance.isRegistered && (
+                                  <span className={`${styles.roleBadge} ${styles.unregistered}`}>no registrado</span>
+                                )}
+                              </div>
+                            </td>
+                            <td>
+                              <div className={styles.studentPresent}>
+                                <label className={styles.radioLabel}>
+                                  <input
+                                    type="radio"
+                                    name={`present-${attendance.studentId}`}
+                                    checked={attendance.present === true}
+                                    onChange={() => handlePresentChange(attendance.studentId, true)}
+                                  />
+                                  <FaCheck style={{ color: '#38a169' }} /> Presente
+                                </label>
+                                <label className={styles.radioLabel}>
+                                  <input
+                                    type="radio"
+                                    name={`present-${attendance.studentId}`}
+                                    checked={attendance.present === false}
+                                    onChange={() => handlePresentChange(attendance.studentId, false)}
+                                  />
+                                  <FaTimes style={{ color: '#e53e3e' }} /> Ausente
+                                </label>
+                              </div>
+                            </td>
+                            <td>
+                              <input
+                                type="text"
+                                value={attendance.notes || ''}
+                                onChange={(e) => handleNotesChange(attendance.studentId, e.target.value)}
+                                className={styles.input}
+                                placeholder="Notas (opcional)"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            
+              <div className={styles.buttonContainer}>
+                <button 
+                  type="button" 
+                  className={styles.altButton}
+                  onClick={() => setShowAddNonRegisteredModal(true)}
+                >
+                  <FaPlus /> Agregar Asistente
+                </button>
+                
+                <button 
+                  type="submit" 
+                  className={styles.createButton}
+                  disabled={saving}
+                >
+                  <FaSave /> {saving ? 'Guardando...' : 'Guardar Asistencia'}
+                </button>
+              </div>
+            </>
+          )}
+        </form>
+      )}
       </main>
       
       {showAddNonRegisteredModal && (

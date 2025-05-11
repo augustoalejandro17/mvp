@@ -203,7 +203,12 @@ export default function IntegratedAttendancePage() {
       };
     });
     
-    setStudentRecords(records);
+    // Ordenar los registros alfabéticamente por nombre
+    const sortedRecords = [...records].sort((a, b) => 
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    );
+    
+    setStudentRecords(sortedRecords);
   }, [selectedCourse, courses, enrollments, attendances]);
 
   useEffect(() => {

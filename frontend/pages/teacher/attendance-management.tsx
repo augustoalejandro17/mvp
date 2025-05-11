@@ -408,59 +408,62 @@ export default function AttendanceManagementPage() {
                 
                 <div className={styles.tableBody}>
                   {selectedCourseObj.students && selectedCourseObj.students.length > 0 ? (
-                    selectedCourseObj.students.map(student => {
-                      const attendance = attendances.find(a => a.studentId === student._id) || {
-                        studentId: student._id,
-                        present: null,
-                        notes: ''
-                      };
-                      
-                      return (
-                        <div key={student._id} className={styles.tableRow}>
-                          <div className={styles.studentColumn}>
-                            <div className={styles.studentName}>{student.name}</div>
-                            <div className={styles.studentEmail}>{student.email}</div>
-                          </div>
-                          
-                          <div className={styles.presentColumn}>
-                            <div className={styles.radioGroup}>
-                              <label className={styles.radioLabel}>
-                                <input
-                                  type="radio"
-                                  name={`present-${student._id}`}
-                                  checked={attendance.present === true}
-                                  onChange={() => handlePresentChange(student._id, true)}
-                                  className={styles.radioInput}
-                                />
-                                <FaUserCheck style={{ marginRight: '4px', color: '#38a169' }} />
-                                Presente
-                              </label>
-                              <label className={styles.radioLabel}>
-                                <input
-                                  type="radio"
-                                  name={`present-${student._id}`}
-                                  checked={attendance.present === false}
-                                  onChange={() => handlePresentChange(student._id, false)}
-                                  className={styles.radioInput}
-                                />
-                                <FaUserTimes style={{ marginRight: '4px', color: '#e53e3e' }} />
-                                Ausente
-                              </label>
+                    // Sort students alphabetically by name
+                    [...selectedCourseObj.students]
+                      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+                      .map(student => {
+                        const attendance = attendances.find(a => a.studentId === student._id) || {
+                          studentId: student._id,
+                          present: null,
+                          notes: ''
+                        };
+                        
+                        return (
+                          <div key={student._id} className={styles.tableRow}>
+                            <div className={styles.studentColumn}>
+                              <div className={styles.studentName}>{student.name}</div>
+                              <div className={styles.studentEmail}>{student.email}</div>
+                            </div>
+                            
+                            <div className={styles.presentColumn}>
+                              <div className={styles.radioGroup}>
+                                <label className={styles.radioLabel}>
+                                  <input
+                                    type="radio"
+                                    name={`present-${student._id}`}
+                                    checked={attendance.present === true}
+                                    onChange={() => handlePresentChange(student._id, true)}
+                                    className={styles.radioInput}
+                                  />
+                                  <FaUserCheck style={{ marginRight: '4px', color: '#38a169' }} />
+                                  Presente
+                                </label>
+                                <label className={styles.radioLabel}>
+                                  <input
+                                    type="radio"
+                                    name={`present-${student._id}`}
+                                    checked={attendance.present === false}
+                                    onChange={() => handlePresentChange(student._id, false)}
+                                    className={styles.radioInput}
+                                  />
+                                  <FaUserTimes style={{ marginRight: '4px', color: '#e53e3e' }} />
+                                  Ausente
+                                </label>
+                              </div>
+                            </div>
+                            
+                            <div className={styles.notesColumn}>
+                              <input
+                                type="text"
+                                value={attendance.notes || ''}
+                                onChange={(e) => handleNotesChange(student._id, e.target.value)}
+                                placeholder="Agregar notas (opcional)"
+                                className={styles.notesInput}
+                              />
                             </div>
                           </div>
-                          
-                          <div className={styles.notesColumn}>
-                            <input
-                              type="text"
-                              value={attendance.notes || ''}
-                              onChange={(e) => handleNotesChange(student._id, e.target.value)}
-                              placeholder="Agregar notas (opcional)"
-                              className={styles.notesInput}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })
+                        );
+                      })
                   ) : (
                     <div className={styles.noStudents}>
                       No hay estudiantes inscritos en este curso.
