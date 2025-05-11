@@ -4,7 +4,7 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../../styles/Course.module.css';
-import { FaPlus, FaTrashAlt, FaEye, FaEdit, FaUserCheck, FaSpinner } from 'react-icons/fa';
+import { FaPlus, FaTrashAlt, FaEye, FaEdit, FaUserCheck, FaSpinner, FaArrowLeft } from 'react-icons/fa';
 import { jwtDecode } from 'jwt-decode';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import ImageFallback from '../../components/ImageFallback';
@@ -366,6 +366,12 @@ export default function CourseDetail() {
             </div>
           </div>
         </div>
+
+        <div className={styles.backLink}>
+          <Link href={`/school/${course.school._id}`}>
+            <FaArrowLeft /> <span>Volver a la escuela</span>
+          </Link>
+        </div>
         
         <div className={styles.courseContent}>
           <div className={styles.classesList}>
@@ -541,12 +547,6 @@ export default function CourseDetail() {
               </div>
             )}
           </div>
-        </div>
-        
-        <div className={styles.backLink}>
-          <Link href={`/school/${course.school._id}`}>
-            ← Volver a la escuela
-          </Link>
         </div>
       </main>
     </div>

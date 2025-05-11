@@ -422,18 +422,29 @@
 }
 
 .backLink {
-  margin-top: 2rem;
-  text-align: center;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .backLink a {
-  color: #3182ce;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #4a5568;
   text-decoration: none;
-  font-size: 1rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  padding: 0.75rem 1.25rem;
+  border-radius: 6px;
+  background-color: #edf2f7;
 }
 
 .backLink a:hover {
-  text-decoration: underline;
+  color: #2d3748;
+  background-color: #e2e8f0;
+  text-decoration: none;
 }
 
 .addButton {

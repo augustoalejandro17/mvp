@@ -622,13 +622,9 @@ export default function AttendancePage() {
         <h2 className={styles.courseTitle}>{course?.title || 'Cargando curso...'}</h2>
         
         <div className={styles.controlBar}>
-          <Link href={`/course/${id}`} className={styles.backLink}>
-            <FaArrowLeft /> Volver al Curso
-          </Link>
-          
           <div className={styles.dateSelector}>
             <label htmlFor="date">
-              <FaCalendarAlt className={styles.iconSpacer} /> Fecha:
+              <FaCalendarAlt className={styles.iconSpacer} /> <span>Fecha:</span>
             </label>
             <input
               type="date"
@@ -638,124 +634,128 @@ export default function AttendancePage() {
               className={styles.dateInput}
             />
           </div>
-      </div>
-      
-      {error && <div className={styles.error}>{error}</div>}
-      {success && <div className={styles.success}>{success}</div>}
+          
+          <Link href={`/course/${id}`} className={styles.backLink}>
+            <FaArrowLeft /> <span>Volver al Curso</span>
+          </Link>
+        </div>
         
-      {loading ? (
-        <div className={styles.loading}>Cargando registros de asistencia...</div>
-      ) : (
-        <form onSubmit={handleSubmit} className={styles.form}>
-          {attendances.length === 0 && (!course?.students || course.students.length === 0) ? (
-            <div className={styles.emptyMessage}>
-              No hay estudiantes en este curso. Agregue estudiantes desde la gestión del curso.
-            </div>
-          ) : attendances.length === 0 ? (
-            <div className={styles.emptyMessage}>
-              No hay registros de asistencia para este día. Inicialice la asistencia para generar los registros.
-              <div className={styles.centerButtons}>
-                <button 
-                  type="button" 
-                  className={styles.createButton}
-                  onClick={initializeAttendances}
-                >
-                  Inicializar Asistencia
-                </button>
+        {error && <div className={styles.error}>{error}</div>}
+        {success && <div className={styles.success}>{success}</div>}
+        
+        {loading ? (
+          <div className={styles.loading}>Cargando registros de asistencia...</div>
+        ) : (
+          <form onSubmit={handleSubmit} className={styles.form}>
+            {attendances.length === 0 && (!course?.students || course.students.length === 0) ? (
+              <div className={styles.emptyMessage}>
+                No hay estudiantes en este curso. Agregue estudiantes desde la gestión del curso.
               </div>
-            </div>
-          ) : (
-            <>
-              <div className={styles.tableContainer}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th style={{ width: '50px' }}>#</th>
-                      <th>Estudiante</th>
-                      <th>Asistencia</th>
-                      <th>Notas (opcional)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Sort attendances alphabetically by student name */}
-                    {[...attendances]
-                      .filter(attendance => 
-                        attendance && 
-                        attendance.studentName && 
-                        attendance.studentName !== 'Usuario no encontrado')
-                      .sort((a, b) => (a.studentName || '').localeCompare((b.studentName || ''), undefined, { sensitivity: 'base' }))
-                      .map((attendance, index) => {
-                        const name = attendance.studentName;
-                        return (
-                          <tr key={attendance.studentId}>
-                            <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{index + 1}</td>
-                            <td>
-                              <div className={styles.studentName}>
-                                <span className={styles.name}>{name}</span>
-                                {!attendance.isRegistered && (
-                                  <span className={`${styles.roleBadge} ${styles.unregistered}`}>no registrado</span>
-                                )}
-                              </div>
-                            </td>
-                            <td>
-                              <div className={styles.studentPresent}>
-                                <label className={styles.radioLabel}>
-                                  <input
-                                    type="radio"
-                                    name={`present-${attendance.studentId}`}
-                                    checked={attendance.present === true}
-                                    onChange={() => handlePresentChange(attendance.studentId, true)}
-                                  />
-                                  <FaCheck style={{ color: '#38a169' }} /> Presente
-                                </label>
-                                <label className={styles.radioLabel}>
-                                  <input
-                                    type="radio"
-                                    name={`present-${attendance.studentId}`}
-                                    checked={attendance.present === false}
-                                    onChange={() => handlePresentChange(attendance.studentId, false)}
-                                  />
-                                  <FaTimes style={{ color: '#e53e3e' }} /> Ausente
-                                </label>
-                              </div>
-                            </td>
-                            <td>
-                              <input
-                                type="text"
-                                value={attendance.notes || ''}
-                                onChange={(e) => handleNotesChange(attendance.studentId, e.target.value)}
-                                className={styles.input}
-                                placeholder="Notas (opcional)"
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
+            ) : attendances.length === 0 ? (
+              <div className={styles.emptyMessage}>
+                No hay registros de asistencia para este día. Inicialice la asistencia para generar los registros.
+                <div className={styles.centerButtons}>
+                  <button 
+                    type="button" 
+                    className={styles.createButton}
+                    onClick={initializeAttendances}
+                  >
+                    Inicializar Asistencia
+                  </button>
+                </div>
               </div>
-            
-              <div className={styles.buttonContainer}>
-                <button 
-                  type="button" 
-                  className={styles.altButton}
-                  onClick={() => setShowAddNonRegisteredModal(true)}
-                >
-                  <FaPlus /> Agregar Asistente
-                </button>
-                
-                <button 
-                  type="submit" 
-                  className={styles.createButton}
-                  disabled={saving}
-                >
-                  <FaSave /> {saving ? 'Guardando...' : 'Guardar Asistencia'}
-                </button>
-              </div>
-            </>
-          )}
-        </form>
-      )}
+            ) : (
+              <>
+                <div className={styles.tableContainer}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '50px', textAlign: 'center' }}>#</th>
+                        <th style={{ width: '25%' }}>Estudiante</th>
+                        <th style={{ width: '35%' }}>Asistencia</th>
+                        <th>Notas (opcional)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* Sort attendances alphabetically by student name */}
+                      {[...attendances]
+                        .filter(attendance => 
+                          attendance && 
+                          attendance.studentName && 
+                          attendance.studentName !== 'Usuario no encontrado')
+                        .sort((a, b) => (a.studentName || '').localeCompare((b.studentName || ''), undefined, { sensitivity: 'base' }))
+                        .map((attendance, index) => {
+                          const name = attendance.studentName;
+                          return (
+                            <tr key={attendance.studentId}>
+                              <td style={{ textAlign: 'center', fontWeight: '600', fontSize: '1.1rem' }}>{index + 1}</td>
+                              <td>
+                                <div className={styles.studentName}>
+                                  <span className={styles.name}>{name}</span>
+                                  {!attendance.isRegistered && (
+                                    <span className={`${styles.roleBadge} ${styles.unregistered}`}>no registrado</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td>
+                                <div className={styles.studentPresent}>
+                                  <label className={styles.radioLabel}>
+                                    <input
+                                      type="radio"
+                                      name={`present-${attendance.studentId}`}
+                                      checked={attendance.present === true}
+                                      onChange={() => handlePresentChange(attendance.studentId, true)}
+                                    />
+                                    <FaCheck style={{ color: '#38a169', fontSize: '1.1rem' }} /> Presente
+                                  </label>
+                                  <label className={styles.radioLabel}>
+                                    <input
+                                      type="radio"
+                                      name={`present-${attendance.studentId}`}
+                                      checked={attendance.present === false}
+                                      onChange={() => handlePresentChange(attendance.studentId, false)}
+                                    />
+                                    <FaTimes style={{ color: '#e53e3e', fontSize: '1.1rem' }} /> Ausente
+                                  </label>
+                                </div>
+                              </td>
+                              <td>
+                                <input
+                                  type="text"
+                                  value={attendance.notes || ''}
+                                  onChange={(e) => handleNotesChange(attendance.studentId, e.target.value)}
+                                  className={styles.input}
+                                  placeholder="Notas (opcional)"
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              
+                <div className={styles.buttonContainer}>
+                  <button 
+                    type="button" 
+                    className={styles.altButton}
+                    onClick={() => setShowAddNonRegisteredModal(true)}
+                  >
+                    <FaPlus /> Agregar Asistente
+                  </button>
+                  
+                  <button 
+                    type="submit" 
+                    className={styles.createButton}
+                    disabled={saving}
+                  >
+                    <FaSave /> {saving ? 'Guardando...' : 'Guardar Asistencia'}
+                  </button>
+                </div>
+              </>
+            )}
+          </form>
+        )}
       </main>
       
       {showAddNonRegisteredModal && (
