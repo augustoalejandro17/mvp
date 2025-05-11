@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, UseGuards, Req, Logger, Delete, BadRequestException, UnauthorizedException, HttpException, HttpStatus, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, UseGuards, Req, Logger, Delete, BadRequestException, UnauthorizedException, HttpException, HttpStatus, Request, NotFoundException } from '@nestjs/common';
 import { SchoolsService } from './schools.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -150,6 +150,26 @@ export class SchoolsController {
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async assignOwner(@Param('id') id: string, @Param('userId') userId: string) {
     return this.schoolsService.assignOwner(id, userId);
+  }
+
+  @Get(':id/teachers')
+  @UseGuards(JwtAuthGuard)
+  async getTeachersBySchool(@Param('id') id: string, @Req() req) {
+    this.logger.log(`Buscando profesores para la escuela con ID: ${id}`);
+    
+    try {
+      // Verificar formato del ID
+      if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+        throw new BadRequestException(`ID de escuela inválido: ${id}`);
+      }
+      
+      // Usar el nuevo método que obtiene todos los profesores asociados a la escuela
+      const teachers = await this.schoolsService.findAllTeachersBySchool(id);
+      return teachers;
+    } catch (error) {
+      this.logger.error(`Error al obtener profesores de la escuela ${id}: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 }
 

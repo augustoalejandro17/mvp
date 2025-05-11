@@ -6,10 +6,17 @@ import Cookies from 'js-cookie';
 import styles from '../../../styles/CourseForm.module.css';
 import { useApiErrorHandler } from '../../../utils/api-error-handler';
 import ImageUploader from '../../../components/ImageUploader';
+import { FaTimes } from 'react-icons/fa';
 
 interface School {
   _id: string;
   name: string;
+}
+
+interface Teacher {
+  _id: string;
+  name: string;
+  email: string;
 }
 
 interface Course {
@@ -19,6 +26,8 @@ interface Course {
   coverImageUrl?: string;
   school: School | string;
   isPublic: boolean;
+  teacher: Teacher | string;
+  teachers?: (Teacher | string)[];
 }
 
 export default function EditCourse() {
@@ -31,8 +40,12 @@ export default function EditCourse() {
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [schoolId, setSchoolId] = useState('');
   const [isPublic, setIsPublic] = useState(false);
+  const [teacherId, setTeacherId] = useState('');
+  const [additionalTeachers, setAdditionalTeachers] = useState<string[]>([]);
   
   const [schools, setSchools] = useState<School[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
@@ -53,6 +66,13 @@ export default function EditCourse() {
       fetchSchools(token);
     }
   }, [id, router]);
+
+  // Cargar profesores cuando cambia la escuela
+  useEffect(() => {
+    if (schoolId) {
+      fetchTeachersBySchool(schoolId);
+    }
+  }, [schoolId]);
 
   const fetchCourse = async (courseId: string, token: string) => {
     setLoading(true);
@@ -82,6 +102,31 @@ export default function EditCourse() {
         setSchoolId(courseData.school._id);
       } else if (typeof courseData.school === 'string') {
         setSchoolId(courseData.school);
+      }
+      
+      // Set teacher ID
+      if (typeof courseData.teacher === 'object' && courseData.teacher._id) {
+        setTeacherId(courseData.teacher._id);
+      } else if (typeof courseData.teacher === 'string') {
+        setTeacherId(courseData.teacher);
+      }
+      
+      // Set additional teachers
+      if (courseData.teachers && Array.isArray(courseData.teachers)) {
+        const teachersArray = courseData.teachers.map((teacher: any) => {
+          if (typeof teacher === 'object' && teacher._id) {
+            return teacher._id;
+          }
+          return String(teacher);
+        });
+        
+        // Filtrar para eliminar el profesor principal de la lista de adicionales
+        const filteredTeachers = teachersArray.filter((id: string) => {
+          const teacherIdStr = typeof teacherId === 'object' ? (teacherId as any)._id : teacherId;
+          return id !== teacherIdStr;
+        });
+        
+        setAdditionalTeachers(filteredTeachers);
       }
       
       setIsPublic(courseData.isPublic || false);
@@ -114,16 +159,81 @@ export default function EditCourse() {
     }
   };
 
+  const fetchTeachersBySchool = async (schoolId: string) => {
+    if (!schoolId) return;
+    
+    setLoadingTeachers(true);
+    setError('');
+    
+    try {
+      const token = Cookies.get('token');
+      if (!token) {
+        throw new Error('No active session');
+      }
+      
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await axios.get(
+        `${apiUrl}/api/schools/${schoolId}/teachers`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      
+      setTeachers(response.data);
+    } catch (error) {
+      console.error('Error fetching teachers:', error);
+      setError(handleApiError(error));
+    } finally {
+      setLoadingTeachers(false);
+    }
+  };
+
   const handleImageUpload = (imageUrl: string) => {
     setCoverImageUrl(imageUrl);
+  };
+
+  // Método para manejar la selección de profesores adicionales
+  const handleAdditionalTeacherChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedValue = e.target.value;
+    
+    if (!selectedValue) return;
+    
+    // Verificar si ya está seleccionado como profesor principal
+    if (selectedValue === teacherId) {
+      setError("Este profesor ya es el profesor principal del curso");
+      return;
+    }
+    
+    // Verificar si ya está en la lista de profesores adicionales
+    if (additionalTeachers.includes(selectedValue)) {
+      setError("Este profesor ya ha sido seleccionado");
+      return;
+    }
+    
+    // Verificar límite de 5 profesores en total (1 principal + 4 adicionales)
+    if (additionalTeachers.length >= 4) {
+      setError("No se pueden añadir más de 4 profesores adicionales (5 en total)");
+      return;
+    }
+    
+    // Añadir el profesor a la lista
+    setAdditionalTeachers([...additionalTeachers, selectedValue]);
+    setError(''); // Limpiar cualquier error previo
+  };
+  
+  // Método para eliminar un profesor adicional
+  const removeAdditionalTeacher = (teacherId: string) => {
+    setAdditionalTeachers(additionalTeachers.filter(id => id !== teacherId));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validation
-    if (!title.trim() || !description.trim() || !schoolId) {
-      setError('Title, description, and school are required');
+    if (!title.trim() || !description.trim() || !schoolId || !teacherId) {
+      setError('Título, descripción, escuela y profesor principal son obligatorios');
       return;
     }
     
@@ -141,12 +251,17 @@ export default function EditCourse() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
+      // Crear array de profesores con el principal primero
+      const allTeachers = [teacherId, ...additionalTeachers];
+      
       const courseData = {
         title,
         description,
         coverImageUrl: coverImageUrl || null,
         schoolId,
-        isPublic
+        isPublic,
+        teacher: teacherId,
+        teachers: allTeachers
       };
       
       // Usar la ruta correcta con /api/
@@ -253,23 +368,95 @@ export default function EditCourse() {
           </div>
           
           <div className={styles.formGroup}>
-            <label className={styles.checkboxLabel}>
+            <label htmlFor="isPublic">Visibility</label>
+            <div className={styles.checkboxContainer}>
               <input
                 type="checkbox"
+                id="isPublic"
                 checked={isPublic}
                 onChange={(e) => setIsPublic(e.target.checked)}
               />
-              Public Course
-            </label>
+              <label htmlFor="isPublic" className={styles.checkboxLabel}>
+                Make this course public
+              </label>
+            </div>
+          </div>
+          
+          {/* Profesor principal */}
+          <div className={styles.formGroup}>
+            <label htmlFor="teacher">Profesor Principal</label>
+            <select
+              id="teacher"
+              value={teacherId}
+              onChange={(e) => setTeacherId(e.target.value)}
+              required
+              disabled={loadingTeachers}
+              className={loadingTeachers ? styles.loading : ''}
+            >
+              <option value="">Seleccionar profesor principal</option>
+              {teachers.map((teacher) => (
+                <option key={teacher._id} value={teacher._id}>
+                  {teacher.name} ({teacher.email})
+                </option>
+              ))}
+            </select>
+            {loadingTeachers && <div className={styles.loadingText}>Cargando profesores...</div>}
+          </div>
+
+          {/* Profesores adicionales */}
+          <div className={styles.formGroup}>
+            <label htmlFor="additionalTeachers">Profesores Adicionales</label>
+            <select
+              id="additionalTeachers"
+              onChange={handleAdditionalTeacherChange}
+              value=""
+              disabled={loadingTeachers}
+              className={loadingTeachers ? styles.loading : ''}
+            >
+              <option value="">Seleccionar profesores adicionales</option>
+              {teachers
+                .filter(teacher => teacher._id !== teacherId && !additionalTeachers.includes(teacher._id))
+                .map((teacher) => (
+                  <option key={teacher._id} value={teacher._id}>
+                    {teacher.name} ({teacher.email})
+                  </option>
+                ))
+              }
+            </select>
+            
+            {/* Lista de profesores adicionales seleccionados */}
+            {additionalTeachers.length > 0 && (
+              <div className={styles.selectedTeachers}>
+                <h4>Profesores Adicionales Seleccionados:</h4>
+                <ul className={styles.teacherList}>
+                  {additionalTeachers.map((teacherId) => {
+                    const teacher = teachers.find(t => t._id === teacherId);
+                    return (
+                      <li key={teacherId} className={styles.teacherItem}>
+                        <span>{teacher ? `${teacher.name} (${teacher.email})` : teacherId}</span>
+                        <button 
+                          type="button" 
+                          onClick={() => removeAdditionalTeacher(teacherId)}
+                          className={styles.removeTeacherBtn}
+                          title="Eliminar profesor"
+                        >
+                          <FaTimes />
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
           </div>
           
           <div className={styles.buttonContainer}>
-            <button
-              type="submit"
+            <button 
+              type="submit" 
               className={styles.primaryButton}
               disabled={saving}
             >
-              {saving ? 'Saving...' : 'Save Changes'}
+              {saving ? 'Updating...' : 'Update Course'}
             </button>
             
             <Link href={`/course/${id}`} className={styles.secondaryButton}>

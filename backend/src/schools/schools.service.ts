@@ -632,11 +632,112 @@ export class SchoolsService {
 
   // Método para encontrar escuelas por administrador
   async findSchoolsByAdministrator(userId: string): Promise<School[]> {
+    return this.schoolModel.find({ administratives: userId })
+      .populate('admin', 'name email')
+      .select('-teachers -students');
+  }
+
+  /**
+   * Encuentra profesores por sus IDs
+   * @param teacherIds Array de IDs de profesores
+   * @returns Array de profesores con sus datos
+   */
+  async findTeachersByIds(teacherIds: any[]): Promise<any[]> {
     try {
-      return this.schoolModel.find({ teachers: userId }).exec();
+      // Asegurarse de que todos los IDs sean válidos
+      const validIds = teacherIds.filter(id => id && String(id).match(/^[0-9a-fA-F]{24}$/));
+      
+      if (validIds.length === 0) {
+        return [];
+      }
+      
+      // Convertir los IDs a ObjectId si es necesario
+      const objectIds = validIds.map(id => 
+        id instanceof Types.ObjectId ? id : new Types.ObjectId(String(id))
+      );
+
+      // Buscar profesores con los roles adecuados (teacher, admin, super_admin)
+      const teachers = await this.userModel.find({
+        _id: { $in: objectIds },
+        role: { $in: [UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER] }
+      })
+      .select('name email role')
+      .lean();
+      
+      return teachers;
     } catch (error) {
-      this.logger.error(`Error al buscar escuelas por administrador: ${error.message}`);
-      throw new Error('Error al buscar escuelas por administrador');
+      this.logger.error(`Error al buscar profesores por IDs: ${error.message}`, error.stack);
+      return [];
+    }
+  }
+
+  /**
+   * Encuentra todos los profesores asociados a una escuela
+   * @param schoolId ID de la escuela
+   * @returns Array de profesores con sus datos
+   */
+  async findAllTeachersBySchool(schoolId: string): Promise<any[]> {
+    try {
+      // Verificar formato del ID
+      if (!schoolId.match(/^[0-9a-fA-F]{24}$/)) {
+        throw new BadRequestException(`ID de escuela inválido: ${schoolId}`);
+      }
+      
+      // Obtener la escuela
+      const school = await this.schoolModel.findById(schoolId);
+      if (!school) {
+        throw new NotFoundException(`Escuela con ID ${schoolId} no encontrada`);
+      }
+      
+      // Extraer los IDs de profesores asignados a la escuela
+      const teacherIds = school.teachers.map(teacher => 
+        typeof teacher === 'object' && teacher !== null ? (teacher as any)._id : teacher
+      );
+      
+      // Agregar el admin de la escuela a la lista
+      const adminId = typeof school.admin === 'object' && school.admin !== null 
+        ? (school.admin as any)._id 
+        : school.admin;
+      
+      if (adminId) {
+        teacherIds.push(adminId);
+      }
+      
+      // Buscar school_owners que tengan esta escuela
+      const schoolOwners = await this.userModel.find({
+        role: UserRole.SCHOOL_OWNER,
+        ownedSchools: schoolId
+      })
+      .select('_id')
+      .lean();
+      
+      const schoolOwnerIds = schoolOwners.map(owner => owner._id);
+      teacherIds.push(...schoolOwnerIds);
+      
+      // Buscar administrativos de la escuela
+      const administrativeIds = school.administratives || [];
+      teacherIds.push(...administrativeIds);
+      
+      // Eliminar duplicados convirtiendo a Set y volviendo a array
+      const uniqueTeacherIds = [...new Set(teacherIds.map(id => String(id)))];
+      
+      // Buscar todos los usuarios que pueden enseñar (todos los roles excepto estudiantes)
+      const allTeachers = await this.userModel.find({
+        $or: [
+          { _id: { $in: uniqueTeacherIds } },
+          { 
+            role: { $in: [UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER] },
+            schools: schoolId
+          }
+        ]
+      })
+      .select('name email role')
+      .lean();
+      
+      return allTeachers;
+    } catch (error) {
+      this.logger.error(`Error al buscar profesores de la escuela: ${error.message}`, error.stack);
+      return [];
     }
   }
 }

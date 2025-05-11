@@ -233,29 +233,102 @@ export class CoursesService {
   }
 
   async update(id: string, updateCourseDto: any, userId: string) {
-    
     try {
       const course = await this.courseModel.findById(id);
       
       if (!course) {
-        
         throw new NotFoundException(`Curso con ID ${id} no encontrado`);
       }
       
       // Verificar permisos
-      if (course.teacher.toString() !== userId) {
-        const user = await this.userModel.findById(userId);
-        if (!user || !compareRole(user.role, UserRole.ADMIN)) {
-          throw new BadRequestException('No tiene permisos para actualizar este curso');
+      const user = await this.userModel.findById(userId);
+      if (!user) {
+        throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
+      }
+      
+      // Permitir modificación si el usuario es el profesor principal o un administrador
+      const isTeacher = course.teacher.toString() === userId;
+      const isAdmin = compareRole(user.role, UserRole.ADMIN) || compareRole(user.role, UserRole.SUPER_ADMIN);
+      
+      if (!isTeacher && !isAdmin) {
+        throw new UnauthorizedException('No tienes permisos para actualizar este curso');
+      }
+      
+      // Crear objeto con datos a actualizar
+      const updateData = { ...updateCourseDto };
+      
+      // Manejar la actualización de profesores
+      if (updateData.teacher) {
+        // Verificar que el profesor principal exista
+        const mainTeacher = await this.userModel.findById(updateData.teacher);
+        if (!mainTeacher) {
+          throw new BadRequestException(`El profesor principal con ID ${updateData.teacher} no existe`);
         }
       }
       
+      // Manejar la actualización de la lista de profesores
+      if (updateData.teachers && Array.isArray(updateData.teachers)) {
+        // Verificar que no exceda el límite de 5 profesores
+        if (updateData.teachers.length > 5) {
+          throw new BadRequestException('Un curso no puede tener más de 5 profesores');
+        }
+        
+        // Verificar que todos los profesores existan
+        const uniqueTeachers = new Set<string>();
+        
+        for (const teacherId of updateData.teachers) {
+          if (!uniqueTeachers.has(teacherId)) {
+            const teacher = await this.userModel.findById(teacherId);
+            if (!teacher) {
+              throw new BadRequestException(`El profesor con ID ${teacherId} no existe`);
+            }
+            uniqueTeachers.add(teacherId);
+          }
+        }
+        
+        // Asignar array de profesores sin duplicados
+        updateData.teachers = Array.from(uniqueTeachers);
+      }
+      
+      // Actualizar el curso
       const updatedCourse = await this.courseModel.findByIdAndUpdate(
         id,
-        updateCourseDto,
+        updateData,
         { new: true }
       );
       
+      // Actualizar los profesores (agregar o eliminar el curso de sus listas de cursos)
+      // Primero obtenemos los IDs de profesores actuales y nuevos
+      const currentTeacherIds = course.teachers?.map(t => String(t)) || [String(course.teacher)];
+      const newTeacherIds = updateData.teachers || [updateData.teacher];
+      
+      // Profesores a eliminar (están en current pero no en new)
+      const teachersToRemove = currentTeacherIds.filter(id => !newTeacherIds.includes(id));
+      
+      // Profesores a añadir (están en new pero no en current)
+      const teachersToAdd = newTeacherIds.filter(id => !currentTeacherIds.includes(id));
+      
+      // Eliminar el curso de los profesores que ya no están asignados
+      for (const teacherId of teachersToRemove) {
+        try {
+          await this.userModel.findByIdAndUpdate(teacherId, {
+            $pull: { teachingCourses: id }
+          });
+        } catch (error) {
+          this.logger.error(`Error al eliminar curso del profesor ${teacherId}: ${error.message}`);
+        }
+      }
+      
+      // Añadir el curso a los nuevos profesores
+      for (const teacherId of teachersToAdd) {
+        try {
+          await this.userModel.findByIdAndUpdate(teacherId, {
+            $addToSet: { teachingCourses: id }
+          });
+        } catch (error) {
+          this.logger.error(`Error al añadir curso al profesor ${teacherId}: ${error.message}`);
+        }
+      }
       
       return updatedCourse;
     } catch (error) {
