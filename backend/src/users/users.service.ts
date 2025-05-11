@@ -47,35 +47,80 @@ export class UsersService {
     return this.userModel.findOne({ email }).exec();
   }
 
+  // Agregar un método para hashear contraseñas
+  private async hashPassword(password: string): Promise<string> {
+    try {
+      // Si ya parece estar hasheada (comienza con $), devolverla como está
+      if (password.startsWith('$')) {
+        return password;
+      }
+      
+      // Hashear con argon2
+      return await argon2.hash(password, {
+        type: argon2.argon2id,
+        memoryCost: 2**16,
+        timeCost: 3,
+        parallelism: 1
+      });
+    } catch (error) {
+      this.logger.error(`Error al hashear contraseña: ${error.message}`, error.stack);
+      // En caso de error, devolver la contraseña original para evitar bloquear la creación de usuarios
+      // Esto permite que el sistema siga funcionando aunque el hasheo falle
+      return password;
+    }
+  }
+
   async create(userData: Partial<User>): Promise<User> {
-    const createdUser = new this.userModel(userData);
-    return createdUser.save();
+    try {
+      // Si hay una contraseña y no parece estar hasheada (no comienza con $), hashearla
+      if (userData.password && !userData.password.startsWith('$')) {
+        this.logger.debug(`Hasheando contraseña para usuario nuevo ${userData.email}`);
+        userData.password = await this.hashPassword(userData.password);
+      } else if (userData.password) {
+        this.logger.debug(`La contraseña para ${userData.email} ya parece estar hasheada, manteniéndola como está`);
+      }
+      
+      const createdUser = new this.userModel(userData);
+      return createdUser.save();
+    } catch (error) {
+      this.logger.error(`Error al crear usuario: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   async createWithCourses(userData: Partial<User>, courseIds: string[] = []): Promise<User> {
-    
-    
-    // Crear usuario básico
-    const createdUser = new this.userModel({
-      ...userData,
-      enrolledCourses: courseIds
-    });
-    
-    // Guardar el usuario
-    const savedUser = await createdUser.save();
-    
-    // Si hay cursos, actualizar la relación en los cursos también
-    if (courseIds && courseIds.length > 0) {
+    try {
+      // Si hay una contraseña y no parece estar hasheada (no comienza con $), hashearla
+      if (userData.password && !userData.password.startsWith('$')) {
+        this.logger.debug(`Hasheando contraseña para usuario nuevo ${userData.email}`);
+        userData.password = await this.hashPassword(userData.password);
+      } else if (userData.password) {
+        this.logger.debug(`La contraseña para ${userData.email} ya parece estar hasheada, manteniéndola como está`);
+      }
       
+      // Crear usuario básico
+      const createdUser = new this.userModel({
+        ...userData,
+        enrolledCourses: courseIds
+      });
       
-      // Actualizar los cursos para incluir al estudiante
-      await this.enrollUserInCourses(savedUser._id, courseIds);
+      // Guardar el usuario
+      const savedUser = await createdUser.save();
       
-      // Get the schools from these courses and assign the user role in each school
-      await this.assignUserRoleToSchoolsFromCourses(savedUser._id, courseIds, userData.role || 'student');
+      // Si hay cursos, actualizar la relación en los cursos también
+      if (courseIds && courseIds.length > 0) {
+        // Actualizar los cursos para incluir al estudiante
+        await this.enrollUserInCourses(savedUser._id, courseIds);
+        
+        // Get the schools from these courses and assign the user role in each school
+        await this.assignUserRoleToSchoolsFromCourses(savedUser._id, courseIds, userData.role || 'student');
+      }
+      
+      return savedUser;
+    } catch (error) {
+      this.logger.error(`Error al crear usuario con cursos: ${error.message}`, error.stack);
+      throw error;
     }
-    
-    return savedUser;
   }
 
   private async enrollUserInCourses(userId: string | Types.ObjectId, courseIds: string[]): Promise<void> {
