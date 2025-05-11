@@ -190,7 +190,7 @@ export default function CreateSchool() {
         teachers: selectedTeachers.length ? selectedTeachers : undefined,
         administratives: selectedAdministratives.length ? selectedAdministratives : undefined
       };
-      
+
       const response = await axios.post(
         `${apiUrl}/api/schools`, 
         payload,

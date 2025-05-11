@@ -37,7 +37,7 @@ interface Class {
 interface Attendance {
   _id?: string;
   studentId: string;
-  present: boolean;
+  present: boolean | null;
   notes?: string;
 }
 
@@ -199,7 +199,7 @@ export default function AttendanceManagementPage() {
       if (!exists) {
         newAttendances.push({
           studentId: student._id,
-          present: true,
+          present: null,
           notes: ''
         });
       }
@@ -244,10 +244,16 @@ export default function AttendanceManagementPage() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
       
+      // Convertir registros sin selección a 'ausente' (present: false)
+      const processedRecords = attendances.map(a => ({
+        ...a,
+        present: a.present === null ? false : a.present
+      }));
+      
       // Preparar los datos de asistencia
       const attendanceData = {
         date: new Date(selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')),
-        attendanceRecords: attendances.map(a => ({
+        attendanceRecords: processedRecords.map(a => ({
           studentId: a.studentId,
           present: a.present,
           notes: a.notes || ''
@@ -405,7 +411,7 @@ export default function AttendanceManagementPage() {
                     selectedCourseObj.students.map(student => {
                       const attendance = attendances.find(a => a.studentId === student._id) || {
                         studentId: student._id,
-                        present: true,
+                        present: null,
                         notes: ''
                       };
                       
@@ -422,7 +428,7 @@ export default function AttendanceManagementPage() {
                                 <input
                                   type="radio"
                                   name={`present-${student._id}`}
-                                  checked={attendance.present}
+                                  checked={attendance.present === true}
                                   onChange={() => handlePresentChange(student._id, true)}
                                   className={styles.radioInput}
                                 />
@@ -433,7 +439,7 @@ export default function AttendanceManagementPage() {
                                 <input
                                   type="radio"
                                   name={`present-${student._id}`}
-                                  checked={!attendance.present}
+                                  checked={attendance.present === false}
                                   onChange={() => handlePresentChange(student._id, false)}
                                   className={styles.radioInput}
                                 />

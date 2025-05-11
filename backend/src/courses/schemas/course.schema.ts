@@ -34,6 +34,12 @@ export class Course {
   @Prop({ default: false })
   isPublic: boolean;
 
+  @Prop({ default: 999 })
+  promotionOrder: number;
+
+  @Prop({ default: false })
+  isFeatured: boolean;
+
   @Prop({ default: Date.now })
   createdAt: Date;
 

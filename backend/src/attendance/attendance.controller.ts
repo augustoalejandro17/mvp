@@ -44,8 +44,15 @@ export class AttendanceController {
     @Param('courseId') courseId: string,
     @Query('date') dateStr: string
   ) {
+    // Log fecha recibida para depuración
+    this.logger.debug(`Fecha recibida del frontend: ${dateStr}`);
+    
     // Si no se proporciona fecha, usar la fecha actual
     const date = dateStr ? new Date(dateStr) : new Date();
+    
+    // Imprimir información de depuración sobre la fecha
+    this.logger.debug(`Fecha parseada: ${date.toISOString()}`);
+    
     return this.attendanceService.findByCourseAndDate(courseId, date);
   }
 

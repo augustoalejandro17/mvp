@@ -6,6 +6,7 @@ import { Attendance, AttendanceSchema } from './schemas/attendance.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
 import { AuthModule } from '../auth/auth.module';
+import { RemoveClassFieldMigration } from './migration/remove-class-field.migration';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { AuthModule } from '../auth/auth.module';
     AuthModule,
   ],
   controllers: [AttendanceController],
-  providers: [AttendanceService],
-  exports: [AttendanceService],
+  providers: [AttendanceService, RemoveClassFieldMigration],
+  exports: [AttendanceService, RemoveClassFieldMigration],
 })
 export class AttendanceModule {} 

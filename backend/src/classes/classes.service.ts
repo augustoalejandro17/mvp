@@ -457,17 +457,27 @@ export class ClassesService {
       throw new NotFoundException(`Class with ID ${classId} not found`);
     }
     
+    // Use the date provided or current date without timezone manipulation
     const attendanceDate = recordAttendanceDto.date ? new Date(recordAttendanceDto.date) : new Date();
+    
+    // Log information for debugging
+    console.log(`Recording attendance for class ${classId}`);
+    console.log(`Date provided: ${recordAttendanceDto.date || 'none (using current date)'}`);
+    console.log(`Using date: ${attendanceDate.toISOString()}`);
+    
+    // Get the course ID from the class
+    const courseId = classItem.course;
     
     // Create attendance records
     const attendancePromises = recordAttendanceDto.attendanceRecords.map(record => {
       return this.attendanceModel.create({
-        class: classId,
+        course: courseId,
         student: record.studentId,
         date: attendanceDate,
         present: record.present,
         notes: record.notes,
-        recordedBy: teacherId
+        recordedBy: teacherId,
+        markedBy: teacherId
       });
     });
     
@@ -481,17 +491,30 @@ export class ClassesService {
       throw new NotFoundException(`Class with ID ${classId} not found`);
     }
     
-    let query: any = { class: classId };
+    // Get the course ID from the class
+    const courseId = classItem.course;
+    
+    let query: any = { course: courseId };
     
     // If date is provided, filter by that date
     if (dateString) {
       const date = new Date(dateString);
-      const nextDay = new Date(date);
-      nextDay.setDate(date.getDate() + 1);
+      
+      // Create date range without timezone adjustments
+      // Set the hours to cover the full day in UTC
+      const startDate = new Date(date);
+      startDate.setUTCHours(0, 0, 0, 0);
+      
+      const endDate = new Date(date);
+      endDate.setUTCHours(23, 59, 59, 999);
+      
+      console.log(`Finding attendance records for class ${classId}, course ${courseId}`);
+      console.log(`Date provided: ${dateString}`);
+      console.log(`Search between: ${startDate.toISOString()} and ${endDate.toISOString()}`);
       
       query.date = {
-        $gte: date,
-        $lt: nextDay
+        $gte: startDate,
+        $lt: endDate
       };
     }
     
@@ -507,8 +530,11 @@ export class ClassesService {
       throw new NotFoundException(`Class with ID ${classId} not found`);
     }
     
+    // Get the course ID from the class
+    const courseId = classItem.course;
+    
     return this.attendanceModel.find({
-      class: classId,
+      course: courseId,
       student: studentId
     })
       .populate('recordedBy', 'name email')
@@ -527,8 +553,10 @@ export class ClassesService {
       throw new NotFoundException(`Attendance record with ID ${attendanceId} not found`);
     }
     
-    if (attendance.class.toString() !== classId) {
-      throw new BadRequestException('Attendance record does not belong to this class');
+    // Get the course ID from the class and check if attendance belongs to this course
+    const courseId = classItem.course;
+    if (attendance.course.toString() !== courseId.toString()) {
+      throw new BadRequestException('Attendance record does not belong to this course');
     }
     
     // Update fields that are provided
@@ -558,8 +586,10 @@ export class ClassesService {
       throw new NotFoundException(`Attendance record with ID ${attendanceId} not found`);
     }
     
-    if (attendance.class.toString() !== classId) {
-      throw new BadRequestException('Attendance record does not belong to this class');
+    // Get the course ID from the class and check if attendance belongs to this course
+    const courseId = classItem.course;
+    if (attendance.course.toString() !== courseId.toString()) {
+      throw new BadRequestException('Attendance record does not belong to this course');
     }
     
     await this.attendanceModel.findByIdAndDelete(attendanceId);

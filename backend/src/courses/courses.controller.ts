@@ -8,6 +8,7 @@ import { UserRole } from '../auth/enums/user-role.enum';
 import { Permission, RequirePermissions, PermissionsGuard } from '../auth/guards/permissions.guard';
 import { getUserIdFromRequest, getUserRoleFromRequest } from '../utils/token-handler';
 import { PaymentDto } from './dto/payment.dto';
+import { UpdateCourseDto } from './dto/update-course.dto';
 
 type ServiceUserRole = any; // Usamos any para evitar los errores de tipo
 
@@ -100,6 +101,11 @@ export class CoursesController {
     
     
     try {
+      // If no teacher is specified, use the current user as the teacher
+      if (!createCourseDto.teacher) {
+        createCourseDto.teacher = userId;
+      }
+      
       const result = await this.coursesService.create(createCourseDto, userId);
       
       let courseId = 'Unknown ID';
@@ -123,7 +129,7 @@ export class CoursesController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard)
-  async update(@Param('id') id: string, @Body() updateCourseDto: any, @Req() req) {
+  async update(@Param('id') id: string, @Body() updateCourseDto: UpdateCourseDto, @Req() req) {
     const userId = getUserIdFromRequest(req);
     
     
@@ -301,5 +307,13 @@ export class CoursesController {
       paymentData,
       userId
     );
+  }
+
+  @Get('migration/promo-fields')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async migratePromoFields() {
+    this.logger.log('Migración de campos de promoción solicitada por un super admin');
+    return this.coursesService.migrateExistingCourses();
   }
 } 

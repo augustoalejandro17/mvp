@@ -366,88 +366,86 @@ export class UsersController {
   }
 
   /**
-   * Asigna un rol específico a un usuario en una escuela (endpoint simplificado)
+   * Asigna un rol en una escuela específica a un usuario
    */
   @Post(':id/assign-role-in-school')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions(Permission.MANAGE_ADMINS, Permission.MANAGE_TEACHERS, Permission.MANAGE_STUDENTS)
+  @UseGuards(JwtAuthGuard)
   async assignRoleInSchool(
     @Param('id') userId: string,
     @Body() body: { schoolId: string; role: string },
     @Req() req: Request,
   ): Promise<{ success: boolean, message: string }> {
-    
-    this.logger.log(`Intentando asignar rol en escuela: ${JSON.stringify(body)}`);
-    
-    // Validación básica de datos
-    if (!body.schoolId) {
-      throw new BadRequestException('El ID de la escuela es obligatorio');
-    }
-    
-    if (!body.role) {
-      throw new BadRequestException('El rol es obligatorio');
-    }
-    
-    const authUserId = req.user['sub'] || req.user['_id'];
-    const userRole = req.user['role'];
-    const schoolId = body.schoolId;
-    
-    // Definir los roles permitidos según el rol del usuario que hace la petición
-    let allowedRoles = ['teacher', 'administrative', 'student'];
-    
-    // Super admin puede asignar cualquier rol
-    if (userRole === 'super_admin') {
-      allowedRoles = ['super_admin', 'admin', 'school_owner', 'teacher', 'administrative', 'student', 'unregistered'];
-    } 
-    // Admin y school_owner pueden asignar roles por debajo de ellos
-    else if (userRole === 'admin' || userRole === 'school_owner') {
-      allowedRoles = ['teacher', 'administrative', 'student'];
-    }
-    // Teacher solo puede manejar estudiantes
-    else if (userRole === 'teacher') {
-      allowedRoles = ['student'];
-    }
-    
-    // Validar que el rol sea uno de los permitidos para este usuario
-    if (!allowedRoles.includes(body.role)) {
-      throw new BadRequestException(`Rol inválido. Los roles permitidos para su nivel son: ${allowedRoles.join(', ')}`);
-    }
-    
-    // Para super admin, omitir verificación de permisos específicos
-    let canManage = userRole === 'super_admin';
-    
-    // Para otros roles, verificar permisos específicos
-    if (!canManage) {
-      canManage = await this.authorizationService.canManageUserInSchool(
-        authUserId,
-        userId,
-        schoolId
-      );
-    }
-    
-    if (!canManage) {
-      throw new ForbiddenException('No tiene permisos para asignar este rol en esta escuela');
-    }
+    this.logger.log(`Asignando rol ${body.role} en escuela ${body.schoolId} al usuario ${userId}`);
     
     try {
-      // Usar el servicio de autorización para asignar el rol
+      // Validar el ID del usuario
+      if (!Types.ObjectId.isValid(userId)) {
+        throw new BadRequestException('ID de usuario inválido');
+      }
+      
+      // Validar el ID de la escuela
+      if (!Types.ObjectId.isValid(body.schoolId)) {
+        throw new BadRequestException('ID de escuela inválido');
+      }
+      
+      // Verificar que el rol es válido
+      const validRoles = [
+        'super_admin', 'admin', 'school_owner', 
+        'teacher', 'student', 'administrative', 'unregistered'
+      ];
+      
+      // Normalizar el rol a minúsculas para la comparación
+      const normalizedRole = body.role.toLowerCase();
+      
+      if (!validRoles.includes(normalizedRole)) {
+        throw new BadRequestException(`Rol inválido. Roles permitidos: ${validRoles.join(', ')}`);
+      }
+      
+      // Obtener el ID del usuario que hace la solicitud
+      const requestUserId = req.user['sub'] || req.user['_id'];
+      const requestUserRole = String(req.user['role']).toLowerCase();
+      
+      this.logger.log(`Usuario solicitante: ${requestUserId}, rol: ${requestUserRole}`);
+      
+      // Solo super_admin puede asignar roles super_admin y admin
+      if (['super_admin', 'admin'].includes(normalizedRole) && requestUserRole !== 'super_admin') {
+        throw new ForbiddenException('Solo super administradores pueden asignar estos roles');
+      }
+      
+      // School_owner solo puede ser asignado por super_admin o admin
+      if (normalizedRole === 'school_owner' && !['super_admin', 'admin'].includes(requestUserRole)) {
+        throw new ForbiddenException('Solo administradores pueden asignar este rol');
+      }
+      
+      // Verificar que el usuario tiene permisos para gestionar esta escuela
+      const canManage = await this.authorizationService.canManageUserInSchool(
+        requestUserId,
+        userId,
+        body.schoolId
+      );
+      
+      if (!canManage && requestUserRole !== 'super_admin') {
+        throw new ForbiddenException('No tiene permisos para asignar roles en esta escuela');
+      }
+      
+      // Asignar el rol
       const success = await this.authorizationService.assignRoleInSchool(
         userId,
-        schoolId,
+        body.schoolId,
         body.role
       );
       
       if (success) {
-        return { 
-          success: true, 
-          message: `Rol ${body.role} asignado correctamente al usuario en la escuela`
+        return {
+          success: true,
+          message: `Rol ${body.role} asignado correctamente en la escuela`
         };
       } else {
-        throw new BadRequestException('No se pudo asignar el rol al usuario');
+        throw new BadRequestException('No se pudo asignar el rol en la escuela');
       }
     } catch (error) {
-      this.logger.error(`Error al asignar rol: ${error.message}`);
-      throw new BadRequestException(`Error al asignar rol: ${error.message}`);
+      this.logger.error(`Error al asignar rol: ${error.message}`, error.stack);
+      throw error;
     }
   }
 } 

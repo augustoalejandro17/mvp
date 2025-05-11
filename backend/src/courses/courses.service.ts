@@ -89,7 +89,9 @@ export class CoursesService {
         isPublic: createCourseDto.isPublic || false,
         school: createCourseDto.schoolId,
         teacher: mainTeacherId, // Profesor principal (para compatibilidad)
-        teachers: teachersArray // Array de profesores
+        teachers: teachersArray, // Array de profesores
+        promotionOrder: createCourseDto.promotionOrder || 999, // Usar valor del DTO o valor por defecto
+        isFeatured: createCourseDto.isFeatured || false, // Usar valor del DTO o valor por defecto
       });
       
       
@@ -178,7 +180,8 @@ export class CoursesService {
       const courses = await this.courseModel.find(query)
         .populate('school', 'name')
         .populate('teacher', 'name email')
-        .select('-students -classes');
+        .select('-students -classes')
+        .sort({ promotionOrder: 1, title: 1 }); // Ordenar primero por orden de promoción, luego alfabéticamente
       
       
       return courses;
@@ -1163,5 +1166,64 @@ export class CoursesService {
   private getCurrentMonthAsString(): string {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  /**
+   * Método de migración para inicializar los campos de promoción en cursos existentes
+   * Debe ser ejecutado manualmente una vez después de actualizar el esquema
+   */
+  async migrateExistingCourses(): Promise<{ success: boolean, message: string, updatedCount: number }> {
+    this.logger.log('Iniciando migración para agregar campos de promoción a cursos existentes');
+    
+    try {
+      // Verificar cuántos cursos no tienen el campo promotionOrder
+      const coursesWithoutPromoFields = await this.courseModel.countDocuments({
+        $or: [
+          { promotionOrder: { $exists: false } },
+          { isFeatured: { $exists: false } }
+        ]
+      });
+      
+      this.logger.log(`Encontrados ${coursesWithoutPromoFields} cursos sin campos de promoción`);
+      
+      if (coursesWithoutPromoFields === 0) {
+        return { 
+          success: true, 
+          message: 'Todos los cursos ya tienen los campos de promoción', 
+          updatedCount: 0 
+        };
+      }
+      
+      // Actualizar todos los cursos que no tienen los campos para asignarles valores por defecto
+      const updateResult = await this.courseModel.updateMany(
+        {
+          $or: [
+            { promotionOrder: { $exists: false } },
+            { isFeatured: { $exists: false } }
+          ]
+        },
+        {
+          $set: {
+            promotionOrder: 999,  // Valor por defecto (baja prioridad)
+            isFeatured: false     // No destacado por defecto
+          }
+        }
+      );
+      
+      this.logger.log(`Migración completada. Actualizados ${updateResult.modifiedCount} cursos`);
+      
+      return {
+        success: true,
+        message: 'Migración completada exitosamente',
+        updatedCount: updateResult.modifiedCount
+      };
+    } catch (error) {
+      this.logger.error(`Error en la migración: ${error.message}`, error.stack);
+      return {
+        success: false,
+        message: `Error en la migración: ${error.message}`,
+        updatedCount: 0
+      };
+    }
   }
 } 

@@ -56,8 +56,12 @@ const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
+      console.log('Current user profile response:', response.data);
+      
       if (response.data && response.data.role) {
-        setCurrentUserRole(response.data.role);
+        const role = String(response.data.role).toLowerCase();
+        console.log('Setting current user role:', role);
+        setCurrentUserRole(role);
       }
     } catch (error) {
       console.error('Error al obtener información del usuario:', error);
@@ -160,6 +164,9 @@ const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({
 
   // Determinar qué roles mostrar según el rol del usuario actual
   const getRoleOptions = () => {
+    // Log the current role to debug
+    console.log('getRoleOptions called with role:', currentUserRole);
+    
     // Por defecto, mostrar solo roles básicos
     const defaultRoles = (
       <>
@@ -169,8 +176,9 @@ const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({
       </>
     );
 
-    // Super admin puede asignar cualquier rol
-    if (currentUserRole === 'super_admin') {
+    // Super admin puede asignar cualquier rol - normalized to lowercase for comparison
+    if (currentUserRole && currentUserRole.toLowerCase() === 'super_admin') {
+      console.log('Showing all roles for super_admin');
       return (
         <>
           <option value="super_admin">Super Administrador</option>
@@ -185,12 +193,12 @@ const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({
     }
     
     // Admin y school_owner pueden asignar roles por debajo de ellos
-    if (currentUserRole === 'admin' || currentUserRole === 'school_owner') {
+    if (currentUserRole && (currentUserRole.toLowerCase() === 'admin' || currentUserRole.toLowerCase() === 'school_owner')) {
       return defaultRoles;
     }
     
     // Teacher solo puede manejar estudiantes
-    if (currentUserRole === 'teacher') {
+    if (currentUserRole && currentUserRole.toLowerCase() === 'teacher') {
       return <option value="student">Estudiante</option>;
     }
     

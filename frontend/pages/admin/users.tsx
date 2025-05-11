@@ -1283,53 +1283,53 @@ export default function UserManagement() {
             <div className={styles.searchFilterRow}>
               <div className={styles.searchWrapper}>
                 <div className={styles.simpleSearchWrapper}>
-                  <input
-                    type="text"
-                    placeholder="Buscar usuarios..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className={styles.searchInput}
-                  />
+                <input
+                  type="text"
+                  placeholder="Buscar usuarios..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className={styles.searchInput}
+                />
                   <FaSearch className={styles.searchIcon} />
-                </div>
               </div>
+            </div>
               <div className={styles.filterWrapper}>
-                <select
-                  className={styles.select}
-                  value={selectedSchool}
-                  onChange={(e) => setSelectedSchool(e.target.value)}
-                >
-                  <option value="">Todas las escuelas</option>
-                  <option value="unregistered">Asistentes sin registro</option>
-                  {userSchools.map(school => (
-                    <option key={school._id} value={school._id}>
-                      {school.name}
-                    </option>
-                  ))}
-                </select>
+              <select
+                className={styles.select}
+                value={selectedSchool}
+                onChange={(e) => setSelectedSchool(e.target.value)}
+              >
+                <option value="">Todas las escuelas</option>
+                <option value="unregistered">Asistentes sin registro</option>
+                {userSchools.map(school => (
+                  <option key={school._id} value={school._id}>
+                    {school.name}
+                  </option>
+                ))}
+              </select>
               </div>
             </div>
           )}
           
           <div className={styles.actionButtonsRow}>
-            <button 
-              className={styles.createButton}
-              onClick={() => {
-                setCreateUserType(UserType.REGISTERED);
-                setShowCreateUserModal(true);
-              }}
-            >
-              <FaUserPlus /> Crear Usuario
-            </button>
-            <button 
-              className={styles.altButton}
-              onClick={() => {
-                setCreateUserType(UserType.UNREGISTERED);
-                setShowCreateUserModal(true);
-              }}
-            >
-              <FaUserCheck /> Agregar Asistente
-            </button>
+                <button 
+                  className={styles.createButton}
+                  onClick={() => {
+                    setCreateUserType(UserType.REGISTERED);
+                    setShowCreateUserModal(true);
+                  }}
+                >
+                  <FaUserPlus /> Crear Usuario
+                </button>
+                <button 
+                  className={styles.altButton}
+                  onClick={() => {
+                    setCreateUserType(UserType.UNREGISTERED);
+                    setShowCreateUserModal(true);
+                  }}
+                >
+                  <FaUserCheck /> Agregar Asistente
+                </button>
           </div>
         </div>
 

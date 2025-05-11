@@ -29,7 +29,7 @@ interface Course {
 interface Attendance {
   _id?: string;
   studentId: string;
-  present: boolean;
+  present: boolean | null;
   notes?: string;
   isRegistered?: boolean; // True para usuario registrado, false para no registrado
   studentName?: string; // Nombre del estudiante (para no registrados)
@@ -132,9 +132,13 @@ export default function AttendancePage() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
       
+      console.log(`Fetching attendance for course ${id} on date ${date}`);
+      
       const response = await axios.get(`${apiUrl}/api/attendance/course/${id}?date=${date}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      console.log('Raw attendance response data:', response.data);
       
       if (response.data && Array.isArray(response.data)) {
         const studentIdsToFetch = new Set<string>();
@@ -258,16 +262,20 @@ export default function AttendancePage() {
             _id: attendance._id,
             studentId: studentId,
             studentName: studentName,
-            present: attendance.present,
-            notes: attendance.notes,
+            present: attendance.present === true ? true : attendance.present === false ? false : null,
+            notes: attendance.notes || '',
             isRegistered: isRegistered
           };
         });
         
         const mappedAttendances = (await Promise.all(mappedAttendancesPromises))
           .filter(attendance => attendance !== null);
+        
+        console.log('Mapped attendance records:', mappedAttendances);
+        
         setAttendances(mappedAttendances);
       } else {
+        console.log('No attendance data found for this day or data is not in expected format');
         setAttendances([]);
       }
     } catch (error) {
@@ -354,9 +362,9 @@ export default function AttendancePage() {
         newAttendances.push({
             studentId: studentId,
             studentName: studentName,
-          present: true,
-          notes: '',
-          isRegistered: true
+            present: null,
+            notes: '',
+            isRegistered: true
         });
       }
       }
@@ -408,10 +416,10 @@ export default function AttendancePage() {
     
     const newAttendance = {
       studentId: tempId,
-        studentName: studentName,
-        present: true,
-        notes: '',
-        isRegistered: false
+      studentName: studentName,
+      present: null,
+      notes: '',
+      isRegistered: false
     };
     
     setAttendances(prev => [...prev, newAttendance]);
@@ -435,7 +443,11 @@ export default function AttendancePage() {
         .filter(attendance => 
           attendance && 
           attendance.studentName && 
-          attendance.studentName !== 'Usuario no encontrado');
+          attendance.studentName !== 'Usuario no encontrado')
+        .map(attendance => ({
+          ...attendance,
+          present: attendance.present === null ? false : attendance.present // Convert null to false (absent)
+        }));
       
       console.log('Attendances to save:', attendancesToSave.length);
       
@@ -685,7 +697,7 @@ export default function AttendancePage() {
                           <input
                             type="radio"
                             name={`present-${attendance.studentId}`}
-                            checked={attendance.present}
+                            checked={attendance.present === true}
                             onChange={() => handlePresentChange(attendance.studentId, true)}
                           />
                                     <FaCheck style={{ color: '#38a169' }} /> Presente
@@ -694,7 +706,7 @@ export default function AttendancePage() {
                           <input
                             type="radio"
                             name={`present-${attendance.studentId}`}
-                            checked={!attendance.present}
+                            checked={attendance.present === false}
                             onChange={() => handlePresentChange(attendance.studentId, false)}
                           />
                                     <FaTimes style={{ color: '#e53e3e' }} /> Ausente

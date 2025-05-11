@@ -403,7 +403,7 @@ export default function CourseDetail() {
                         <FaEye />
                       </button>
                       
-                      {canModifyClassItem(classItem.createdBy._id) && (
+                      {classItem.createdBy && canModifyClassItem(classItem.createdBy._id) && (
                         <>
                           <Link 
                             href={`/class/edit/${classItem._id}`}

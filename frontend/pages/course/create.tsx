@@ -76,7 +76,7 @@ export default function CreateCourse() {
       // Si tiene un rol específico de escuela, puede continuar pero las escuelas se filtrarán en fetchSchools
       else if (schoolSpecificRoles.includes(decoded.role)) {
         setUserId(decoded.sub);
-        fetchSchools(token, decoded.sub, decoded.role);
+      fetchSchools(token, decoded.sub, decoded.role);
       } 
       // Si no tiene ningún rol permitido
       else {
@@ -167,7 +167,7 @@ export default function CreateCourse() {
   const removeAdditionalTeacher = (teacherId: string) => {
     setAdditionalTeachers(additionalTeachers.filter(id => id !== teacherId));
   };
-  
+
   const fetchSchools = async (token: string, userId: string, role: string) => {
     try {
       setLoadingSchools(true);
@@ -477,13 +477,13 @@ export default function CreateCourse() {
             ) : (
               <>
                 <p>No tienes escuelas asignadas. Para crear un curso, primero debes tener acceso a una escuela.</p>
-                <button 
-                  onClick={() => router.push('/school/create')} 
-                  className={styles.button}
-                  style={{ marginTop: '20px' }}
-                >
-                  Crear una Escuela
-                </button>
+          <button 
+            onClick={() => router.push('/school/create')} 
+            className={styles.button}
+            style={{ marginTop: '20px' }}
+          >
+            Crear una Escuela
+          </button>
               </>
             )}
           </div>

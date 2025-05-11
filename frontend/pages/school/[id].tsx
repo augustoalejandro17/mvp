@@ -50,6 +50,8 @@ interface Course {
     email: string;
   };
   isPublic: boolean;
+  isFeatured?: boolean;
+  promotionOrder?: number;
 }
 
 export default function SchoolDetail() {
@@ -121,7 +123,17 @@ export default function SchoolDetail() {
             throw error;
           });
         
-        setCourses(coursesResponse.data);
+        // Sort courses by promotionOrder and then alphabetically by title
+        const sortedCourses = [...coursesResponse.data].sort((a, b) => {
+          // Primero ordenar por promotionOrder (los números más bajos primero)
+          if (a.promotionOrder !== b.promotionOrder) {
+            return (a.promotionOrder || 999) - (b.promotionOrder || 999);
+          }
+          // Luego ordenar alfabéticamente por título
+          return a.title.localeCompare(b.title, 'es', { sensitivity: 'accent' });
+        });
+        
+        setCourses(sortedCourses);
       } catch (error) {
         console.error('Error al obtener datos:', error);
         setError(handleApiError(error));
@@ -274,9 +286,12 @@ export default function SchoolDetail() {
             {courses.map((course) => (
               <div 
                 key={course._id} 
-                className={styles.card}
+                className={`${styles.card} ${course.isFeatured ? styles.featuredCard : ''}`}
                 onClick={() => handleCourseClick(course._id)}
               >
+                {course.isFeatured && (
+                  <div className={styles.featuredBadge}>Destacado</div>
+                )}
                 {course.coverImageUrl ? (
                   <div className={styles.cardImage}>
                     <ImageFallback 

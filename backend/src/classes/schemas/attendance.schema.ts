@@ -5,8 +5,8 @@ export interface AttendanceDocument extends Attendance, Document {}
 
 @Schema({ timestamps: true })
 export class Attendance {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Class', required: true })
-  class: MongooseSchema.Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Course', required: true })
+  course: MongooseSchema.Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   student: MongooseSchema.Types.ObjectId;
@@ -22,6 +22,9 @@ export class Attendance {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   recordedBy: MongooseSchema.Types.ObjectId;
+  
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
+  markedBy: MongooseSchema.Types.ObjectId;
 }
 
 export const AttendanceSchema = SchemaFactory.createForClass(Attendance); 

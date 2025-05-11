@@ -8,9 +8,6 @@ export class Attendance {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Course', required: true })
   course: MongooseSchema.Types.ObjectId;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Course', required: true })
-  class: MongooseSchema.Types.ObjectId;
-
   @Prop({ 
     type: MongooseSchema.Types.Mixed, 
     required: true,

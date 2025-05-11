@@ -5,6 +5,7 @@ import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Permission, RequirePermissions, PermissionsGuard } from './guards/permissions.guard';
 import { UserRole } from './schemas/user.schema';
+import { Request } from 'express';
 
 @Controller('auth')
 export class AuthController {
@@ -38,6 +39,22 @@ export class AuthController {
       return result;
     } catch (error) {
       this.logger.error(`Error durante el login: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  async getProfile(@Req() req: Request) {
+    try {
+      const userId = req.user['sub'] || req.user['_id'];
+      const userProfile = await this.authService.getProfile(userId);
+      
+      this.logger.log(`Profile request for user: ${userId}, role: ${userProfile.role}`);
+      
+      return userProfile;
+    } catch (error) {
+      this.logger.error(`Error fetching profile: ${error.message}`, error.stack);
       throw error;
     }
   }

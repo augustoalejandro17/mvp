@@ -174,4 +174,27 @@ export class AuthService {
       throw error;
     }
   }
+
+  async getProfile(userId: string): Promise<any> {
+    try {
+      const user = await this.userModel.findById(userId);
+      if (!user) {
+        throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
+      }
+      
+      this.logger.log(`Fetched profile for user: ${userId}, role: ${user.role}`);
+      
+      return {
+        id: user._id,
+        email: user.email, 
+        name: user.name,
+        role: user.role.toString(), // Convert to string to ensure consistent format
+        schoolRoles: user.schoolRoles || [],
+        schools: user.schools || []
+      };
+    } catch (error) {
+      this.logger.error(`Error fetching user profile: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
 } 

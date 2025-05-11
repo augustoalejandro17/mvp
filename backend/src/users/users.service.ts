@@ -70,6 +70,9 @@ export class UsersService {
       
       // Actualizar los cursos para incluir al estudiante
       await this.enrollUserInCourses(savedUser._id, courseIds);
+      
+      // Get the schools from these courses and assign the user role in each school
+      await this.assignUserRoleToSchoolsFromCourses(savedUser._id, courseIds, userData.role || 'student');
     }
     
     return savedUser;
@@ -92,6 +95,67 @@ export class UsersService {
         { $addToSet: { students: userObjectId } },
         { new: true }
       );
+    }
+  }
+
+  /**
+   * Helper method to assign user roles to schools based on the courses
+   */
+  private async assignUserRoleToSchoolsFromCourses(
+    userId: string | Types.ObjectId, 
+    courseIds: string[],
+    userRole: string
+  ): Promise<void> {
+    try {
+      this.logger.log(`Assigning user ${userId} to schools from courses ${courseIds} with role ${userRole}`);
+      
+      // Import necessary modules to avoid circular dependencies
+      const { AuthorizationService } = await import('../auth/services/authorization.service');
+      
+      // Get the courses to identify their schools
+      const courses = await this.courseModel.find({ _id: { $in: courseIds } });
+      
+      // Extract unique school IDs
+      const schoolIds: string[] = [];
+      
+      // Safely extract school IDs
+      for (const course of courses) {
+        if (course.school) {
+          let schoolId: string;
+          
+          if (typeof course.school === 'object' && course.school !== null) {
+            // Use type assertion to handle mongoose document
+            const schoolObj = course.school as any;
+            schoolId = schoolObj._id ? schoolObj._id.toString() : schoolObj.toString();
+          } else {
+            // If it's a string or ObjectId
+            schoolId = course.school.toString();
+          }
+          
+          if (schoolId && !schoolIds.includes(schoolId)) {
+            schoolIds.push(schoolId);
+          }
+        }
+      }
+      
+      this.logger.log(`Found schools: ${schoolIds}`);
+      
+      // For each school, assign the appropriate role to the user
+      const authService = new AuthorizationService(this.userModel, this.schoolModel, this.courseModel);
+      
+      for (const schoolId of schoolIds) {
+        // Map user role to school role
+        let schoolRole = 'student';
+        if (userRole === 'teacher') schoolRole = 'teacher';
+        else if (userRole === 'administrative') schoolRole = 'administrative';
+        else if (userRole === 'admin' || userRole === 'school_owner') schoolRole = 'school_owner';
+        
+        this.logger.log(`Assigning role ${schoolRole} to user ${userId} in school ${schoolId}`);
+        await authService.assignRoleInSchool(userId.toString(), schoolId, schoolRole);
+      }
+    } catch (error) {
+      this.logger.error(`Error assigning user to schools: ${error.message}`, error.stack);
+      // We don't throw here to avoid blocking the user creation
     }
   }
 
@@ -244,24 +308,31 @@ export class UsersService {
     
     // Buscar usuarios que:
     // 1. Tengan rol global TEACHER y estén en la escuela, O
-    // 2. Tengan un schoolRole de 'teacher' para esta escuela específica
+    // 2. Tengan un schoolRole de 'teacher' para esta escuela específica, O
+    // 3. Tengan rol global SCHOOL_OWNER y estén en la escuela, O
+    // 4. Tengan un schoolRole de 'school_owner' para esta escuela específica
     const teachers = await this.userModel.find({
       $and: [
         { schools: schoolId }, // Deben estar asociados a la escuela
         {
           $or: [
             { role: UserRole.TEACHER }, // Rol global es TEACHER
+            { role: UserRole.SCHOOL_OWNER }, // Rol global es SCHOOL_OWNER
             { 'schoolRoles': { 
                 $elemMatch: { 
                   'schoolId': new Types.ObjectId(schoolId), 
-                  'role': 'teacher'
+                  'role': { $in: ['teacher', 'school_owner'] }
                 } 
               }
-            } // O tienen un rol específico de 'teacher' en esta escuela
+            } // O tienen un rol específico de 'teacher' o 'school_owner' en esta escuela
           ]
         }
       ]
-    }).select('_id name email').exec();
+    })
+    .select('_id name email')
+    .collation({ locale: 'es', strength: 2 }) // Collation para ordenamiento correcto de caracteres españoles
+    .sort({ name: 1 }) // Ordenar alfabéticamente por nombre (1 = ascendente)
+    .exec();
     
     this.logger.log(`Se encontraron ${teachers.length} profesores para la escuela ${schoolId}`);
     

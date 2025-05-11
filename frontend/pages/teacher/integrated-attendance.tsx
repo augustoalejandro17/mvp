@@ -42,7 +42,7 @@ interface Enrollment {
 interface Attendance {
   _id?: string;
   studentId: string;
-  present: boolean;
+  present: boolean | null;
   notes?: string;
 }
 
@@ -58,7 +58,7 @@ interface StudentRecord {
   _id: string;
   name: string;
   email: string;
-  present: boolean;
+  present: boolean | null;
   attendanceNotes: string;
   paymentStatus: boolean;
   lastPaymentDate?: string;
@@ -133,12 +133,30 @@ export default function IntegratedAttendancePage() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
       
-      const response = await axios.get(`${apiUrl}/api/attendance/course/${courseId}?date=${attendanceDate}`, {
+      // Construir fecha en formato ISO ajustada a UTC-5
+      const selectedDate = new Date(attendanceDate);
+      
+      // Obtener componentes de la fecha local
+      const year = selectedDate.getFullYear();
+      const month = selectedDate.getMonth();
+      const day = selectedDate.getDate();
+      
+      // Crear un objeto de fecha respetando UTC-5
+      // Agregamos 5 horas para compensar UTC-5
+      const dateObj = new Date(Date.UTC(year, month, day, 17, 0, 0)); // 12:00 en UTC-5 = 17:00 en UTC
+      const formattedDate = dateObj.toISOString();
+      
+      console.log('Original local date string:', attendanceDate);
+      console.log('UTC-5 adjusted date:', dateObj);
+      console.log('Fetching attendances for date:', formattedDate);
+      
+      const response = await axios.get(`${apiUrl}/api/attendance/course/${courseId}?date=${formattedDate}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       // Si hay registros de asistencia, mapearlos
       if (response.data && Array.isArray(response.data)) {
+        console.log('Received attendance records:', response.data);
         setAttendances(response.data.map(attendance => ({
           _id: attendance._id,
           studentId: attendance.student._id,
@@ -175,7 +193,7 @@ export default function IntegratedAttendancePage() {
         _id: student._id,
         name: student.name,
         email: student.email,
-        present: attendance ? attendance.present : true,
+        present: attendance ? attendance.present : null,
         attendanceNotes: attendance?.notes || '',
         paymentStatus: enrollment ? enrollment.paymentStatus : false,
         lastPaymentDate: enrollment?.lastPaymentDate,
@@ -260,8 +278,22 @@ export default function IntegratedAttendancePage() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
       
-      // Create proper date string that won't be modified by backend setHours() calls
-      const dateString = date + 'T12:00:00.000Z';
+      // Construir fecha en formato ISO ajustada a UTC-5
+      const selectedDate = new Date(date);
+      
+      // Obtener componentes de la fecha local
+      const year = selectedDate.getFullYear();
+      const month = selectedDate.getMonth();
+      const day = selectedDate.getDate();
+      
+      // Crear un objeto de fecha respetando UTC-5
+      // Agregamos 5 horas para compensar UTC-5
+      const dateObj = new Date(Date.UTC(year, month, day, 17, 0, 0)); // 12:00 en UTC-5 = 17:00 en UTC
+      const dateString = dateObj.toISOString();
+      
+      console.log('Original local date string:', date);
+      console.log('UTC-5 adjusted date:', dateObj);
+      console.log('Date string to send:', dateString);
       
       if (!dateString) {
         setError('Formato de fecha inválido');
@@ -269,12 +301,17 @@ export default function IntegratedAttendancePage() {
         return;
       }
       
+      // Convertir registros sin selección a 'ausente' (present: false)
+      const processedRecords = studentRecords.map(record => ({
+        ...record,
+        present: record.present === null ? false : record.present
+      }));
+      
       // Preparar los datos de asistencia
-      // Note: Only include fields expected by the DTO to avoid validation errors
       const bulkData = {
         courseId: selectedCourse,
         date: dateString,
-        attendances: studentRecords.map(record => ({
+        attendances: processedRecords.map(record => ({
           studentId: record._id,
           present: record.present,
           notes: record.attendanceNotes
@@ -323,8 +360,9 @@ export default function IntegratedAttendancePage() {
   const selectedCourseObj = courses.find(course => course._id === selectedCourse);
 
   // Calcular estadísticas
-  const countPresent = studentRecords.filter(record => record.present).length;
-  const countAbsent = studentRecords.length - countPresent;
+  const countPresent = studentRecords.filter(record => record.present === true).length;
+  const countAbsent = studentRecords.filter(record => record.present === false).length;
+  const countNoSelection = studentRecords.filter(record => record.present === null).length;
   const countPaid = studentRecords.filter(record => record.paymentStatus).length;
   const countUnpaid = studentRecords.length - countPaid;
 
@@ -403,6 +441,10 @@ export default function IntegratedAttendancePage() {
                       <span className={styles.statLabel}>Ausentes</span>
                     </div>
                     <div className={styles.statItem}>
+                      <span className={styles.statValue}>{countNoSelection}</span>
+                      <span className={styles.statLabel}>Sin Selección</span>
+                    </div>
+                    <div className={styles.statItem}>
                       <span className={styles.statValue}>{studentRecords.length}</span>
                       <span className={styles.statLabel}>Total</span>
                     </div>
@@ -453,7 +495,7 @@ export default function IntegratedAttendancePage() {
                             <input
                               type="radio"
                               name={`present-${student._id}`}
-                              checked={student.present}
+                              checked={student.present === true}
                               onChange={() => handlePresentChange(student._id, true)}
                               className={styles.radioInput}
                             />
@@ -464,7 +506,7 @@ export default function IntegratedAttendancePage() {
                             <input
                               type="radio"
                               name={`present-${student._id}`}
-                              checked={!student.present}
+                              checked={student.present === false}
                               onChange={() => handlePresentChange(student._id, false)}
                               className={styles.radioInput}
                             />
