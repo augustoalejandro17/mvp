@@ -225,6 +225,7 @@ const PaymentManagement = () => {
           <table className={styles.enrollmentsTable}>
             <thead>
               <tr>
+                <th style={{ width: '50px' }}>#</th>
                 <th>Student</th>
                 <th>Email</th>
                 <th>Payment Status</th>
@@ -237,8 +238,9 @@ const PaymentManagement = () => {
               {/* Sort enrollments alphabetically by student name */}
               {[...enrollments]
                 .sort((a, b) => a.student.name.localeCompare(b.student.name, undefined, { sensitivity: 'base' }))
-                .map((enrollment) => (
+                .map((enrollment, index) => (
                   <tr key={enrollment._id} className={enrollment.paymentStatus ? styles.paid : styles.unpaid}>
+                    <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{index + 1}</td>
                     <td>{enrollment.student.name}</td>
                     <td>{enrollment.student.email}</td>
                     <td>{enrollment.paymentStatus ? 'Paid' : 'Unpaid'}</td>

@@ -480,6 +480,7 @@ export default function IntegratedAttendancePage() {
               
               <div className={styles.attendanceTable}>
                 <div className={styles.tableHeader}>
+                  <div className={styles.countColumn}>#</div>
                   <div className={styles.studentColumn}>Estudiante</div>
                   <div className={styles.presentColumn}>Asistencia</div>
                   <div className={styles.notesColumn}>Notas</div>
@@ -487,8 +488,9 @@ export default function IntegratedAttendancePage() {
                 </div>
                 
                 <div className={styles.tableBody}>
-                  {studentRecords.map(student => (
+                  {studentRecords.map((student, index) => (
                     <div key={student._id} className={styles.tableRow}>
+                      <div className={styles.countColumn}>{index + 1}</div>
                       <div className={styles.studentColumn}>
                         <div className={styles.studentName}>{student.name}</div>
                         <div className={styles.studentEmail}>{student.email}</div>

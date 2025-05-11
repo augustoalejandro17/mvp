@@ -289,6 +289,7 @@ export default function EnrollmentManagementPage() {
             ) : enrollments.length > 0 ? (
               <div className={styles.enrollmentsTable}>
                 <div className={styles.tableHeader}>
+                  <div className={styles.tableCell} style={{ width: '50px', textAlign: 'center' }}>#</div>
                   <div className={styles.tableCell}>Estudiante</div>
                   <div className={styles.tableCell}>Curso</div>
                   <div className={styles.tableCell}>Estado de Pago</div>
@@ -298,8 +299,11 @@ export default function EnrollmentManagementPage() {
                 
                 {[...enrollments]
                   .sort((a, b) => a.student.name.localeCompare(b.student.name, undefined, { sensitivity: 'base' }))
-                  .map(enrollment => (
+                  .map((enrollment, index) => (
                     <div key={enrollment._id} className={styles.tableRow}>
+                      <div className={styles.tableCell} style={{ width: '50px', textAlign: 'center', fontWeight: 'bold' }}>
+                        {index + 1}
+                      </div>
                       <div className={styles.tableCell}>
                         <div>{enrollment.student.name}</div>
                         <div className={styles.emailText}>{enrollment.student.email}</div>

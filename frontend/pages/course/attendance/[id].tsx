@@ -670,6 +670,7 @@ export default function AttendancePage() {
                 <table className={styles.table}>
                   <thead>
                     <tr>
+                      <th style={{ width: '50px' }}>#</th>
                       <th>Estudiante</th>
                       <th>Asistencia</th>
                       <th>Notas (opcional)</th>
@@ -683,10 +684,11 @@ export default function AttendancePage() {
                         attendance.studentName && 
                         attendance.studentName !== 'Usuario no encontrado')
                       .sort((a, b) => (a.studentName || '').localeCompare((b.studentName || ''), undefined, { sensitivity: 'base' }))
-                      .map((attendance) => {
+                      .map((attendance, index) => {
                         const name = attendance.studentName;
                         return (
                           <tr key={attendance.studentId}>
+                            <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{index + 1}</td>
                             <td>
                               <div className={styles.studentName}>
                                 <span className={styles.name}>{name}</span>

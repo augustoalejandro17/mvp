@@ -401,6 +401,7 @@ export default function AttendanceManagementPage() {
               
               <div className={styles.attendanceTable}>
                 <div className={styles.tableHeader}>
+                  <div className={styles.countColumn}>#</div>
                   <div className={styles.studentColumn}>Estudiante</div>
                   <div className={styles.presentColumn}>Asistencia</div>
                   <div className={styles.notesColumn}>Notas</div>
@@ -411,7 +412,7 @@ export default function AttendanceManagementPage() {
                     // Sort students alphabetically by name
                     [...selectedCourseObj.students]
                       .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
-                      .map(student => {
+                      .map((student, index) => {
                         const attendance = attendances.find(a => a.studentId === student._id) || {
                           studentId: student._id,
                           present: null,
@@ -420,6 +421,7 @@ export default function AttendanceManagementPage() {
                         
                         return (
                           <div key={student._id} className={styles.tableRow}>
+                            <div className={styles.countColumn}>{index + 1}</div>
                             <div className={styles.studentColumn}>
                               <div className={styles.studentName}>{student.name}</div>
                               <div className={styles.studentEmail}>{student.email}</div>

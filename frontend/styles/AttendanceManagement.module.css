@@ -380,4 +380,13 @@
   display: flex;
   align-items: center;
   font-size: 0.95rem;
+}
+
+.countColumn {
+  flex: 0 0 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: #4a5568;
 } 
