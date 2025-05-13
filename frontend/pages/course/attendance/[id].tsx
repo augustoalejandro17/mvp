@@ -5,9 +5,10 @@ import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../../../styles/Admin.module.css';
 import Link from 'next/link';
-import { format } from 'date-fns';
+import { format, parse, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { FaPlus, FaCheck, FaTimes, FaArrowLeft, FaCalendarAlt, FaSave, FaChalkboardTeacher } from 'react-icons/fa';
+import { FaPlus, FaCheck, FaTimes, FaArrowLeft, FaCalendarAlt, FaSave, FaChalkboardTeacher, FaFileExcel } from 'react-icons/fa';
+import * as XLSX from 'xlsx';
 
 interface Student {
   _id: string;
@@ -33,6 +34,7 @@ interface Attendance {
   notes?: string;
   isRegistered?: boolean; // True para usuario registrado, false para no registrado
   studentName?: string; // Nombre del estudiante (para no registrados)
+  date?: string; // Para la exportación a Excel
 }
 
 interface DecodedToken {
@@ -40,6 +42,17 @@ interface DecodedToken {
   email: string;
   name: string;
   role: string;
+}
+
+// Nueva interfaz para agrupar asistencias mensuales
+interface MonthlyAttendance {
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  isRegistered: boolean;
+  dates: {
+    [date: string]: boolean | null;
+  };
 }
 
 export default function AttendancePage() {
@@ -58,6 +71,7 @@ export default function AttendancePage() {
   const [currentUser, setCurrentUser] = useState<DecodedToken | null>(null);
   const [showAddNonRegisteredModal, setShowAddNonRegisteredModal] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
+  const [exportLoading, setExportLoading] = useState(false);
 
   const fetchCourse = useCallback(async () => {
     try {
@@ -581,6 +595,189 @@ export default function AttendancePage() {
     }
   }, [id, date, fetchAttendances]);
 
+  // Nuevas funciones para exportación de Excel
+  const exportAttendanceToExcel = async () => {
+    try {
+      setExportLoading(true);
+      
+      // Obtener el año y mes actual del estado date
+      const selectedDate = parse(date, 'yyyy-MM-dd', new Date());
+      const month = selectedDate.getMonth() + 1;
+      const year = selectedDate.getFullYear();
+      const monthName = format(selectedDate, 'MMMM yyyy', { locale: es });
+      
+      // Obtener datos del curso
+      if (!course) {
+        setError('No hay información del curso disponible');
+        setExportLoading(false);
+        return;
+      }
+      
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const token = Cookies.get('token');
+      
+      // Usar el nuevo endpoint que retorna todas las asistencias del mes
+      const response = await axios.get(
+        `${apiUrl}/api/attendance/course/${id}/month?year=${year}&month=${month}`, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Procesar los datos de asistencia
+      const attendanceRecords = response.data;
+      
+      // Crear un mapa para agrupar las asistencias por estudiante y fecha
+      const monthlyAttendances: MonthlyAttendance[] = [];
+      const studentsMap = new Map<string, { name: string; email: string; isRegistered: boolean }>();
+      
+      // Preparar el mapa de estudiantes
+      if (course.students && Array.isArray(course.students)) {
+        course.students.forEach(student => {
+          if (typeof student === 'object') {
+            studentsMap.set(student._id, { 
+              name: student.name, 
+              email: student.email || '', 
+              isRegistered: true 
+            });
+          }
+        });
+      }
+      
+      // Procesar cada registro de asistencia
+      attendanceRecords.forEach((attendance: any) => {
+        // Determinar la información del estudiante
+        let studentId = '';
+        let studentName = '';
+        let studentEmail = '';
+        let isRegistered = true;
+        
+        if (typeof attendance.student === 'object' && attendance.student) {
+          // Estudiante registrado con datos poblados
+          studentId = attendance.student._id;
+          studentName = attendance.student.name;
+          studentEmail = attendance.student.email || '';
+        } else if (typeof attendance.student === 'string') {
+          // Estudiante registrado sin datos poblados
+          studentId = attendance.student;
+          const studentInfo = studentsMap.get(studentId);
+          
+          if (studentInfo) {
+            studentName = studentInfo.name;
+            studentEmail = studentInfo.email;
+          } else {
+            studentName = 'Estudiante desconocido';
+          }
+        } else if (attendance.studentName) {
+          // Estudiante no registrado
+          studentId = attendance._id; // Usamos el ID de la asistencia como identificador
+          studentName = attendance.studentName;
+          isRegistered = false;
+        }
+        
+        // Si no tenemos un ID de estudiante válido, omitir este registro
+        if (!studentId) return;
+        
+        // Buscar o crear entrada para el estudiante
+        let studentMonthlyAtt = monthlyAttendances.find(m => 
+          m.studentId === studentId || 
+          (!isRegistered && m.studentName === studentName)
+        );
+        
+        if (!studentMonthlyAtt) {
+          studentMonthlyAtt = {
+            studentId,
+            studentName,
+            studentEmail,
+            isRegistered,
+            dates: {}
+          };
+          
+          monthlyAttendances.push(studentMonthlyAtt);
+        }
+        
+        // Añadir asistencia para la fecha
+        if (attendance.date) {
+          // Formatear la fecha al formato yyyy-MM-dd
+          const attendanceDate = new Date(attendance.date);
+          const formattedDate = format(attendanceDate, 'yyyy-MM-dd');
+          studentMonthlyAtt.dates[formattedDate] = attendance.present;
+        }
+      });
+      
+      // Obtener todos los días del mes para las columnas
+      const monthStart = startOfMonth(selectedDate);
+      const monthEnd = endOfMonth(selectedDate);
+      const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
+      
+      // Crear datos para Excel
+      const excelRows = [];
+      
+      // Encabezados
+      const headers = ['Nombre', 'Email', 'Estado'];
+      
+      // Añadir fechas como encabezados
+      daysInMonth.forEach(day => {
+        headers.push(format(day, 'dd/MM/yyyy'));
+      });
+      
+      excelRows.push(headers);
+      
+      // Ordenar estudiantes alfabéticamente
+      monthlyAttendances.sort((a, b) => a.studentName.localeCompare(b.studentName));
+      
+      // Datos de asistencia
+      monthlyAttendances.forEach(att => {
+        const row = [
+          att.studentName,
+          att.studentEmail,
+          att.isRegistered ? 'Registrado' : 'No registrado'
+        ];
+        
+        // Añadir asistencia para cada día del mes
+        daysInMonth.forEach(day => {
+          const formattedDate = format(day, 'yyyy-MM-dd');
+          const present = att.dates[formattedDate];
+          
+          // Convertir el estado de asistencia a texto
+          if (present === true) row.push('Presente');
+          else if (present === false) row.push('Ausente');
+          else row.push('No registrado');
+        });
+        
+        excelRows.push(row);
+      });
+      
+      // Crear hoja de Excel
+      const ws = XLSX.utils.aoa_to_sheet(excelRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Asistencias');
+      
+      // Aplicar estilos a las celdas (anchos de columna)
+      const colWidths = [
+        { wch: 25 }, // Nombre
+        { wch: 25 }, // Email
+        { wch: 15 }  // Estado
+      ];
+      
+      // Añadir anchos para las columnas de fechas
+      daysInMonth.forEach(() => {
+        colWidths.push({ wch: 12 });
+      });
+      
+      ws['!cols'] = colWidths;
+      
+      // Generar el archivo
+      const fileName = `Asistencias_${course.title.replace(/\s+/g, '_')}_${monthName}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      
+      setSuccess(`Asistencias exportadas correctamente a ${fileName}`);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      setError('Error al exportar las asistencias a Excel');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   if (loading && !course) {
     return <div className={styles.loading}>Cargando...</div>;
   }
@@ -588,26 +785,35 @@ export default function AttendancePage() {
   return (
     <div className={styles.container}>
       <main className={styles.main}>
-        <h1 className={styles.title}>Control de Asistencia</h1>
-        <h2 className={styles.courseTitle}>{course?.title || 'Cargando curso...'}</h2>
+        <div className={styles.headerRow}>
+          <h1>
+            <FaChalkboardTeacher className={styles.titleIcon} />
+            {loading ? 'Cargando...' : `Asistencia de ${course?.title || 'curso'}`}
+          </h1>
+          <Link href={`/course/${id}`} className={styles.backButton}>
+            <FaArrowLeft /> Volver al curso
+          </Link>
+        </div>
         
-        <div className={styles.controlBar}>
-          <div className={styles.dateSelector}>
-            <label htmlFor="date">
-              <FaCalendarAlt className={styles.iconSpacer} /> <span>Fecha:</span>
-            </label>
+        <div className={styles.controlsRow}>
+          <div className={styles.datePickerContainer}>
+            <FaCalendarAlt className={styles.calendarIcon} />
             <input
               type="date"
-              id="date"
               value={date}
               onChange={handleDateChange}
-              className={styles.dateInput}
+              className={styles.datePicker}
             />
           </div>
           
-          <Link href={`/course/${id}`} className={styles.backLink}>
-            <FaArrowLeft /> <span>Volver al Curso</span>
-          </Link>
+          <button
+            onClick={exportAttendanceToExcel}
+            className={`${styles.exportButton} ${exportLoading ? styles.loading : ''}`}
+            disabled={loading || exportLoading}
+          >
+            <FaFileExcel /> 
+            {exportLoading ? 'Exportando...' : 'Exportar mes a Excel'}
+          </button>
         </div>
         
         {error && <div className={styles.error}>{error}</div>}

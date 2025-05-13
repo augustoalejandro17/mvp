@@ -639,4 +639,36 @@ export class AttendanceService {
     
     return result.modifiedCount;
   }
+
+  async findByCourseAndMonth(courseId: string, year: number, month: number): Promise<Attendance[]> {
+    this.logger.debug(`Buscando asistencias para el curso ${courseId} en ${month}/${year}`);
+    
+    // Verificar que el curso existe
+    const courseExists = await this.courseModel.exists({ _id: courseId });
+    if (!courseExists) {
+      throw new NotFoundException(`Curso con ID ${courseId} no encontrado`);
+    }
+    
+    // Crear fechas de inicio y fin del mes (en UTC para evitar problemas de zona horaria)
+    const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+    const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+    
+    this.logger.debug(`Rango de búsqueda: ${startDate.toISOString()} a ${endDate.toISOString()}`);
+    
+    // Buscar todas las asistencias para este curso en el rango de fechas
+    const attendances = await this.attendanceModel.find({
+      course: courseId,
+      date: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    })
+    .populate('student', 'name email role') // Poblar información de estudiantes registrados
+    .sort({ date: 1 }) // Ordenar por fecha
+    .exec();
+    
+    this.logger.debug(`Se encontraron ${attendances.length} registros de asistencia`);
+    
+    return attendances;
+  }
 } 

@@ -110,4 +110,48 @@ export class AttendanceController {
       updatedCount
     };
   }
+
+  @Get('course/:courseId/month')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.VIEW_ATTENDANCE)
+  async findByCourseAndMonth(
+    @Param('courseId') courseId: string,
+    @Query('year') yearStr: string,
+    @Query('month') monthStr: string,
+    @Query('referenceDate') referenceDateStr: string
+  ) {
+    this.logger.debug(`Solicitando asistencias mensuales para curso ${courseId}`);
+    
+    let year: number;
+    let month: number;
+    
+    // Si se proporciona una fecha de referencia, extraer el año y mes de ella
+    if (referenceDateStr) {
+      const referenceDate = new Date(referenceDateStr);
+      year = referenceDate.getFullYear();
+      month = referenceDate.getMonth() + 1; // getMonth() devuelve 0-11
+      this.logger.debug(`Usando fecha de referencia: ${referenceDateStr}, año=${year}, mes=${month}`);
+    } 
+    // De lo contrario, usar los parámetros de año y mes proporcionados
+    else if (yearStr && monthStr) {
+      year = parseInt(yearStr, 10);
+      month = parseInt(monthStr, 10);
+      this.logger.debug(`Usando parámetros explícitos: año=${year}, mes=${month}`);
+    } 
+    // Si no se proporciona ningún parámetro, usar el mes actual
+    else {
+      const currentDate = new Date();
+      year = currentDate.getFullYear();
+      month = currentDate.getMonth() + 1;
+      this.logger.debug(`Usando mes actual: año=${year}, mes=${month}`);
+    }
+    
+    // Validar que los valores de año y mes son válidos
+    if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+      this.logger.error(`Valores de año (${year}) o mes (${month}) inválidos`);
+      throw new Error('Valores de año o mes inválidos');
+    }
+    
+    return this.attendanceService.findByCourseAndMonth(courseId, year, month);
+  }
 } 
