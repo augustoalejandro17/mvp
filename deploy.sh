@@ -32,8 +32,12 @@ aws ecr get-login-password --region $AWS_REGION --profile augusto | docker login
 
 # Build Docker images for linux/amd64
 echo "🔨 Construyendo imágenes Docker para linux/amd64..."
-docker buildx build --platform linux/amd64 -t mvp-backend:latest ./backend --load
-docker buildx build --platform linux/amd64 --build-arg NEXT_PUBLIC_API_URL=${BACKEND_URL} -t mvp-frontend:latest ./frontend --load
+echo "🔄 Nota: El backend ahora reconstruye bcrypt durante la etapa de producción para asegurar compatibilidad entre arquitecturas."
+docker buildx build --platform linux/amd64 -t mvp-backend:latest ./backend --load --no-cache
+
+# Construir el frontend con la variable de entorno correcta
+echo "🔨 Construyendo frontend con NEXT_PUBLIC_API_URL=${BACKEND_URL}"
+docker buildx build --platform linux/amd64 --build-arg NEXT_PUBLIC_API_URL="${BACKEND_URL}" -t mvp-frontend:latest ./frontend --load --no-cache
 
 # Tag Docker images
 echo "🏷️ Etiquetando imágenes..."

@@ -29,10 +29,13 @@ RUN npm run build
 # Production stage
 FROM node:18-alpine
 
-# Install ffmpeg and runtime dependencies
+# Install ffmpeg, runtime dependencies and build tools for rebuilding native modules
 RUN apk add --no-cache \
     ffmpeg \
-    curl
+    curl \
+    python3 \
+    make \
+    g++
 
 WORKDIR /usr/src/app
 
@@ -44,7 +47,9 @@ RUN npm ci --only=production
 
 # Copy built application from the builder stage
 COPY --from=builder /usr/src/app/dist ./dist
-COPY --from=builder /usr/src/app/node_modules ./node_modules
+
+# Importante: Reconstruir bcrypt para la arquitectura objetivo
+RUN npm rebuild bcrypt --build-from-source
 
 # Create directory for CloudFront keys and set correct path
 RUN mkdir -p /usr/src/app/keys
