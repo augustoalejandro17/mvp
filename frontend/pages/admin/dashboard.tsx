@@ -118,24 +118,10 @@ export default function AdminDashboard() {
       const token = Cookies.get('token');
       if (!token) return;
 
-      // Get API URL from environment variables or use default
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      
-      // Determine endpoint based on current environment
-      let endpoint = '';
-      
-      // When running in Docker, we need to use the full URL
-      if (process.env.NODE_ENV === 'production' || window.location.hostname !== 'localhost') {
-        endpoint = `${apiBaseUrl}/api/admin/stats`;
-        if (schoolId !== 'all') {
-          endpoint = `${apiBaseUrl}/api/admin/stats?schoolId=${schoolId}`;
-        }
-      } else {
-        // In local development, we can use relative paths
-        endpoint = '/api/admin/stats';
-        if (schoolId !== 'all') {
-          endpoint = `/api/admin/stats?schoolId=${schoolId}`;
-        }
+      // Usar la ruta correcta de la API
+      let endpoint = `/api/admin/stats`;
+      if (schoolId !== 'all') {
+        endpoint = `/api/admin/stats?schoolId=${schoolId}`;
       }
       
       console.log('Fetching stats from:', endpoint);
@@ -201,17 +187,15 @@ export default function AdminDashboard() {
     fetchStats(selectedSchool);
   };
 
-  // Test API connectivity with different URL formats
+  // Corregir la función testApiConnectivity para usar el nuevo endpoint overview
   const testApiConnectivity = async () => {
     try {
       console.log('Testing API connectivity...');
       
-      // Usamos rutas relativas para que Next.js se encargue de la redirección
-      // Prueba de endpoint de estadísticas públicas
-      console.log('Testing public stats endpoint...');
+      // Probar el endpoint de overview
+      console.log('Testing overview endpoint...');
       
-      // Usamos fetch con la ruta relativa, que es interceptada por Next.js y redirigida según la configuración
-      const response = await fetch('/api/admin/stats/public-test', {
+      const response = await fetch('/api/admin-stats/overview', {
         headers: { 'Accept': 'application/json' }
       });
       
@@ -373,6 +357,9 @@ export default function AdminDashboard() {
             <Link href="/admin/courses" className={styles.navLink}>
               Cursos
             </Link>
+            <Link href="/admin/subscriptions" className={styles.navLink}>
+              Suscripciones
+            </Link>
             <Link href="/admin/stats" className={styles.navLink}>
               Estadísticas
             </Link>
@@ -448,23 +435,77 @@ export default function AdminDashboard() {
                 {loadingStats ? <span className={styles.loadingDots}>...</span> : stats.classes}
               </p>
             </div>
+
+            {user?.role?.toLowerCase().includes('super_admin') && (
+              <div className={styles.statCard}>
+                <h3>Escuelas</h3>
+                <p className={styles.statValue}>
+                  {loadingStats ? <span className={styles.loadingDots}>...</span> : stats.schools}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className={styles.quickActions}>
             <h3>Acciones Rápidas</h3>
             <div className={styles.actionsGrid}>
-              <button className={styles.actionButton} onClick={() => router.push('/admin/users/create')}>
-                Crear Usuario
-              </button>
-              <button className={styles.actionButton} onClick={() => router.push('/school/create')}>
-                Crear Escuela
-              </button>
-              <button className={styles.actionButton} onClick={() => router.push('/admin/reports')}>
-                Ver Reportes
-              </button>
-              <button className={styles.actionButton} onClick={() => router.push('/admin/settings')}>
-                Configuración
-              </button>
+              <Link href="/admin/schools/create" className={styles.actionButton}>
+                <div className={styles.actionIconWrapper}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </div>
+                <span>Crear Escuela</span>
+              </Link>
+              <Link href="/admin/courses/create" className={styles.actionButton}>
+                <div className={styles.actionIconWrapper}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </div>
+                <span>Crear Curso</span>
+              </Link>
+              <Link href="/admin/classes/create" className={styles.actionButton}>
+                <div className={styles.actionIconWrapper}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </div>
+                <span>Crear Clase</span>
+              </Link>
+              <Link href="/admin/users" className={styles.actionButton}>
+                <div className={styles.actionIconWrapper}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                  </svg>
+                </div>
+                <span>Ver Usuarios</span>
+              </Link>
+              {user?.role?.toLowerCase().includes('super_admin') && (
+                <Link href="/admin/subscriptions" className={styles.actionButton}>
+                  <div className={styles.actionIconWrapper}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                      <path d="M8 14h.01"></path>
+                      <path d="M12 14h.01"></path>
+                      <path d="M16 14h.01"></path>
+                      <path d="M8 18h.01"></path>
+                      <path d="M12 18h.01"></path>
+                      <path d="M16 18h.01"></path>
+                    </svg>
+                  </div>
+                  <span>Gestionar Suscripciones</span>
+                </Link>
+              )}
             </div>
           </div>
         </div>

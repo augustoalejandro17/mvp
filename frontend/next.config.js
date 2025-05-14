@@ -18,10 +18,27 @@ const nextConfig = {
     if (process.env.NODE_ENV !== 'production') {
       console.log('Using API URL for rewrites:', apiUrl);
       return [
+        // Ruta específica para admin-stats/overview
+        {
+          source: '/api/admin-stats/overview',
+          destination: `${apiUrl}/api/admin/stats/overview`,
+        },
+        // Rutas específicas para admin-stats
+        {
+          source: '/api/admin-stats/:path*',
+          destination: `${apiUrl}/api/admin/stats/:path*`,
+        },
+        // Rutas específicas para admin-subscriptions
+        {
+          source: '/api/admin-subscriptions/:path*',
+          destination: `${apiUrl}/api/admin/subscriptions/:path*`,
+        },
+        // Rutas de API estándar (debe ir después de rutas específicas)
         {
           source: '/api/:path*',
           destination: `${apiUrl}/api/:path*`,
         },
+        // Otras rutas directas
         {
           source: '/direct-api/:path*',
           destination: `${apiUrl}/:path*`,

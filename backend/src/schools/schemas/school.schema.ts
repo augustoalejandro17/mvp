@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
 import { User } from '../../auth/schemas/user.schema';
+import * as mongoose from 'mongoose';
 
 export type SchoolDocument = School & Document;
 
@@ -38,6 +39,15 @@ export class School {
 
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Course' }], default: [] })
   courses: MongooseSchema.Types.ObjectId[];
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' })
+  activeSubscription: mongoose.Types.ObjectId;
+
+  @Prop({ default: 0 })
+  storageUsedGb: number;
+
+  @Prop({ default: 0 })
+  streamingMinutesUsed: number;
 
   @Prop({ default: false })
   isPublic: boolean;

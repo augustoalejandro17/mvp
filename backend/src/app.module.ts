@@ -11,15 +11,19 @@ import { ClassesModule } from './classes/classes.module';
 import { ServicesModule } from './services/services.module';
 import { UploadModule } from './upload/upload.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { PlansModule } from './plans/plans.module';
 import awsConfig from './config/aws.config';
 import { S3Service } from './services/s3.service';
 import { CloudFrontService } from './services/cloudfront.service';
 import { ImagesController } from './controllers/images.controller';
 import { AdminStatsController } from './controllers/admin-stats.controller';
+import { SubscriptionAdminController } from './controllers/subscription-admin.controller';
 import { User, UserSchema } from './auth/schemas/user.schema';
 import { School, SchoolSchema } from './schools/schemas/school.schema';
 import { Course, CourseSchema } from './courses/schemas/course.schema';
 import { Class, ClassSchema } from './classes/schemas/class.schema';
+import { Plan, PlanSchema } from './plans/schemas/plan.schema';
+import { Subscription, SubscriptionSchema } from './plans/schemas/subscription.schema';
 import { UserOwnedSchoolsController, UserAdministeredSchoolsController } from './schools/schools.controller';
 
 @Module({
@@ -34,6 +38,8 @@ import { UserOwnedSchoolsController, UserAdministeredSchoolsController } from '.
       { name: School.name, schema: SchoolSchema },
       { name: Course.name, schema: CourseSchema },
       { name: Class.name, schema: ClassSchema },
+      { name: Plan.name, schema: PlanSchema },
+      { name: Subscription.name, schema: SubscriptionSchema },
     ]),
     AuthModule,
     UsersModule,
@@ -43,11 +49,13 @@ import { UserOwnedSchoolsController, UserAdministeredSchoolsController } from '.
     ServicesModule,
     UploadModule,
     AttendanceModule,
+    PlansModule,
   ],
   controllers: [
     AppController, 
     ImagesController, 
     AdminStatsController,
+    SubscriptionAdminController,
     UserOwnedSchoolsController,
     UserAdministeredSchoolsController
   ],
