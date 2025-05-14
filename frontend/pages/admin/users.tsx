@@ -4,6 +4,7 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/Admin.module.css';
+import dashboardStyles from '../../styles/AdminDashboard.module.css';
 import Link from 'next/link';
 import { FaEdit, FaTrash, FaUserPlus, FaLink, FaUserCheck, FaSearch, FaClock, FaCheckCircle, FaEnvelope, FaUniversity, FaList, FaGraduationCap, FaCalendarAlt, FaMoneyBillWave, FaSpinner } from 'react-icons/fa';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
@@ -110,6 +111,7 @@ export default function UserManagement() {
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
+  const [expandedEmail, setExpandedEmail] = useState<string | null>(null); // Nuevo estado para controlar qué email está expandido
   
   // Paginación
   const [currentPage, setCurrentPage] = useState(1);
@@ -1326,572 +1328,623 @@ export default function UserManagement() {
     }, 3000);
   };
 
-  return (
-    <div className={styles.container}>
-      <main className={styles.main}>
-        {/* Si está cargando y los datos no están listos, SOLO mostrar el spinner centrado en pantalla */}
-        {loading && !dataReady ? (
-          <div className={styles.fullPageSpinner}>
-            <LoadingSpinner message={loadingMessage} />
-          </div>
-        ) : (
-          /* Cuando no está cargando o los datos están listos, mostrar el contenido completo */
-          <>
-            <div className={styles.header}>
-              <h1 className={styles.title}>Gestión de Usuarios</h1>
-            </div>
+  // Función para truncar el email
+  const truncateEmail = (email: string) => {
+    if (!email) return '';
     
-            <div className={styles.controlPanel}>
-              {user?.role === 'super_admin' || user?.role === 'admin' || 
-                user?.role === 'school_owner' || user?.role === 'administrative' ? (
-                <div className={styles.searchFilterRow}>
-                  <div className={styles.searchWrapper}>
-                    <UserSearch 
-                      onSelectUser={handleUserSelected}
-                      onAssignRole={handleAssignRole}
-                      availableSchools={userSchools}
-                      selectedSchool={selectedSchool}
-                    />
-                  </div>
-                  <div className={styles.filterWrapper}>
-                    <select
-                      className={styles.select}
-                      value={selectedSchool}
-                      onChange={(e) => setSelectedSchool(e.target.value)}
-                    >
-                      <option value="">Todas las escuelas</option>
-                      <option value="unregistered">Asistentes sin registro</option>
-                      {userSchools.map(school => (
-                        <option key={school._id} value={school._id}>
-                          {school.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              ) : (
-                <div className={styles.searchFilterRow}>
-                  <div className={styles.searchWrapper}>
-                    <div className={styles.simpleSearchWrapper}>
-                      <input
-                        type="text"
-                        placeholder="Buscar usuarios..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className={styles.searchInput}
+    // En móviles queremos truncar más agresivamente
+    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+    const extraSmallScreen = typeof window !== 'undefined' && window.innerWidth <= 480;
+    
+    // Longitud máxima ajustada según el tamaño de pantalla
+    const maxLength = extraSmallScreen ? 15 : (isMobile ? 20 : 25);
+    
+    if (email.length <= maxLength) return email;
+    
+    const atIndex = email.indexOf('@');
+    if (atIndex <= 0) return email;
+    
+    const username = email.substring(0, atIndex);
+    const domain = email.substring(atIndex);
+    
+    // Diferentes estrategias de truncado según el tamaño de pantalla
+    if (extraSmallScreen) {
+      // En pantallas muy pequeñas, sólo mostrar parte del nombre y dominio
+      const usernameLimit = Math.min(5, username.length);
+      const domainLimit = Math.min(7, domain.length);
+      return `${username.substring(0, usernameLimit)}...${domain.substring(0, domainLimit)}...`;
+    }
+    
+    if (isMobile) {
+      // En móviles, truncar más agresivamente
+      const usernameLimit = Math.min(7, username.length);
+      return `${username.substring(0, usernameLimit)}...${domain.length > 8 ? domain.substring(0, 8) + '...' : domain}`;
+    }
+    
+    // En pantallas normales
+    if (username.length <= 10) {
+      return `${username}${domain.length > 10 ? domain.substring(0, 10) + '...' : domain}`;
+    }
+    
+    return `${username.substring(0, 10)}...${domain.length > 10 ? domain.substring(0, 10) + '...' : domain}`;
+  };
+
+  // Función para manejar el clic en el email
+  const handleEmailClick = (email: string) => {
+    if (expandedEmail === email) {
+      setExpandedEmail(null);
+    } else {
+      setExpandedEmail(email);
+    }
+  };
+
+  return (
+    <div className={dashboardStyles.container}>
+      <div className={dashboardStyles.dashboardHeader}>
+        <h1>Gestión de Usuarios</h1>
+        <p>Búsqueda global: encuentra usuarios de todo el sistema para asignarles roles</p>
+      </div>
+
+      <div className={dashboardStyles.content}>
+        <div className={dashboardStyles.sidebar}>
+          <nav className={dashboardStyles.nav}>
+            <Link href="/" className={dashboardStyles.navLink}>
+              Inicio
+            </Link>
+            <Link href="/admin/dashboard" className={dashboardStyles.navLink}>
+              Dashboard
+            </Link>
+            <Link href="/admin/users" className={`${dashboardStyles.navLink} ${dashboardStyles.active}`}>
+              Usuarios
+            </Link>
+            <Link href="/admin/schools" className={dashboardStyles.navLink}>
+              Escuelas
+            </Link>
+            <Link href="/admin/courses" className={dashboardStyles.navLink}>
+              Cursos
+            </Link>
+            <Link href="/admin/subscriptions" className={dashboardStyles.navLink}>
+              Suscripciones
+            </Link>
+            <Link href="/admin/stats" className={dashboardStyles.navLink}>
+              Estadísticas
+            </Link>
+          </nav>
+        </div>
+
+        <div className={dashboardStyles.mainContent}>
+          {/* Si está cargando y los datos no están listos, SOLO mostrar el spinner centrado en pantalla */}
+          {loading && !dataReady ? (
+            <div className={styles.fullPageSpinner}>
+              <LoadingSpinner message={loadingMessage} />
+            </div>
+          ) : (
+            /* Cuando no está cargando o los datos están listos, mostrar el contenido completo */
+            <>
+              <div className={styles.controlPanel}>
+                {user?.role === 'super_admin' || user?.role === 'admin' || 
+                  user?.role === 'school_owner' || user?.role === 'administrative' ? (
+                  <div className={styles.searchFilterRow}>
+                    <div className={styles.searchWrapper}>
+                      <UserSearch 
+                        onSelectUser={handleUserSelected}
+                        onAssignRole={handleAssignRole}
+                        availableSchools={userSchools}
+                        selectedSchool={selectedSchool}
                       />
-                      <FaSearch className={styles.searchIcon} />
+                    </div>
+                    <div className={styles.filterWrapper}>
+                      <select
+                        className={styles.select}
+                        value={selectedSchool}
+                        onChange={(e) => setSelectedSchool(e.target.value)}
+                      >
+                        <option value="">Todas las escuelas</option>
+                        <option value="unregistered">Asistentes sin registro</option>
+                        {userSchools.map(school => (
+                          <option key={school._id} value={school._id}>
+                            {school.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
-                  <div className={styles.filterWrapper}>
-                    <select
-                      className={styles.select}
-                      value={selectedSchool}
-                      onChange={(e) => setSelectedSchool(e.target.value)}
-                    >
-                      <option value="">Todas las escuelas</option>
-                      <option value="unregistered">Asistentes sin registro</option>
-                      {userSchools.map(school => (
-                        <option key={school._id} value={school._id}>
-                          {school.name}
-                        </option>
-                      ))}
-                    </select>
+                ) : 
+                  <div className={styles.noPermissionsMessage}>
+                    No tienes permisos para gestionar usuarios.
                   </div>
+                }
+                
+                <div className={styles.actionButtonsRow}>
+                  <button 
+                    className={styles.createButton}
+                    onClick={() => {
+                      setCreateUserType(UserType.REGISTERED);
+                      setShowCreateUserModal(true);
+                    }}
+                  >
+                    <FaUserPlus /> Crear Usuario
+                  </button>
+                  <button 
+                    className={styles.altButton}
+                    onClick={() => {
+                      setCreateUserType(UserType.UNREGISTERED);
+                      setShowCreateUserModal(true);
+                    }}
+                  >
+                    <FaUserCheck /> Agregar Asistente
+                  </button>
                 </div>
-              )}
+              </div>
+      
+              {error && <div className={styles.error}>{error}</div>}
+              {success && <div className={styles.success}>{success}</div>}
               
-              <div className={styles.actionButtonsRow}>
-                <button 
-                  className={styles.createButton}
-                  onClick={() => {
-                    setCreateUserType(UserType.REGISTERED);
-                    setShowCreateUserModal(true);
-                  }}
-                >
-                  <FaUserPlus /> Crear Usuario
-                </button>
-                <button 
-                  className={styles.altButton}
-                  onClick={() => {
-                    setCreateUserType(UserType.UNREGISTERED);
-                    setShowCreateUserModal(true);
-                  }}
-                >
-                  <FaUserCheck /> Agregar Asistente
-                </button>
-              </div>
-            </div>
-    
-            {error && <div className={styles.error}>{error}</div>}
-            {success && <div className={styles.success}>{success}</div>}
-            
-            {/* Componente de depuración - solo visible para superadmin cuando hay problemas */}
-            {user?.role === 'super_admin' && 
-             selectedSchool === 'unregistered' && 
-             unregisteredUsers.length === 0 && 
-             users.some(u => u.role === 'unregistered') && (
-              <div className={styles.debugInfo} style={{ 
-                background: '#f8f9fa', 
-                border: '1px solid #dee2e6',
-                padding: '15px',
-                borderRadius: '4px',
-                marginBottom: '15px',
-                fontSize: '0.9rem'
-              }}>
-                <h3 style={{ margin: '0 0 10px 0', color: '#4a5568' }}>Información de Depuración</h3>
-                <p style={{ margin: '0 0 10px 0' }}>
-                  Se detectaron <strong>{users.filter(u => u.role === 'unregistered').length}</strong> asistentes en la base de datos, 
-                  pero no se están mostrando en la vista.
-                </p>
-                <button 
-                  onClick={() => {
-                    
-                    // Forzar actualización de ambos
-                    processAttendanceForUnregisteredUsers(attendanceRecords);
-                    // También recargar todos los datos
-                    fetchData();
-                  }}
-                  style={{
-                    padding: '8px 15px',
-                    background: '#3182ce',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Forzar recarga de asistentes
-                </button>
-              </div>
-            )}
-    
-            <div className={styles.tableContainer}>
+              {/* Tabla de usuarios */}
               {selectedSchool === 'unregistered' ? (
-                // Tabla de usuarios no registrados
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th>Nombre</th>
-                      {user?.role === 'super_admin' && (
-                        <>
-                          <th>Asistencias</th>
-                          <th>Cursos</th>
-                          <th>Escuela</th>
-                          <th>Última Asistencia</th>
-                        </>
-                      )}
-                      <th>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {unregisteredUsers.length === 0 && dataReady ? (
+                // Mostrar tabla de asistentes sin registro
+                <div className={styles.tableContainer}>
+                  <table className={styles.table}>
+                    <thead>
                       <tr>
-                        <td colSpan={user?.role === 'super_admin' ? 6 : 2} className={styles.emptyMessage}>
-                          No hay asistentes sin registro en el sistema.
-                          {users.some(u => u.role === 'unregistered') && (
-                            <div style={{ marginTop: '10px', fontStyle: 'italic' }}>
-                              Hay asistentes en la base de datos, pero no se están mostrando.
-                              <button 
-                                onClick={() => processAttendanceForUnregisteredUsers(attendanceRecords)}
-                                style={{
-                                  marginLeft: '10px',
-                                  padding: '5px 10px',
-                                  background: '#3182ce',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '4px',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                Recargar asistentes
-                              </button>
-                            </div>
-                          )}
-                        </td>
+                        <th>Nombre</th>
+                        <th>Apariciones</th>
+                        <th>Cursos</th>
+                        <th>Última Asistencia</th>
+                        <th>Acciones</th>
                       </tr>
-                    ) : (
-                      unregisteredUsers.map((nonRegUser, index) => (
-                        <tr key={index} className={styles.nonRegistered}>
-                          <td>
-                            <div style={{ fontWeight: '500' }}>
-                              {nonRegUser.name}
-                              <span className={styles.tagNonRegistered}>No Registrado</span>
-                            </div>
-                          </td>
-                          {user?.role === 'super_admin' && (
-                            <>
+                    </thead>
+                    <tbody>
+                      {unregisteredUsers.length > 0 ? (
+                        unregisteredUsers
+                          .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                          .map((user) => (
+                            <tr key={user._id}>
+                              <td>{user.name} <span className={styles.tagNonRegistered}>Asistente</span></td>
+                              <td>{user.occurrences || 1}</td>
                               <td>
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
-                                  <FaCheckCircle style={{ marginRight: '0.5rem', color: '#68d391' }} />
-                                  {nonRegUser.occurrences || 1}
-                                </div>
-                              </td>
-                              <td>
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
-                                  <FaUniversity style={{ marginRight: '0.5rem', opacity: '0.6' }} />
-                                  {Array.isArray(nonRegUser.courses) ? nonRegUser.courses.length : 0}
-                                  {Array.isArray(nonRegUser.courses) && nonRegUser.courses.length > 0 && (
+                                {user.courses && user.courses.length > 0 ? (
+                                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    <span style={{ marginRight: '5px' }}>
+                                      <FaGraduationCap />
+                                    </span>
+                                    <span>{user.courses.length}</span>
                                     <button 
                                       className={styles.iconButton}
-                                      title="Ver cursos"
-                                      onClick={() => handleViewUserCourses({
-                                        ...nonRegUser,
-                                        _id: nonRegUser._id || 'temp-id',
-                                        email: '',
-                                        role: 'unregistered',
-                                        enrolledCourses: nonRegUser.courses
-                                      } as User)}
-                                      style={{ marginLeft: '5px', color: '#3182ce' }}
+                                      onClick={() => handleViewUserCourses(user)}
+                                      style={{ marginLeft: '8px' }}
                                     >
                                       <FaList />
                                     </button>
-                                  )}
-                                </div>
+                                  </div>
+                                ) : 'Sin cursos'}
                               </td>
                               <td>
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
-                                  <FaUniversity style={{ marginRight: '0.5rem', color: '#4299e1' }} />
-                                  {nonRegUser.schools && nonRegUser.schools.length > 0 ? 
-                                    schools.find(s => nonRegUser.schools?.includes(s._id))?.name || 'Sin escuela' : 
-                                    'Sin escuela'}
-                                </div>
+                                {user.lastSeen ? new Date(user.lastSeen).toLocaleDateString() : 'N/A'}
                               </td>
-                              <td>
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
-                                  <FaClock style={{ marginRight: '0.5rem', color: '#718096' }} />
-                                  {nonRegUser.lastSeen ? new Date(nonRegUser.lastSeen).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'}) : 'N/A'}
-                                </div>
+                              <td className={styles.actionButtons}>
+                                <button 
+                                  className={styles.iconButton}
+                                  onClick={() => handleLinkUser(user)}
+                                  title="Vincular a cuenta registrada"
+                                  style={{
+                                    backgroundColor: '#ebf8ff',
+                                    color: '#3182ce',
+                                    padding: '0.35rem',
+                                    borderRadius: '4px',
+                                    margin: '0 3px'
+                                  }}
+                                >
+                                  <FaLink />
+                                </button>
+                                <button 
+                                  className={`${styles.iconButton} ${styles.deleteButton}`}
+                                  onClick={() => handleDeleteUser(user._id, user.name)}
+                                  title="Eliminar"
+                                  style={{
+                                    backgroundColor: '#fed7d7',
+                                    color: '#e53e3e',
+                                    padding: '0.35rem',
+                                    borderRadius: '4px',
+                                    margin: '0 3px'
+                                  }}
+                                >
+                                  <FaTrash />
+                                </button>
                               </td>
-                            </>
-                          )}
-                          <td>
-                            <button 
-                              className={styles.iconButton}
-                              onClick={() => handleLinkUser(nonRegUser)}
-                              title="Vincular a cuenta registrada"
-                            >
-                              <FaLink />
-                            </button>
-                            <button 
-                              className={styles.iconButton}
-                              title="Registrar pago"
-                              onClick={() => handleShowPaymentModal({
-                                ...nonRegUser,
-                                _id: nonRegUser._id || 'temp-id',
-                                email: '',
-                                role: 'unregistered',
-                                enrolledCourses: nonRegUser.courses
-                              } as User)}
-                              style={{ color: '#38a169' }}
-                            >
-                              <FaMoneyBillWave />
-                            </button>
+                            </tr>
+                          ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className={styles.noResults}>
+                            No se encontraron asistentes sin registro
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
-                // Tabla de usuarios registrados con paginación
-                <>
+                // Mostrar tabla de usuarios registrados
+                <div className={styles.tableContainer}>
                   <table className={styles.table}>
                     <thead>
                       <tr>
                         <th>Nombre</th>
                         <th>Email</th>
-                        {user?.role === 'super_admin' && (
-                          <>
-                            <th>Rol</th>
-                            <th>Cursos</th>
-                            <th>Fecha Registro</th>
-                          </>
-                        )}
+                        <th>Rol</th>
+                        <th>Cursos</th>
+                        <th>Fecha Registro</th>
                         <th>Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredUsers.length === 0 && dataReady ? (
-                        <tr>
-                          <td colSpan={user?.role === 'super_admin' ? 6 : 3} className={styles.emptyMessage}>
-                            No se encontraron usuarios que coincidan con los criterios de búsqueda.
-                            {selectedSchool && (
-                              <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#718096' }}>
-                                Prueba cambiando los filtros o volviendo a "Todas las escuelas".
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ) : (
-                        // Si hay usuarios o los datos aún no están listos, mostrar la lista paginada
+                      {filteredUsers.length > 0 ? (
                         filteredUsers
                           .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                          .map(userItem => (
-                            <tr key={userItem._id}>
+                          .map((user) => (
+                            <tr key={user._id}>
+                              <td>{user.name}</td>
                               <td>
-                                <div style={{ fontWeight: '500' }}>
-                                  {userItem.name}
-                                  {userItem.role === 'unregistered' && 
-                                    <span className={styles.tagNonRegistered} style={{ marginLeft: '5px' }}>Asistente</span>}
+                                <div 
+                                  onClick={() => handleEmailClick(user.email)}
+                                  className={`${styles.emailContainer} ${expandedEmail === user.email ? styles.emailExpanded : ''}`}
+                                  title="Clic para expandir/contraer"
+                                >
+                                  {expandedEmail === user.email ? user.email : truncateEmail(user.email)}
                                 </div>
                               </td>
-                              <td>{userItem.email}</td>
-                              {user?.role === 'super_admin' && (
-                                <>
-                                  <td>
-                                    <span className={`${styles.roleBadge} ${styles[userItem.role]}`}>
-                                      {userItem.role}
-                                    </span>
-                                  </td>
-                                  <td>
-                                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                                      <FaUniversity style={{ marginRight: '0.5rem', opacity: '0.6' }} />
-                                      {Array.isArray(userItem.enrolledCourses) ? userItem.enrolledCourses.length : 0}
-                                      {Array.isArray(userItem.enrolledCourses) && userItem.enrolledCourses.length > 0 && (
-                                        <button 
-                                          className={styles.iconButton}
-                                          title="Ver cursos"
-                                          onClick={() => handleViewUserCourses(userItem)}
-                                          style={{ marginLeft: '5px', color: '#3182ce' }}
-                                        >
-                                          <FaList />
-                                        </button>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td>
-                                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                                      <FaClock style={{ marginRight: '0.5rem', color: '#718096' }} />
-                                      {userItem.createdAt ? new Date(userItem.createdAt).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'}) : 'N/A'}
-                                    </div>
-                                  </td>
-                                </>
-                              )}
                               <td>
-                                <div className={styles.actionButtons}>
-                                  <button 
-                                    className={styles.iconButton}
-                                    title="Editar usuario"
-                                    onClick={() => handleEditUser(userItem)}
-                                  >
-                                    <FaEdit />
-                                  </button>
-                                  <button 
-                                    className={styles.iconButton}
-                                    title="Enrollar en curso"
-                                    onClick={() => handleEnrollUser(userItem)}
-                                  >
-                                    <FaUniversity />
-                                  </button>
-                                  <button 
-                                    className={styles.iconButton}
-                                    title="Registrar pago"
-                                    onClick={() => handleShowPaymentModal(userItem)}
-                                    style={{ color: '#38a169' }}
-                                  >
-                                    <FaMoneyBillWave />
-                                  </button>
-                                  {user?.role === 'super_admin' && (
+                                {user.role === 'super_admin' && (
+                                  <span style={{ 
+                                    backgroundColor: '#f6ad55', 
+                                    color: '#7b341e',
+                                    padding: '0.25rem 0.75rem',
+                                    borderRadius: '20px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '500',
+                                    display: 'inline-block',
+                                  }}>
+                                    super_admin
+                                  </span>
+                                )}
+                                {user.role === 'admin' && (
+                                  <span style={{ 
+                                    backgroundColor: '#fc8181', 
+                                    color: '#742a2a',
+                                    padding: '0.25rem 0.75rem',
+                                    borderRadius: '20px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '500',
+                                    display: 'inline-block',
+                                  }}>
+                                    admin
+                                  </span>
+                                )}
+                                {user.role === 'teacher' && (
+                                  <span style={{ 
+                                    backgroundColor: '#68d391', 
+                                    color: '#276749',
+                                    padding: '0.25rem 0.75rem',
+                                    borderRadius: '20px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '500',
+                                    display: 'inline-block',
+                                  }}>
+                                    teacher
+                                  </span>
+                                )}
+                                {user.role === 'school_owner' && (
+                                  <span style={{ 
+                                    backgroundColor: '#b794f4', 
+                                    color: '#553c9a',
+                                    padding: '0.25rem 0.75rem',
+                                    borderRadius: '20px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '500',
+                                    display: 'inline-block',
+                                  }}>
+                                    school_owner
+                                  </span>
+                                )}
+                                {user.role === 'administrative' && (
+                                  <span style={{ 
+                                    backgroundColor: '#9ae6b4', 
+                                    color: '#276749',
+                                    padding: '0.25rem 0.75rem',
+                                    borderRadius: '20px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '500',
+                                    display: 'inline-block',
+                                  }}>
+                                    administrative
+                                  </span>
+                                )}
+                                {user.role === 'student' && (
+                                  <span style={{ 
+                                    backgroundColor: '#63b3ed', 
+                                    color: '#2c5282',
+                                    padding: '0.25rem 0.75rem',
+                                    borderRadius: '20px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '500',
+                                    display: 'inline-block',
+                                  }}>
+                                    student
+                                  </span>
+                                )}
+                                {user.role === 'unregistered' && (
+                                  <span style={{ 
+                                    backgroundColor: '#718096', 
+                                    color: '#1a202c',
+                                    padding: '0.25rem 0.75rem',
+                                    borderRadius: '20px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '500',
+                                    display: 'inline-block',
+                                  }}>
+                                    unregistered
+                                  </span>
+                                )}
+                              </td>
+                              <td>
+                                {user.enrolledCourses && user.enrolledCourses.length > 0 ? (
+                                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    <span style={{ marginRight: '5px', fontSize: '1.1rem', color: '#4a5568' }}>
+                                      <FaGraduationCap />
+                                    </span>
+                                    <span>{user.enrolledCourses.length}</span>
                                     <button 
-                                      className={`${styles.iconButton} ${styles.deleteButton}`}
-                                      title="Eliminar usuario"
-                                      onClick={() => handleDeleteUser(userItem._id, userItem.name)}
+                                      className={styles.iconButton}
+                                      onClick={() => handleViewUserCourses(user)}
+                                      style={{ 
+                                        marginLeft: '8px',
+                                        backgroundColor: '#ebf8ff',
+                                        color: '#3182ce',
+                                        padding: '0.25rem',
+                                        borderRadius: '4px',
+                                        fontSize: '0.8rem'
+                                      }}
                                     >
-                                      <FaTrash />
+                                      <FaList />
                                     </button>
-                                  )}
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    <span style={{ marginRight: '5px', fontSize: '1.1rem', color: '#4a5568' }}>
+                                      <FaGraduationCap />
+                                    </span>
+                                    <span>0</span>
+                                  </div>
+                                )}
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                  <span style={{ marginRight: '5px' }}>
+                                    <FaClock />
+                                  </span>
+                                  <span>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</span>
                                 </div>
+                              </td>
+                              <td className={styles.actionButtons}>
+                                <button 
+                                  className={styles.iconButton}
+                                  onClick={() => handleEditUser(user)}
+                                  title="Editar"
+                                  style={{
+                                    backgroundColor: '#ebf8ff',
+                                    color: '#3182ce',
+                                    padding: '0.35rem',
+                                    borderRadius: '4px',
+                                    margin: '0 3px'
+                                  }}
+                                >
+                                  <FaEdit />
+                                </button>
+                                <button 
+                                  className={styles.iconButton}
+                                  onClick={() => handleEnrollUser(user)}
+                                  title="Enrollar en curso"
+                                  style={{
+                                    backgroundColor: '#edf2f7',
+                                    color: '#4a5568',
+                                    padding: '0.35rem',
+                                    borderRadius: '4px',
+                                    margin: '0 3px'
+                                  }}
+                                >
+                                  <FaGraduationCap />
+                                </button>
+                                
+                                <button 
+                                  className={styles.iconButton}
+                                  onClick={() => handleShowPaymentModal(user)}
+                                  title="Registrar pago"
+                                  style={{
+                                    backgroundColor: '#c6f6d5',
+                                    color: '#276749',
+                                    padding: '0.35rem',
+                                    borderRadius: '4px',
+                                    margin: '0 3px'
+                                  }}
+                                >
+                                  <FaMoneyBillWave />
+                                </button>
+                                
+                                <button 
+                                  className={`${styles.iconButton} ${styles.deleteButton}`}
+                                  onClick={() => handleDeleteUser(user._id, user.name)}
+                                  title="Eliminar"
+                                  style={{
+                                    backgroundColor: '#fed7d7',
+                                    color: '#e53e3e',
+                                    padding: '0.35rem',
+                                    borderRadius: '4px',
+                                    margin: '0 3px'
+                                  }}
+                                >
+                                  <FaTrash />
+                                </button>
                               </td>
                             </tr>
                           ))
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className={styles.noResults}>
+                            No se encontraron usuarios que coincidan con los criterios de búsqueda.
+                          </td>
+                        </tr>
                       )}
                     </tbody>
                   </table>
-                  
-                  {/* Controles de paginación - solo mostrar si hay datos y están listos */}
-                  {filteredUsers.length > 0 && dataReady && (
-                    <div className={styles.pagination}>
-                      <div className={styles.paginationControls}>
-                        <button 
-                          className={styles.paginationButton}
-                          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                          disabled={currentPage === 1}
-                        >
-                          Anterior
-                        </button>
-                        <span className={styles.pageInfo}>
-                          Página {currentPage} de {totalPages}
-                        </span>
-                        <button 
-                          className={styles.paginationButton}
-                          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                          disabled={currentPage === totalPages}
-                        >
-                          Siguiente
-                        </button>
-                      </div>
-                      <div className={styles.itemsPerPageControl}>
-                        <label htmlFor="itemsPerPage">Por página:</label>
-                        <select
-                          id="itemsPerPage"
-                          className={styles.select}
-                          value={itemsPerPage}
-                          onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                          style={{ width: '80px', marginLeft: '8px' }}
-                        >
-                          <option value="10">10</option>
-                          <option value="20">20</option>
-                          <option value="50">50</option>
-                          <option value="100">100</option>
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                </>
+                </div>
               )}
-            </div>
-          </>
-        )}
-      </main>
+              
+              {/* Paginación */}
+              {((selectedSchool === 'unregistered' && unregisteredUsers.length > 0) || 
+                (selectedSchool !== 'unregistered' && filteredUsers.length > 0)) && (
+                <div className={styles.pagination}>
+                  <button 
+                    className={styles.paginationButton}
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  >
+                    &laquo; Anterior
+                  </button>
+                  <span className={styles.pageInfo}>
+                    Página {currentPage} de {totalPages}
+                  </span>
+                  <button 
+                    className={styles.paginationButton}
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  >
+                    Siguiente &raquo;
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
 
-      {/* Modales */}
-      {/* Modal Crear Usuario */}
+      {/* Modales para crear usuario, editar, vincular, etc. */}
       {showCreateUserModal && (
         <div className={styles.modalBackdrop}>
           <div className={styles.modal}>
-            <h2 className={styles.modalTitle}>
-              {createUserType === UserType.REGISTERED ? 'Crear Usuario con Acceso' : 'Agregar Asistente sin Registro'}
-            </h2>
-            
-            {error && <div className={styles.error} style={{ marginBottom: '1rem' }}>{error}</div>}
-            
+            <h2 className={styles.modalTitle}>{createUserType === UserType.REGISTERED ? 'Crear Usuario' : 'Agregar Asistente'}</h2>
             <form onSubmit={handleCreateUser} className={styles.form}>
               <div className={styles.formGroup}>
-                <label htmlFor="name">Nombre completo*</label>
+                <label htmlFor="name">Nombre:</label>
                 <input
                   type="text"
                   id="name"
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  required
                   className={styles.input}
+                  required
                 />
               </div>
-
+              
               {createUserType === UserType.REGISTERED && (
                 <>
                   <div className={styles.formGroup}>
-                    <label htmlFor="email">Email*</label>
+                    <label htmlFor="email">Email:</label>
                     <input
                       type="email"
                       id="email"
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
-                      required
                       className={styles.input}
+                      required
                     />
                   </div>
-
                   <div className={styles.formGroup}>
-                    <label htmlFor="password">Contraseña temporal*</label>
+                    <label htmlFor="password">Contraseña:</label>
                     <input
                       type="password"
                       id="password"
                       name="password"
                       value={formData.password}
                       onChange={handleInputChange}
-                      required
                       className={styles.input}
+                      required
                     />
-                    <small>El usuario deberá cambiarla en su primer inicio de sesión</small>
                   </div>
-
                   <div className={styles.formGroup}>
-                    <label htmlFor="role">Rol*</label>
+                    <label htmlFor="role">Rol:</label>
                     <select
                       id="role"
                       name="role"
                       value={formData.role}
                       onChange={handleInputChange}
-                      required
                       className={styles.select}
+                      required
                     >
                       <option value="student">Estudiante</option>
                       <option value="teacher">Profesor</option>
+                      <option value="administrative">Administrativo</option>
                       {user?.role === 'super_admin' && (
                         <>
                           <option value="admin">Administrador</option>
-                          <option value="school_owner">Propietario de Escuela</option>
-                          <option value="super_admin">Super Administrador</option>
+                          <option value="school_owner">Dueño de Escuela</option>
                         </>
-                      )}
-                      {user?.role === 'admin' && (
-                        <option value="admin">Administrador</option>
                       )}
                     </select>
                   </div>
                 </>
               )}
-
+              
+              {/* Escuela y Curso para ambos tipos de usuario */}
               <div className={styles.formGroup}>
-                <label htmlFor="school">Escuela {createUserType === UserType.REGISTERED ? '(opcional)' : ''}</label>
+                <label htmlFor="school">Escuela:</label>
                 <select
                   id="school"
                   name="school"
                   value={formData.school}
-                  onChange={(e) => {
-                    setFormData(prev => ({
-                      ...prev, 
-                      school: e.target.value,
-                      course: '' // Resetear curso al cambiar escuela
-                    }));
-                  }}
+                  onChange={handleInputChange}
                   className={styles.select}
+                  required={createUserType === UserType.UNREGISTERED}
                 >
-                  <option value="">Seleccionar escuela</option>
-                  {userSchools.map(school => (
+                  <option value="">Seleccionar Escuela</option>
+                  {schools.map(school => (
                     <option key={school._id} value={school._id}>
                       {school.name}
                     </option>
                   ))}
                 </select>
               </div>
-
-              <div className={styles.formGroup}>
-                <label htmlFor="course">Curso {createUserType === UserType.REGISTERED ? '(opcional)' : ''}</label>
-                <select
-                  id="course"
-                  name="course"
-                  value={formData.course}
-                  onChange={handleInputChange}
-                  className={styles.select}
-                  disabled={!formData.school}
-                >
-                  <option value="">Seleccionar curso</option>
-                  {formData.school && courses
-                    .filter(course => 
-                      typeof course.school === 'string' 
-                        ? course.school === formData.school
-                        : course.school && (course.school as School)._id === formData.school
-                    )
-                    .map(course => (
+              
+              {formData.school && (
+                <div className={styles.formGroup}>
+                  <label htmlFor="course">Curso:</label>
+                  <select
+                    id="course"
+                    name="course"
+                    value={formData.course}
+                    onChange={handleInputChange}
+                    className={styles.select}
+                    required={createUserType === UserType.UNREGISTERED}
+                  >
+                    <option value="">Seleccionar Curso</option>
+                    {getFilteredCourses().map(course => (
                       <option key={course._id} value={course._id}>
                         {course.title}
                       </option>
                     ))}
-                </select>
-              </div>
-
+                  </select>
+                </div>
+              )}
+              
               <div className={styles.formActions}>
-                <button type="submit" className={styles.submitButton} disabled={loading}>
-                  {loading ? 'Procesando...' : 'Guardar'}
+                <button type="submit" className={styles.submitButton}>
+                  {createUserType === UserType.REGISTERED ? 'Crear Usuario' : 'Agregar Asistente'}
                 </button>
                 <button 
                   type="button" 
-                  className={styles.cancelButton}
+                  className={styles.cancelButton} 
                   onClick={() => setShowCreateUserModal(false)}
                 >
                   Cancelar
@@ -1901,145 +1954,79 @@ export default function UserManagement() {
           </div>
         </div>
       )}
-
-      {/* Modal Vincular Usuario */}
-      {showLinkModal && selectedUserToLink && (
-        <div className={styles.modalBackdrop}>
-          <div className={styles.modal}>
-            <h2 className={styles.modalTitle}>Vincular Asistente a Cuenta Nueva</h2>
-            <p className={styles.modalDescription}>
-              Va a crear una cuenta para <strong>{selectedUserToLink.name}</strong>, 
-              lo que permitirá que este asistente tenga acceso a la plataforma.
-            </p>
-            
-            <form onSubmit={completeUserLinking} className={styles.form}>
-              <div className={styles.formGroup}>
-                <label htmlFor="linkEmail">Email*</label>
-                <input
-                  type="email"
-                  id="linkEmail"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  required
-                  className={styles.input}
-                />
-              </div>
-
-              <div className={styles.formGroup}>
-                <label htmlFor="linkPassword">Contraseña temporal*</label>
-                <input
-                  type="password"
-                  id="linkPassword"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  required
-                  className={styles.input}
-                />
-                <small>El usuario deberá cambiarla en su primer inicio de sesión</small>
-              </div>
-
-              <div className={styles.formActions}>
-                <button type="submit" className={styles.submitButton} disabled={loading}>
-                  {loading ? 'Procesando...' : 'Crear Cuenta'}
-                </button>
-                <button 
-                  type="button" 
-                  className={styles.cancelButton}
-                  onClick={() => {
-                    setSelectedUserToLink(null);
-                    setShowLinkModal(false);
-                  }}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Editar Usuario */}
+      
+      {/* Modal para editar usuario */}
       {showEditUserModal && selectedUser && (
         <div className={styles.modalBackdrop}>
           <div className={styles.modal}>
             <h2 className={styles.modalTitle}>Editar Usuario</h2>
-            
             <form onSubmit={handleSaveUserChanges} className={styles.form}>
               <div className={styles.formGroup}>
-                <label htmlFor="name">Nombre completo*</label>
+                <label htmlFor="edit-name">Nombre:</label>
                 <input
                   type="text"
-                  id="name"
+                  id="edit-name"
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  required
                   className={styles.input}
+                  required
                 />
               </div>
-
               <div className={styles.formGroup}>
-                <label htmlFor="email">Email*</label>
+                <label htmlFor="edit-email">Email:</label>
                 <input
                   type="email"
-                  id="email"
+                  id="edit-email"
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  required
                   className={styles.input}
+                  required
                 />
               </div>
-
               <div className={styles.formGroup}>
-                <label htmlFor="password">Nueva contraseña (opcional)</label>
+                <label htmlFor="edit-role">Rol:</label>
+                <select
+                  id="edit-role"
+                  name="role"
+                  value={formData.role}
+                  onChange={handleInputChange}
+                  className={styles.select}
+                  required
+                >
+                  <option value="student">Estudiante</option>
+                  <option value="teacher">Profesor</option>
+                  <option value="administrative">Administrativo</option>
+                  {user?.role === 'super_admin' && (
+                    <>
+                      <option value="admin">Administrador</option>
+                      <option value="school_owner">Dueño de Escuela</option>
+                      {selectedUser._id !== user.sub && (
+                        <option value="super_admin">Super Admin</option>
+                      )}
+                    </>
+                  )}
+                </select>
+              </div>
+              <div className={styles.formGroup}>
+                <label htmlFor="edit-password">Nueva Contraseña (dejar vacío para mantener):</label>
                 <input
                   type="password"
-                  id="password"
+                  id="edit-password"
                   name="password"
                   value={formData.password}
                   onChange={handleInputChange}
                   className={styles.input}
-                  placeholder="Dejar en blanco para mantener la actual"
                 />
-                <small>Solo complete este campo si desea cambiar la contraseña</small>
               </div>
-
-              <div className={styles.formGroup}>
-                <label htmlFor="role">Rol*</label>
-                <select
-                  id="role"
-                  name="role"
-                  value={formData.role}
-                  onChange={handleInputChange}
-                  required
-                  className={styles.select}
-                  disabled={user?.role !== 'super_admin' && formData.role === 'super_admin'}
-                >
-                  <option value="student">Estudiante</option>
-                  <option value="teacher">Profesor</option>
-                  {user?.role === 'super_admin' && (
-                    <>
-                      <option value="admin">Administrador</option>
-                      <option value="school_owner">Propietario de Escuela</option>
-                      <option value="super_admin">Super Administrador</option>
-                    </>
-                  )}
-                  {user?.role === 'admin' && (
-                    <option value="admin">Administrador</option>
-                  )}
-                </select>
-              </div>
-
               <div className={styles.formActions}>
-                <button type="submit" className={styles.submitButton} disabled={loading}>
-                  {loading ? 'Guardando...' : 'Guardar Cambios'}
+                <button type="submit" className={styles.submitButton}>
+                  Guardar Cambios
                 </button>
                 <button 
                   type="button" 
-                  className={styles.cancelButton}
+                  className={styles.cancelButton} 
                   onClick={() => setShowEditUserModal(false)}
                 >
                   Cancelar
@@ -2049,192 +2036,70 @@ export default function UserManagement() {
           </div>
         </div>
       )}
-
-      {/* Modal Enrollar Usuario a Curso */}
-      {showEnrollModal && selectedUser && (
+      
+      {/* Modal para vincular usuario no registrado */}
+      {showLinkModal && selectedUserToLink && (
         <div className={styles.modalBackdrop}>
           <div className={styles.modal}>
-            <h2 className={styles.modalTitle}>Enrollar a Curso</h2>
+            <h2 className={styles.modalTitle}>Vincular Asistente a Cuenta</h2>
             <p className={styles.modalDescription}>
-              Seleccione una escuela y curso para enrollar a <strong>{selectedUser.name}</strong>
+              Vincular al asistente <strong>{selectedUserToLink.name}</strong> a una nueva cuenta de usuario
             </p>
-            
-            {loading ? (
-              <div style={{ textAlign: 'center', padding: '1rem' }}>
-                Cargando datos...
+            <form onSubmit={completeUserLinking} className={styles.form}>
+              <div className={styles.formGroup}>
+                <label htmlFor="link-email">Email:</label>
+                <input
+                  type="email"
+                  id="link-email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className={styles.input}
+                  required
+                />
               </div>
-            ) : userSchools.length === 0 ? (
-              <div className={styles.error} style={{ marginBottom: '1rem' }}>
-                No hay escuelas disponibles. Por favor, cree primero una escuela.
+              <div className={styles.formGroup}>
+                <label htmlFor="link-password">Contraseña:</label>
+                <input
+                  type="password"
+                  id="link-password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  className={styles.input}
+                  required
+                />
               </div>
-            ) : courses.length === 0 ? (
-              <div className={styles.error} style={{ marginBottom: '1rem' }}>
-                No hay cursos disponibles. Por favor, cree primero un curso.
+              <div className={styles.formActions}>
+                <button type="submit" className={styles.submitButton}>
+                  Crear Cuenta y Vincular
+                </button>
+                <button 
+                  type="button" 
+                  className={styles.cancelButton} 
+                  onClick={() => {
+                    setShowLinkModal(false); 
+                    setSelectedUserToLink(null);
+                  }}
+                >
+                  Cancelar
+                </button>
               </div>
-            ) : (
-              <form onSubmit={handleEnrollUserToCourse} className={styles.form}>
-                <div className={styles.formGroup}>
-                  <label htmlFor="enrollSchool">Escuela*</label>
-                  <select
-                    id="enrollSchool"
-                    name="school"
-                    value={formData.school}
-                    onChange={(e) => {
-                      setFormData(prev => ({
-                        ...prev, 
-                        school: e.target.value,
-                        course: '' // Resetear curso al cambiar escuela
-                      }));
-                    }}
-                    required
-                    className={styles.select}
-                  >
-                    <option value="">Seleccionar escuela</option>
-                    {userSchools.map(school => (
-                      <option key={school._id} value={school._id}>
-                        {school.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label htmlFor="enrollCourse">Curso*</label>
-                  <select
-                    id="enrollCourse"
-                    name="course"
-                    value={formData.course}
-                    onChange={handleInputChange}
-                    required
-                    className={styles.select}
-                    disabled={!formData.school}
-                  >
-                    <option value="">Seleccionar curso</option>
-                    {formData.school && courses
-                      .filter(course => 
-                        typeof course.school === 'string' 
-                          ? course.school === formData.school
-                          : course.school && (course.school as School)._id === formData.school
-                      )
-                      .map(course => (
-                        <option key={course._id} value={course._id}>
-                          {course.title}
-                        </option>
-                      ))}
-                  </select>
-                  
-                  {formData.school && getFilteredCourses().length === 0 && (
-                    <small style={{ color: '#e53e3e', marginTop: '0.5rem', display: 'block' }}>
-                      No hay cursos disponibles para esta escuela. Por favor seleccione otra o cree un curso.
-                    </small>
-                  )}
-                </div>
-
-                <div className={styles.formActions}>
-                  <button 
-                    type="submit" 
-                    className={styles.submitButton} 
-                    disabled={loading || !formData.school || !formData.course}
-                    style={{ 
-                      display: 'inline-block',
-                      visibility: 'visible',
-                      opacity: 1,
-                      backgroundColor: (loading || !formData.school || !formData.course) ? '#90cdf4' : '#3182ce'
-                    }}
-                  >
-                    {loading ? 'Procesando...' : 'Enrollar Usuario'}
-                  </button>
-                  <button 
-                    type="button" 
-                    className={styles.cancelButton}
-                    onClick={() => setShowEnrollModal(false)}
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </form>
-            )}
+            </form>
           </div>
         </div>
       )}
-
-      {/* Modal de Error */}
+      
+      {/* Modal para mostrar errores */}
       {showErrorModal && (
         <div className={styles.modalBackdrop}>
           <div className={styles.modal}>
-            <h2 className={styles.modalTitle} style={{ color: '#e53e3e' }}>Error</h2>
-            <p className={styles.modalDescription} style={{ color: '#2d3748' }}>
-              {errorMessage}
-            </p>
-            <div className={styles.formActions} style={{ justifyContent: 'center' }}>
-              <button 
-                type="button" 
-                className={styles.submitButton}
-                style={{ backgroundColor: '#3182ce' }}
-                onClick={() => {
-                  setShowErrorModal(false);
-                  setErrorMessage('');
-                }}
-              >
-                Entendido
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal para ver cursos del usuario */}
-      {showUserCoursesModal && selectedUser && (
-        <div className={styles.modalBackdrop}>
-          <div className={styles.modal}>
-            <h2 className={styles.modalTitle}>Cursos de {selectedUser.name}</h2>
-            
-            {loading ? (
-              <div style={{ textAlign: 'center', padding: '1rem' }}>
-                Cargando cursos...
-              </div>
-            ) : userCourses.length === 0 ? (
-              <p className={styles.modalDescription}>
-                Este usuario no está inscrito en ningún curso.
-              </p>
-            ) : (
-              <>
-                <p className={styles.modalDescription}>
-                  Total de cursos: <strong>{userCourses.length}</strong>
-                </p>
-                <div className={styles.courseList}>
-                  {userCourses.map((course) => (
-                    <div key={course._id} className={styles.courseItem}>
-                      <div className={styles.courseTitle}>
-                        <FaGraduationCap style={{ marginRight: '0.5rem' }} />
-                        {course.title || `Curso ID: ${course._id}`}
-                      </div>
-                      <div className={styles.courseDetails}>
-                        <span>
-                          <FaCalendarAlt style={{ marginRight: '0.3rem' }} />
-                          {course.createdAt ? `Inscrito desde: ${new Date(course.createdAt).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'})}` : 'Fecha de inscripción desconocida'}
-                        </span>
-                        <span>
-                          <FaUniversity style={{ marginRight: '0.3rem' }} />
-                          {typeof course.school === 'string' 
-                            ? schools.find(s => s._id === course.school)?.name || 'Escuela no disponible' 
-                            : course.school?.name || 'Escuela no disponible'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-            
+            <h2 className={styles.modalTitle}>Error</h2>
+            <p className={styles.error}>{errorMessage}</p>
             <div className={styles.formActions}>
               <button 
-                type="button" 
-                className={styles.cancelButton}
-                onClick={() => {
-                  setShowUserCoursesModal(false);
-                  setUserCourses([]);
-                }}
+                className={styles.submitButton} 
+                onClick={() => setShowErrorModal(false)}
               >
                 Cerrar
               </button>
@@ -2242,26 +2107,146 @@ export default function UserManagement() {
           </div>
         </div>
       )}
-
-      {/* Modal para registrar pagos */}
+      
+      {/* Modal para enrollar usuario en curso */}
+      {showEnrollModal && selectedUser && (
+        <div className={styles.modalBackdrop}>
+          <div className={styles.modal}>
+            <h2 className={styles.modalTitle}>Enrollar Usuario en Curso</h2>
+            <p className={styles.modalDescription}>
+              Enrollar a <strong>{selectedUser.name}</strong> en un nuevo curso
+            </p>
+            <form onSubmit={handleEnrollUserToCourse} className={styles.form}>
+              <div className={styles.formGroup}>
+                <label htmlFor="enroll-school">Escuela:</label>
+                <select
+                  id="enroll-school"
+                  name="school"
+                  value={formData.school}
+                  onChange={handleInputChange}
+                  className={styles.select}
+                  required
+                >
+                  <option value="">Seleccionar Escuela</option>
+                  {schools.map(school => (
+                    <option key={school._id} value={school._id}>
+                      {school.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {formData.school && (
+                <div className={styles.formGroup}>
+                  <label htmlFor="enroll-course">Curso:</label>
+                  <select
+                    id="enroll-course"
+                    name="course"
+                    value={formData.course}
+                    onChange={handleInputChange}
+                    className={styles.select}
+                    required
+                  >
+                    <option value="">Seleccionar Curso</option>
+                    {getFilteredCourses().map(course => (
+                      <option key={course._id} value={course._id}>
+                        {course.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              <div className={styles.formActions}>
+                <button type="submit" className={styles.submitButton}>
+                  Enrollar
+                </button>
+                <button 
+                  type="button" 
+                  className={styles.cancelButton} 
+                  onClick={() => setShowEnrollModal(false)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      
+      {/* Modal para ver cursos del usuario */}
+      {showUserCoursesModal && selectedUser && (
+        <div className={styles.modalBackdrop}>
+          <div className={styles.modal}>
+            <h2 className={styles.modalTitle}>Cursos de {selectedUser.name}</h2>
+            {userCourses.length > 0 ? (
+              <div className={styles.coursesList}>
+                <table className={styles.coursesTable}>
+                  <thead>
+                    <tr>
+                      <th>Curso</th>
+                      <th>Escuela</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {userCourses.map(course => (
+                      <tr key={course._id}>
+                        <td>{course.title}</td>
+                        <td>
+                          {typeof course.school === 'string' 
+                            ? schools.find(s => s._id === course.school)?.name || 'N/A' 
+                            : course.school?.name || 'N/A'}
+                        </td>
+                        <td>
+                          <span className={styles.activeStatus}>
+                            <FaCheckCircle /> Activo
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p>Este usuario no está inscrito en ningún curso.</p>
+            )}
+            <div className={styles.formActions}>
+              <button 
+                className={styles.submitButton} 
+                onClick={() => setShowUserCoursesModal(false)}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Modal para registrar pago */}
       {showPaymentModal && selectedUser && (
         <PaymentRegistrationModal
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
-          onSave={handleRegisterPayment}
-          userId={selectedUser._id}
-          userName={selectedUser.name}
-          userCourses={userCourses}
+          onRegisterPayment={(amount: number, notes: string, courseId?: string, month?: string) => 
+            handleRegisterPayment(selectedUser._id, amount, notes, courseId, month)
+          }
+          courses={userCourses}
+          user={selectedUser}
+          onSelectCourse={(courseId: string) => setSelectedCourseId(courseId)}
         />
       )}
-
+      
       {/* Modal para asignar rol en escuela */}
-      <AssignSchoolRoleModal
-        isOpen={showAssignRoleModal}
-        onClose={() => setShowAssignRoleModal(false)}
-        user={selectedUserForRole}
-        onSuccess={handleRoleAssigned}
-      />
+      {showAssignRoleModal && selectedUserForRole && (
+        <AssignSchoolRoleModal
+          isOpen={showAssignRoleModal}
+          onClose={() => setShowAssignRoleModal(false)}
+          onRoleAssigned={handleRoleAssigned}
+          user={selectedUserForRole}
+          schools={userSchools}
+        />
+      )}
     </div>
   );
 } 

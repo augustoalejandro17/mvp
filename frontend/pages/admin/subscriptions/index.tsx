@@ -151,11 +151,15 @@ export default function SubscriptionsManager() {
           <div className={styles.statsGrid}>
             <div className={styles.statCard}>
               <h3>Suscripciones Totales</h3>
-              <p className={styles.statValue}>{stats?.totalSubscriptions || 0}</p>
+              <div className={styles.statValueContainer}>
+                <p className={styles.statValue}>{stats?.totalSubscriptions || 0}</p>
+              </div>
             </div>
             <div className={styles.statCard}>
               <h3>Planes Activos</h3>
-              <p className={styles.statValue}>{stats?.activePlans || 0}</p>
+              <div className={styles.statValueContainer}>
+                <p className={styles.statValue}>{stats?.activePlans || 0}</p>
+              </div>
             </div>
           </div>
 
@@ -172,17 +176,18 @@ export default function SubscriptionsManager() {
                   </tr>
                 </thead>
                 <tbody>
-                  {stats?.subscriptionsByPlan?.map((item) => (
-                    <tr key={item._id}>
-                      <td>{item._id}</td>
-                      <td>{item.count}</td>
-                      <td>{item.avgStorageUsed.toFixed(2)}</td>
-                      <td>{item.avgStreamingMinutes.toFixed(0)}</td>
-                    </tr>
-                  ))}
-                  {(!stats?.subscriptionsByPlan || stats.subscriptionsByPlan.length === 0) && (
+                  {stats?.subscriptionsByPlan && stats.subscriptionsByPlan.length > 0 ? (
+                    stats.subscriptionsByPlan.map((item) => (
+                      <tr key={item._id}>
+                        <td>{item._id}</td>
+                        <td>{item.count}</td>
+                        <td>{item.avgStorageUsed.toFixed(2)}</td>
+                        <td>{item.avgStreamingMinutes.toFixed(0)}</td>
+                      </tr>
+                    ))
+                  ) : (
                     <tr>
-                      <td colSpan={4}>No hay datos disponibles</td>
+                      <td colSpan={4} className={styles.noDataMessage}>No hay datos disponibles</td>
                     </tr>
                   )}
                 </tbody>
@@ -201,15 +206,16 @@ export default function SubscriptionsManager() {
                   </tr>
                 </thead>
                 <tbody>
-                  {stats?.subscriptionsByStatus?.map((item) => (
-                    <tr key={item._id}>
-                      <td>{item._id}</td>
-                      <td>{item.count}</td>
-                    </tr>
-                  ))}
-                  {(!stats?.subscriptionsByStatus || stats.subscriptionsByStatus.length === 0) && (
+                  {stats?.subscriptionsByStatus && stats.subscriptionsByStatus.length > 0 ? (
+                    stats.subscriptionsByStatus.map((item) => (
+                      <tr key={item._id}>
+                        <td>{item._id}</td>
+                        <td>{item.count}</td>
+                      </tr>
+                    ))
+                  ) : (
                     <tr>
-                      <td colSpan={2}>No hay datos disponibles</td>
+                      <td colSpan={2} className={styles.noDataMessage}>No hay datos disponibles</td>
                     </tr>
                   )}
                 </tbody>
@@ -229,20 +235,21 @@ export default function SubscriptionsManager() {
                   </tr>
                 </thead>
                 <tbody>
-                  {stats?.topSchoolsByStorage?.map((school) => (
-                    <tr key={school._id}>
-                      <td>{school.name}</td>
-                      <td>{school.storageUsedGb.toFixed(2)}</td>
-                      <td>
-                        <Link href={`/admin/subscriptions/school/${school._id}`} className={styles.viewButton}>
-                          Ver Detalles
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                  {(!stats?.topSchoolsByStorage || stats.topSchoolsByStorage.length === 0) && (
+                  {stats?.topSchoolsByStorage && stats.topSchoolsByStorage.length > 0 ? (
+                    stats.topSchoolsByStorage.map((school) => (
+                      <tr key={school._id}>
+                        <td>{school.name}</td>
+                        <td>{school.storageUsedGb.toFixed(2)}</td>
+                        <td>
+                          <Link href={`/admin/subscriptions/school/${school._id}`} className={styles.viewButton}>
+                            Ver Detalles
+                          </Link>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
                     <tr>
-                      <td colSpan={3}>No hay datos disponibles</td>
+                      <td colSpan={3} className={styles.noDataMessage}>No hay datos disponibles</td>
                     </tr>
                   )}
                 </tbody>

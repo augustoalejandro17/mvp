@@ -4,19 +4,27 @@ import styles from '../styles/PaymentRegistrationModal.module.css';
 interface PaymentRegistrationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (userId: string, amount: number, notes: string, courseId?: string, month?: string) => void;
-  userId: string;
-  userName: string;
+  onRegisterPayment?: (amount: number, notes: string, courseId?: string, month?: string) => void;
+  onSave?: (userId: string, amount: number, notes: string, courseId?: string, month?: string) => void;
+  userId?: string;
+  userName?: string;
+  user?: { _id: string; name: string; };
   userCourses?: Array<{ _id: string, title: string }>;
+  courses?: Array<any>;
+  onSelectCourse?: (courseId: string) => void;
 }
 
 const PaymentRegistrationModal: React.FC<PaymentRegistrationModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  onRegisterPayment,
   userId,
   userName,
-  userCourses = []
+  user,
+  userCourses = [],
+  courses = [],
+  onSelectCourse
 }) => {
   const [amount, setAmount] = useState<number>(0);
   const [notes, setNotes] = useState('');
@@ -86,7 +94,16 @@ const PaymentRegistrationModal: React.FC<PaymentRegistrationModalProps> = ({
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(userId, amount, notes, selectedCourse, selectedMonth);
+    if (onSave && userId) {
+      onSave(userId, amount, notes, selectedCourse, selectedMonth);
+    } else if (onRegisterPayment) {
+      onRegisterPayment(amount, notes, selectedCourse, selectedMonth);
+    }
+    
+    // Update selected course for the parent component if needed
+    if (onSelectCourse) {
+      onSelectCourse(selectedCourse);
+    }
   };
   
   // Close modal when clicking outside or pressing Escape
@@ -95,12 +112,24 @@ const PaymentRegistrationModal: React.FC<PaymentRegistrationModalProps> = ({
       onClose();
     }
   };
+
+  // Handle course selection
+  const handleCourseChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedCourse(e.target.value);
+    if (onSelectCourse) {
+      onSelectCourse(e.target.value);
+    }
+  };
+  
+  // Determine which courses to display
+  const displayCourses = userCourses?.length > 0 ? userCourses : courses;
+  const actualUserName = userName || (user?.name ?? 'Usuario');
   
   return (
     <div className={styles.backdrop} onClick={handleBackdropClick}>
       <div className={styles.modal} role="dialog" aria-modal="true">
         <div className={styles.modalHeader}>
-          <h2>Registrar Pago - {userName}</h2>
+          <h2>Registrar Pago - {actualUserName}</h2>
           <button 
             className={styles.closeButton} 
             onClick={onClose}
@@ -111,7 +140,7 @@ const PaymentRegistrationModal: React.FC<PaymentRegistrationModalProps> = ({
         </div>
         <form onSubmit={handleSubmit}>
           <div className={styles.modalBody}>
-            {userCourses && userCourses.length > 0 && (
+            {displayCourses && displayCourses.length > 0 && (
               <div className={styles.formGroup}>
                 <label htmlFor="course-select" className={styles.label}>
                   Curso
@@ -120,10 +149,10 @@ const PaymentRegistrationModal: React.FC<PaymentRegistrationModalProps> = ({
                   id="course-select"
                   className={styles.select}
                   value={selectedCourse}
-                  onChange={(e) => setSelectedCourse(e.target.value)}
+                  onChange={handleCourseChange}
                 >
                   <option value="">-- Seleccionar curso --</option>
-                  {userCourses.map(course => (
+                  {displayCourses.map(course => (
                     <option key={course._id} value={course._id}>
                       {course.title}
                     </option>

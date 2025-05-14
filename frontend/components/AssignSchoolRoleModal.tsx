@@ -20,13 +20,17 @@ interface AssignSchoolRoleModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: User | null;
-  onSuccess: () => void;
+  schools?: School[];
+  onRoleAssigned?: () => void;
+  onSuccess?: () => void;
 }
 
 const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({ 
   isOpen, 
   onClose, 
   user, 
+  schools: propSchools,
+  onRoleAssigned,
   onSuccess 
 }) => {
   const [loading, setLoading] = useState(false);
@@ -40,10 +44,17 @@ const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({
 
   useEffect(() => {
     if (isOpen && user) {
-      fetchSchools();
+      if (propSchools && propSchools.length > 0) {
+        setSchools(propSchools);
+        if (propSchools.length > 0) {
+          setSelectedSchool(propSchools[0]._id);
+        }
+      } else {
+        fetchSchools();
+      }
       getCurrentUserRole();
     }
-  }, [isOpen, user]);
+  }, [isOpen, user, propSchools]);
 
   const getCurrentUserRole = async () => {
     try {
@@ -130,7 +141,8 @@ const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({
       
       // Notificar al componente padre para que actualice la lista
       setTimeout(() => {
-        onSuccess();
+        if (onSuccess) onSuccess();
+        if (onRoleAssigned) onRoleAssigned();
         onClose();
       }, 1500);
     } catch (error: any) {
@@ -248,7 +260,7 @@ const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({
                   disabled={loading}
                 >
                   <option value="">Seleccionar escuela</option>
-                  {schools.map((school) => (
+                  {schools.map(school => (
                     <option key={school._id} value={school._id}>
                       {school.name}
                     </option>
@@ -259,7 +271,7 @@ const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({
             
             <div className={styles.formGroup}>
               <label htmlFor="role">
-                <FaUserTag /> Rol en la escuela:
+                <FaUserTag /> Rol en esta escuela:
               </label>
               <select
                 id="role"
@@ -273,7 +285,7 @@ const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({
               </select>
             </div>
             
-            <div className={styles.buttonContainer}>
+            <div className={styles.formActions}>
               <button
                 type="button"
                 className={styles.cancelButton}
