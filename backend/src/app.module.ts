@@ -12,11 +12,11 @@ import { ServicesModule } from './services/services.module';
 import { UploadModule } from './upload/upload.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { PlansModule } from './plans/plans.module';
+import { StatisticsModule } from './statistics/statistics.module';
 import awsConfig from './config/aws.config';
 import { S3Service } from './services/s3.service';
 import { CloudFrontService } from './services/cloudfront.service';
 import { ImagesController } from './controllers/images.controller';
-import { AdminStatsController } from './controllers/admin-stats.controller';
 import { SubscriptionAdminController } from './controllers/subscription-admin.controller';
 import { User, UserSchema } from './auth/schemas/user.schema';
 import { School, SchoolSchema } from './schools/schemas/school.schema';
@@ -50,11 +50,11 @@ import { UserOwnedSchoolsController, UserAdministeredSchoolsController } from '.
     UploadModule,
     AttendanceModule,
     PlansModule,
+    StatisticsModule,
   ],
   controllers: [
     AppController, 
     ImagesController, 
-    AdminStatsController,
     SubscriptionAdminController,
     UserOwnedSchoolsController,
     UserAdministeredSchoolsController
