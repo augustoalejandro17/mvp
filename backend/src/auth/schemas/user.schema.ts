@@ -37,6 +37,12 @@ export class User {
   @Prop({ required: true })
   name: string;
 
+  @Prop()
+  firstName: string;
+
+  @Prop()
+  lastName: string;
+
   // Rol global del usuario (su rol principal)
   @Prop({ required: true, enum: UserRole, default: UserRole.STUDENT })
   role: UserRole;

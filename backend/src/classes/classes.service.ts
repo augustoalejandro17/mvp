@@ -10,7 +10,7 @@ import { User, UserDocument, UserRole } from '../auth/schemas/user.schema';
 import { CloudFrontService } from '../services/cloudfront.service';
 import { RecordAttendanceDto } from './dto/record-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
-import { Attendance, AttendanceDocument } from './schemas/attendance.schema';
+import { Attendance, AttendanceDocument } from '../attendance/schemas/attendance.schema';
 import { VideoProcessorService } from '../services/video-processor.service';
 import * as fs from 'fs';
 

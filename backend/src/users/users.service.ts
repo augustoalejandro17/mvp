@@ -8,7 +8,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { Course } from '../courses/schemas/course.schema';
 import { School } from '../schools/schemas/school.schema';
 import { Attendance as CourseAttendance } from '../attendance/schemas/attendance.schema';
-import { Attendance as ClassAttendance } from '../classes/schemas/attendance.schema';
+import { Attendance as ClassAttendance } from '../attendance/schemas/attendance.schema';
 
 // DTOs para los nuevos métodos
 class RegisterUnregisteredUserDto {

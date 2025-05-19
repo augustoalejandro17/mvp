@@ -3,7 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ClassesController } from './classes.controller';
 import { ClassesService } from './classes.service';
 import { Class, ClassSchema } from './schemas/class.schema';
-import { Attendance, AttendanceSchema } from './schemas/attendance.schema';
+import { Attendance, AttendanceSchema } from '../attendance/schemas/attendance.schema';
 import { AuthModule } from '../auth/auth.module';
 import { CoursesModule } from '../courses/courses.module';
 import { UsersModule } from '../users/users.module';

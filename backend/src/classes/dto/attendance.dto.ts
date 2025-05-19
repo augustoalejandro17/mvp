@@ -24,6 +24,9 @@ export class RecordAttendanceDto {
   @ValidateNested({ each: true })
   @Type(() => StudentAttendance)
   attendanceRecords: StudentAttendance[];
+
+  studentsPresent?: number;
+  totalStudents?: number;
 }
 
 export class UpdateAttendanceDto {
@@ -34,4 +37,7 @@ export class UpdateAttendanceDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  studentsPresent?: number;
+  totalStudents?: number;
 } 

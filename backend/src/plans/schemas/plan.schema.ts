@@ -57,6 +57,12 @@ export class Plan {
 
   @Prop({ default: Date.now })
   createdAt: Date;
+
+  @Prop({ required: true })
+  price: number;
+
+  @Prop({ type: [String], default: [] })
+  features: string[];
 }
 
 export const PlanSchema = SchemaFactory.createForClass(Plan); 

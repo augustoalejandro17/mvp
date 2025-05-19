@@ -7,7 +7,7 @@ import { School, SchoolSchema } from '../schools/schemas/school.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
 import { AuthorizationService } from '../auth/services/authorization.service';
 import { Attendance as CourseAttendance, AttendanceSchema as CourseAttendanceSchema } from '../attendance/schemas/attendance.schema';
-import { Attendance as ClassAttendance, AttendanceSchema as ClassAttendanceSchema } from '../classes/schemas/attendance.schema';
+import { Attendance as ClassAttendance, AttendanceSchema as ClassAttendanceSchema } from '../attendance/schemas/attendance.schema';
 
 @Module({
   imports: [

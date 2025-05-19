@@ -51,6 +51,12 @@ export class TeacherPerformanceDto {
 
   @ApiProperty({ description: 'Total number of students taught' })
   studentsCount: number;
+
+  @ApiProperty({ description: 'Satisfacción del profesor', minimum: 0, maximum: 100 })
+  satisfaction: number;
+
+  @ApiProperty({ description: 'Monthly trend data', type: 'array', isArray: true, required: false })
+  monthlyTrend?: { month: string; retention: number; attendance: number }[];
 }
 
 // DTO para ingresos

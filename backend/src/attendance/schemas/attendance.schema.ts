@@ -40,6 +40,12 @@ export class Attendance {
 
   @Prop({ default: Date.now })
   updatedAt: Date;
+
+  @Prop({ default: 0 })
+  studentsPresent: number;
+
+  @Prop({ default: 0 })
+  totalStudents: number;
 }
 
 export const AttendanceSchema = SchemaFactory.createForClass(Attendance); 
