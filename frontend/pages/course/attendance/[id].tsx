@@ -35,6 +35,7 @@ interface Attendance {
   isRegistered?: boolean; // True para usuario registrado, false para no registrado
   studentName?: string; // Nombre del estudiante (para no registrados)
   date?: string; // Para la exportación a Excel
+  isTemporary?: boolean; // Indica si es un asistente temporal (no guardado aún)
 }
 
 interface DecodedToken {
@@ -325,7 +326,7 @@ export default function AttendancePage() {
     if (newAttendances.length > 0) {
       setAttendances(prev => [...prev, ...newAttendances]);
     }
-  }, [course]); // Remover 'attendances' de las dependencias
+  }, [course, attendances]);
 
   const handlePresentChange = (studentId: string, present: boolean) => {
     setAttendances(prev => 
@@ -347,7 +348,7 @@ export default function AttendancePage() {
     );
   };
 
-  const handleAddNonRegisteredStudent = () => {
+  const handleAddNonRegisteredStudent = async () => {
     if (!newStudentName || newStudentName.trim() === '') {
       setError('Debe ingresar un nombre válido');
       return;
@@ -364,21 +365,46 @@ export default function AttendancePage() {
       return;
     }
     
-    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    setLoading(true);
     
-    const newAttendance = {
-      studentId: tempId,
-      studentName: studentName,
-      present: null,
-      notes: '',
-      isRegistered: false
-    };
-    
-    setAttendances(prev => [...prev, newAttendance]);
-    
-    setNewStudentName('');
-    setShowAddNonRegisteredModal(false);
-    setSuccess('Estudiante no registrado añadido a la lista');
+    try {
+      // Llamar a la API para crear el asistente permanentemente
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const token = Cookies.get('token');
+      
+      // Usar la misma API que usa el admin para crear asistentes
+      const response = await axios.post(
+        `${apiUrl}/api/users/bypass-assistant`,
+        {
+          name: studentName,
+          courseId: id // ID del curso actual
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      console.log('Asistente creado con éxito:', response.data);
+      
+      // Agregar el asistente a la lista local con su ID real
+      const newAttendance = {
+        studentId: response.data._id, // Usar el ID real devuelto por la API
+        studentName: studentName,
+        present: null,
+        notes: '',
+        isRegistered: false,
+        isTemporary: false // Ya no es temporal porque existe en la base de datos
+      };
+      
+      setAttendances(prev => [...prev, newAttendance]);
+      setNewStudentName('');
+      setShowAddNonRegisteredModal(false);
+      setSuccess('Asistente no registrado añadido correctamente');
+      
+    } catch (error) {
+      console.error('Error al crear asistente:', error);
+      setError('Error al crear el asistente. Intente nuevamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -396,10 +422,20 @@ export default function AttendancePage() {
           attendance && 
           attendance.studentName && 
           attendance.studentName !== 'Usuario no encontrado')
-        .map(attendance => ({
-          ...attendance,
-          present: attendance.present === null ? false : attendance.present // Convert null to false (absent)
-        }));
+        .map(attendance => {
+          // Si es un asistente no registrado, asegurar que se use el nombre
+          if (!attendance.isRegistered) {
+            console.log('Preparando asistente no registrado:', attendance.studentName);
+          }
+          
+          return {
+            ...attendance,
+            present: attendance.present === null ? false : attendance.present,
+            // Si es un asistente no registrado, enviar el nombre como studentId
+            studentId: attendance.isRegistered ? attendance.studentId : attendance.studentName,
+            _id: attendance._id // Ensure _id is included for existing records
+          };
+        });
       
       console.log('Attendances to save:', attendancesToSave.length);
       
@@ -435,38 +471,55 @@ export default function AttendancePage() {
           console.log('Sending attendance data:', data);
 
           if (attendance._id) {
-            return axios.put(`${apiUrl}/api/attendance/${attendance._id}`, data, {
+            console.log('Updating existing attendance record with ID:', attendance._id);
+            // Use PATCH instead of PUT as controller expects PATCH
+            // Only send fields expected by UpdateAttendanceDto for updates
+            const updateData = {
+              present: attendance.present,
+              notes: attendance.notes || '',
+              // Only include date if explicitly changing it
+              date: dateString
+            };
+            console.log('Sending update data:', updateData);
+            return axios.patch(`${apiUrl}/api/attendance/${attendance._id}`, updateData, {
               headers: { Authorization: `Bearer ${token}` }
+            }).catch(error => {
+              console.error(`Error updating attendance ${attendance._id}:`, error.response?.status, error.response?.data);
+              throw error;
             });
           } else {
-            // Add more detailed error handling for debugging
-            try {
-              const response = await axios.post(`${apiUrl}/api/attendance`, data, {
-                headers: { Authorization: `Bearer ${token}` }
-      });
-              return response;
-            } catch (err: any) {
-              // Print specific error details
-              console.error('POST error:', err);
+            console.log('Creating new attendance record');
+            // For creating new records, include all necessary fields
+            const createData: any = {
+              courseId: id as string,
+              date: dateString,
+              present: attendance.present === null ? false : attendance.present,
+              notes: attendance.notes || ''
+            };
+            
+            // Manejar diferentes casos para usuarios registrados y no registrados
+            if (attendance.isRegistered) {
+              // Usuario registrado - usar studentId
+              createData.studentId = attendance.studentId;
+              createData.isRegistered = true;
+            } else {
+              // Usuario no registrado - ya debe tener un ID real porque fue creado al agregarlo
+              createData.studentId = attendance.studentId; // ID real del usuario
+              createData.isRegistered = false;
               
-              // Log the specific error response for better debugging
-              if (err.response) {
-                console.error('Error response status:', err.response.status);
-                console.error('Error response data:', err.response.data);
-                if (err.response.data && err.response.data.message) {
-                  setError('Error API: ' + (typeof err.response.data.message === 'string' ? 
-                    err.response.data.message : 
-                    JSON.stringify(err.response.data.message)));
-                }
-              }
-              
-              console.error('Error request details:', {
-                url: `${apiUrl}/api/attendance`,
-                data: JSON.stringify(data),
-                headers: { Authorization: 'Bearer [token]' }
+              console.log('Guardando asistencia para asistente no registrado:', {
+                id: attendance.studentId,
+                nombre: attendance.studentName
               });
-              throw err;
             }
+            
+            console.log('Sending create data:', createData);
+            return axios.post(`${apiUrl}/api/attendance`, createData, {
+              headers: { Authorization: `Bearer ${token}` }
+            }).catch(error => {
+              console.error('Error creating attendance:', error.response?.status, error.response?.data);
+              throw error;
+            });
           }
         } catch (error) {
           console.error('Error processing attendance data:', error);
@@ -490,7 +543,8 @@ export default function AttendancePage() {
         setError(`Error al guardar ${failedPromises.length} registros de asistencia`);
       } else {
         setSuccess('Asistencia guardada correctamente');
-      fetchAttendances();
+        // Actualizar la lista de asistencias para reflejar los IDs permanentes
+        fetchAttendances();
       }
     } catch (error: any) {
       console.error('Error al guardar asistencia:', error);
@@ -871,6 +925,9 @@ export default function AttendancePage() {
                                   {!attendance.isRegistered && (
                                     <span className={`${styles.roleBadge} ${styles.unregistered}`}>no registrado</span>
                                   )}
+                                  {attendance.isTemporary && (
+                                    <span className={`${styles.roleBadge} ${styles.temporary}`} style={{ backgroundColor: '#f59e0b' }}>temporal</span>
+                                  )}
                                 </div>
                               </td>
                               <td>
@@ -953,6 +1010,7 @@ export default function AttendancePage() {
                   className={styles.input}
                   placeholder="Nombre del asistente"
                   autoFocus
+                  disabled={loading}
                 />
               </div>
               
@@ -965,6 +1023,7 @@ export default function AttendancePage() {
                     setNewStudentName('');
                     setError('');
                   }}
+                  disabled={loading}
                 >
                   Cancelar
                 </button>
@@ -972,8 +1031,9 @@ export default function AttendancePage() {
                   type="button"
                   className={styles.submitButton}
                   onClick={handleAddNonRegisteredStudent}
+                  disabled={loading}
                 >
-                  Agregar
+                  {loading ? 'Creando...' : 'Agregar'}
                 </button>
               </div>
             </div>

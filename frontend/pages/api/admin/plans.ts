@@ -8,7 +8,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const { active } = req.query;
-    let url = `${process.env.NEXT_PUBLIC_API_URL}/admin/subscriptions/plans`;
+    let url = `${process.env.NEXT_PUBLIC_API_URL}/api/admin/subscriptions/plans`;
     if (active === 'true' || active === 'false') {
       url += `?active=${active}`;
     }

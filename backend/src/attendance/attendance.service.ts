@@ -553,7 +553,27 @@ export class AttendanceService {
       // Use exact date without timezone adjustment
       console.log(`Creating attendance with date: ${date.toISOString()}`);
       
-      // Crear un nuevo registro de asistencia con el usuario no registrado
+      // Crear rango de fechas para el día
+      const startDate = new Date(date);
+      startDate.setUTCHours(0, 0, 0, 0);
+      const endDate = new Date(date);
+      endDate.setUTCHours(23, 59, 59, 999);
+      // Verificar si ya existe un registro para este usuario, curso y fecha
+      const existingAttendance = await this.attendanceModel.findOne({
+        course: courseId,
+        student: unregisteredUser._id,
+        date: {
+          $gte: startDate,
+          $lt: endDate
+        }
+      });
+      if (existingAttendance) {
+        existingAttendance.present = present;
+        existingAttendance.notes = notes;
+        existingAttendance.updatedAt = new Date();
+        return existingAttendance.save();
+      }
+      // Si no existe, crear el nuevo registro
       const attendance = new this.attendanceModel({
         course: courseId,
         student: unregisteredUser._id,
@@ -564,10 +584,8 @@ export class AttendanceService {
         markedBy: teacherId,
         recordedBy: teacherId
       });
-      
       const savedAttendance = await attendance.save();
       console.log(`Saved attendance with date: ${savedAttendance.date.toISOString()}`);
-      
       return savedAttendance;
     } catch (error) {
       this.logger.error(`Error en createForNonRegisteredUser: ${error.message}`, error.stack);

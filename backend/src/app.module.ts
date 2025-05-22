@@ -55,7 +55,6 @@ import { UserOwnedSchoolsController, UserAdministeredSchoolsController } from '.
   controllers: [
     AppController, 
     ImagesController, 
-    SubscriptionAdminController,
     UserOwnedSchoolsController,
     UserAdministeredSchoolsController
   ],

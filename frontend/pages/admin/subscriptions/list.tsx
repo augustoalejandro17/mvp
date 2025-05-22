@@ -65,6 +65,8 @@ export default function SubscriptionsList() {
       
       const token = Cookies.get('token');
       if (!token) return;
+
+      console.log('Obteniendo suscripciones, token válido:', !!token);
       
       const response = await fetch(`/api/admin/subscriptions/list?status=${statusFilter}`, {
         headers: {
@@ -72,11 +74,14 @@ export default function SubscriptionsList() {
         }
       });
       
+      console.log('Respuesta:', response.status, response.statusText);
+      
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
       
       const data = await response.json();
+      console.log('Datos recibidos:', data);
       
       if (data.error) {
         throw new Error(data.error);
@@ -87,48 +92,11 @@ export default function SubscriptionsList() {
     } catch (error) {
       console.error('Error al obtener suscripciones:', error);
       setError(error instanceof Error ? error.message : 'Error desconocido');
-      
-      // Datos de ejemplo para desarrollo
-      const mockData = generateMockData();
-      setSubscriptions(mockData.subscriptions);
-      setTotalCount(mockData.totalCount);
+      setSubscriptions([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
-  };
-
-  // Función para generar datos de ejemplo
-  const generateMockData = () => {
-    const statuses = ['active', 'trial', 'expired', 'pending'];
-    const planTypes = ['Básico', 'Estándar', 'Premium'];
-    
-    const mockSubscriptions = Array.from({ length: 10 }, (_, i) => {
-      const status = statuses[Math.floor(Math.random() * statuses.length)];
-      const planType = planTypes[Math.floor(Math.random() * planTypes.length)];
-      const startDate = new Date();
-      startDate.setMonth(startDate.getMonth() - Math.floor(Math.random() * 6));
-      
-      const endDate = new Date(startDate);
-      endDate.setFullYear(endDate.getFullYear() + 1);
-      
-      return {
-        id: `sub-${i + 1}`,
-        schoolName: `Escuela Ejemplo ${i + 1}`,
-        schoolId: `school-${i + 1}`,
-        planName: `Plan ${planType}`,
-        planType: planType.toLowerCase(),
-        status,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        currentStorageGb: Math.random() * 50,
-        currentStreamingMinutes: Math.floor(Math.random() * 1000)
-      };
-    });
-    
-    return {
-      subscriptions: mockSubscriptions,
-      totalCount: mockSubscriptions.length
-    };
   };
 
   const formatDate = (dateString: string) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import Cookies from 'js-cookie';
@@ -112,6 +112,10 @@ export default function UserManagement() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null); // Nuevo estado para controlar qué email está expandido
+  
+  // Estados para el ordenamiento
+  const [sortBy, setSortBy] = useState<string>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   
   // Paginación
   const [currentPage, setCurrentPage] = useState(1);
@@ -1378,6 +1382,91 @@ export default function UserManagement() {
     }
   };
 
+  // Función para manejar el ordenamiento
+  const handleSort = (field: string) => {
+    // Si se hace clic en el mismo campo, invertir el orden
+    if (field === sortBy) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Si se hace clic en un campo diferente, establecer ese campo y ordenar ascendente
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+  };
+
+  // Función para aplicar el ordenamiento a los usuarios
+  const getSortedUsers = useCallback((users: User[]) => {
+    if (!users || users.length === 0) return [];
+    
+    return [...users].sort((a, b) => {
+      let valueA: string | number;
+      let valueB: string | number;
+      
+      switch (sortBy) {
+        case 'name':
+          valueA = a.name?.toLowerCase() || '';
+          valueB = b.name?.toLowerCase() || '';
+          break;
+        case 'email':
+          valueA = a.email?.toLowerCase() || '';
+          valueB = b.email?.toLowerCase() || '';
+          break;
+        case 'role':
+          valueA = a.role?.toLowerCase() || '';
+          valueB = b.role?.toLowerCase() || '';
+          break;
+        case 'date':
+          valueA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          valueB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          break;
+        default:
+          valueA = a.name?.toLowerCase() || '';
+          valueB = b.name?.toLowerCase() || '';
+      }
+      
+      // Para valores de texto
+      if (typeof valueA === 'string' && typeof valueB === 'string') {
+        return sortOrder === 'asc' 
+          ? valueA.localeCompare(valueB)
+          : valueB.localeCompare(valueA);
+      }
+      
+      // Para valores numéricos y fechas
+      const numA = valueA as number;
+      const numB = valueB as number;
+      return sortOrder === 'asc' ? (numA - numB) : (numB - numA);
+    });
+  }, [sortBy, sortOrder]);
+
+  // Obtener usuarios ordenados para mostrar en la tabla
+  const sortedFilteredUsers = useMemo(() => {
+    return getSortedUsers(filteredUsers);
+  }, [filteredUsers, getSortedUsers]);
+
+  // Función para mostrar icono de dirección en las cabeceras de tabla
+  const renderSortIcon = (field: string) => {
+    if (sortBy !== field) return null;
+    
+    return (
+      <span className={styles.sortIcon}>
+        {sortOrder === 'asc' ? ' ▲' : ' ▼'}
+      </span>
+    );
+  };
+
+  // Actualizar totalPages cuando cambia el ordenamiento
+  useEffect(() => {
+    // Calcular total de páginas basado en usuarios filtrados y ordenados
+    if (selectedSchool === 'unregistered') {
+      setTotalPages(Math.ceil(unregisteredUsers.length / itemsPerPage));
+    } else {
+      setTotalPages(Math.ceil(sortedFilteredUsers.length / itemsPerPage));
+    }
+    
+    // Resetear a la primera página cuando cambia el orden para evitar páginas vacías
+    setCurrentPage(1);
+  }, [sortedFilteredUsers, unregisteredUsers, selectedSchool, itemsPerPage]);
+
   return (
     <div className={dashboardStyles.container}>
       <div className={dashboardStyles.dashboardHeader}>
@@ -1447,6 +1536,31 @@ export default function UserManagement() {
                           </option>
                         ))}
                       </select>
+                    </div>
+                    <div className={styles.sortControls}>
+                      <label htmlFor="sortBy">Ordenar:</label>
+                      <select 
+                        id="sortBy"
+                        value={sortBy}
+                        onChange={(e) => {
+                          setSortBy(e.target.value);
+                          setSortOrder('asc');
+                        }}
+                        className={styles.select}
+                      >
+                        <option value="name">Nombre</option>
+                        <option value="email">Email</option>
+                        <option value="role">Rol</option>
+                        <option value="date">Fecha</option>
+                      </select>
+                      
+                      <button 
+                        onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                        className={`${styles.iconButton} ${styles.sortDirectionButton}`}
+                        title={`Orden ${sortOrder === 'asc' ? 'ascendente' : 'descendente'}`}
+                      >
+                        {sortOrder === 'asc' ? '↑' : '↓'}
+                      </button>
                     </div>
                   </div>
                 ) : 
@@ -1570,17 +1684,25 @@ export default function UserManagement() {
                   <table className={styles.table}>
                     <thead>
                       <tr>
-                        <th>Nombre</th>
-                        <th>Email</th>
-                        <th>Rol</th>
+                        <th onClick={() => handleSort('name')} className={styles.sortableHeader}>
+                          Nombre {renderSortIcon('name')}
+                        </th>
+                        <th onClick={() => handleSort('email')} className={styles.sortableHeader}>
+                          Email {renderSortIcon('email')}
+                        </th>
+                        <th onClick={() => handleSort('role')} className={styles.sortableHeader}>
+                          Rol {renderSortIcon('role')}
+                        </th>
                         <th>Cursos</th>
-                        <th>Fecha Registro</th>
+                        <th onClick={() => handleSort('date')} className={styles.sortableHeader}>
+                          Fecha Registro {renderSortIcon('date')}
+                        </th>
                         <th>Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredUsers.length > 0 ? (
-                        filteredUsers
+                      {sortedFilteredUsers.length > 0 ? (
+                        sortedFilteredUsers
                           .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                           .map((user) => (
                             <tr key={user._id}>
@@ -1802,7 +1924,7 @@ export default function UserManagement() {
               
               {/* Paginación */}
               {((selectedSchool === 'unregistered' && unregisteredUsers.length > 0) || 
-                (selectedSchool !== 'unregistered' && filteredUsers.length > 0)) && (
+                (selectedSchool !== 'unregistered' && sortedFilteredUsers.length > 0)) && (
                 <div className={styles.pagination}>
                   <button 
                     className={styles.paginationButton}

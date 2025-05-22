@@ -414,4 +414,10 @@ export class SubscriptionsService {
       };
     }
   }
+
+  // Método para encontrar una escuela por su suscripción activa
+  async findSchoolBySubscription(subscriptionId: string): Promise<any> {
+    const school = await this.schoolModel.findOne({ activeSubscription: subscriptionId }).exec();
+    return school;
+  }
 } 

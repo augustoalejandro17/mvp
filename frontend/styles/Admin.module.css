@@ -508,6 +508,18 @@
   text-align: left;
   border-bottom: 1px solid #e2e8f0;
   vertical-align: middle;
+  height: 56px; /* Altura mínima para filas consistentes */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.table td:nth-child(1), .table th:nth-child(1) {
+  max-width: 200px;
+}
+
+.table td:nth-child(2), .table th:nth-child(2) {
+  max-width: 180px;
 }
 
 .table th {
@@ -577,8 +589,9 @@
 /* Estilos para los botones de acción */
 .actionButtons {
   display: flex;
-  gap: 0.5rem;
   align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
   flex-wrap: nowrap;
 }
 
@@ -1593,4 +1606,54 @@
     min-width: 80px;
     max-width: 90px;
   }
+}
+
+/* Añadir estos estilos al final del archivo */
+
+.sortableHeader {
+  cursor: pointer;
+  position: relative;
+  padding-right: 20px;
+  user-select: none;
+  transition: background-color 0.2s ease;
+}
+
+.sortableHeader:hover {
+  background-color: #f1f5f9;
+}
+
+.sortIcon {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+/* Estilos para los controles de ordenamiento */
+.sortControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 15px;
+}
+
+.sortControls label {
+  font-size: 0.9rem;
+  color: #4b5563;
+}
+
+.sortDirectionButton {
+  background-color: #e2e8f0;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.sortDirectionButton:hover {
+  background-color: #cbd5e1;
 } 
