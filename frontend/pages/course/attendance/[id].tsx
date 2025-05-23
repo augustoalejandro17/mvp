@@ -385,18 +385,18 @@ export default function AttendancePage() {
       console.log('Asistente creado con éxito:', response.data);
       
       // Agregar el asistente a la lista local con su ID real
-      const newAttendance = {
+    const newAttendance = {
         studentId: response.data._id, // Usar el ID real devuelto por la API
-        studentName: studentName,
-        present: null,
-        notes: '',
+      studentName: studentName,
+      present: null,
+      notes: '',
         isRegistered: false,
         isTemporary: false // Ya no es temporal porque existe en la base de datos
-      };
-      
-      setAttendances(prev => [...prev, newAttendance]);
-      setNewStudentName('');
-      setShowAddNonRegisteredModal(false);
+    };
+    
+    setAttendances(prev => [...prev, newAttendance]);
+    setNewStudentName('');
+    setShowAddNonRegisteredModal(false);
       setSuccess('Asistente no registrado añadido correctamente');
       
     } catch (error) {
@@ -429,7 +429,7 @@ export default function AttendancePage() {
           }
           
           return {
-            ...attendance,
+          ...attendance,
             present: attendance.present === null ? false : attendance.present,
             // Si es un asistente no registrado, enviar el nombre como studentId
             studentId: attendance.isRegistered ? attendance.studentId : attendance.studentName,
@@ -496,7 +496,7 @@ export default function AttendancePage() {
               present: attendance.present === null ? false : attendance.present,
               notes: attendance.notes || ''
             };
-            
+              
             // Manejar diferentes casos para usuarios registrados y no registrados
             if (attendance.isRegistered) {
               // Usuario registrado - usar studentId
@@ -511,8 +511,8 @@ export default function AttendancePage() {
                 id: attendance.studentId,
                 nombre: attendance.studentName
               });
-            }
-            
+              }
+              
             console.log('Sending create data:', createData);
             return axios.post(`${apiUrl}/api/attendance`, createData, {
               headers: { Authorization: `Bearer ${token}` }
@@ -544,7 +544,7 @@ export default function AttendancePage() {
       } else {
         setSuccess('Asistencia guardada correctamente');
         // Actualizar la lista de asistencias para reflejar los IDs permanentes
-        fetchAttendances();
+      fetchAttendances();
       }
     } catch (error: any) {
       console.error('Error al guardar asistencia:', error);

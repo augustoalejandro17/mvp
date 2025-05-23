@@ -68,16 +68,17 @@ export default function AdminDashboard() {
       // Get the JWT token from cookies
       const token = Cookies.get('token');
       if (!token) return;
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
       // Determine which endpoint to use based on role
       // NOTE: We must include /api/ prefix for Next.js to route correctly to the backend
-      let endpoint = '';
+      let endpointUrl = '';
       if (userRole.toLowerCase().includes('super_admin')) {
-        endpoint = '/api/schools'; // The actual backend endpoint will be 'api/schools'
+        endpointUrl = `${apiUrl}/api/schools`; // The actual backend endpoint will be 'api/schools'
       } else if (userRole.toLowerCase().includes('school_owner')) {
-        endpoint = `/api/users/${userId}/owned-schools`; 
+        endpointUrl = `${apiUrl}/api/users/${userId}/owned-schools`; 
       } else if (userRole.toLowerCase().includes('administrative')) {
-        endpoint = `/api/users/${userId}/administered-schools`;
+        endpointUrl = `${apiUrl}/api/users/${userId}/administered-schools`;
       } else {
         return; // Other roles don't have school access
       }
@@ -85,7 +86,7 @@ export default function AdminDashboard() {
       
 
       // Fetch schools from the API
-      const response = await fetch(endpoint, {
+      const response = await fetch(endpointUrl, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -118,10 +119,11 @@ export default function AdminDashboard() {
       const token = Cookies.get('token');
       if (!token) return;
 
-      // Usar la ruta correcta de la API
-      let endpoint = `/api/admin/stats`;
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      // Usar la ruta correcta de la API con la URL base
+      let endpoint = `${apiUrl}/api/admin/stats`;
       if (schoolId !== 'all') {
-        endpoint = `/api/admin/stats?schoolId=${schoolId}`;
+        endpoint = `${apiUrl}/api/admin/stats?schoolId=${schoolId}`;
       }
       
       console.log('Fetching stats from:', endpoint);
@@ -191,11 +193,12 @@ export default function AdminDashboard() {
   const testApiConnectivity = async () => {
     try {
       console.log('Testing API connectivity...');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
       // Probar el endpoint de overview
       console.log('Testing overview endpoint...');
       
-      const response = await fetch('/api/admin-stats/overview', {
+      const response = await fetch(`${apiUrl}/api/admin-stats/overview`, {
         headers: { 'Accept': 'application/json' }
       });
       
@@ -206,7 +209,7 @@ export default function AdminDashboard() {
         console.error('❌ API connectivity test failed:', response.status, response.statusText);
         // Si hay error, intentamos con el endpoint de salud
         console.log('Trying health endpoint as fallback...');
-        const healthResponse = await fetch('/api/health', {
+        const healthResponse = await fetch(`${apiUrl}/api/health`, {
           headers: { 'Accept': 'application/json' }
         });
         

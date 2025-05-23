@@ -72,7 +72,8 @@ export default function SubscriptionsManager() {
       const token = Cookies.get('token');
       if (!token) return;
       
-      const response = await fetch('/api/admin-stats/subscriptions', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await fetch(`${apiUrl}/api/admin-stats/subscriptions`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
