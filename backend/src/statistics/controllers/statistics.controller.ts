@@ -1,5 +1,4 @@
 import { Controller, Get, Post, Param, Body, Query, UseGuards, Request } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -27,7 +26,6 @@ import {
   StatisticsResponseDto 
 } from '../dto/statistics.dto';
 
-@ApiTags('statistics')
 @Controller('admin/stats')
 export class StatisticsController {
   constructor(
@@ -47,7 +45,6 @@ export class StatisticsController {
   @Get('subscriptions')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Obtener estadísticas de suscripciones' })
   async getSubscriptionsStats() {
     try {
       const totalSubscriptions = await this.subscriptionModel.countDocuments();
@@ -109,7 +106,6 @@ export class StatisticsController {
   @Get('subscriptions/:schoolId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER)
-  @ApiOperation({ summary: 'Obtener detalles de suscripción de una escuela' })
   async getSchoolSubscriptionDetails(@Param('schoolId') schoolId: string, @Request() req) {
     try {
       const user = req.user;
@@ -230,7 +226,6 @@ export class StatisticsController {
   }
 
   @Get('overview')
-  @ApiOperation({ summary: 'Obtener estadísticas generales para el dashboard' })
   async getOverviewStats(@Request() req) {
     try {
       // Obtener información básica para el dashboard
@@ -274,7 +269,6 @@ export class StatisticsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Obtener estadísticas básicas del dashboard' })
   async getStats(@Query('schoolId') schoolId: string, @Request() req) {
     try {
       // Proporcionar datos básicos de estadísticas para el dashboard
@@ -324,8 +318,6 @@ export class StatisticsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SCHOOL_OWNER, UserRole.SUPER_ADMIN)
   @Get('all')
-  @ApiOperation({ summary: 'Obtener todas las estadísticas' })
-  @ApiResponse({ status: 200, description: 'Estadísticas obtenidas correctamente', type: StatisticsResponseDto })
   async getAllStatistics(@Query() dateRange: DateRangeDto): Promise<StatisticsResponseDto> {
     // Establecer fechas por defecto si no se proporcionan
     if (!dateRange.startDate || !dateRange.endDate) {
@@ -367,89 +359,61 @@ export class StatisticsController {
   }
 
   @Get('retention')
-  @ApiOperation({ summary: 'Obtener tasas de retención por curso' })
-  @ApiResponse({ status: 200, description: 'Tasas de retención obtenidas correctamente', type: [RetentionRateDto] })
   async getRetentionRates(): Promise<RetentionRateDto[]> {
     return this.retentionService.getRetentionRatesByCourse();
   }
 
   @Get('retention/:courseId')
-  @ApiOperation({ summary: 'Obtener la tasa de retención para un curso específico' })
-  @ApiParam({ name: 'courseId', description: 'ID del curso' })
-  @ApiResponse({ status: 200, description: 'Tasa de retención obtenida correctamente', type: RetentionRateDto })
   async getRetentionRateForCourse(@Param('courseId') courseId: string): Promise<RetentionRateDto> {
     return this.retentionService.getRetentionRateForCourse(courseId);
   }
 
   @Get('performance')
-  @ApiOperation({ summary: 'Obtener métricas de rendimiento de los profesores' })
-  @ApiResponse({ status: 200, description: 'Métricas de rendimiento obtenidas correctamente', type: [TeacherPerformanceDto] })
   async getTeachersPerformance(): Promise<TeacherPerformanceDto[]> {
     return this.performanceService.getTeachersPerformance();
   }
 
   @Get('performance/:teacherId')
-  @ApiOperation({ summary: 'Obtener métricas de rendimiento para un profesor específico' })
-  @ApiParam({ name: 'teacherId', description: 'ID del profesor' })
-  @ApiResponse({ status: 200, description: 'Métricas de rendimiento obtenidas correctamente', type: TeacherPerformanceDto })
   async getTeacherPerformance(@Param('teacherId') teacherId: string): Promise<TeacherPerformanceDto> {
     return this.performanceService.getTeacherPerformance(teacherId);
   }
 
   @Post('revenue')
-  @ApiOperation({ summary: 'Obtener métricas de ingresos en un rango de fechas' })
-  @ApiBody({ type: DateRangeDto })
-  @ApiResponse({ status: 200, description: 'Métricas de ingresos obtenidas correctamente', type: RevenueDto })
   async getRevenueMetrics(@Body() dateRange: DateRangeDto): Promise<RevenueDto> {
     return this.revenueService.getRevenueMetrics(dateRange);
   }
 
   @Get('revenue/monthly')
-  @ApiOperation({ summary: 'Obtener ingresos mensuales para el año actual' })
-  @ApiResponse({ status: 200, description: 'Ingresos mensuales obtenidos correctamente' })
   async getMonthlyRevenue(): Promise<any> {
     return this.revenueService.getMonthlyRevenue();
   }
 
   @Get('revenue/courses')
-  @ApiOperation({ summary: 'Obtener ingresos agrupados por curso' })
-  @ApiResponse({ status: 200, description: 'Ingresos por curso obtenidos correctamente' })
   async getRevenueByCourse(): Promise<any> {
     return this.revenueService.getRevenueByCourse();
   }
 
   @Get('dropout')
-  @ApiOperation({ summary: 'Obtener tasas de abandono por curso' })
-  @ApiResponse({ status: 200, description: 'Tasas de abandono obtenidas correctamente', type: [DropoutRateDto] })
   async getDropoutRates(): Promise<DropoutRateDto[]> {
     return this.dropoutService.getDropoutRatesByCourse();
   }
 
   @Get('dropout/overall')
-  @ApiOperation({ summary: 'Obtener la tasa de abandono global' })
-  @ApiResponse({ status: 200, description: 'Tasa de abandono global obtenida correctamente' })
   async getOverallDropoutRate(): Promise<number> {
     return this.dropoutService.getOverallDropoutRate();
   }
 
   @Get('dropout/:courseId')
-  @ApiOperation({ summary: 'Obtener detalles de abandono para un curso específico' })
-  @ApiParam({ name: 'courseId', description: 'ID del curso' })
-  @ApiResponse({ status: 200, description: 'Detalles de abandono obtenidos correctamente', type: DropoutRateDto })
   async getCourseDropoutDetails(@Param('courseId') courseId: string): Promise<DropoutRateDto> {
     return this.dropoutService.getCourseDropoutDetails(courseId);
   }
 
   @Get('demographics/age')
-  @ApiOperation({ summary: 'Obtener distribución de estudiantes por edad' })
-  @ApiResponse({ status: 200, description: 'Distribución de edades obtenida correctamente', type: AgeDistributionDto })
   async getAgeDistribution(): Promise<AgeDistributionDto> {
     return this.demographicsService.getAgeDistribution();
   }
 
   @Get('demographics/age/courses')
-  @ApiOperation({ summary: 'Obtener distribución de edades por curso' })
-  @ApiResponse({ status: 200, description: 'Distribución de edades por curso obtenida correctamente' })
   async getAgeDistributionByCourse(): Promise<any> {
     return this.demographicsService.getAgeDistributionByCourse();
   }
