@@ -57,9 +57,11 @@ export default function PerformancePage() {
     try {
       setLoading(true);
       setError(null);
-      
       const token = Cookies.get('token');
-      const response = await fetch('/api/admin-stats/performance', {
+      if (!token) return;
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await fetch(`${apiUrl}/api/admin-stats/performance`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
