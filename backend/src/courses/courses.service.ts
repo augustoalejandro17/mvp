@@ -3,11 +3,13 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Course } from './schemas/course.schema';
 import { CreateCourseDto } from './dto/create-course.dto';
+import { UpdateCourseDto } from './dto/update-course.dto';
 import { User } from '../auth/schemas/user.schema';
 import { UserRole } from '../auth/enums/user-role.enum';
 import { SchoolsService } from '../schools/schools.service';
 import { Enrollment } from './schemas/enrollment.schema';
 import { School } from '../schools/schemas/school.schema';
+import { CreateClassDto } from '../classes/dto/create-class.dto';
 
 // Función de utilidad para comparar roles
 const compareRole = (userRole: any, enumRole: UserRole): boolean => {
@@ -34,40 +36,49 @@ export class CoursesService {
   ) {}
 
   async create(createCourseDto: CreateCourseDto, teacherId: string): Promise<Course> {
-    
-    
-    console.log('Datos para crear curso:', JSON.stringify(createCourseDto));
-    
-    try {
-      // Verificar que la escuela exista
-      const school = await this.schoolModel.findById(createCourseDto.schoolId);
+    const { schoolId, teacher, teachers, sede, ...courseData } = createCourseDto;
+
+    // Validate School
+    const school = await this.schoolModel.findById(schoolId);
       if (!school) {
-        throw new BadRequestException(`La escuela con ID ${createCourseDto.schoolId} no existe`);
+      throw new NotFoundException(`School with ID ${schoolId} not found`);
       }
       
-      // Configurar profesor principal (puede ser el que se proporciona en el DTO o el usuario actual)
-      const mainTeacherId = createCourseDto.teacher || teacherId;
+    // Validate Sede if provided
+    if (sede) {
+      if (!school.sedes || school.sedes.length === 0) {
+        throw new BadRequestException(`School ${school.name} does not have any sedes defined. Cannot assign course to a sede.`);
+      }
+      if (!school.sedes.includes(sede)) {
+        throw new BadRequestException(`Sede '${sede}' is not a valid sede for school ${school.name}. Valid sedes are: ${school.sedes.join(', ')}`);
+      }
+    }
+
+    // Validate Teacher
+    if (!teacher) {
+      throw new BadRequestException('Teacher is required');
+    }
       
       // Verificar que el profesor principal exista
-      const mainTeacher = await this.userModel.findById(mainTeacherId);
+    const mainTeacher = await this.userModel.findById(teacher);
       if (!mainTeacher) {
-        throw new BadRequestException(`El profesor principal con ID ${mainTeacherId} no existe`);
+      throw new BadRequestException(`El profesor principal con ID ${teacher} no existe`);
       }
       
       // Procesar lista de profesores adicionales
-      let teachersArray = [mainTeacherId]; // Incluir profesor principal como el primer profesor
+    let teachersArray = [teacher]; // Incluir profesor principal como el primer profesor
       
       // Si se proporcionaron profesores adicionales
-      if (createCourseDto.teachers && createCourseDto.teachers.length > 0) {
+    if (teachers && teachers.length > 0) {
         // Verificar que no exceda el límite de 5 profesores
-        if (createCourseDto.teachers.length > 4) { // 4 + 1 principal = 5 total
+      if (teachers.length > 4) { // 4 + 1 principal = 5 total
           throw new BadRequestException('Un curso no puede tener más de 5 profesores');
         }
         
         // Verificar que los profesores existan y eliminar duplicados
-        const uniqueTeachers = new Set<string>([mainTeacherId]);
+      const uniqueTeachers = new Set<string>([teacher]);
         
-        for (const teacherId of createCourseDto.teachers) {
+      for (const teacherId of teachers) {
           if (!uniqueTeachers.has(teacherId)) {
             const teacher = await this.userModel.findById(teacherId);
             if (!teacher) {
@@ -83,27 +94,27 @@ export class CoursesService {
       
       // Crear el curso con los profesores
       const createdCourse = new this.courseModel({
-        title: createCourseDto.title,
-        description: createCourseDto.description,
-        coverImageUrl: createCourseDto.coverImageUrl,
-        isPublic: createCourseDto.isPublic || false,
-        school: createCourseDto.schoolId,
-        teacher: mainTeacherId, // Profesor principal (para compatibilidad)
-        teachers: teachersArray, // Array de profesores
-        promotionOrder: createCourseDto.promotionOrder || 999, // Usar valor del DTO o valor por defecto
-        isFeatured: createCourseDto.isFeatured || false, // Usar valor del DTO o valor por defecto
-      });
-      
-      
+      title: courseData.title,
+      description: courseData.description,
+      coverImageUrl: courseData.coverImageUrl,
+      isPublic: courseData.isPublic || false,
+      school: schoolId,
+      teacher: teacher,
+      teachers: teachersArray,
+      sede,
+      promotionOrder: courseData.promotionOrder || 999,
+      isFeatured: courseData.isFeatured || false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
       
       const result = await createdCourse.save();
       console.log('Curso guardado exitosamente:', result);
       
       // Añadir el curso a la escuela
-      
       try {
-        await this.schoolsService.addCourse(createCourseDto.schoolId, String(result._id));
-        console.log(`Curso añadido exitosamente a la escuela ${createCourseDto.schoolId}`);
+      await this.schoolsService.addCourse(schoolId, String(result._id));
+      console.log(`Curso añadido exitosamente a la escuela ${schoolId}`);
       } catch (error) {
         this.logger.error(`Error al añadir curso a escuela: ${error.message}`, error.stack);
         console.error('Error al añadir curso a escuela:', error);
@@ -122,17 +133,9 @@ export class CoursesService {
       }
       
       return result;
-    } catch (error) {
-      console.error('Error al crear curso:', error);
-      this.logger.error(`Error al crear curso: ${error.message}`, error.stack);
-      throw error;
-    }
   }
 
   async findAll(userId?: string, role?: UserRole | string, schoolId?: string) {
-    
-    
-    
     try {
       let query: any = {};
       
@@ -146,12 +149,10 @@ export class CoursesService {
       
       // Super admins pueden ver todos los cursos
       if (roleStr === 'super_admin') {
-        
         // No aplicamos ningún filtro adicional para super_admin
       }
       // Los usuarios admin también pueden ver todos los cursos
       else if (roleStr === 'admin') {
-        
         // No aplicamos ningún filtro adicional para admin
       }
       // Para otros roles, filtramos por cursos públicos o donde esté asociado
@@ -175,14 +176,11 @@ export class CoursesService {
         }
       }
       
-      
-      
       const courses = await this.courseModel.find(query)
         .populate('school', 'name')
         .populate('teacher', 'name email')
         .select('-students -classes')
         .sort({ promotionOrder: 1, title: 1 }); // Ordenar primero por orden de promoción, luego alfabéticamente
-      
       
       return courses;
     } catch (error) {
@@ -192,7 +190,6 @@ export class CoursesService {
   }
 
   async findOne(id: string) {
-    
     try {
       const course = await this.courseModel.findById(id)
         .populate('teacher', 'name email')
@@ -205,7 +202,6 @@ export class CoursesService {
         .lean();
       
       if (!course) {
-        
         throw new NotFoundException(`Curso con ID ${id} no encontrado`);
       }
       
@@ -224,7 +220,6 @@ export class CoursesService {
         }) : []
       };
       
-      
       return courseWithVisibility;
     } catch (error) {
       this.logger.error(`Error al buscar curso ${id}: ${error.message}`, error.stack);
@@ -232,113 +227,85 @@ export class CoursesService {
     }
   }
 
-  async update(id: string, updateCourseDto: any, userId: string) {
-    try {
+  async update(id: string, updateCourseDto: UpdateCourseDto, userId: string): Promise<Course> {
+    const { schoolId, teacher, teachers, sede, ...courseData } = updateCourseDto;
       const course = await this.courseModel.findById(id);
       
       if (!course) {
-        throw new NotFoundException(`Curso con ID ${id} no encontrado`);
+      throw new NotFoundException(`Course with ID ${id} not found`);
       }
       
-      // Verificar permisos
-      const user = await this.userModel.findById(userId);
-      if (!user) {
-        throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
+    // Basic permission check (user must be admin or teacher of the course or school admin)
+    // This should be expanded with more granular role-based access control
+    const school = await this.schoolModel.findById(course.school).populate('admin');
+    if (!school) {
+      throw new NotFoundException(`School for course with ID ${id} not found`);
       }
       
-      // Permitir modificación si el usuario es el profesor principal o un administrador
-      const isTeacher = course.teacher.toString() === userId;
-      const isAdmin = compareRole(user.role, UserRole.ADMIN) || compareRole(user.role, UserRole.SUPER_ADMIN);
+    const isAdmin = school.admin && (school.admin as any)._id.toString() === userId;
+    const isCourseTeacher = course.teacher.toString() === userId || (course.teachers && course.teachers.some(t => t.toString() === userId));
+    const user = await this.userModel.findById(userId);
+    const isSuperAdmin = user && user.role === UserRole.SUPER_ADMIN;
       
-      if (!isTeacher && !isAdmin) {
-        throw new UnauthorizedException('No tienes permisos para actualizar este curso');
+    if (!isAdmin && !isCourseTeacher && !isSuperAdmin) {
+      throw new UnauthorizedException('You do not have permission to update this course');
       }
       
-      // Crear objeto con datos a actualizar
-      const updateData = { ...updateCourseDto };
+    // Validate Sede if provided or changed
+    if (sede !== undefined) { // If sede is part of the update
+      const targetSchoolId = schoolId || course.school.toString();
+      const targetSchool = schoolId ? await this.schoolModel.findById(schoolId) : school;
       
-      // Manejar la actualización de profesores
-      if (updateData.teacher) {
-        // Verificar que el profesor principal exista
-        const mainTeacher = await this.userModel.findById(updateData.teacher);
-        if (!mainTeacher) {
-          throw new BadRequestException(`El profesor principal con ID ${updateData.teacher} no existe`);
+      if (!targetSchool) {
+        throw new NotFoundException(`Target school with ID ${targetSchoolId} not found for sede validation.`);
+        }
+
+      if (sede === '' || sede === null) { // Allowing to remove/nullify sede
+        course.sede = null; // Assign null directly to the course model property
+      } else {
+        if (!targetSchool.sedes || targetSchool.sedes.length === 0) {
+          throw new BadRequestException(`School ${targetSchool.name} does not have any sedes defined. Cannot assign course to a sede.`);
+        }
+        if (!targetSchool.sedes.includes(sede)) {
+          throw new BadRequestException(`Sede '${sede}' is not a valid sede for school ${targetSchool.name}. Valid sedes are: ${targetSchool.sedes.join(', ')}`);
         }
       }
-      
-      // Manejar la actualización de la lista de profesores
-      if (updateData.teachers && Array.isArray(updateData.teachers)) {
-        // Verificar que no exceda el límite de 5 profesores
-        if (updateData.teachers.length > 5) {
-          throw new BadRequestException('Un curso no puede tener más de 5 profesores');
-        }
-        
-        // Verificar que todos los profesores existan
-        const uniqueTeachers = new Set<string>();
-        
-        for (const teacherId of updateData.teachers) {
-          if (!uniqueTeachers.has(teacherId)) {
-            const teacher = await this.userModel.findById(teacherId);
-            if (!teacher) {
-              throw new BadRequestException(`El profesor con ID ${teacherId} no existe`);
-            }
-            uniqueTeachers.add(teacherId);
-          }
-        }
-        
-        // Asignar array de profesores sin duplicados
-        updateData.teachers = Array.from(uniqueTeachers);
-      }
-      
-      // Actualizar el curso
-      const updatedCourse = await this.courseModel.findByIdAndUpdate(
-        id,
-        updateData,
-        { new: true }
-      );
-      
-      // Actualizar los profesores (agregar o eliminar el curso de sus listas de cursos)
-      // Primero obtenemos los IDs de profesores actuales y nuevos
-      const currentTeacherIds = course.teachers?.map(t => String(t)) || [String(course.teacher)];
-      const newTeacherIds = updateData.teachers || [updateData.teacher];
-      
-      // Profesores a eliminar (están en current pero no en new)
-      const teachersToRemove = currentTeacherIds.filter(id => !newTeacherIds.includes(id));
-      
-      // Profesores a añadir (están en new pero no en current)
-      const teachersToAdd = newTeacherIds.filter(id => !currentTeacherIds.includes(id));
-      
-      // Eliminar el curso de los profesores que ya no están asignados
-      for (const teacherId of teachersToRemove) {
-        try {
-          await this.userModel.findByIdAndUpdate(teacherId, {
-            $pull: { teachingCourses: id }
-          });
-        } catch (error) {
-          this.logger.error(`Error al eliminar curso del profesor ${teacherId}: ${error.message}`);
-        }
-      }
-      
-      // Añadir el curso a los nuevos profesores
-      for (const teacherId of teachersToAdd) {
-        try {
-          await this.userModel.findByIdAndUpdate(teacherId, {
-            $addToSet: { teachingCourses: id }
-          });
-        } catch (error) {
-          this.logger.error(`Error al añadir curso al profesor ${teacherId}: ${error.message}`);
-        }
-      }
-      
-      return updatedCourse;
-    } catch (error) {
-      this.logger.error(`Error al actualizar curso ${id}: ${error.message}`, error.stack);
-      throw error;
     }
+
+    // If schoolId is being changed, validate the new school and its sedes
+    if (schoolId && schoolId !== course.school.toString()) {
+      const newSchool = await this.schoolModel.findById(schoolId);
+      if (!newSchool) {
+        throw new NotFoundException(`New school with ID ${schoolId} not found`);
+          }
+      // If changing school and a sede is specified, it must be valid for the NEW school
+      if (sede) {
+        if (!newSchool.sedes || newSchool.sedes.length === 0) {
+          throw new BadRequestException(`New school ${newSchool.name} does not have any sedes defined for sede '${sede}'.`);
+        }
+        if (!newSchool.sedes.includes(sede)) {
+          throw new BadRequestException(`Sede '${sede}' is not valid for new school ${newSchool.name}. Valid sedes are: ${newSchool.sedes.join(', ')}`);
+        }
+      } else {
+        // If changing school and NO sede is specified, clear the sede field if the new school has multiple sedes (force selection)
+        // Or, if new school has only one sede, could auto-assign it (optional complexity)
+        // For now, if new school has sedes and no sede provided in DTO, we might clear it or require it.
+        // Current logic: if DTO.sede is undefined, it won't be updated unless explicitly set to null.
+      }
+    }
+
+    // Update course fields
+    Object.assign(course, courseData); // Apply other changes from courseData
+    if (schoolId) course.school = new Types.ObjectId(schoolId) as any;
+    if (teacher) course.teacher = new Types.ObjectId(teacher) as any;
+    if (teachers) course.teachers = teachers.map(tId => new Types.ObjectId(tId) as any);
+    if (sede !== undefined) course.sede = sede; // Apply sede if it was in DTO
+
+    course.updatedAt = new Date();
+    return course.save();
   }
 
   async addStudent(courseId: string, studentId: string, userId: string) {
-    
     try {
       const course = await this.courseModel.findById(courseId);
       
@@ -372,7 +339,6 @@ export class CoursesService {
         $addToSet: { enrolledCourses: courseId }
       });
       
-      
       return { success: true };
     } catch (error) {
       this.logger.error(`Error al añadir estudiante: ${error.message}`, error.stack);
@@ -381,7 +347,6 @@ export class CoursesService {
   }
 
   async removeStudent(courseId: string, studentId: string, userId: string) {
-    
     try {
       const course = await this.courseModel.findById(courseId);
       
@@ -409,7 +374,6 @@ export class CoursesService {
         $pull: { enrolledCourses: courseId }
       });
       
-      
       return { success: true };
     } catch (error) {
       this.logger.error(`Error al eliminar estudiante: ${error.message}`, error.stack);
@@ -432,12 +396,10 @@ export class CoursesService {
   }
 
   async remove(id: string, userId: string) {
-    
     try {
       const course = await this.courseModel.findById(id);
       
       if (!course) {
-        
         throw new NotFoundException(`Curso con ID ${id} no encontrado`);
       }
       
@@ -447,7 +409,6 @@ export class CoursesService {
       if (!isTeacher) {
         const user = await this.userModel.findById(userId);
         if (!user || !compareRole(user.role, UserRole.ADMIN)) {
-          
           throw new UnauthorizedException('No tiene permisos para eliminar este curso');
         }
       }
@@ -463,7 +424,6 @@ export class CoursesService {
         this.logger.error(`Error al eliminar referencia del curso en la escuela: ${error.message}`, error.stack);
         // No lanzamos excepción para no interrumpir la eliminación del curso
       }
-      
       
       return { success: true, message: 'Curso eliminado exitosamente' };
     } catch (error) {
@@ -964,8 +924,6 @@ export class CoursesService {
   }
 
   async getTeachingCourses(userId: string, userRole: string) {
-    
-    
     try {
       let courses;
       
@@ -983,7 +941,6 @@ export class CoursesService {
           .select('-students -classes');
       }
       
-      
       return courses;
     } catch (error) {
       this.logger.error(`Error getting teaching courses: ${error.message}`, error.stack);
@@ -992,20 +949,14 @@ export class CoursesService {
   }
 
   async getEnrolledCourses(userId: string) {
-    
-    
     try {
       // Get all enrollments for this student (only active ones)
-      
       const enrollments = await this.enrollmentModel.find({ 
         student: new Types.ObjectId(userId),
         isActive: true
       });
       
-      
-      
       if (!enrollments || enrollments.length === 0) {
-        
         return [];
       }
       
@@ -1026,8 +977,6 @@ export class CoursesService {
           : new Types.ObjectId(enrollment.course.toString())
       );
       
-      
-      
       // Get the courses
       const courses = await this.courseModel.find({
         _id: { $in: courseIds }
@@ -1035,8 +984,6 @@ export class CoursesService {
         .populate('school', 'name')
         .populate('teacher', 'name email')
         .select('-students -classes');
-      
-      
       
       // Registrar los IDs de los cursos encontrados
       if (courses.length > 0) {
@@ -1061,7 +1008,6 @@ export class CoursesService {
   }
 
   async getCourseForUser(id: string, userId: string, userRole: string) {
-    
     try {
       // Obtener el curso
       const course = await this.findOne(id);
@@ -1157,8 +1103,6 @@ export class CoursesService {
     
     // Si la inscripción estaba inactiva, necesitamos actualizar referencias
     if (wasInactive) {
-      
-      
       const courseId = enrollment.course.toString();
       const studentId = enrollment.student.toString();
       
@@ -1223,14 +1167,11 @@ export class CoursesService {
         // Esperar a que todas las actualizaciones se completen
         await Promise.all(updatePromises);
         
-        
       } catch (error) {
         this.logger.error(`Error actualizando referencias al reactivar enrollment: ${error.message}`, error.stack);
         // No lanzar error para no interrumpir el flujo, el pago ya se registró
       }
     }
-    
-    
     
     return enrollment;
   }

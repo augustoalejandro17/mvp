@@ -43,4 +43,13 @@ export class CreateSchoolDto {
   @IsMongoId({ each: true, message: 'Los IDs del personal administrativo deben ser válidos' })
   @IsOptional()
   administratives?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  readonly sedes?: string[];
+
+  @IsOptional()
+  @IsMongoId()
+  readonly activeSubscription?: string;
 } 

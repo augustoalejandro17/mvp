@@ -66,7 +66,15 @@ export default function SchoolDetail() {
   const [isDeleting, setIsDeleting] = useState(false);
   const { handleApiError } = useApiErrorHandler();
 
+  // New states for filtering
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedTeacherId, setSelectedTeacherId] = useState('');
+  const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
+
   const fetchSchoolAndCourses = useCallback(async () => {
+    // Si no tenemos ID, no hacemos la petición
+    if (!id) return;
+
     try {
       setLoading(true);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -98,9 +106,32 @@ export default function SchoolDetail() {
     }
   }, [id, router, handleApiError]);
 
+  // Modificamos el useEffect para que solo se ejecute cuando tengamos un ID
   useEffect(() => {
-    fetchSchoolAndCourses();
-  }, [fetchSchoolAndCourses]);
+    if (id) {
+      fetchSchoolAndCourses();
+    }
+  }, [id, fetchSchoolAndCourses]);
+
+  // useEffect for filtering courses
+  useEffect(() => {
+    let tempCourses = courses;
+
+    // Filter by search term
+    if (searchTerm) {
+      tempCourses = tempCourses.filter(course => 
+        course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        course.description.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Filter by selected teacher
+    if (selectedTeacherId) {
+      tempCourses = tempCourses.filter(course => course.teacher._id === selectedTeacherId);
+    }
+
+    setFilteredCourses(tempCourses);
+  }, [courses, searchTerm, selectedTeacherId]);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -212,16 +243,36 @@ export default function SchoolDetail() {
     }
   };
 
-  if (loading) {
+  if (!id || loading) {
     return <div className={styles.loading}>Cargando información...</div>;
   }
 
   if (error) {
-    return <div className={styles.error}>{error}</div>;
+    return (
+      <div className={styles.error}>
+        <p>{error}</p>
+        <button 
+          onClick={() => router.push('/')}
+          className={styles.backButton}
+        >
+          Volver a la página principal
+        </button>
+      </div>
+    );
   }
 
   if (!school) {
-    return <div className={styles.error}>No se encontró la escuela</div>;
+    return (
+      <div className={styles.error}>
+        <p>No se encontró la escuela</p>
+        <button 
+          onClick={() => router.push('/')}
+          className={styles.backButton}
+        >
+          Volver a la página principal
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -255,13 +306,42 @@ export default function SchoolDetail() {
           </div>
         </div>
         
+        {/* Filters: Search bar and Teacher dropdown - styled like admin filters */}
+        <div className={styles.searchFilterRow}>
+          <div className={styles.searchWrapper}>
+            <input 
+              type="text"
+              placeholder="Buscar cursos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className={styles.input}
+            />
+          </div>
+          {school.teachers && school.teachers.length > 0 && (
+            <div className={styles.filterWrapper}>
+              <select 
+                value={selectedTeacherId}
+                onChange={(e) => setSelectedTeacherId(e.target.value)}
+                className={styles.select}
+              >
+                <option value="">Todos los Profesores</option>
+                {school.teachers.map(teacher => (
+                  <option key={teacher._id} value={teacher._id}>
+                    {teacher.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+        
         <h2 className={styles.sectionTitle}>Cursos Disponibles</h2>
         
         {courses.length === 0 ? (
           <p className={styles.noResults}>Esta escuela aún no tiene cursos disponibles.</p>
         ) : (
           <div className={styles.grid}>
-            {courses.map((course) => (
+            {filteredCourses.map((course) => (
               <div 
                 key={course._id} 
                 className={`${styles.card} ${course.isFeatured ? styles.featuredCard : ''}`}

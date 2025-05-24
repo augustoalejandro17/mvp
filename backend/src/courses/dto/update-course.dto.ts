@@ -42,4 +42,8 @@ export class UpdateCourseDto {
   @IsOptional()
   @IsBoolean()
   isFeatured?: boolean;
+
+  @IsOptional()
+  @IsString()
+  readonly sede?: string;
 } 

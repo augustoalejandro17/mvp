@@ -19,6 +19,9 @@ export class Course {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'School', required: true })
   school: School;
 
+  @Prop({ type: String, required: false })
+  sede?: string;
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   teacher: User;
 

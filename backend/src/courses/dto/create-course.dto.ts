@@ -42,4 +42,8 @@ export class CreateCourseDto {
   @IsOptional()
   @IsBoolean()
   isFeatured?: boolean = false; // No destacado por defecto
+
+  @IsOptional()
+  @IsString()
+  readonly sede?: string;
 } 

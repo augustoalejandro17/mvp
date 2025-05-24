@@ -22,6 +22,9 @@ export class UserSchoolRole {
 
   @Prop({ required: true, type: String, enum: Object.values(UserRole) })
   role: string;
+
+  @Prop({ type: String, required: false }) // Optional Sede/branch for this role
+  sede?: string;
 }
 
 export const UserSchoolRoleSchema = SchemaFactory.createForClass(UserSchoolRole);

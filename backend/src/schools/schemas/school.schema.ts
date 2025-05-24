@@ -57,6 +57,9 @@ export class School {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  @Prop({ type: [String], default: [] })
+  sedes: string[];
 }
 
 export const SchoolSchema = SchemaFactory.createForClass(School); 

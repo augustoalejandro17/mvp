@@ -15,7 +15,7 @@ export class SchoolsService {
   ) {}
 
   async create(createSchoolDto: CreateSchoolDto, userId: string) {
-    const { name, description, logoUrl, isPublic, admin, teachers, administratives } = createSchoolDto;
+    const { name, description, logoUrl, isPublic, admin, teachers, administratives, sedes } = createSchoolDto;
     
     try {
       // Validate user permissions for creating schools
@@ -27,6 +27,7 @@ export class SchoolsService {
         logoUrl,
         isPublic,
         admin: admin || userId,
+        sedes: sedes || [],
       });
       
       // Add teachers if provided

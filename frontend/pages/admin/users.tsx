@@ -53,12 +53,14 @@ interface Attendance {
 interface School {
   _id: string;
   name: string;
+  sedes?: string[]; // Added sedes to frontend interface
 }
 
 interface Course {
   _id: string;
   title: string;
   school: string | School;
+  sede?: string; // Added sede to frontend interface
 }
 
 interface DecodedToken {
@@ -90,6 +92,8 @@ export default function UserManagement() {
   const [userSchools, setUserSchools] = useState<School[]>([]); // Escuelas asociadas al usuario actual
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedSchool, setSelectedSchool] = useState<string>('');
+  const [selectedCourse, setSelectedCourse] = useState<string>('');
+  const [selectedSede, setSelectedSede] = useState<string>(''); // New state for selected sede
   const [attendanceRecords, setAttendanceRecords] = useState<Attendance[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -98,6 +102,9 @@ export default function UserManagement() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null); // Nuevo estado para controlar qué email está expandido
+  
+  // Memoize currentSchool for use in JSX
+  const currentSchool = useMemo(() => schools.find(s => s._id === selectedSchool), [schools, selectedSchool]);
   
   // Estados para el ordenamiento
   const [sortBy, setSortBy] = useState<string>('name');
@@ -507,6 +514,20 @@ export default function UserManagement() {
         user.schoolRoles?.some(sr => sr.schoolId === selectedSchool) || 
         user.schools?.includes(selectedSchool)
       );
+
+      // Filter by selected course if a school is selected
+      if (selectedCourse) {
+        tempUsers = tempUsers.filter(user =>
+          user.enrolledCourses?.includes(selectedCourse)
+        );
+      }
+
+      // Placeholder for Sede filtering - actual filtering logic depends on backend
+      if (selectedSede) {
+        // tempUsers = tempUsers.filter(user => { /* Logic to filter by sede */ });
+        // For now, this doesn't change the filter further, just sets the UI state.
+        // Backend changes would be needed to make this effective.
+      }
     }
     
     // Aplicar filtro de búsqueda por término
@@ -519,7 +540,7 @@ export default function UserManagement() {
     
     setFilteredUsers(tempUsers);
     setCurrentPage(1); // Resetear a la primera página con cada filtro
-  }, [searchTerm, users, selectedSchool]);
+  }, [searchTerm, users, selectedSchool, selectedCourse, selectedSede, schools]); // Added selectedSede and schools
         
   // Actualizar totalPages cuando cambia el ordenamiento o los filtros
   useEffect(() => {
@@ -942,6 +963,43 @@ export default function UserManagement() {
   };
 
   // Filtrado de cursos según escuela seleccionada
+  const getFilteredCoursesBySchool = () => {
+    if (!selectedSchool || selectedSchool === 'all' || selectedSchool === 'unregistered') return [];
+    
+    let schoolCourses = courses.filter(course => {
+      const schoolOfCourse = course.school;
+      let courseMatchesSchool = false;
+      if (typeof schoolOfCourse === 'string') {
+        courseMatchesSchool = schoolOfCourse === selectedSchool;
+      } else {
+        courseMatchesSchool = (schoolOfCourse as School)?._id === selectedSchool;
+      }
+      return courseMatchesSchool;
+    });
+
+    // If a sede is also selected, further filter courses by that sede
+    if (selectedSede) {
+      schoolCourses = schoolCourses.filter(course => course.sede === selectedSede);
+    }
+
+    return schoolCourses;
+  };
+
+  // Filtrado de cursos según escuela seleccionada (OLD - can be removed or commented)
+  /*
+  const getFilteredCoursesBySchool = () => {
+    if (!selectedSchool || selectedSchool === 'all' || selectedSchool === 'unregistered') return [];
+    return courses.filter(course => {
+      const schoolOfCourse = course.school;
+      if (typeof schoolOfCourse === 'string') {
+        return schoolOfCourse === selectedSchool;
+      }
+      return (schoolOfCourse as School)?._id === selectedSchool;
+    });
+  };
+  */
+
+  // Filtrado de cursos según escuela seleccionada
   const getFilteredCourses = () => {
     if (!formData.school) return [];
     
@@ -1277,7 +1335,11 @@ export default function UserManagement() {
                       <select
                         className={styles.select}
                         value={selectedSchool}
-                        onChange={(e) => setSelectedSchool(e.target.value)}
+                        onChange={(e) => {
+                          setSelectedSchool(e.target.value);
+                          setSelectedCourse(''); // Reset course when school changes
+                          setSelectedSede(''); // Reset sede when school changes
+                        }}
                       >
                         <option value="">Todas las escuelas</option>
                         <option value="unregistered">Asistentes sin registro</option>
@@ -1288,31 +1350,40 @@ export default function UserManagement() {
                         ))}
                       </select>
                     </div>
-                    <div className={styles.sortControls}>
-                      <label htmlFor="sortBy">Ordenar:</label>
+                    {/* New Course Filter Dropdown */}
+                    {selectedSchool && selectedSchool !== 'all' && selectedSchool !== 'unregistered' && (
+                      <div className={styles.filterWrapper}>
                       <select 
-                        id="sortBy"
-                        value={sortBy}
-                        onChange={(e) => {
-                          setSortBy(e.target.value);
-                          setSortOrder('asc');
-                        }}
                         className={styles.select}
-                      >
-                        <option value="name">Nombre</option>
-                        <option value="email">Email</option>
-                        <option value="role">Rol</option>
-                        <option value="date">Fecha</option>
+                          value={selectedCourse}
+                          onChange={(e) => setSelectedCourse(e.target.value)}
+                        >
+                          <option value="">Todos los cursos</option>
+                          {getFilteredCoursesBySchool().map(course => (
+                            <option key={course._id} value={course._id}>
+                              {course.title}
+                            </option>
+                          ))}
                       </select>
-                      
-                      <button 
-                        onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                        className={`${styles.iconButton} ${styles.sortDirectionButton}`}
-                        title={`Orden ${sortOrder === 'asc' ? 'ascendente' : 'descendente'}`}
-                      >
-                        {sortOrder === 'asc' ? '↑' : '↓'}
-                      </button>
+                      </div>
+                    )}
+                    {/* New Sede Filter Dropdown */}
+                    {(currentSchool && currentSchool.sedes && currentSchool.sedes.length > 0) && (
+                      <div className={styles.filterWrapper}>
+                        <select
+                          className={styles.select}
+                          value={selectedSede}
+                          onChange={(e) => setSelectedSede(e.target.value)}
+                        >
+                          <option value="">Todas las sedes</option>
+                          {currentSchool.sedes.map(sede => (
+                            <option key={sede} value={sede}>
+                              {sede}
+                            </option>
+                          ))}
+                        </select>
                     </div>
+                    )}
                   </div>
                 ) : 
                   <div className={styles.noPermissionsMessage}>
