@@ -42,6 +42,68 @@ export class StatisticsController {
     @InjectModel(Plan.name) private planModel: Model<Plan>,
   ) {}
 
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMIN)
+  async getStats(@Query('schoolId') schoolId: string, @Request() req) {
+    try {
+      const user = req.user;
+      const userId = user.sub || (user._id ? user._id.toString() : null);
+      if (!userId) {
+        throw new Error('ID de usuario no disponible');
+      }
+      
+      const stats: any = {};
+      
+      if (schoolId && schoolId !== 'all') {
+        // Asegurarse de que checkSchoolAccess existe o moverlo aquí
+        const hasAccess = await this.checkSchoolAccess(user, schoolId); 
+        if (!hasAccess) {
+           throw new Error('Acceso denegado a la escuela');
+        }
+        stats.users = await this.getUserCountForSchool(schoolId);
+        stats.schools = 1;
+        stats.courses = await this.getCourseCountForSchool(schoolId);
+        stats.classes = await this.getClassCountForSchool(schoolId);
+      } else {
+        if (user.role === UserRole.SUPER_ADMIN) {
+          stats.users = await this.userModel.countDocuments();
+          stats.schools = await this.schoolModel.countDocuments();
+          stats.courses = await this.courseModel.countDocuments();
+          stats.classes = await this.classModel.countDocuments();
+        } else if (user.role === UserRole.SCHOOL_OWNER) {
+          const ownedSchools = await this.schoolModel.find({ admin: userId });
+          const schoolIds = ownedSchools.map(school => school._id);
+          stats.users = await this.getUserCountForSchools(schoolIds);
+          stats.schools = schoolIds.length;
+          stats.courses = await this.getCourseCountForSchools(schoolIds);
+          stats.classes = await this.getClassCountForSchools(schoolIds);
+        } else if (user.role === UserRole.ADMIN) {
+          // Para 'admin', asumimos que son administradores de escuelas específicas (ej. teachers con rol admin)
+          // Esta lógica puede necesitar ajustarse según tu definición exacta de 'ADMIN'
+          const adminSchools = await this.schoolModel.find({ 
+            $or: [{ admin: userId }, { teachers: userId }] 
+          });
+          const schoolIds = adminSchools.map(school => school._id);
+          stats.users = await this.getUserCountForSchools(schoolIds);
+          stats.schools = schoolIds.length;
+          stats.courses = await this.getCourseCountForSchools(schoolIds);
+          stats.classes = await this.getClassCountForSchools(schoolIds);
+        }
+      }
+      return stats;
+    } catch (error) {
+      console.error('Error getting stats:', error);
+      return {
+        users: 0,
+        schools: 0,
+        courses: 0,
+        classes: 0,
+        error: 'Error al obtener estadísticas generales: ' + error.message
+      };
+    }
+  }
+
   @Get('subscriptions')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
@@ -201,30 +263,6 @@ export class StatisticsController {
     }
   }
 
-  private async checkSchoolAccess(user: any, schoolId: string): Promise<boolean> {
-    // Normalizar el ID del usuario
-    const userId = user.sub || (user._id ? user._id.toString() : null);
-    if (!userId) {
-      return false;
-    }
-    
-    if (user.role === UserRole.SUPER_ADMIN) {
-      return true; // Super admin has access to all schools
-    }
-    
-    const school = await this.schoolModel.findById(schoolId);
-    if (!school) {
-      return false;
-    }
-    
-    // Check if user is admin or teacher
-    const isAdmin = school.admin && school.admin.toString() === userId;
-    const isTeacher = school.teachers && 
-      school.teachers.some(teacherId => teacherId.toString() === userId);
-    
-    return isAdmin || isTeacher;
-  }
-
   @Get('overview')
   async getOverviewStats(@Request() req) {
     try {
@@ -264,53 +302,6 @@ export class StatisticsController {
         totalRevenue: 0,
         retentionRate: 0,
         error: 'Error al obtener estadísticas de vista general'
-      };
-    }
-  }
-
-  @Get()
-  async getStats(@Query('schoolId') schoolId: string, @Request() req) {
-    try {
-      // Proporcionar datos básicos de estadísticas para el dashboard
-      // Consultar modelos directamente para obtener datos reales
-      let userQuery = {};
-      let courseQuery = {};
-      let classQuery = {};
-      let schoolQuery = {};
-      
-      // Si se proporciona un ID de escuela, filtrar por esa escuela
-      if (schoolId && schoolId !== 'all') {
-        userQuery = { schools: schoolId };
-        courseQuery = { school: schoolId };
-        // Para las clases, necesitamos los IDs de los cursos de la escuela
-        const schoolCourses = await this.courseModel.find({ school: schoolId }).select('_id');
-        const courseIds = schoolCourses.map(course => course._id);
-        classQuery = { course: { $in: courseIds } };
-        schoolQuery = { _id: schoolId };
-      }
-      
-      // Obtener recuentos directamente de la base de datos
-      const [userCount, courseCount, classCount, schoolCount] = await Promise.all([
-        this.userModel.countDocuments(userQuery),
-        this.courseModel.countDocuments(courseQuery),
-        this.classModel.countDocuments(classQuery),
-        this.schoolModel.countDocuments(schoolQuery)
-      ]);
-
-      return {
-        users: userCount,
-        courses: courseCount,
-        classes: classCount,
-        schools: schoolCount || 1 // Asegurar que al menos hay una escuela
-      };
-    } catch (error) {
-      console.error('Error getting basic stats:', error);
-      return {
-        users: 0,
-        courses: 0,
-        classes: 0,
-        schools: 0,
-        error: 'Error al obtener estadísticas básicas'
       };
     }
   }
@@ -416,5 +407,66 @@ export class StatisticsController {
   @Get('demographics/age/courses')
   async getAgeDistributionByCourse(): Promise<any> {
     return this.demographicsService.getAgeDistributionByCourse();
+  }
+
+  private async checkSchoolAccess(user: any, schoolId: string): Promise<boolean> {
+    const userId = user.sub || (user._id ? user._id.toString() : null);
+    if (!userId) {
+      return false;
+    }
+    if (user.role === UserRole.SUPER_ADMIN) {
+      return true;
+    }
+    const school = await this.schoolModel.findById(schoolId).lean();
+    if (!school) {
+      return false;
+    }
+    const isAdmin = school.admin && school.admin.toString() === userId;
+    // Asegurarse de que school.teachers exista y sea un array antes de usar .some
+    const isTeacher = Array.isArray(school.teachers) && school.teachers.some(teacherId => teacherId && teacherId.toString() === userId);
+    
+    // Si el rol es SCHOOL_OWNER, debe ser el admin de la escuela
+    if (user.role === UserRole.SCHOOL_OWNER) {
+        return isAdmin;
+    }
+    // Si el rol es ADMIN (asumido como un profesor con permisos elevados o un admin específico de escuela)
+    if (user.role === UserRole.ADMIN) {
+        return isAdmin || isTeacher;
+    }
+    return false;
+  }
+
+  private async getUserCountForSchool(schoolId: string): Promise<number> {
+    return this.userModel.countDocuments({ schools: schoolId });
+  }
+
+  private async getUserCountForSchools(schoolIds: any[]): Promise<number> {
+    if (!schoolIds || schoolIds.length === 0) return 0;
+    return this.userModel.countDocuments({ schools: { $in: schoolIds } });
+  }
+
+  private async getCourseCountForSchool(schoolId: string): Promise<number> {
+    return this.courseModel.countDocuments({ school: schoolId });
+  }
+
+  private async getCourseCountForSchools(schoolIds: any[]): Promise<number> {
+    if (!schoolIds || schoolIds.length === 0) return 0;
+    return this.courseModel.countDocuments({ school: { $in: schoolIds } });
+  }
+
+  private async getClassCountForSchool(schoolId: string): Promise<number> {
+    // Suponiendo que las clases están vinculadas a cursos que pertenecen a una escuela
+    const coursesInSchool = await this.courseModel.find({ school: schoolId }).select('_id').lean();
+    const courseIds = coursesInSchool.map(c => c._id);
+    if (courseIds.length === 0) return 0;
+    return this.classModel.countDocuments({ course: { $in: courseIds } });
+  }
+
+  private async getClassCountForSchools(schoolIds: any[]): Promise<number> {
+    if (!schoolIds || schoolIds.length === 0) return 0;
+    const coursesInSchools = await this.courseModel.find({ school: { $in: schoolIds } }).select('_id').lean();
+    const courseIds = coursesInSchools.map(c => c._id);
+    if (courseIds.length === 0) return 0;
+    return this.classModel.countDocuments({ course: { $in: courseIds } });
   }
 } 

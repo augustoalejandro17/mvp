@@ -30,6 +30,7 @@ export default function SubscriptionsManager() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -70,10 +71,12 @@ export default function SubscriptionsManager() {
       setError(null);
       
       const token = Cookies.get('token');
-      if (!token) return;
+      if (!token) {
+        return;
+      }
       
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const response = await fetch(`${apiUrl}/api/admin-stats/subscriptions`, {
+      const response = await fetch(`${apiUrl}/api/admin/stats/subscriptions`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -93,28 +96,15 @@ export default function SubscriptionsManager() {
     } catch (error) {
       console.error('Error al obtener estadísticas:', error);
       setError(error instanceof Error ? error.message : 'Error desconocido');
+      setStats(null);
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   };
 
-  if (loading) {
-    return <div className={styles.loading}>Cargando información de suscripciones...</div>;
-  }
-
-  if (error) {
-    return (
-      <div className={styles.container}>
-        <h1>Error</h1>
-        <p className={styles.error}>{error}</p>
-        <button 
-          onClick={fetchSubscriptionStats}
-          className={styles.refreshButton}
-        >
-          Reintentar
-        </button>
-      </div>
-    );
+  if (initialLoading && !Cookies.get('token')) {
+    return <div className={styles.loading}>Verificando sesión...</div>;
   }
 
   return (
@@ -149,123 +139,148 @@ export default function SubscriptionsManager() {
         </div>
 
         <div className={styles.mainContent}>
-          <div className={styles.statsGrid}>
-            <div className={styles.statCard}>
-              <h3>Suscripciones Totales</h3>
-              <div className={styles.statValueContainer}>
-                <p className={styles.statValue}>{stats?.totalSubscriptions || 0}</p>
+          {loading && <div className={styles.loadingMessage}>Cargando estadísticas de suscripciones...</div>}
+          
+          {error && (
+            <div className={styles.errorMessage}>
+              <p>Error al cargar datos: {error}</p>
+              <button 
+                onClick={fetchSubscriptionStats}
+                className={styles.retryButton}
+                disabled={loading}
+              >
+                {loading ? 'Reintentando...' : 'Reintentar'}
+              </button>
+            </div>
+          )}
+
+          {!loading && !error && stats && (
+            <>
+              <div className={styles.statsGrid}>
+                <div className={styles.statCard}>
+                  <h3>Suscripciones Totales</h3>
+                  <div className={styles.statValueContainer}>
+                    <p className={styles.statValue}>{stats.totalSubscriptions || 0}</p>
+                  </div>
+                </div>
+                <div className={styles.statCard}>
+                  <h3>Planes Activos</h3>
+                  <div className={styles.statValueContainer}>
+                    <p className={styles.statValue}>{stats.activePlans || 0}</p>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className={styles.statCard}>
-              <h3>Planes Activos</h3>
-              <div className={styles.statValueContainer}>
-                <p className={styles.statValue}>{stats?.activePlans || 0}</p>
+
+              <div className={styles.statsSection}>
+                <h2>Suscripciones por Plan</h2>
+                <div className={styles.tableContainer}>
+                  <table className={styles.statsTable}>
+                    <thead>
+                      <tr>
+                        <th>Tipo de Plan</th>
+                        <th>Cantidad</th>
+                        <th>Almacenamiento Promedio (GB)</th>
+                        <th>Streaming Promedio (min)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.subscriptionsByPlan && stats.subscriptionsByPlan.length > 0 ? (
+                        stats.subscriptionsByPlan.map((item) => (
+                          <tr key={item._id}>
+                            <td>{item._id}</td>
+                            <td>{item.count}</td>
+                            <td>{item.avgStorageUsed.toFixed(2)}</td>
+                            <td>{item.avgStreamingMinutes.toFixed(0)}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4} className={styles.noDataMessage}>No hay datos disponibles</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <div className={styles.statsSection}>
-            <h2>Suscripciones por Plan</h2>
-            <div className={styles.tableContainer}>
-              <table className={styles.statsTable}>
-                <thead>
-                  <tr>
-                    <th>Tipo de Plan</th>
-                    <th>Cantidad</th>
-                    <th>Almacenamiento Promedio (GB)</th>
-                    <th>Streaming Promedio (min)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats?.subscriptionsByPlan && stats.subscriptionsByPlan.length > 0 ? (
-                    stats.subscriptionsByPlan.map((item) => (
-                      <tr key={item._id}>
-                        <td>{item._id}</td>
-                        <td>{item.count}</td>
-                        <td>{item.avgStorageUsed.toFixed(2)}</td>
-                        <td>{item.avgStreamingMinutes.toFixed(0)}</td>
+              <div className={styles.statsSection}>
+                <h2>Suscripciones por Estado</h2>
+                <div className={styles.tableContainer}>
+                  <table className={styles.statsTable}>
+                    <thead>
+                      <tr>
+                        <th>Estado</th>
+                        <th>Cantidad</th>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className={styles.noDataMessage}>No hay datos disponibles</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                    </thead>
+                    <tbody>
+                      {stats.subscriptionsByStatus && stats.subscriptionsByStatus.length > 0 ? (
+                        stats.subscriptionsByStatus.map((item) => (
+                          <tr key={item._id}>
+                            <td>{item._id}</td>
+                            <td>{item.count}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={2} className={styles.noDataMessage}>No hay datos disponibles</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-          <div className={styles.statsSection}>
-            <h2>Suscripciones por Estado</h2>
-            <div className={styles.tableContainer}>
-              <table className={styles.statsTable}>
-                <thead>
-                  <tr>
-                    <th>Estado</th>
-                    <th>Cantidad</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats?.subscriptionsByStatus && stats.subscriptionsByStatus.length > 0 ? (
-                    stats.subscriptionsByStatus.map((item) => (
-                      <tr key={item._id}>
-                        <td>{item._id}</td>
-                        <td>{item.count}</td>
+              <div className={styles.statsSection}>
+                <h2>Escuelas con Mayor Almacenamiento</h2>
+                <div className={styles.tableContainer}>
+                  <table className={styles.statsTable}>
+                    <thead>
+                      <tr>
+                        <th>Escuela</th>
+                        <th>Almacenamiento Usado (GB)</th>
+                        <th>Acciones</th>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={2} className={styles.noDataMessage}>No hay datos disponibles</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                    </thead>
+                    <tbody>
+                      {stats.topSchoolsByStorage && stats.topSchoolsByStorage.length > 0 ? (
+                        stats.topSchoolsByStorage.map((school) => (
+                          <tr key={school._id}>
+                            <td>{school.name}</td>
+                            <td>{school.storageUsedGb.toFixed(2)}</td>
+                            <td>
+                              <Link href={`/admin/subscriptions/school/${school._id}`} className={styles.viewButton}>
+                                Ver Detalles
+                              </Link>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={3} className={styles.noDataMessage}>No hay datos disponibles</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-          <div className={styles.statsSection}>
-            <h2>Escuelas con Mayor Almacenamiento</h2>
-            <div className={styles.tableContainer}>
-              <table className={styles.statsTable}>
-                <thead>
-                  <tr>
-                    <th>Escuela</th>
-                    <th>Almacenamiento Usado (GB)</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats?.topSchoolsByStorage && stats.topSchoolsByStorage.length > 0 ? (
-                    stats.topSchoolsByStorage.map((school) => (
-                      <tr key={school._id}>
-                        <td>{school.name}</td>
-                        <td>{school.storageUsedGb.toFixed(2)}</td>
-                        <td>
-                          <Link href={`/admin/subscriptions/school/${school._id}`} className={styles.viewButton}>
-                            Ver Detalles
-                          </Link>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={3} className={styles.noDataMessage}>No hay datos disponibles</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+              <div className={styles.actionButtons}>
+                <Link href="/admin/subscriptions/list" className={styles.primaryButton}>
+                  Ver todas las suscripciones
+                </Link>
+                <Link href="/admin/subscriptions/plans" className={styles.primaryButton}>
+                  Administrar planes
+                </Link>
+              </div>
+            </>
+          )}
+          
+          {!loading && !error && !stats && (
+            <div className={styles.noDataMessage}>
+              No se pudieron cargar las estadísticas de suscripciones o no hay datos disponibles.
             </div>
-          </div>
-
-          <div className={styles.actionButtons}>
-            <Link href="/admin/subscriptions/list" className={styles.primaryButton}>
-              Ver todas las suscripciones
-            </Link>
-            <Link href="/admin/subscriptions/plans" className={styles.primaryButton}>
-              Administrar planes
-            </Link>
-          </div>
+          )}
         </div>
       </div>
     </div>
