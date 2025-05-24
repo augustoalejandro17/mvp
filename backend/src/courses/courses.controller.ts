@@ -19,13 +19,15 @@ export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard)
   async findAll(@Req() req, @Query('schoolId') schoolId?: string) {
-    const userId = getUserIdFromRequest(req);
-    const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
+    let userId = null;
+    let userRole = null;
     
-    
-    
+    // Si hay token, obtener información del usuario
+    if (req.user) {
+      userId = getUserIdFromRequest(req);
+      userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
+    }
     
     return this.coursesService.findAll(userId, userRole, schoolId);
   }
@@ -74,15 +76,12 @@ export class CoursesController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string, @Req() req) {
-    
     try {
-      // Get user information from token
-      const userId = req.user.sub;
-      const userRole = req.user.role;
+      // Get user information from token if available
+      const userId = req.user?.sub;
+      const userRole = req.user?.role;
     
-      
       const result = await this.coursesService.getCourseForUser(id, userId, userRole);
       return result;
     } catch (error) {

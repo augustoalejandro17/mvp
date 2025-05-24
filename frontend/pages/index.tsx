@@ -53,15 +53,21 @@ export default function Home() {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
         const token = Cookies.get('token');
         
-        const headers: any = { 'Content-Type': 'application/json' };
+        let response;
         if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
+          // Si hay token, obtenemos todas las escuelas del usuario
+          response = await axios.get(`${apiUrl}/api/schools`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        } else {
+          // Si no hay token, solo obtenemos las escuelas públicas
+          response = await axios.get(`${apiUrl}/api/schools/public`);
         }
         
-        const response = await axios.get(`${apiUrl}/api/schools`, { headers });
         setSchools(response.data);
+        setError('');
       } catch (error) {
-        console.error('Error al obtener escuelas:', error);
+        console.error('Error al cargar escuelas:', error);
         setError('No se pudieron cargar las escuelas. Por favor, intenta de nuevo más tarde.');
       } finally {
         setLoading(false);
@@ -76,134 +82,74 @@ export default function Home() {
     router.push(`/school/${schoolId}`);
   };
 
+  if (loading) {
+    return <div className={styles.loading}>Cargando escuelas...</div>;
+  }
+
+  if (error) {
+    return <div className={styles.error}>{error}</div>;
+  }
+
+  const isLoggedIn = !!Cookies.get('token');
+
   return (
     <div className={styles.container}>
       <main className={styles.main}>
-        {user ? (
-          <>
-            <div className={styles.userWelcome}>
-              <h1 className={styles.title}>Bienvenido, {user.name}</h1>
-              <p className={styles.slogan}>Conecta. Aprende. Crece.</p>
-              {user.role === 'admin' && (
-                <div className={styles.userActions}>
-                  <button 
-                    className={styles.createButton}
-                    onClick={() => router.push('/school/create')}
-                  >
-                    Crear Nueva Escuela
-                  </button>
-                </div>
-              )}
-            </div>
-            
-            {loading ? (
-              <div className={styles.loading}>Cargando escuelas...</div>
-            ) : error ? (
-              <div className={styles.error}>{error}</div>
-            ) : schools.length === 0 ? (
-              <div className={styles.noResults}>
-                No hay escuelas disponibles en este momento.
-              </div>
-            ) : (
-              <div className={styles.grid}>
-                {schools.map((school) => (
-                  <div 
-                    key={school._id} 
-                    className={styles.card}
-                    onClick={() => handleSchoolClick(school._id)}
-                  >
-                    {school.logoUrl ? (
-                      <div className={styles.cardImage}>
-                        <ImageFallback 
-                          src={school.logoUrl} 
-                          alt={school.name} 
-                          className={styles.schoolLogo}
-                          placeholderClassName={styles.schoolLogoPlaceholder}
-                        />
-                      </div>
-                    ) : (
-                      <div className={styles.cardImagePlaceholder}>
-                        <span>{school.name.substring(0, 2).toUpperCase()}</span>
-                      </div>
-                    )}
-                    <h2>{school.name}</h2>
-                    <p>{school.description.length > 100 
-                      ? `${school.description.substring(0, 100)}...` 
-                      : school.description}
-                    </p>
-                    <div className={styles.cardFooter}>
-                      <span className={school.isPublic ? styles.public : styles.private}>
-                        {school.isPublic ? 'Público' : 'Privado'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        ) : (
-          <>
-            <h1 className={styles.title}>Bienvenido</h1>
-            <p className={styles.slogan}>Conecta. Aprende. Crece.</p>
-            
-            <div className={styles.description}>
-              <p>Descubre escuelas y academias de baile cerca de ti</p>
-            </div>
-            
-            <div className={styles.authButtons}>
-              <Link href="/login" className={styles.loginButton}>
-                Iniciar Sesión
-              </Link>
-              <Link href="/register" className={styles.registerButton}>
-                Registrarse
-              </Link>
-            </div>
+        <h1 className={styles.title}>Bienvenido</h1>
+        <p className={styles.description}>
+          {isLoggedIn ? 'Conecta. Aprende. Crece.' : 'Descubre escuelas y academias de baile cerca de ti'}
+        </p>
 
-            {loading ? (
-              <div className={styles.loading}>Cargando escuelas...</div>
-            ) : error ? (
-              <div className={styles.error}>{error}</div>
-            ) : schools.length === 0 ? (
-              <div className={styles.noResults}>
-                No hay escuelas disponibles en este momento.
-              </div>
-            ) : (
-              <div className={styles.grid}>
-                {schools.map((school) => (
-                  <div 
-                    key={school._id} 
-                    className={styles.card}
-                    onClick={() => handleSchoolClick(school._id)}
-                  >
-                    {school.logoUrl ? (
-                      <div className={styles.cardImage}>
-                        <ImageFallback 
-                          src={school.logoUrl} 
-                          alt={school.name} 
-                          className={styles.schoolLogo}
-                          placeholderClassName={styles.schoolLogoPlaceholder}
-                        />
-                      </div>
-                    ) : (
-                      <div className={styles.cardImagePlaceholder}>
-                        <span>{school.name.substring(0, 2).toUpperCase()}</span>
-                      </div>
-                    )}
-                    <h2>{school.name}</h2>
-                    <p>{school.description.length > 100 
-                      ? `${school.description.substring(0, 100)}...` 
-                      : school.description}
-                    </p>
-                    <div className={styles.cardFooter}>
-                      <span className={school.isPublic ? styles.public : styles.private}>
-                        {school.isPublic ? 'Público' : 'Privado'}
-                      </span>
-                    </div>
+        {!isLoggedIn && (
+          <div className={styles.authButtons}>
+            <Link href="/login" className={styles.loginButton}>
+              Iniciar Sesión
+            </Link>
+            <Link href="/register" className={styles.registerButton}>
+              Registrarse
+            </Link>
+          </div>
+        )}
+
+        {schools.length === 0 ? (
+          <p className={styles.noResults}>
+            {isLoggedIn 
+              ? 'No hay escuelas disponibles en este momento.' 
+              : 'No hay escuelas públicas disponibles en este momento.'}
+          </p>
+        ) : (
+          <div className={styles.grid}>
+            {schools.map((school: any) => (
+              <Link 
+                href={`/school/${school._id}`} 
+                key={school._id}
+                className={styles.card}
+              >
+                {school.logoUrl ? (
+                  <div className={styles.cardImage}>
+                    <ImageFallback 
+                      src={school.logoUrl}
+                      alt={school.name}
+                    />
                   </div>
-                ))}
-              </div>
-            )}
-          </>
+                ) : (
+                  <div className={styles.cardImagePlaceholder}>
+                    <span>{school.name.substring(0, 2).toUpperCase()}</span>
+                  </div>
+                )}
+                <h2>{school.name}</h2>
+                <p>{school.description}</p>
+                <div className={styles.cardFooter}>
+                  <span className={styles.adminInfo}>
+                    Director: {school.admin.name}
+                  </span>
+                  <span className={school.isPublic ? styles.public : styles.private}>
+                    {school.isPublic ? 'Público' : 'Privado'}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
         )}
       </main>
     </div>

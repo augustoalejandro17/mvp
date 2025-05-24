@@ -72,31 +72,35 @@ export default function SchoolDetail() {
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
 
   const fetchSchoolAndCourses = useCallback(async () => {
-    // Si no tenemos ID, no hacemos la petición
     if (!id) return;
 
     try {
       setLoading(true);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
+      const headers: any = { 'Content-Type': 'application/json' };
       
-      if (!token) {
-        router.push('/login');
-        return;
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
       }
-      
-      const headers = { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      };
       
       // Get school details
       const schoolResponse = await axios.get(`${apiUrl}/api/schools/${id}`, { headers });
-      setSchool(schoolResponse.data);
+      const schoolData = schoolResponse.data;
+      
+      setSchool(schoolData);
       
       // Get courses for this school
-      const coursesResponse = await axios.get(`${apiUrl}/api/courses?schoolId=${id}`, { headers });
-      setCourses(coursesResponse.data);
+      try {
+        const coursesResponse = await axios.get(`${apiUrl}/api/courses?schoolId=${id}`, { headers });
+        const coursesData = coursesResponse.data;
+        // Si no hay token, filtrar solo cursos públicos
+        const filteredCourses = token ? coursesData : coursesData.filter((course: Course) => course.isPublic);
+        setCourses(filteredCourses);
+      } catch (error) {
+        console.error('Error al obtener cursos:', error);
+        setCourses([]); // En caso de error, inicializar como array vacío
+      }
       
     } catch (error) {
       console.error('Error al obtener datos:', error);
@@ -243,6 +247,8 @@ export default function SchoolDetail() {
     }
   };
 
+  const isLoggedIn = !!user;
+
   if (!id || loading) {
     return <div className={styles.loading}>Cargando información...</div>;
   }
@@ -337,8 +343,20 @@ export default function SchoolDetail() {
         
         <h2 className={styles.sectionTitle}>Cursos Disponibles</h2>
         
+        {!isLoggedIn && (
+          <div className={styles.publicNotice}>
+            <p>Estás viendo el contenido público. Para ver todo el contenido, por favor 
+              <Link href="/login" className={styles.loginLink}> inicia sesión</Link>.
+            </p>
+          </div>
+        )}
+        
         {courses.length === 0 ? (
-          <p className={styles.noResults}>Esta escuela aún no tiene cursos disponibles.</p>
+          <p className={styles.noResults}>
+            {isLoggedIn 
+              ? 'Esta escuela aún no tiene cursos disponibles.'
+              : 'Esta escuela aún no tiene cursos públicos disponibles.'}
+          </p>
         ) : (
           <div className={styles.grid}>
             {filteredCourses.map((course) => (

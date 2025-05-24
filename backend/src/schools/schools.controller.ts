@@ -13,6 +13,12 @@ export class SchoolsController {
 
   constructor(private readonly schoolsService: SchoolsService) {}
 
+  @Get('public')
+  async findPublic() {
+    this.logger.log('Buscando escuelas públicas');
+    return this.schoolsService.findPublic();
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
   async findAll(@Req() req) {
@@ -35,13 +41,10 @@ export class SchoolsController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string) {
     if (!id.match(/^[0-9a-fA-F]{24}$/)) {
-      
       throw new BadRequestException(`ID de escuela inválido: ${id}`);
     }
-    
     
     try {
       return await this.schoolsService.findOne(id);

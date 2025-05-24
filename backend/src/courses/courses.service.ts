@@ -144,35 +144,40 @@ export class CoursesService {
         query.school = schoolId;
       }
       
-      // Normalize role for comparison
-      const roleStr = String(role).toLowerCase();
-      
-      // Super admins pueden ver todos los cursos
-      if (roleStr === 'super_admin') {
-        // No aplicamos ningún filtro adicional para super_admin
-      }
-      // Los usuarios admin también pueden ver todos los cursos
-      else if (roleStr === 'admin') {
-        // No aplicamos ningún filtro adicional para admin
-      }
-      // Para otros roles, filtramos por cursos públicos o donde esté asociado
-      else if (userId) {
-        if (roleStr === 'teacher') {
-          query = { 
-            ...query,
-            $or: [
-              { isPublic: true },
-              { teacher: userId }
-            ] 
-          };
-        } else {
-          query = { 
-            ...query,
-            $or: [
-              { isPublic: true },
-              { students: userId }
-            ] 
-          };
+      // Si no hay usuario autenticado, solo mostrar cursos públicos
+      if (!userId || !role) {
+        query.isPublic = true;
+      } else {
+        // Normalize role for comparison
+        const roleStr = String(role).toLowerCase();
+        
+        // Super admins pueden ver todos los cursos
+        if (roleStr === 'super_admin') {
+          // No aplicamos ningún filtro adicional para super_admin
+        }
+        // Los usuarios admin también pueden ver todos los cursos
+        else if (roleStr === 'admin') {
+          // No aplicamos ningún filtro adicional para admin
+        }
+        // Para otros roles, filtramos por cursos públicos o donde esté asociado
+        else {
+          if (roleStr === 'teacher') {
+            query = { 
+              ...query,
+              $or: [
+                { isPublic: true },
+                { teacher: userId }
+              ] 
+            };
+          } else {
+            query = { 
+              ...query,
+              $or: [
+                { isPublic: true },
+                { students: userId }
+              ] 
+            };
+          }
         }
       }
       
@@ -1007,52 +1012,53 @@ export class CoursesService {
     }
   }
 
-  async getCourseForUser(id: string, userId: string, userRole: string) {
+  async getCourseForUser(id: string, userId?: string, userRole?: string) {
     try {
-      // Obtener el curso
-      const course = await this.findOne(id);
+      const course = await this.courseModel.findById(id)
+        .populate('teacher', 'name email')
+        .populate('teachers', 'name email')
+        .populate('school', 'name logoUrl')
+        .populate({
+          path: 'classes',
+          options: { sort: { order: 1 } }
+        })
+        .lean();
       
-      // Si el usuario es SUPER_ADMIN, permitir acceso completo a todas las clases
-      if (compareRole(userRole, UserRole.SUPER_ADMIN)) {
-        return {
-          ...course,
-          classes: Array.isArray(course.classes) ? course.classes.map(classItem => ({
-            ...classItem,
-            isVisible: true
-          })) : []
-        };
+      if (!course) {
+        throw new NotFoundException(`Curso con ID ${id} no encontrado`);
+      }
+
+      // Si no hay usuario autenticado o el curso no es público
+      if ((!userId || !userRole) && !course.isPublic) {
+        throw new UnauthorizedException('Este curso requiere autenticación');
       }
       
-      // Si el usuario es el profesor del curso, mostrar todas las clases
-      let teacherId = null;
-      try {
-        if (course.teacher) {
-          // Handle different types of teacher objects from MongoDB
-          if (typeof course.teacher === 'object' && course.teacher !== null) {
-            // Using string access to avoid TypeScript property errors
-            teacherId = course.teacher['_id']?.toString() || null;
-          } else {
-            teacherId = String(course.teacher);
+      const courseWithVisibility = {
+        ...course,
+        classes: Array.isArray(course.classes) ? course.classes.map(classItem => {
+          // Safely check if isPublic and order properties exist
+          const isPublic = typeof classItem === 'object' && 'isPublic' in classItem ? classItem.isPublic : false;
+          const order = typeof classItem === 'object' && 'order' in classItem ? classItem.order : 0;
+          
+          // Para usuarios no autenticados, solo mostrar clases públicas
+          if (!userId || !userRole) {
+            return {
+              ...classItem,
+              isVisible: isPublic === true
+            };
           }
-        }
-      } catch (error) {
-        
-      }
-      
-      if (teacherId === userId) {
-        return {
-          ...course,
-          classes: Array.isArray(course.classes) ? course.classes.map(classItem => ({
+          
+          return {
             ...classItem,
-            isVisible: true
-          })) : []
-        };
-      }
+            // Mark only the first class as visible by default for authenticated users
+            isVisible: isPublic === true || order === 1 || order === 0,
+          };
+        }) : []
+      };
       
-      // Para otros usuarios, mantener la visibilidad definida en findOne
-      return course;
+      return courseWithVisibility;
     } catch (error) {
-      this.logger.error(`Error getting course for user: ${error.message}`, error.stack);
+      this.logger.error(`Error al buscar curso ${id}: ${error.message}`, error.stack);
       throw error;
     }
   }

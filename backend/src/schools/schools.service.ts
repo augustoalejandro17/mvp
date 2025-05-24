@@ -741,4 +741,17 @@ export class SchoolsService {
       return [];
     }
   }
+
+  async findPublic() {
+    try {
+      const schools = await this.schoolModel.find({ isPublic: true })
+        .populate('admin', 'name email')
+        .select('-teachers -students');
+      
+      return schools;
+    } catch (error) {
+      this.logger.error(`Error al buscar escuelas públicas: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
 }
