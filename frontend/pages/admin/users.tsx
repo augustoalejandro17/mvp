@@ -6,7 +6,7 @@ import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/Admin.module.css';
 import dashboardStyles from '../../styles/AdminDashboard.module.css';
 import Link from 'next/link';
-import { FaEdit, FaTrash, FaUserPlus, FaLink, FaUserCheck, FaSearch, FaClock, FaCheckCircle, FaEnvelope, FaUniversity, FaList, FaGraduationCap, FaCalendarAlt, FaMoneyBillWave, FaSpinner } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaUserPlus, FaLink, FaUserCheck, FaSearch, FaClock, FaCheckCircle, FaEnvelope, FaUniversity, FaList, FaGraduationCap, FaCalendarAlt, FaMoneyBillWave } from 'react-icons/fa';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import PaymentRegistrationModal from '../../components/PaymentRegistrationModal';
 import UserSearch from '../../components/UserSearch';
@@ -68,25 +68,11 @@ interface DecodedToken {
   role: string;
 }
 
-// Añadir un componente LoadingSpinner
-const LoadingSpinner = ({ message }: { message: string }) => {
-  return (
-    <div className={styles.loadingOverlay}>
-      <div className={styles.loadingContainer}>
-        <FaSpinner className={styles.loadingSpinner} />
-        <p>{message}</p>
-        <p className={styles.loadingSubtext}>Esto puede tomar unos segundos</p>
-      </div>
-    </div>
-  );
-};
-
 export default function UserManagement() {
   // Estados
   const [users, setUsers] = useState<User[]>([]);
   const [unregisteredUsers, setUnregisteredUsers] = useState<any[]>([]); // Usuarios sin registro
-  const [loading, setLoading] = useState(true);
-  const [loadingMessage, setLoadingMessage] = useState('Cargando usuarios...');
+  const [loading, setLoading] = useState(true); // Este loading se puede refinar
   const [dataReady, setDataReady] = useState(false); // Nuevo estado para controlar cuando los datos están realmente listos
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -215,16 +201,128 @@ export default function UserManagement() {
     }
   }, []);
 
-  // Obtener datos iniciales - definido con useCallback para poder usarlo como dependencia
+  // Extraer usuarios no registrados de los registros de asistencia
+  const processAttendanceForUnregisteredUsers = useCallback(
+    (
+      currentLocalUsers: User[], // Renombrado para claridad, representa el estado 'users'
+      currentUserSchoolsData: School[], // Renombrado para claridad, representa el estado 'userSchools'
+      attendanceData: Attendance[],
+      initialUnregUsers: User[],
+      courseData: Course[]
+    ) => {
+      console.log('[AdminUsers] Processing attendance for unregistered users...');
+      
+      const nonRegisteredAttendees = new Map();
+      
+      // Determinar si debemos filtrar por escuelas del usuario (basado en el estado 'user')
+      const shouldFilterBySchool = user?.role === 'school_owner' || user?.role === 'administrative';
+      // Usa currentUserSchoolsData (argumento) en lugar de userSchools (estado) para determinar los IDs
+      const userOwnedSchoolIds = currentUserSchoolsData.map(school => school._id);
+      
+      // Usa currentLocalUsers (argumento) en lugar de users (estado)
+      const combinedInitialUnregistered = [...currentLocalUsers.filter(u => u.role === 'unregistered'), ...initialUnregUsers];
+      
+      combinedInitialUnregistered.forEach(u => { // renombrado user a u para evitar conflicto con estado 'user'
+        if (shouldFilterBySchool) {
+          const userSchoolIds = u.schools || [];
+          const hasSchoolAssociation = userSchoolIds.some(schoolId => 
+            userOwnedSchoolIds.includes(typeof schoolId === 'string' 
+              ? schoolId 
+              : (schoolId as any).toString())
+          );
+          if (!hasSchoolAssociation) return;
+        }
+        
+        if (!nonRegisteredAttendees.has(u._id)) {
+          nonRegisteredAttendees.set(u._id, {
+            _id: u._id,
+            name: u.name,
+            isRegistered: u.isRegistered !== undefined ? u.isRegistered : false,
+            role: 'unregistered',
+            occurrences: 1,
+            courses: u.enrolledCourses || [],
+            schools: u.schools || [],
+            lastSeen: u.createdAt || new Date()
+          });
+        }
+      });
+      
+      if (attendanceData && attendanceData.length > 0) {
+        let filteredAttendanceRecords = attendanceData;
+        
+        if (shouldFilterBySchool) {
+          filteredAttendanceRecords = attendanceData.filter(record => {
+            if (!record.course) return false;
+            const course = courseData.find(c => c._id === record.course);
+            if (!course) return false;
+            const courseSchoolId = typeof course.school === 'string' 
+              ? course.school 
+              : (course.school as School)?._id;
+            return userOwnedSchoolIds.includes(courseSchoolId);
+          });
+        }
+        
+        filteredAttendanceRecords.forEach(record => {
+          const isNonRegistered = 
+            typeof record.student === 'string' || 
+            record.studentModel === 'String';
+          
+          if (isNonRegistered) {
+            const studentName = typeof record.student === 'string' 
+              ? record.student 
+              : (record.student as any)?.name || 'Desconocido';
+            
+            let existingKey = null;
+            Array.from(nonRegisteredAttendees.entries()).some(([key, value]) => {
+              if (value.name === studentName && value.role === 'unregistered') {
+                existingKey = key;
+                return true;
+              }
+              return false;
+            });
+            
+            if (!existingKey) {
+              const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2,9)}`;
+              nonRegisteredAttendees.set(tempId, {
+                _id: tempId,
+                name: studentName,
+                isRegistered: false,
+                role: 'unregistered',
+                occurrences: 1,
+                courses: record.course ? [record.course] : [],
+                schools: [],
+                lastSeen: new Date(record.date)
+              });
+            } else {
+              const existingRecord = nonRegisteredAttendees.get(existingKey);
+              existingRecord.occurrences += 1;
+              if (record.course && !existingRecord.courses.includes(record.course)) {
+                existingRecord.courses.push(record.course);
+              }
+              const recordDate = new Date(record.date);
+              if (recordDate > existingRecord.lastSeen) {
+                existingRecord.lastSeen = recordDate;
+              }
+            }
+            }
+          });
+      }
+      
+      const finalUnregisteredList = Array.from(nonRegisteredAttendees.values());
+      setUnregisteredUsers(finalUnregisteredList);
+      console.log('[AdminUsers] Unregistered users state updated count:', finalUnregisteredList.length);
+    },
+    [setUnregisteredUsers, user?.role, user?.sub] // Dependencias más estables
+  );
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchData = useCallback(async () => {
+    console.log('[AdminUsers] useEffect[] -> fetchData CALLED');
     try {
       setLoading(true);
-      setDataReady(false); // Indicar que los datos no están listos
-      setLoadingMessage('Obteniendo usuarios...');
+      setDataReady(false);
       
       const token = Cookies.get('token');
-      
       if (!token) {
         setError('No hay un token de autenticación disponible');
         setLoading(false);
@@ -233,202 +331,88 @@ export default function UserManagement() {
       
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
-      // Realizar peticiones en paralelo para mejorar rendimiento
-      setLoadingMessage('Cargando información de escuelas y cursos...');
-      const [usersResponse, schoolsResponse, coursesResponse] = await Promise.all([
-        axios.get(`${apiUrl}/api/users`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        axios.get(`${apiUrl}/api/schools`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        axios.get(`${apiUrl}/api/courses`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-      ]);
-      
-      // Guardar todos los datos
-      const rawUsers = usersResponse.data;
-      const allSchools = schoolsResponse.data;
-      const allCourses = coursesResponse.data;
-      
-      setLoadingMessage('Procesando registros de asistencia...');
-      // Obtener registros de asistencia de manera separada
-      const attendanceResponse = await axios.get(`${apiUrl}/api/attendance/records`, {
+      // 1. Fetch Users
+      const usersResponse = await axios.get(`${apiUrl}/api/users`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-
-      setLoadingMessage('Enriqueciendo datos de usuarios...');
-      // Añadir propiedad isRegistered a todos los usuarios
+      const rawUsers = usersResponse.data.users || usersResponse.data; // Adapt based on actual API response
       const allUsers = rawUsers.map((user: User) => ({...user, isRegistered: true}));
+      setUsers(allUsers);
       
-      // Identificar usuarios registrados y no registrados
-      const registeredUsers = allUsers.filter((u: User) => u.role !== 'unregistered');
-      const unregisteredUsers = allUsers.filter((u: User) => u.role === 'unregistered');
-      
-      
-      
-      
-      // Enriquecer datos de usuarios con información de cursos y escuelas
-      const enrichedUsers = await Promise.all(allUsers.map(async (user: User) => {
-        try {
-          // Obtener cursos matriculados
-          const userCoursesResponse = await getUserCourses(user._id);
-          const userCourseIds = userCoursesResponse.map((c: any) => c._id);
-          
-          // Determinar escuelas a partir de cursos
-          const courseSchools = new Set<string>();
-          userCoursesResponse.forEach((course: any) => {
-            if (typeof course.school === 'string') {
-              courseSchools.add(course.school);
-            } else if (course.school && course.school._id) {
-              courseSchools.add(course.school._id);
-            }
-          });
-          
-          // Asegurar que schools es un array
-          const userSchools = [
-            ...(user.schools || []),
-            ...Array.from(courseSchools)
-          ];
-          
-          // Eliminar duplicados de escuelas usando filter
-          const uniqueSchools = userSchools.filter((value, index, self) => 
-            self.findIndex(s => String(s) === String(value)) === index
-          );
-          
-          // Crear array de schoolRoles si no existe
-          let userSchoolRoles = user.schoolRoles || [];
-          
-          // Añadir schoolRoles implícitos basados en schools
-          uniqueSchools.forEach(schoolId => {
-            // Verificar si ya existe un rol para esta escuela
-            const hasRoleForSchool = userSchoolRoles.some(sr => 
-              typeof sr.schoolId === 'string' 
-                ? sr.schoolId === schoolId
-                : String(sr.schoolId) === schoolId
-            );
-            
-            // Si no existe, agregar uno predeterminado
-            if (!hasRoleForSchool) {
-              userSchoolRoles.push({
-                schoolId,
-                role: user.role === 'unregistered' ? 'student' : user.role
-              });
-            }
-          });
-          
-          return {
-            ...user,
-            enrolledCourses: userCourseIds,
-            schools: uniqueSchools,
-            schoolRoles: userSchoolRoles
-          };
-        } catch (error) {
-          console.error(`Error enriqueciendo datos del usuario ${user.name}:`, error);
-          return user;
-        }
-      }));
-      
-      
-      
-      // Actualizar el estado con los usuarios enriquecidos
-      setUsers(enrichedUsers);
-      setSchools(allSchools);
-      setCourses(allCourses);
-      setAttendanceRecords(attendanceResponse.data);
-      
-      // Procesar los registros de asistencia para extraer usuarios no registrados
-      // Primero, esperar a que se complete la actualización de users
-      setTimeout(() => {
-        processAttendanceForUnregisteredUsers(attendanceResponse.data);
-        
-        // Si estamos en la vista de asistentes, asegurarnos de que se muestren
-        if (selectedSchool === 'unregistered') {
-          
-        }
-      }, 500); // pequeño retraso para asegurar que users esté actualizado
-      
-      // Filtrar escuelas asociadas al usuario actual
-      if (user?.role === 'super_admin') {
-        // Super admin ve todas las escuelas
-        setUserSchools(allSchools);
-      } else if (user?.role === 'school_owner' || user?.role === 'admin') {
-        // Buscar el usuario actual en la lista para obtener sus schoolRoles
-        const currentUserData = enrichedUsers.find((u: User) => u._id === user.sub);
-        if (currentUserData) {
-          // Filtrar escuelas según los roles y schools del usuario
-          let associatedSchoolIds: string[] = [];
-          
-          // Añadir IDs de escuelas de schoolRoles
-          if (currentUserData.schoolRoles) {
-            associatedSchoolIds = [
-              ...associatedSchoolIds,
-              ...currentUserData.schoolRoles.map((sr: SchoolRole) => 
-                typeof sr.schoolId === 'string' ? sr.schoolId : String(sr.schoolId)
-              )
-            ];
-          }
-          
-          // Añadir IDs de escuelas de schools
-          if (currentUserData.schools) {
-            associatedSchoolIds = [
-              ...associatedSchoolIds,
-              ...currentUserData.schools.map((id: any) => 
-                typeof id === 'string' ? id : String(id)
-              )
-            ];
-          }
-          
-          // Eliminar duplicados de escuelas en el rol de usuario actual
-          const uniqueSchoolIds = associatedSchoolIds.filter((value, index, self) => 
-            self.findIndex(s => String(s) === String(value)) === index
-          );
-          
-          const filteredSchools = allSchools.filter((school: School) => 
-            uniqueSchoolIds.includes(school._id)
-          );
-          
-          setUserSchools(filteredSchools);
-          
-          // Si el usuario solo está asociado a una escuela, seleccionarla automáticamente
-          if (filteredSchools.length === 1) {
-            setSelectedSchool(filteredSchools[0]._id);
-          }
-        } else {
-          setUserSchools([]);
-        }
-      } else {
-        setUserSchools([]);
-      }
-      
-      // Configurar usuarios filtrados iniciales
-      setFilteredUsers(enrichedUsers);
-      
-      // Calcular total de páginas basado en el número de usuarios
-      setTotalPages(Math.ceil(enrichedUsers.length / itemsPerPage));
-      
-      // Establecer dataReady a true para indicar que los datos están completamente cargados
-      setDataReady(true);
-      
-    } catch (error) {
-      console.error('Error al obtener datos:', error);
-      setError(handleApiError(error));
-      setDataReady(false); // En caso de error, indicar que los datos no están listos
-    } finally {
-      // Pequeño retraso antes de ocultar el spinner para asegurar que la UI se actualice
-      setTimeout(() => {
-        setLoading(false);
-      }, 300);
+      setLoading(false);
+      setDataReady(true); // Datos de usuarios principales listos
+      setError(''); // Clear any previous error
+
+    } catch (err: any) {
+      console.error("Error in fetchData:", err);
+      console.error("fetchData error details:", err.response?.data || err.message || err);
+      setError(err.message || 'Error al cargar datos de usuarios.');
+      setLoading(false);
+      setDataReady(false); // Ensure dataReady is false on error
     }
-  }, [handleApiError, getUserCourses, itemsPerPage, selectedSchool, user?.role, user?.sub]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setUsers, setLoading, setDataReady, setError]); // Explicitly list state setters
+
+  // Renamed and refactored from fetchSecondaryData
+  const fetchSecondaryDataAndProcess = useCallback(async () => {
+    console.log('[AdminUsers] fetchSecondaryDataAndProcess CALLED');
+    const token = Cookies.get('token');
+    if (!token || !user || users.length === 0) { // Ensure primary data is ready
+      console.log('[AdminUsers] fetchSecondaryDataAndProcess skipped: token, user, or users not ready');
+      return;
+    }
+    
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    console.log('[AdminUsers] Fetching secondary data...');
+
+    try {
+      // setLoading(true); // Consider if a separate loading for secondary is needed
+      const [schoolsResponse, coursesResponse, attendanceResponse, rawUnregisteredUsersResponse] = await Promise.all([
+        axios.get(`${apiUrl}/api/schools`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${apiUrl}/api/courses`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${apiUrl}/api/attendance/all-records-admin`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${apiUrl}/api/users/unregistered`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+
+      const fetchedSchools = schoolsResponse.data.schools || schoolsResponse.data;
+      const fetchedCourses = coursesResponse.data;
+      const fetchedAttendanceRecords = attendanceResponse.data;
+      const initialUnregisteredUsersFromAPI = rawUnregisteredUsersResponse.data;
+
+      console.log('[AdminUsers] Fetched Schools:', fetchedSchools);
+      // console.log('[AdminUsers] Fetched Courses:', fetchedCourses); // Can be noisy
+      console.log('[AdminUsers] Fetched Attendance Records count:', fetchedAttendanceRecords?.length);
+      console.log('[AdminUsers] Fetched Initial Unregistered Users from API count:', initialUnregisteredUsersFromAPI?.length);
+
+      setSchools(fetchedSchools);
+      setUserSchools(fetchedSchools); // This will be used by processAttendance...
+      setCourses(fetchedCourses);
+      setAttendanceRecords(fetchedAttendanceRecords);
+      
+      // Pass the current 'users' state and the just-fetched 'fetchedSchools'
+      processAttendanceForUnregisteredUsers(
+        users, // current 'users' state from fetchData
+        fetchedSchools, // use the schools we just fetched
+        fetchedAttendanceRecords,
+        initialUnregisteredUsersFromAPI,
+        fetchedCourses
+      );
+
+      console.log('[AdminUsers] Secondary data processing finished.');
+      // setDataReady(true); // Or a more specific ready flag
+    } catch (err) {
+      console.error("[AdminUsers] Error fetching secondary data:", err);
+      setError('Error al cargar datos adicionales.'); 
+    } finally {
+      // setLoading(false); // Match setLoading(true) if used
+    }
+  }, [user, users, processAttendanceForUnregisteredUsers, setSchools, setUserSchools, setCourses, setAttendanceRecords, setError]); // Dependencies
 
   // Cargar escuelas y cursos específicamente - definido con useCallback
   const loadSchoolsAndCourses = useCallback(async () => {
     try {
       setLoading(true); // Indicar carga
       setDataReady(false); // Indicar que los datos no están listos
-      setLoadingMessage('Cargando escuelas y cursos...');
       
       const token = Cookies.get('token');
       if (!token) {
@@ -452,7 +436,7 @@ export default function UserManagement() {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      const allSchools = schoolsResponse.data;
+      const allSchools = schoolsResponse.data.schools || schoolsResponse.data; // Adaptar por si la API devuelve {schools: []} o solo []
       const allCourses = coursesResponse.data;
       
       // Actualizar estados
@@ -479,291 +463,73 @@ export default function UserManagement() {
       }, 300);
       return false;
     }
-  }, [handleApiError]);
+  }, [handleApiError, setLoading, setDataReady, setError, setSchools, setCourses, setUserSchools]); // Added state setters
 
-  // Verificar autenticación
+  // useEffect for initial token decoding and primary data fetch
   useEffect(() => {
+    console.log('[AdminUsers] Initial useEffect (token & primary data) CALLED');
     const token = Cookies.get('token');
-    if (!token) {
+    if (token) {
+      try {
+        const decodedToken = jwtDecode<DecodedToken>(token);
+        setUser(decodedToken); // Set user state
+        fetchData(); // Fetch primary users
+      } catch (e: any) {
+        console.error("Failed to decode token:", e);
+        console.error("Token decoding error details:", e.message || e);
+        setError("Token inválido o expirado.");
       router.push('/login');
-      return;
-    }
-
-    try {
-      const decoded = jwtDecode<DecodedToken>(token);
-      setUser(decoded);
-
-      // Solo permitir acceso a administradores
-      if (!['admin', 'super_admin', 'school_owner'].includes(decoded.role)) {
-        router.push('/');
-        return;
       }
-
-      // Cargar datos iniciales
-      fetchData();
-
-    } catch (error) {
-      console.error('Error al decodificar token:', error);
-      Cookies.remove('token');
-      router.push('/login');
-    }
-  }, [router, fetchData]);
-
-  // Cargar escuelas y cursos cuando el usuario cambia
-  useEffect(() => {
-    if (user) {
-      loadSchoolsAndCourses();
-    }
-  }, [user, loadSchoolsAndCourses]);
-
-  // Extraer usuarios no registrados de los registros de asistencia
-  const processAttendanceForUnregisteredUsers = useCallback((attendanceRecords: Attendance[]) => {
-    setDataReady(false);
-    setLoading(true);
-    setLoadingMessage('Procesando asistentes...');
-    
-    const nonRegisteredAttendees = new Map();
-    
-    // Determinar si debemos filtrar por escuelas del usuario
-    const shouldFilterBySchool = user?.role === 'school_owner' || user?.role === 'administrative';
-    const userOwnedSchoolIds = userSchools.map(school => school._id);
-    
-    // Primero, buscar usuarios con role='unregistered' en la lista de usuarios general
-    users.forEach(user => {
-      if (user.role === 'unregistered') {
-        // Para school_owner y administrative, filtrar solo los unregistered que pertenecen a sus escuelas
-        if (shouldFilterBySchool) {
-          // Verificar si el usuario no registrado está asociado con alguna escuela del usuario actual
-          const userSchoolIds = user.schools || [];
-          const hasSchoolAssociation = userSchoolIds.some(schoolId => 
-            userOwnedSchoolIds.includes(typeof schoolId === 'string' 
-              ? schoolId 
-              : (schoolId as any).toString())
-          );
-          
-          // Si el usuario no está asociado con ninguna escuela del owner/administrative, omitirlo
-          if (!hasSchoolAssociation) {
-            return;
-          }
-        }
-        
-        // Verificar si ya está en el mapa para evitar duplicados
-        if (!nonRegisteredAttendees.has(user._id)) {
-          nonRegisteredAttendees.set(user._id, {
-            _id: user._id,
-            name: user.name,
-            isRegistered: false,
-            role: 'unregistered',
-            occurrences: 1,
-            courses: user.enrolledCourses || [],
-            schools: user.schools || [],
-            lastSeen: user.createdAt || new Date()
-          });
-        }
-      }
-    });
-    
-    // Procesar registros de asistencia para encontrar usuarios no registrados que no estén en la base de datos
-    if (attendanceRecords && attendanceRecords.length > 0) {
-      // Para school_owner, necesitamos filtrar registros de asistencia por escuela también
-      let filteredAttendanceRecords = attendanceRecords;
-      
-      if (shouldFilterBySchool) {
-        // Filtrar registros de asistencia por las escuelas asociadas al curso
-        filteredAttendanceRecords = attendanceRecords.filter(record => {
-          // Si no tiene curso, no podemos saber a qué escuela pertenece
-          if (!record.course) return false;
-          
-          // Buscar el curso para obtener la escuela
-          const course = courses.find(c => c._id === record.course);
-          if (!course) return false;
-          
-          // Verificar si la escuela del curso está entre las escuelas del school_owner
-          const courseSchoolId = typeof course.school === 'string' 
-            ? course.school 
-            : (course.school as School)?._id;
-            
-          return userOwnedSchoolIds.includes(courseSchoolId);
-        });
-      }
-      
-      // Iterar sobre cada registro de asistencia (filtrado si es necesario)
-      filteredAttendanceRecords.forEach(record => {
-        // Solo procesar si el estudiante es un string (nombre) o si studentModel es 'String'
-        const isNonRegistered = 
-          typeof record.student === 'string' || 
-          record.studentModel === 'String';
-        
-        if (isNonRegistered) {
-          const studentName = typeof record.student === 'string' 
-            ? record.student 
-            : (record.student as any)?.name || 'Desconocido';
-          
-          let existingKey = null;
-          
-          // Buscar primero por nombre en los registros existentes
-          Array.from(nonRegisteredAttendees.entries()).some(([key, value]) => {
-            if (value.name === studentName) {
-              existingKey = key;
-              return true; // Detener la iteración
-            }
-            return false;
-          });
-          
-          if (!existingKey) {
-            // Primer registro para este estudiante - crear un ID temporal
-            const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-            nonRegisteredAttendees.set(tempId, {
-              _id: tempId,
-              name: studentName,
-              isRegistered: false,
-              role: 'unregistered',
-              occurrences: 1,
-              courses: record.course ? [record.course] : [],
-              schools: [],
-              lastSeen: new Date(record.date)
-            });
-          } else {
-            // Actualizar registro existente
-            const existingRecord = nonRegisteredAttendees.get(existingKey);
-            existingRecord.occurrences += 1;
-            
-            // Añadir curso si no está ya incluido
-            if (record.course && !existingRecord.courses.includes(record.course)) {
-              existingRecord.courses.push(record.course);
-            }
-            
-            // Actualizar fecha si es más reciente
-            const recordDate = new Date(record.date);
-            if (recordDate > existingRecord.lastSeen) {
-              existingRecord.lastSeen = recordDate;
-            }
-          }
-        }
-      });
-    }
-    
-    const nonRegisteredUsers = Array.from(nonRegisteredAttendees.values());
-    
-    if (nonRegisteredUsers.length > 0) {
-      nonRegisteredUsers.slice(0, 3).forEach((user, index) => {
-        
-      });
     } else {
-      
+      router.push('/login');
     }
-    
-    setUnregisteredUsers(nonRegisteredUsers);
-    
-    // Marcar que los datos están listos
-    setDataReady(true);
-    
-    // Pequeño retraso antes de ocultar el spinner
-    setTimeout(() => {
-      setLoading(false);
-    }, 300);
-    
-  }, [users, courses, userSchools, user?.role, user?.sub]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchData, router]); // Only depends on fetchData and router (stable)
 
-  // Actualizar vista cuando cambie el filtro de escuela o búsqueda
+  // useEffect for secondary data fetching and processing
+  // Runs after 'user' (decoded token) and 'users' (primary user list) are populated
   useEffect(() => {
-    // Solo procesar los filtros si los datos están realmente cargados
-    if (!dataReady) return;
+    console.log('[AdminUsers] Secondary data useEffect CALLED (dependencies: user, users, fetchSecondaryDataAndProcess)');
+    if (user && users.length > 0) {
+      fetchSecondaryDataAndProcess();
+          } else {
+      console.log('[AdminUsers] Secondary data useEffect skipped: user or users not ready.');
+            }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, users, fetchSecondaryDataAndProcess]);
     
-    // Para mostrar asistentes sin registro
-    if (selectedSchool === 'unregistered') {
-      // Si no hay asistentes cargados y hay usuarios en la lista, reprocesar para encontrar asistentes
-      if (unregisteredUsers.length === 0 && users.length > 0) {
-        processAttendanceForUnregisteredUsers(attendanceRecords);
-      }
-      
-      // No necesitamos actualizar filteredUsers ya que los asistentes se muestran directamente
-      return;
-    }
-    
-    // Para otros filtros, comenzar con todos los usuarios
-    let filtered = users;
-    
-    // Si es un school_owner o administrative, solo mostrar usuarios de sus escuelas
-    // Esto puede ser redundante con el filtrado del backend, pero es una capa adicional de seguridad
-    if ((user?.role === 'school_owner' || user?.role === 'administrative') && userSchools.length > 0) {
-      const userOwnedSchoolIds = userSchools.map(school => school._id);
-      
-      // Solo incluir usuarios asociados a las escuelas de este school_owner o administrative
-      filtered = filtered.filter(user => {
-        // Verificar asociaciones de escuela
-        const userSchoolIds = user.schools || [];
-        const hasSchoolAssociation = userSchoolIds.some(schoolId => 
-          userOwnedSchoolIds.includes(typeof schoolId === 'string' 
-            ? schoolId 
-            : (schoolId as any).toString())
-        );
-        
-        return hasSchoolAssociation;
-      });
-    }
-    
-    // Aplicar filtro de búsqueda
-    if (searchTerm !== '') {
-      const lowerSearchTerm = searchTerm.toLowerCase();
-      filtered = filtered.filter(user => 
-        user.name.toLowerCase().includes(lowerSearchTerm) ||
-        user.email?.toLowerCase().includes(lowerSearchTerm) ||
-        user.role?.toLowerCase().includes(lowerSearchTerm)
+  // useEffect para filtrar usuarios cuando cambia el término de búsqueda o la escuela seleccionada
+  useEffect(() => {
+    let tempUsers = users;
+
+    if (selectedSchool && selectedSchool !== 'all' && selectedSchool !== 'unregistered') {
+      tempUsers = tempUsers.filter(user => 
+        user.schoolRoles?.some(sr => sr.schoolId === selectedSchool) || 
+        user.schools?.includes(selectedSchool)
       );
     }
     
-    // Aplicar filtro de escuela
-    if (selectedSchool !== '') {
-      // Filtrar usuarios que pertenecen a la escuela seleccionada
-      filtered = filtered.filter(user => {
-        // Verificar en schoolRoles
-        const inSchoolRoles = user.schoolRoles && 
-          user.schoolRoles.some(sr => {
-            const srSchoolId = typeof sr.schoolId === 'string' 
-              ? sr.schoolId 
-              : String(sr.schoolId);
-            return srSchoolId === selectedSchool;
-          });
-        
-        // Verificar en schools (para usuarios con array de schools)
-        const inSchools = user.schools && 
-          Array.isArray(user.schools) &&
-          user.schools.some(schoolId => 
-            typeof schoolId === 'string' 
-              ? schoolId === selectedSchool
-              : String(schoolId) === selectedSchool
-          );
-        
-        // Verificar en los cursos del usuario
-        let inCourses = false;
-        if (user.enrolledCourses && Array.isArray(user.enrolledCourses) && user.enrolledCourses.length > 0) {
-          // Verificar si alguno de los cursos matriculados pertenece a la escuela seleccionada
-          inCourses = courses.some(course => 
-            user.enrolledCourses?.includes(course._id) && 
-            (
-              (typeof course.school === 'string' && course.school === selectedSchool) ||
-              (typeof course.school === 'object' && course.school?._id === selectedSchool)
-            )
-          );
-        }
-        
-        const isAssociated = inSchoolRoles || inSchools || inCourses;
-        
-        // Incluir usuario si está asociado a la escuela por cualquier método
-        return isAssociated;
-      });
+    // Aplicar filtro de búsqueda por término
+    if (searchTerm) {
+      tempUsers = tempUsers.filter(user =>
+        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) // Verificar si email existe
+      );
     }
     
-    setFilteredUsers(filtered);
-    
-    // Actualizar total de páginas
-    setTotalPages(Math.ceil(filtered.length / itemsPerPage));
-    
-    // Resetear a la página 1 cuando cambian los filtros
-    setCurrentPage(1);
-    
-  }, [searchTerm, users, selectedSchool, itemsPerPage, unregisteredUsers, courses, attendanceRecords, user?.role, userSchools, processAttendanceForUnregisteredUsers, dataReady]);
+    setFilteredUsers(tempUsers);
+    setCurrentPage(1); // Resetear a la primera página con cada filtro
+  }, [searchTerm, users, selectedSchool]);
+        
+  // Actualizar totalPages cuando cambia el ordenamiento o los filtros
+  useEffect(() => {
+    if (selectedSchool === 'unregistered') {
+      setTotalPages(Math.ceil(unregisteredUsers.length / itemsPerPage));
+    } else {
+      setTotalPages(Math.ceil(filteredUsers.length / itemsPerPage)); // Usar filteredUsers aquí
+    }
+    setCurrentPage(1); // Resetear a la primera página con cada cambio que afecte el total de páginas
+  }, [filteredUsers, unregisteredUsers, selectedSchool, itemsPerPage, sortBy, sortOrder]); // Agregado sortBy y sortOrder
 
   // Manejar cambios en el formulario
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -1454,18 +1220,9 @@ export default function UserManagement() {
     );
   };
 
-  // Actualizar totalPages cuando cambia el ordenamiento
-  useEffect(() => {
-    // Calcular total de páginas basado en usuarios filtrados y ordenados
-    if (selectedSchool === 'unregistered') {
-      setTotalPages(Math.ceil(unregisteredUsers.length / itemsPerPage));
-    } else {
-      setTotalPages(Math.ceil(sortedFilteredUsers.length / itemsPerPage));
-    }
-    
-    // Resetear a la primera página cuando cambia el orden para evitar páginas vacías
-    setCurrentPage(1);
-  }, [sortedFilteredUsers, unregisteredUsers, selectedSchool, itemsPerPage]);
+  if (error && !users.length && !unregisteredUsers.length && !dataReady) {
+    return <div className={dashboardStyles.centeredMessage}>Error al cargar datos: {error}. Intente recargar la página.</div>;
+  }
 
   return (
     <div className={dashboardStyles.container}>
@@ -1502,13 +1259,7 @@ export default function UserManagement() {
         </div>
 
         <div className={dashboardStyles.mainContent}>
-          {/* Si está cargando y los datos no están listos, SOLO mostrar el spinner centrado en pantalla */}
-          {loading && !dataReady ? (
-            <div className={styles.fullPageSpinner}>
-              <LoadingSpinner message={loadingMessage} />
-            </div>
-          ) : (
-            /* Cuando no está cargando o los datos están listos, mostrar el contenido completo */
+          {/* El contenido principal (el fragmento <>) comienza inmediatamente aquí dentro */}
             <>
               <div className={styles.controlPanel}>
                 {user?.role === 'super_admin' || user?.role === 'admin' || 
@@ -1701,210 +1452,75 @@ export default function UserManagement() {
                       </tr>
                     </thead>
                     <tbody>
-                      {sortedFilteredUsers.length > 0 ? (
+                    {!loading && sortedFilteredUsers.length > 0 ? (
                         sortedFilteredUsers
                           .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                           .map((user) => (
                             <tr key={user._id}>
-                              <td>{user.name}</td>
-                              <td>
-                                <div 
+                            <td>
+                              <Link href={`/admin/users/${user._id}`} className={styles.userNameLink}>
+                                {user.name}
+                              </Link>
+                            </td>
+                            <td 
+                              title={user.email} 
                                   onClick={() => handleEmailClick(user.email)}
-                                  className={`${styles.emailContainer} ${expandedEmail === user.email ? styles.emailExpanded : ''}`}
-                                  title="Clic para expandir/contraer"
+                              className={styles.emailCell}
                                 >
                                   {expandedEmail === user.email ? user.email : truncateEmail(user.email)}
-                                </div>
                               </td>
                               <td>
-                                {user.role === 'super_admin' && (
-                                  <span style={{ 
-                                    backgroundColor: '#f6ad55', 
-                                    color: '#7b341e',
-                                    padding: '0.25rem 0.75rem',
-                                    borderRadius: '20px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '500',
-                                    display: 'inline-block',
-                                  }}>
-                                    super_admin
+                              <span className={`${styles.roleBadge} ${styles[user.role.replace(/_/g, '')]}`}>
+                                {user.role.replace(/_/g, ' ')}
                                   </span>
-                                )}
-                                {user.role === 'admin' && (
-                                  <span style={{ 
-                                    backgroundColor: '#fc8181', 
-                                    color: '#742a2a',
-                                    padding: '0.25rem 0.75rem',
-                                    borderRadius: '20px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '500',
-                                    display: 'inline-block',
-                                  }}>
-                                    admin
-                                  </span>
-                                )}
-                                {user.role === 'teacher' && (
-                                  <span style={{ 
-                                    backgroundColor: '#68d391', 
-                                    color: '#276749',
-                                    padding: '0.25rem 0.75rem',
-                                    borderRadius: '20px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '500',
-                                    display: 'inline-block',
-                                  }}>
-                                    teacher
-                                  </span>
-                                )}
-                                {user.role === 'school_owner' && (
-                                  <span style={{ 
-                                    backgroundColor: '#b794f4', 
-                                    color: '#553c9a',
-                                    padding: '0.25rem 0.75rem',
-                                    borderRadius: '20px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '500',
-                                    display: 'inline-block',
-                                  }}>
-                                    school_owner
-                                  </span>
-                                )}
-                                {user.role === 'administrative' && (
-                                  <span style={{ 
-                                    backgroundColor: '#9ae6b4', 
-                                    color: '#276749',
-                                    padding: '0.25rem 0.75rem',
-                                    borderRadius: '20px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '500',
-                                    display: 'inline-block',
-                                  }}>
-                                    administrative
-                                  </span>
-                                )}
-                                {user.role === 'student' && (
-                                  <span style={{ 
-                                    backgroundColor: '#63b3ed', 
-                                    color: '#2c5282',
-                                    padding: '0.25rem 0.75rem',
-                                    borderRadius: '20px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '500',
-                                    display: 'inline-block',
-                                  }}>
-                                    student
-                                  </span>
-                                )}
-                                {user.role === 'unregistered' && (
-                                  <span style={{ 
-                                    backgroundColor: '#718096', 
-                                    color: '#1a202c',
-                                    padding: '0.25rem 0.75rem',
-                                    borderRadius: '20px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '500',
-                                    display: 'inline-block',
-                                  }}>
-                                    unregistered
-                                  </span>
+                              {user.isRegistered === false && (
+                                <span className={`${styles.roleBadge} ${styles.unregistered}`}>no registrado</span>
                                 )}
                               </td>
                               <td>
-                                {user.enrolledCourses && user.enrolledCourses.length > 0 ? (
                                   <div style={{ display: 'flex', alignItems: 'center' }}>
-                                    <span style={{ marginRight: '5px', fontSize: '1.1rem', color: '#4a5568' }}>
+                                <span style={{ marginRight: '5px', fontSize: '1.1rem', color: '#4a5568' }} title="Cursos matriculados">
                                       <FaGraduationCap />
                                     </span>
-                                    <span>{user.enrolledCourses.length}</span>
+                                <span>{user.enrolledCourses?.length || 0}</span>
                                     <button 
-                                      className={styles.iconButton}
                                       onClick={() => handleViewUserCourses(user)}
-                                      style={{ 
-                                        marginLeft: '8px',
-                                        backgroundColor: '#ebf8ff',
-                                        color: '#3182ce',
-                                        padding: '0.25rem',
-                                        borderRadius: '4px',
-                                        fontSize: '0.8rem'
-                                      }}
+                                  className={`${styles.iconButton} ${styles.viewCoursesButton}`} 
+                                  title="Ver cursos"
+                                  style={{ marginLeft: '8px'}} /* Estilo básico, puede ser mejorado con CSS module */
                                     >
                                       <FaList />
                                     </button>
                                   </div>
-                                ) : (
-                                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                                    <span style={{ marginRight: '5px', fontSize: '1.1rem', color: '#4a5568' }}>
-                                      <FaGraduationCap />
-                                    </span>
-                                    <span>0</span>
-                                  </div>
-                                )}
                               </td>
                               <td>
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                                  <span style={{ marginRight: '5px' }}>
+                                <span style={{ marginRight: '5px' }} title="Fecha de registro">
                                     <FaClock />
                                   </span>
                                   <span>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</span>
                                 </div>
                               </td>
-                              <td className={styles.actionButtons}>
-                                <button 
-                                  className={styles.iconButton}
-                                  onClick={() => handleEditUser(user)}
-                                  title="Editar"
-                                  style={{
-                                    backgroundColor: '#ebf8ff',
-                                    color: '#3182ce',
-                                    padding: '0.35rem',
-                                    borderRadius: '4px',
-                                    margin: '0 3px'
-                                  }}
-                                >
+                            <td>
+                              <button onClick={() => handleEditUser(user)} className={`${styles.iconButton} ${styles.editButton}`} title="Editar Usuario">
                                   <FaEdit />
                                 </button>
-                                <button 
-                                  className={styles.iconButton}
-                                  onClick={() => handleEnrollUser(user)}
-                                  title="Enrollar en curso"
-                                  style={{
-                                    backgroundColor: '#edf2f7',
-                                    color: '#4a5568',
-                                    padding: '0.35rem',
-                                    borderRadius: '4px',
-                                    margin: '0 3px'
-                                  }}
-                                >
-                                  <FaGraduationCap />
+                              {user.isRegistered !== false && (
+                                <>
+                                  <button onClick={() => handleEnrollUser(user)} className={`${styles.iconButton} ${styles.enrollButton}`} title="Matricular en Curso">
+                                    <FaUserPlus />
                                 </button>
-                                
-                                <button 
-                                  className={styles.iconButton}
-                                  onClick={() => handleShowPaymentModal(user)}
-                                  title="Registrar pago"
-                                  style={{
-                                    backgroundColor: '#c6f6d5',
-                                    color: '#276749',
-                                    padding: '0.35rem',
-                                    borderRadius: '4px',
-                                    margin: '0 3px'
-                                  }}
-                                >
+                                  <button onClick={() => handleShowPaymentModal(user)} className={`${styles.iconButton} ${styles.paymentButton}`} title="Registrar Pago">
                                   <FaMoneyBillWave />
                                 </button>
-                                
-                                <button 
-                                  className={`${styles.iconButton} ${styles.deleteButton}`}
-                                  onClick={() => handleDeleteUser(user._id, user.name)}
-                                  title="Eliminar"
-                                  style={{
-                                    backgroundColor: '#fed7d7',
-                                    color: '#e53e3e',
-                                    padding: '0.35rem',
-                                    borderRadius: '4px',
-                                    margin: '0 3px'
-                                  }}
-                                >
+                                </>
+                              )}
+                              {user.isRegistered === false && selectedSchool === 'unregistered' && (
+                                <button onClick={() => handleLinkUser(user)} className={`${styles.iconButton} ${styles.linkButton}`} title="Vincular con Usuario Registrado">
+                                  <FaLink />
+                                </button>
+                              )}
+                              <button onClick={() => handleDeleteUser(user._id, user.name)} className={`${styles.iconButton} ${styles.deleteButton}`} title="Eliminar Usuario">
                                   <FaTrash />
                                 </button>
                               </td>
@@ -1912,8 +1528,8 @@ export default function UserManagement() {
                           ))
                       ) : (
                         <tr>
-                          <td colSpan={6} className={styles.noResults}>
-                            No se encontraron usuarios que coincidan con los criterios de búsqueda.
+                        <td colSpan={6} className={styles.noDataMessage}>
+                          {loading ? 'Cargando usuarios...' : 'No se encontraron usuarios que coincidan con los criterios de búsqueda.'}
                           </td>
                         </tr>
                       )}
@@ -1946,7 +1562,6 @@ export default function UserManagement() {
                 </div>
               )}
             </>
-          )}
         </div>
       </div>
 

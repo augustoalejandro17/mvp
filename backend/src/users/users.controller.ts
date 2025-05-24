@@ -80,6 +80,15 @@ export class UsersController {
     return this.usersService.findByRole(role);
   }
 
+  @Get('unregistered')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SCHOOL_OWNER)
+  async findUnregistered(@Req() req: Request) {
+    const userId = req.user['sub'] || req.user['_id'];
+    const userRole = req.user['role'];
+    return this.usersService.findUnregistered(userId, userRole);
+  }
+
   @Get('teachers-by-school/:schoolId')
   @UseGuards(JwtAuthGuard)
   async findTeachersBySchool(@Param('schoolId') schoolId: string) {

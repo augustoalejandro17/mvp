@@ -703,4 +703,15 @@ export class UsersService {
       throw new BadRequestException(`Error al crear usuario no registrado: ${error.message}`);
     }
   }
+
+  async findUnregistered(authUserId: string, authUserRole: string): Promise<User[]> {
+    this.logger.log(`User ${authUserId} (${authUserRole}) fetching unregistered users.`);
+    // Example: Find users with a specific role or flag indicating they are unregistered
+    // This is a placeholder, adjust the query based on your actual User schema for unregistered users
+    const unregisteredUsers = await this.userModel.find({ role: 'unregistered' }).exec();
+    if (!unregisteredUsers) {
+      throw new NotFoundException('No unregistered users found.');
+    }
+    return unregisteredUsers.map(user => user.toObject() as User);
+  }
 } 

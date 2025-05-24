@@ -37,6 +37,13 @@ export class AttendanceController {
     return this.attendanceService.findAllRecords();
   }
 
+  @Get('all-records-admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.VIEW_ATTENDANCE)
+  async getAllRecordsAdmin() {
+    return this.attendanceService.findAllRecords();
+  }
+
   @Get('course/:courseId')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(Permission.VIEW_ATTENDANCE)
