@@ -63,3 +63,5 @@ coverage/
 data/
 mongodb/ 
 frontend/.env.production
+package-lock.json
+backend/package-lock.json
