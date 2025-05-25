@@ -16,8 +16,8 @@ FRONTEND_IMAGE="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/inti-frontend"
 BACKEND_IMAGE="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/inti-backend"
 
 # Variables de entorno para producción
-BACKEND_URL="http://inti-back-543150373.us-east-1.elb.amazonaws.com"
-FRONTEND_URL="http://inti-front-431558574.us-east-1.elb.amazonaws.com"
+BACKEND_URL="https://api.intihubs.com"
+FRONTEND_URL="https://intihubs.com"
 
 # Generar archivo .env.production para frontend
 echo "📝 Generando variables de entorno para producción..."
