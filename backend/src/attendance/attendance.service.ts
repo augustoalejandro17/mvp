@@ -85,7 +85,7 @@ export class AttendanceService {
         course: createAttendanceDto.courseId,
         student: createAttendanceDto.studentId,
         studentModel: 'User',
-        date: attendanceDate,
+        date: new Date(),
         present: createAttendanceDto.present,
         notes: createAttendanceDto.notes,
         markedBy: teacherId,
@@ -100,7 +100,7 @@ export class AttendanceService {
       return this.createForNonRegisteredUser(
         createAttendanceDto.courseId,
         createAttendanceDto.studentId, // En este caso, el ID es el nombre
-        new Date(createAttendanceDto.date), 
+        new Date(),
         createAttendanceDto.present,
         createAttendanceDto.notes || '',
         teacherId
@@ -186,7 +186,7 @@ export class AttendanceService {
             course: bulkAttendanceDto.courseId,
             student: attendanceData.studentId,
             studentModel: 'User',
-            date: attendanceDate,
+            date: new Date(),
             present: attendanceData.present,
             notes: attendanceData.notes,
             markedBy: teacherId,
@@ -202,13 +202,15 @@ export class AttendanceService {
     
     if (nonRegisteredAttendances.length > 0) {
       // Create an exact date object from the input without manipulation
-      const attendanceDate = new Date(bulkAttendanceDto.date);
-      
+      // const attendanceDate = new Date(bulkAttendanceDto.date); // No necesitamos esto si usamos new Date() abajo
+
       // Create date range for queries that preserves the original date's day
-      const startDate = new Date(attendanceDate);
+      // Esta parte es para buscar existentes, así que debe usar la fecha del DTO si la intención es agrupar por día de clase
+      const searchDateForExisting = new Date(bulkAttendanceDto.date); // Usar la fecha del DTO para la búsqueda de existentes
+      const startDate = new Date(searchDateForExisting);
       startDate.setUTCHours(0, 0, 0, 0);
       
-      const endDate = new Date(attendanceDate);
+      const endDate = new Date(searchDateForExisting);
       endDate.setUTCHours(23, 59, 59, 999);
       
       // Para cada estudiante no registrado, añadir un registro de asistencia
@@ -235,7 +237,7 @@ export class AttendanceService {
           const nonRegisteredAttendance = await this.createForNonRegisteredUser(
             bulkAttendanceDto.courseId,
             attendanceData.studentId, // El ID en este caso es el nombre
-            attendanceDate,
+            new Date(), // Siempre la fecha y hora actual del servidor al crear
             attendanceData.present,
             attendanceData.notes || '',
             teacherId

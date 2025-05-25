@@ -476,12 +476,10 @@ export class ClassesService {
     }
     
     // Use the date provided or current date without timezone manipulation
-    const attendanceDate = recordAttendanceDto.date ? new Date(recordAttendanceDto.date) : new Date();
+    const attendanceDate = new Date(); // Siempre usamos la fecha y hora actuales del servidor para el registro
     
     // Log information for debugging
     console.log(`Recording attendance for class ${classId}`);
-    console.log(`Date provided: ${recordAttendanceDto.date || 'none (using current date)'}`);
-    console.log(`Using date: ${attendanceDate.toISOString()}`);
     
     // Get the course ID from the class
     const courseId = classItem.course;

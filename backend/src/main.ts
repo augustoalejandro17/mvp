@@ -24,8 +24,8 @@ async function bootstrap() {
     // Habilitar CORS
     const allowedOrigins = [
       process.env.FRONTEND_URL, 
-      'http://localhost:3000',
-      'http://inti-front-431558574.us-east-1.elb.amazonaws.com'
+      'http://inti-front-431558574.us-east-1.elb.amazonaws.com',
+      'https://app.intiapp.com'
     ];
     
     app.enableCors({
