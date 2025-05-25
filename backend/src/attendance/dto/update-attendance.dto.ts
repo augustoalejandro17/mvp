@@ -14,4 +14,8 @@ export class UpdateAttendanceDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsString()
+  @IsOptional()
+  courseId?: string;
 } 

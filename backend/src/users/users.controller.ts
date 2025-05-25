@@ -368,7 +368,7 @@ export class UsersController {
    */
   @Post('bypass-assistant')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions(Permission.MANAGE_STUDENTS)
+  @RequirePermissions(Permission.TAKE_ATTENDANCE)
   async createAssistantBypass(
     @Req() req: Request,
     @Body() rawData: any,

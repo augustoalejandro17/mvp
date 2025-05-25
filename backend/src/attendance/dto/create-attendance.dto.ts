@@ -1,18 +1,19 @@
-import { IsBoolean, IsDateString, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsMongoId, IsNotEmpty, IsString, IsBoolean, IsOptional, IsDateString } from 'class-validator';
 
 export class CreateAttendanceDto {
   @IsNotEmpty()
-  @IsString()
+  @IsMongoId()
   courseId: string;
 
   @IsNotEmpty()
-  @IsString()
-  studentId: string; // ID o nombre del estudiante
+  @IsString() // Puede ser ObjectId o un nombre (si es no registrado, pero ahora se espera ObjectId)
+  studentId: string;
 
   @IsNotEmpty()
   @IsDateString()
-  date: Date;
+  date: string; // Fecha de la clase (YYYY-MM-DD), la hora se ignora para la búsqueda y se usa current para el registro
 
+  @IsNotEmpty()
   @IsBoolean()
   present: boolean;
 
@@ -20,7 +21,8 @@ export class CreateAttendanceDto {
   @IsString()
   notes?: string;
 
-  @IsOptional()
-  @IsBoolean()
-  isRegistered?: boolean; // True para usuarios registrados, false para no registrados
+  // Eliminamos isRegistered ya que studentId siempre será un ObjectId de un User
+  // @IsOptional()
+  // @IsBoolean()
+  // isRegistered?: boolean;
 } 

@@ -118,215 +118,138 @@ export default function AttendancePage() {
   }, [id]);
 
   const fetchAttendances = useCallback(async () => {
+    if (!id || !date || !course) {
+      return;
+    }
     try {
       setLoading(true);
+      setError('');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
-      
+
       console.log(`Fetching attendance for course ${id} on date ${date}`);
-      
       const response = await axios.get(`${apiUrl}/api/attendance/course/${id}?date=${date}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
-      console.log('Raw attendance response data:', response.data);
-      
+
+      const finalAttendanceMap = new Map<string, Attendance>();
+
+      // 1. Pre-cargar studentInfoMap si hay IDs de string en la respuesta de la API para optimizar
+      let studentInfoMap: Record<string, any> = {};
       if (response.data && Array.isArray(response.data)) {
-        const studentIdsToFetch = new Set<string>();
-        
-        response.data.forEach(attendance => {
-          if (typeof attendance.student === 'string') {
-            studentIdsToFetch.add(attendance.student);
+        const studentIdsToFetchDetails = new Set<string>();
+        response.data.forEach((att: any) => {
+          if (typeof att.student === 'string') {
+            studentIdsToFetchDetails.add(att.student);
           }
         });
-        
-        let studentInfoMap: Record<string, any> = {};
-        
-        if (studentIdsToFetch.size > 0) {
+        if (studentIdsToFetchDetails.size > 0) {
           try {
-            const studentsPromises = Array.from(studentIdsToFetch).map(async (studentId) => {
+            const studentsPromises = Array.from(studentIdsToFetchDetails).map(async (studentId) => {
               try {
                 const studentResponse = await axios.get(`${apiUrl}/api/users/${studentId}`, {
                   headers: { Authorization: `Bearer ${token}` }
                 });
                 return studentResponse.data;
               } catch (error: any) {
-                return { _id: studentId, name: 'Usuario no encontrado' };
+                return { _id: studentId, name: 'Usuario no encontrado en API' };
               }
             });
-            
             const studentResults = await Promise.all(studentsPromises);
-            
             studentResults.forEach(student => {
               if (student && student._id) {
                 studentInfoMap[student._id] = student;
               }
             });
-            
-            for (const studentId of Array.from(studentIdsToFetch)) {
-              if (studentId.includes('test')) {
-                await debugTestUser(studentId);
-              }
-            }
           } catch (error) {
-            // Error silencioso
+            console.error("Error fetching student details in batch for API records", error);
           }
         }
-        
-        const mappedAttendancesPromises = response.data.map(async (attendance) => {
-          let studentName = '';
-          let studentId = '';
-          let isRegistered = false;
-          
-          if (typeof attendance.student === 'object' && attendance.student !== null) {
-            isRegistered = true;
-            studentId = attendance.student._id || '';
-            studentName = attendance.student.name || '';
-            
-            if (studentName === 'Usuario no encontrado') {
-              return null;
-            }
-          } else if (typeof attendance.student === 'string') {
-            studentId = attendance.student;
-            isRegistered = true;
-            
-            if (studentInfoMap[studentId]) {
-              studentName = studentInfoMap[studentId].name;
-              
-              if (studentName === 'Usuario no encontrado') {
-                return null;
-              }
-            } else if (attendance.studentName) {
-              studentName = attendance.studentName;
-              isRegistered = false;
-              
-              if (studentName === 'Usuario no encontrado') {
-                return null;
-              }
-            } else {
-              try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-                const token = Cookies.get('token');
-                
-                const userResponse = await axios.get(`${apiUrl}/api/users/${studentId}`, {
-                  headers: { Authorization: `Bearer ${token}` }
-                });
-                
-                if (userResponse.data && userResponse.data.name) {
-                  studentName = userResponse.data.name;
-                  isRegistered = true;
-                  
-                  if (studentName === 'Usuario no encontrado') {
-                    return null;
-                  }
-                }
-              } catch (userError) {
-                if (course && course.students) {
-                  const courseStudent = course.students.find(s => {
-                    if (typeof s === 'object' && s !== null) {
-                      return s._id === studentId;
-                    }
-                    return String(s) === studentId;
-                  });
-                  
-                  if (courseStudent) {
-                    if (typeof courseStudent === 'object' && courseStudent.name) {
-                      studentName = courseStudent.name;
-                      
-                      if (studentName === 'Usuario no encontrado') {
-                        return null;
-                      }
-                    }
-                  }
-                }
-              }
-              
-              if (!studentName) {
-                return null;
-              }
-            }
-          } else {
-            return null;
-          }
-          
-          return {
-            _id: attendance._id,
-            studentId: studentId,
-            studentName: studentName,
-            present: attendance.present === true ? true : attendance.present === false ? false : null,
-            notes: attendance.notes || '',
-            isRegistered: isRegistered
-          };
-        });
-        
-        const mappedAttendances = (await Promise.all(mappedAttendancesPromises))
-          .filter(attendance => attendance !== null)
-          // Sort alphabetically by student name
-          .sort((a, b) => (a.studentName || '').localeCompare((b.studentName || ''), undefined, { sensitivity: 'base' }));
-        
-        console.log('Mapped attendance records:', mappedAttendances);
-        
-        setAttendances(mappedAttendances);
-      } else {
-        console.log('No attendance data found for this day or data is not in expected format');
-        setAttendances([]);
       }
+      
+      // 2. Procesar estudiantes del curso primero (esta es la lista "maestra")
+      if (course && course.students) {
+        for (const student of course.students) {
+          if (student && student._id && student.name !== 'Usuario no encontrado') { // Evitar añadir usuarios fantasma
+            finalAttendanceMap.set(student._id, {
+              studentId: student._id,
+              studentName: student.name,
+              present: null, // Default, se sobrescribirá si hay registro en API
+              notes: '',
+              isRegistered: true,
+              isTemporary: false, 
+            });
+          }
+        }
+      }
+
+      // 3. Actualizar con datos de la API si existen
+      if (response.data && Array.isArray(response.data)) {
+        for (const apiRecord of response.data) {
+          let studentIdFromApi: string | undefined;
+          let studentNameFromApi: string | undefined;
+          let isRegisteredFromApi = false;
+
+          if (typeof apiRecord.student === 'object' && apiRecord.student !== null) {
+            studentIdFromApi = apiRecord.student._id;
+            studentNameFromApi = apiRecord.student.name;
+            isRegisteredFromApi = true;
+          } else if (typeof apiRecord.student === 'string') {
+            studentIdFromApi = apiRecord.student;
+            let studentDetail; // Declarar studentDetail aquí
+            if (studentIdFromApi) { // Asegurarse que studentIdFromApi no es undefined
+              studentDetail = studentInfoMap[studentIdFromApi]; // Usar el mapa pre-cargado
+            }
+
+            if (studentDetail && studentDetail.name !== 'Usuario no encontrado en API') {
+                studentNameFromApi = studentDetail.name;
+                isRegisteredFromApi = true;
+            } else if (course?.students.find(s => s._id === studentIdFromApi)){
+                // Fallback si no estaba en studentInfoMap pero sí en el curso (debería ser raro)
+                const courseStudent = course.students.find(s => s._id === studentIdFromApi);
+                studentNameFromApi = courseStudent?.name;
+                isRegisteredFromApi = true;
+            } else {
+                // Si no se puede resolver el nombre, podríamos marcarlo para revisión o ignorarlo
+                // Por ahora, si no podemos obtener un nombre, no lo incluimos o lo marcamos.
+                // Si studentNameFromApi queda undefined, se filtrará más abajo.
+            }
+          }
+
+          if (studentIdFromApi && studentNameFromApi && studentNameFromApi !== 'Usuario no encontrado en API') {
+            const existingEntry = finalAttendanceMap.get(studentIdFromApi);
+            if (existingEntry) { // Si ya estaba por el curso, actualizar con datos de API
+              existingEntry._id = apiRecord._id; 
+              existingEntry.present = apiRecord.present === true ? true : apiRecord.present === false ? false : null;
+              existingEntry.notes = apiRecord.notes || '';
+              // studentName e isRegistered ya están seteados desde la info del curso (más confiable)
+            } else {
+              // Estudiante en API pero no en el curso actual (ej. un "no registrado" que ya no está o error)
+              // Decidimos no añadirlo si no está en la lista oficial de course.students para evitar "fantasmas"
+              // Si se quisiera mostrar TODO lo de la API, aquí se añadiría a finalAttendanceMap.
+              console.log(`Registro de API para estudiante ${studentIdFromApi} (${studentNameFromApi}) no encontrado en la lista actual del curso.`);
+            }
+          }
+        }
+      }
+      
+      // 4. Convertir el mapa a array y ordenar
+      const finalAttendancesArray = Array.from(finalAttendanceMap.values())
+          .filter(att => att.studentName && att.studentName !== 'Usuario no encontrado en API' && att.studentName !== 'Estudiante desconocido'); // Filtro final
+          
+      finalAttendancesArray.sort((a, b) => (a.studentName || '').localeCompare((b.studentName || ''), undefined, { sensitivity: 'base' }));
+
+      console.log('Final combined and deduplicated attendance records:', finalAttendancesArray);
+      setAttendances(finalAttendancesArray);
+
     } catch (error) {
+      console.error('Error fetching attendances:', error);
+      setError('No se pudieron cargar los registros de asistencia. Intente de nuevo.');
       setAttendances([]);
     } finally {
       setLoading(false);
     }
-  }, [id, date]);
-
-  const initializeAttendances = useCallback(() => {
-    if (!course || !course.students) {
-      return;
-    }
-    
-    // En lugar de modificar el estado existente, crear una nueva lista
-    // sin depender del estado actual de attendances
-    const newAttendances: Attendance[] = [];
-    
-    // Procesar los estudiantes y crear registros de asistencia
-    course.students.forEach(student => {
-      // Verificar si ya existe este estudiante en la lista actual
-      // Pero no hacer que este método dependa del estado attendances
-      const exists = attendances.some(a => {
-        if (typeof student === 'object' && student !== null) {
-          return a.studentId === student._id;
-        } else {
-          return a.studentId === String(student);
-        }
-      });
-      
-      if (!exists) {
-        let studentId = '';
-        let studentName = '';
-        
-        if (typeof student === 'object' && student !== null) {
-          studentId = student._id || '';
-          studentName = student.name || '';
-          
-          if (studentName === 'Usuario no encontrado') {
-            return; // Skip this student
-          }
-          
-          newAttendances.push({
-            studentId,
-            studentName,
-            present: null,
-            notes: '',
-            isRegistered: true
-          });
-        }
-      }
-    });
-    
-    // Solo si hay nuevos registros, añadirlos a los existentes
-    if (newAttendances.length > 0) {
-      setAttendances(prev => [...prev, ...newAttendances]);
-    }
-  }, [course, attendances]);
+  }, [id, date, course]); // Eliminado token de las dependencias
 
   const handlePresentChange = (studentId: string, present: boolean) => {
     setAttendances(prev => 
@@ -448,71 +371,32 @@ export default function AttendancePage() {
       
       const promises = attendancesToSave.map(async (attendance) => {
         try {
-          // Create proper date object with time component set to noon
-          // CRITICAL: Create a string formatted date that won't be modified by the backend
-          // The backend's date.setHours() calls are causing issues because they mutate the date object
           const dateString = date + 'T12:00:00.000Z';
           
-          // Only include fields expected by the DTO to avoid validation errors
-          const data: any = {
-            courseId: id as string,
-            studentId: attendance.studentId,
-            date: dateString,
-            present: attendance.present,
-            notes: attendance.notes || '',
-            isRegistered: attendance.isRegistered
-          };
-          
-          // Include studentName for non-registered users
-          if (attendance.studentName && !attendance.isRegistered) {
-            data.studentName = attendance.studentName;
-          }
-          
-          console.log('Sending attendance data:', data);
-
-          if (attendance._id) {
-            console.log('Updating existing attendance record with ID:', attendance._id);
-            // Use PATCH instead of PUT as controller expects PATCH
-            // Only send fields expected by UpdateAttendanceDto for updates
+          if (attendance._id) { // Actualizar registro existente
             const updateData = {
               present: attendance.present,
               notes: attendance.notes || '',
-              // Only include date if explicitly changing it
-              date: dateString
+              date: dateString, // El backend puede optar por usar esta fecha o no para el campo 'date' en sí
+              courseId: id as string
             };
-            console.log('Sending update data:', updateData);
+            console.log('Sending update data for ID', attendance._id, updateData);
             return axios.patch(`${apiUrl}/api/attendance/${attendance._id}`, updateData, {
               headers: { Authorization: `Bearer ${token}` }
             }).catch(error => {
               console.error(`Error updating attendance ${attendance._id}:`, error.response?.status, error.response?.data);
               throw error;
             });
-          } else {
-            console.log('Creating new attendance record');
-            // For creating new records, include all necessary fields
+          } else { // Crear nuevo registro
             const createData: any = {
               courseId: id as string,
-              date: dateString,
-              present: attendance.present === null ? false : attendance.present,
+              studentId: attendance.studentId, // Este es el ObjectId del usuario (registrado o no registrado)
+              date: dateString, // El backend usará la fecha de aquí para buscar duplicados, pero new Date() para el registro en sí.
+              present: attendance.present,
               notes: attendance.notes || ''
+              // No se envía isRegistered. El backend asume que studentId es un ObjectId de User.
             };
-              
-            // Manejar diferentes casos para usuarios registrados y no registrados
-            if (attendance.isRegistered) {
-              // Usuario registrado - usar studentId
-              createData.studentId = attendance.studentId;
-              createData.isRegistered = true;
-            } else {
-              // Usuario no registrado - ya debe tener un ID real porque fue creado al agregarlo
-              createData.studentId = attendance.studentId; // ID real del usuario
-              createData.isRegistered = false;
-              
-              console.log('Guardando asistencia para asistente no registrado:', {
-                id: attendance.studentId,
-                nombre: attendance.studentName
-              });
-              }
-              
+            
             console.log('Sending create data:', createData);
             return axios.post(`${apiUrl}/api/attendance`, createData, {
               headers: { Authorization: `Bearer ${token}` }
@@ -581,40 +465,6 @@ export default function AttendancePage() {
     setDate(e.target.value);
   };
 
-  // Inicializar la lista cuando se carga el curso
-  useEffect(() => {
-    if (course) {
-      initializeAttendances();
-    }
-  }, [course, initializeAttendances]);
-
-  // Función para ayudar a depurar el problema con Test User
-  const debugTestUser = async (studentId: string) => {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const token = Cookies.get('token');
-      
-      const response = await axios.get(`${apiUrl}/api/users/${studentId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      return response.data;
-    } catch (error: any) {
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-        const token = Cookies.get('token');
-        
-        const nonRegisteredResponse = await axios.get(`${apiUrl}/api/attendance/records?student=${studentId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      } catch (subError: any) {
-        // Error silencioso
-      }
-      
-      return null;
-    }
-  };
-
   useEffect(() => {
     const token = Cookies.get('token');
     if (!token) {
@@ -642,12 +492,12 @@ export default function AttendancePage() {
     }
   }, [id, router, fetchCourse]);
   
-  // Efecto separado para cargar las asistencias cuando cambia la fecha
+  // Efecto separado para cargar las asistencias cuando cambia la fecha o el curso (para tener los students)
   useEffect(() => {
-    if (id && date) {
+    if (id && date && course) { // Asegurarse de que course está cargado antes de fetchAttendances
       fetchAttendances();
     }
-  }, [id, date, fetchAttendances]);
+  }, [id, date, course, fetchAttendances]); // fetchAttendances ahora depende de course
 
   // Nuevas funciones para exportación de Excel
   const exportAttendanceToExcel = async () => {
@@ -888,7 +738,7 @@ export default function AttendancePage() {
                   <button 
                     type="button" 
                     className={styles.createButton}
-                    onClick={initializeAttendances}
+                    onClick={fetchAttendances}
                   >
                     Inicializar Asistencia
                   </button>

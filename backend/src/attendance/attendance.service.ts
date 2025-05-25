@@ -20,236 +20,170 @@ export class AttendanceService {
 
   // Registrar asistencia individual
   async create(createAttendanceDto: CreateAttendanceDto, teacherId: string): Promise<Attendance> {
-    
-    
+    const { courseId, studentId, date: dateString, present, notes } = createAttendanceDto;
+
     // Verificar que el curso existe
-    const course = await this.courseModel.findById(createAttendanceDto.courseId);
+    const course = await this.courseModel.findById(courseId);
     if (!course) {
-      throw new NotFoundException(`Curso con ID ${createAttendanceDto.courseId} no encontrado`);
+      throw new NotFoundException(`Curso con ID ${courseId} no encontrado`);
+    }
+
+    // Se asume que studentId es un ObjectId de un usuario existente (registrado o no registrado)
+    // La validación de IsMongoId en el DTO debería ayudar si studentId no es un formato ObjectId,
+    // aunque aquí studentId en DTO es IsString() para permitir flexibilidad pasada, ahora debería ser un ObjectId.
+    // Idealmente, CreateAttendanceDto.studentId debería ser IsMongoId().
+    if (!Types.ObjectId.isValid(studentId)) {
+      throw new BadRequestException(`studentId inválido: ${studentId}. Debe ser un ObjectId.`);
     }
     
-    // Verificar si es un usuario registrado o no registrado
-    const isRegisteredUser = createAttendanceDto.isRegistered !== false;
+    const student = await this.userModel.findById(studentId);
+    if (!student) {
+      throw new NotFoundException(`Estudiante con ID ${studentId} no encontrado`);
+    }
     
-    if (isRegisteredUser) {
-      // Verificar que el estudiante existe si es un usuario registrado
-      const student = await this.userModel.findById(createAttendanceDto.studentId);
-      if (!student) {
-        throw new NotFoundException(`Estudiante con ID ${createAttendanceDto.studentId} no encontrado`);
-      }
-      
-      // Verificar que el estudiante está matriculado en el curso
-      const isEnrolled = student.enrolledCourses.some(
-        courseId => courseId.toString() === createAttendanceDto.courseId
-      );
-      
-      if (!isEnrolled) {
-        throw new BadRequestException(`El estudiante no está matriculado en este curso`);
-      }
-
-      // Create exact date object without timezone manipulation
-      const attendanceDate = new Date(createAttendanceDto.date);
-      console.log(`Original date string: ${createAttendanceDto.date}`);
-      console.log(`Parsed date: ${attendanceDate.toISOString()}`);
-      
-      // Create date range for queries - using UTC hours to maintain the day boundary
-      const startDate = new Date(attendanceDate);
-      startDate.setUTCHours(0, 0, 0, 0);
-      
-      const endDate = new Date(attendanceDate);
-      endDate.setUTCHours(23, 59, 59, 999);
-      
-      console.log(`Search range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
-
-      // Verificar si ya existe un registro para este estudiante en esta fecha para este curso
-      const existingAttendance = await this.attendanceModel.findOne({
-        course: createAttendanceDto.courseId,
-        student: createAttendanceDto.studentId,
-        studentModel: 'User',
-        date: {
-          $gte: startDate,
-          $lt: endDate
+    // Verificar que el estudiante está matriculado en el curso
+    // Esta validación es importante
+    const isEnrolled = student.enrolledCourses.some(
+      cId => cId.toString() === courseId
+    );
+    
+    if (!isEnrolled && student.role !== UserRole.UNREGISTERED) {
+        // Si es un usuario registrado (no UNREGISTERED) y no está en enrolledCourses, es un error.
+        // Los usuarios UNREGISTERED se añaden a enrolledCourses en createForNonRegisteredUser.
+        // Si llega aquí un UNREGISTERED que no está en enrolledCourses, algo falló antes.
+        throw new BadRequestException(`El estudiante ${student.name} (ID: ${studentId}) no está matriculado en este curso.`);
+    } else if (!isEnrolled && student.role === UserRole.UNREGISTERED) {
+        // Si es un usuario UNREGISTERED y no está en la lista de enrolledCourses del modelo User,
+        // pero sí está en la lista de students del modelo Course, lo permitimos.
+        // Esto puede pasar si se añade como no registrado y aún no se ha sincronizado enrolledCourses.
+        const courseContainsStudent = course.students.some(sId => sId.toString() === studentId);
+        if (!courseContainsStudent) {
+            throw new BadRequestException(`El estudiante no registrado (ID: ${studentId}) no está asociado a este curso.`);
         }
-      });
-
-      if (existingAttendance) {
-        // Actualizar el registro existente
-        existingAttendance.present = createAttendanceDto.present;
-        existingAttendance.notes = createAttendanceDto.notes;
-        existingAttendance.updatedAt = new Date();
-        return existingAttendance.save();
-      }
-      
-      // Crear un nuevo registro de asistencia para usuario registrado
-      const attendance = new this.attendanceModel({
-        course: createAttendanceDto.courseId,
-        student: createAttendanceDto.studentId,
-        studentModel: 'User',
-        date: new Date(),
-        present: createAttendanceDto.present,
-        notes: createAttendanceDto.notes,
-        markedBy: teacherId,
-        recordedBy: teacherId
-      });
-      
-      const savedAttendance = await attendance.save();
-      console.log(`Saved attendance with date: ${savedAttendance.date.toISOString()}`);
-      return savedAttendance;
-    } else {
-      // Para usuario no registrado
-      return this.createForNonRegisteredUser(
-        createAttendanceDto.courseId,
-        createAttendanceDto.studentId, // En este caso, el ID es el nombre
-        new Date(),
-        createAttendanceDto.present,
-        createAttendanceDto.notes || '',
-        teacherId
-      );
     }
+
+    // Usar la fecha del DTO (dateString) para buscar registros existentes en ese día.
+    // La hora del dateString se ignora para la búsqueda; se considera todo el día.
+    const searchDate = new Date(dateString); 
+    
+    const startDate = new Date(searchDate);
+    startDate.setUTCHours(0, 0, 0, 0);
+    
+    const endDate = new Date(searchDate);
+    endDate.setUTCHours(23, 59, 59, 999);
+    
+    this.logger.debug(`Buscando asistencia existente para estudiante ${studentId} en curso ${courseId} entre ${startDate.toISOString()} y ${endDate.toISOString()}`);
+
+    const existingAttendance = await this.attendanceModel.findOne({
+      course: courseId,
+      student: studentId,
+      date: { $gte: startDate, $lt: endDate }
+    });
+
+    if (existingAttendance) {
+      this.logger.debug(`Actualizando asistencia existente ID: ${existingAttendance._id}`);
+      existingAttendance.present = present;
+      existingAttendance.notes = notes;
+      existingAttendance.updatedAt = new Date();
+      existingAttendance.recordedBy = teacherId as any; // Mongoose maneja la conversión String -> ObjectId
+      existingAttendance.markedBy = teacherId as any;   // Mongoose maneja la conversión String -> ObjectId
+      return existingAttendance.save();
+    }
+    
+    this.logger.debug(`Creando nueva asistencia para estudiante ${studentId} en curso ${courseId}`);
+    const attendance = new this.attendanceModel({
+      course: courseId,
+      student: studentId,
+      studentModel: 'User',
+      date: new Date(), 
+      present: present,
+      notes: notes,
+      markedBy: teacherId, // Mongoose maneja la conversión String -> ObjectId
+      recordedBy: teacherId // Mongoose maneja la conversión String -> ObjectId
+    });
+    
+    const savedAttendance = await attendance.save();
+    this.logger.debug(`Nueva asistencia guardada ID: ${savedAttendance._id} con fecha ${savedAttendance.date.toISOString()}`);
+    return savedAttendance;
   }
 
   // Registrar asistencia masiva (para múltiples estudiantes a la vez)
   async createBulk(bulkAttendanceDto: BulkAttendanceDto, teacherId: string): Promise<Attendance[]> {
+    const { courseId, date: dateString, attendances } = bulkAttendanceDto;
     
-    
-    // Verificar que el curso existe
-    const course = await this.courseModel.findById(bulkAttendanceDto.courseId);
+    const course = await this.courseModel.findById(courseId);
     if (!course) {
-      throw new NotFoundException(`Curso con ID ${bulkAttendanceDto.courseId} no encontrado`);
+      throw new NotFoundException(`Curso con ID ${courseId} no encontrado`);
     }
-    
-    // Separar estudiantes registrados y no registrados
-    const registeredAttendances = bulkAttendanceDto.attendances.filter(a => a.isRegistered !== false);
-    const nonRegisteredAttendances = bulkAttendanceDto.attendances.filter(a => a.isRegistered === false);
-    
-    // Procesar estudiantes registrados
-    const registeredResults: Attendance[] = [];
-    
-    if (registeredAttendances.length > 0) {
-      // Obtener la lista de estudiantes registrados
-      const studentIds = registeredAttendances.map(a => a.studentId);
-      const students = await this.userModel.find({ _id: { $in: studentIds } });
-      
-      if (students.length !== studentIds.length) {
-        throw new BadRequestException('Algunos estudiantes registrados no se encontraron');
-      }
-      
-      // Verificar que todos los estudiantes están matriculados en el curso
-      const notEnrolledStudents = students.filter(student => 
-        !student.enrolledCourses.some(courseId => 
-          courseId.toString() === bulkAttendanceDto.courseId
-        )
-      );
-      
-      if (notEnrolledStudents.length > 0) {
-        throw new BadRequestException(`Algunos estudiantes no están matriculados en este curso`);
-      }
-      
-      // Create an exact date object from the input without manipulation
-      const attendanceDate = new Date(bulkAttendanceDto.date);
-      
-      // Log the input date and the parsed date for debugging
-      console.log(`Original date string: ${bulkAttendanceDto.date}`);
-      console.log(`Parsed date: ${attendanceDate.toISOString()}`);
-      
-      // Create date range for queries that preserves the original date's day
-      // Only changing the time components to capture the entire day
-      const startDate = new Date(attendanceDate);
-      startDate.setUTCHours(0, 0, 0, 0);
-      
-      const endDate = new Date(attendanceDate);
-      endDate.setUTCHours(23, 59, 59, 999);
-      
-      console.log(`Search range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
-      
-      // Procesar cada asistencia de estudiantes registrados
-      for (const attendanceData of registeredAttendances) {
-        // Buscar si ya existe un registro para este estudiante en esta fecha
-        const existingAttendance = await this.attendanceModel.findOne({
-          course: bulkAttendanceDto.courseId,
-          student: attendanceData.studentId,
-          date: {
-            $gte: startDate,
-            $lt: endDate
-          }
-        });
-        
-        if (existingAttendance) {
-          // Actualizar el registro existente
-          existingAttendance.present = attendanceData.present;
-          existingAttendance.notes = attendanceData.notes || existingAttendance.notes;
-          existingAttendance.updatedAt = new Date();
-          registeredResults.push(await existingAttendance.save());
-        } else {
-          // Crear un nuevo registro
-          const newAttendance = new this.attendanceModel({
-            course: bulkAttendanceDto.courseId,
-            student: attendanceData.studentId,
-            studentModel: 'User',
-            date: new Date(),
-            present: attendanceData.present,
-            notes: attendanceData.notes,
-            markedBy: teacherId,
-            recordedBy: teacherId
-          });
-          registeredResults.push(await newAttendance.save());
-        }
-      }
-    }
-    
-    // Procesar estudiantes no registrados
-    const nonRegisteredResults: Attendance[] = [];
-    
-    if (nonRegisteredAttendances.length > 0) {
-      // Create an exact date object from the input without manipulation
-      // const attendanceDate = new Date(bulkAttendanceDto.date); // No necesitamos esto si usamos new Date() abajo
 
-      // Create date range for queries that preserves the original date's day
-      // Esta parte es para buscar existentes, así que debe usar la fecha del DTO si la intención es agrupar por día de clase
-      const searchDateForExisting = new Date(bulkAttendanceDto.date); // Usar la fecha del DTO para la búsqueda de existentes
-      const startDate = new Date(searchDateForExisting);
-      startDate.setUTCHours(0, 0, 0, 0);
-      
-      const endDate = new Date(searchDateForExisting);
-      endDate.setUTCHours(23, 59, 59, 999);
-      
-      // Para cada estudiante no registrado, añadir un registro de asistencia
-      for (const attendanceData of nonRegisteredAttendances) {
-        // Buscar si ya existe un registro para este nombre en esta fecha
-        const existingAttendance = await this.attendanceModel.findOne({
-          course: bulkAttendanceDto.courseId,
-          student: attendanceData.studentId,
-          studentModel: 'String',
-          date: {
-            $gte: startDate,
-            $lt: endDate
-          }
-        });
-        
-        if (existingAttendance) {
-          // Actualizar el registro existente
-          existingAttendance.present = attendanceData.present;
-          existingAttendance.notes = attendanceData.notes || existingAttendance.notes;
-          existingAttendance.updatedAt = new Date();
-          nonRegisteredResults.push(await existingAttendance.save());
-        } else {
-          // Crear un nuevo registro con el nombre como identificador
-          const nonRegisteredAttendance = await this.createForNonRegisteredUser(
-            bulkAttendanceDto.courseId,
-            attendanceData.studentId, // El ID en este caso es el nombre
-            new Date(), // Siempre la fecha y hora actual del servidor al crear
-            attendanceData.present,
-            attendanceData.notes || '',
-            teacherId
-          );
-          
-          nonRegisteredResults.push(nonRegisteredAttendance);
+    const results: Attendance[] = [];
+    
+    const searchDate = new Date(dateString);
+    const startDate = new Date(searchDate);
+    startDate.setUTCHours(0, 0, 0, 0);
+    const endDate = new Date(searchDate);
+    endDate.setUTCHours(23, 59, 59, 999);
+    this.logger.debug(`Procesando bulk. Rango de búsqueda para existentes: ${startDate.toISOString()} a ${endDate.toISOString()}`);
+
+    for (const attendanceData of attendances) {
+      const currentStudentId = attendanceData.studentId;
+      const currentPresent = attendanceData.present;
+      const currentNotes = attendanceData.notes;
+
+      if (!Types.ObjectId.isValid(currentStudentId)) {
+        this.logger.warn(`studentId inválido en bulk: ${currentStudentId}. Saltando este registro.`);
+        continue; 
+      }
+
+      const student = await this.userModel.findById(currentStudentId);
+      if (!student) {
+        this.logger.warn(`Estudiante con ID ${currentStudentId} no encontrado en bulk. Saltando.`);
+        continue;
+      }
+
+      const isEnrolled = student.enrolledCourses.some(cId => cId.toString() === courseId);
+      if (!isEnrolled && student.role !== UserRole.UNREGISTERED) {
+        this.logger.warn(`Estudiante ${student.name} (ID: ${currentStudentId}) no matriculado. Saltando.`);
+        continue;
+      } else if (!isEnrolled && student.role === UserRole.UNREGISTERED) {
+        const courseContainsStudent = course.students.some(sId => sId.toString() === currentStudentId);
+        if (!courseContainsStudent) {
+            this.logger.warn(`Estudiante no registrado (ID: ${currentStudentId}) no asociado a este curso. Saltando.`);
+            continue;
         }
       }
+
+      const existingAttendance = await this.attendanceModel.findOne({
+        course: courseId,
+        student: currentStudentId,
+        date: { $gte: startDate, $lt: endDate }
+      });
+
+      if (existingAttendance) {
+        this.logger.debug(`Actualizando asistencia existente ID: ${existingAttendance._id} en bulk.`);
+        existingAttendance.present = currentPresent;
+        existingAttendance.notes = currentNotes || existingAttendance.notes;
+        existingAttendance.updatedAt = new Date();
+        existingAttendance.recordedBy = teacherId as any; // Mongoose maneja la conversión
+        existingAttendance.markedBy = teacherId as any;   // Mongoose maneja la conversión
+        results.push(await existingAttendance.save());
+      } else {
+        this.logger.debug(`Creando nueva asistencia para estudiante ${currentStudentId} en bulk.`);
+        const newAttendance = new this.attendanceModel({
+          course: courseId,
+          student: currentStudentId,
+          studentModel: 'User',
+          date: new Date(),
+          present: currentPresent,
+          notes: currentNotes,
+          markedBy: teacherId, // Mongoose maneja la conversión
+          recordedBy: teacherId // Mongoose maneja la conversión
+        });
+        results.push(await newAttendance.save());
+      }
     }
-    
-    // Combinar resultados
-    return [...registeredResults, ...nonRegisteredResults];
+    this.logger.debug(`Bulk create completo. ${results.length} registros procesados.`);
+    return results;
   }
 
   // Obtener asistencia por ID
