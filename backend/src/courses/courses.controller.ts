@@ -187,13 +187,10 @@ export class CoursesController {
   @UseGuards(JwtAuthGuard)
   async remove(@Param('id') id: string, @Req() req) {
     const userId = getUserIdFromRequest(req);
-    
-    
-    
+    const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
     
     try {
-      const result = await this.coursesService.remove(id, userId);
-      
+      const result = await this.coursesService.remove(id, userId, userRole);
       return result;
     } catch (error) {
       this.logger.error(`Error deleting course: ${error.message}`, error.stack);

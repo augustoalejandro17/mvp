@@ -419,24 +419,69 @@ export class CoursesService {
     return result;
   }
 
-  async remove(id: string, userId: string) {
+  async remove(id: string, userId: string, userRoleString?: string) {
     try {
-      const course = await this.courseModel.findById(id);
+      // Populamos la escuela para acceder a sus campos (admin, administratives, etc.)
+      const course = await this.courseModel.findById(id).populate('school').exec(); 
       
       if (!course) {
         throw new NotFoundException(`Curso con ID ${id} no encontrado`);
       }
-      
-      // Verificar permisos (profesor del curso o admin)
-      const isTeacher = course.teacher.toString() === userId;
-      
-      if (!isTeacher) {
-        const user = await this.userModel.findById(userId);
-        if (!user || !compareRole(user.role, UserRole.ADMIN)) {
-          throw new UnauthorizedException('No tiene permisos para eliminar este curso');
+
+      const userRequesting = await this.userModel.findById(userId).exec(); // Cambiado a userRequesting para claridad
+      if (!userRequesting) {
+        throw new UnauthorizedException('Usuario solicitante no encontrado.');
+      }
+
+      const actualRole = (userRoleString ? String(userRoleString) : String(userRequesting.role)).toLowerCase();
+
+      let hasPermission = false;
+      const loggerSuffix = `curso ${id} por usuario ${userId} con rol ${actualRole}`;
+
+      // 1. Super Admin?
+      if (actualRole === UserRole.SUPER_ADMIN.toLowerCase() || actualRole === 'superadmin') {
+        hasPermission = true;
+        this.logger.debug(`Permiso SUPER_ADMIN concedido para ${loggerSuffix}`);
+      }
+
+      // 2. Profesor del curso (principal o en la lista de profesores)?
+      if (!hasPermission) {
+        const isCourseTeacher = course.teacher.toString() === userId || 
+                                (course.teachers && course.teachers.some(t => t.toString() === userId));
+        if (isCourseTeacher) {
+          hasPermission = true;
+          this.logger.debug(`Permiso TEACHER (del curso) concedido para ${loggerSuffix}`);
         }
       }
+
+      // 3. School Owner o Administrative de la escuela del curso?
+      if (!hasPermission && course.school && typeof course.school === 'object') {
+        const school = course.school as School; // Usar el tipo School directamente si está bien importado y definido
+        
+        // Verificar School Owner (asumiendo que school.admin es el ObjectId del owner y el rol del usuario es school_owner)
+        // O si el rol es ADMIN y es el admin de la escuela.
+        if (school.admin && school.admin.toString() === userId && 
+            (actualRole === UserRole.SCHOOL_OWNER.toLowerCase() || actualRole === UserRole.ADMIN.toLowerCase() )) {
+          hasPermission = true;
+          this.logger.debug(`Permiso SCHOOL_OWNER o ADMIN (de la escuela) concedido para ${loggerSuffix}`);
+        }
+
+        // Verificar Administrative de la escuela (usando school.administratives)
+        if (!hasPermission && actualRole === UserRole.ADMINISTRATIVE.toLowerCase()) {
+          // Asegurarse que school.administratives es un array de ObjectId o strings
+          if (school.administratives && school.administratives.some(adminUser => adminUser.toString() === userId)) {
+            hasPermission = true;
+            this.logger.debug(`Permiso ADMINISTRATIVE (de la escuela) concedido para ${loggerSuffix}`);
+          }
+        }
+      }
+
+      if (!hasPermission) {
+        this.logger.warn(`Intento DENEGADO de eliminar ${loggerSuffix}`);
+        throw new UnauthorizedException('No tiene los permisos necesarios para eliminar este curso.');
+      }
       
+      this.logger.log(`Permiso CONCEDIDO. Eliminando ${loggerSuffix}`);
       // Eliminar el curso
       await this.courseModel.findByIdAndDelete(id);
       

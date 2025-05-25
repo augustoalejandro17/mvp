@@ -13,22 +13,27 @@ export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
   }
 
   handleRequest(err, user, info, context: ExecutionContext, status?) {
-    // Si hay un error (ej. token malformado, expirado procesado por la estrategia), lo lanzamos.
+    // Si hay un error explícito pasado por la estrategia (ej. db error en validate).
     if (err) {
       throw err;
     }
-    // Si info es una instancia de Error (ej. JsonWebTokenError, TokenExpiredError), también lo lanzamos
-    // Esto es importante porque passport-jwt puede pasar errores en 'info'
+
+    // La librería passport-jwt puede pasar mensajes de error comunes en 'info'.
     if (info && info instanceof Error) {
-        // Podrías querer loggear info.message o manejar tipos específicos de error de JWT aquí
-        // Por ahora, simplemente lo relanzamos para mantener un comportamiento similar al JwtAuthGuard
-        // en caso de tokens inválidos.
-        throw info;
+      // Si el error es específicamente porque no se encontró el token, 
+      // lo tratamos como un caso de "no autenticado" en lugar de un error de token inválido.
+      // Mensajes comunes de passport-jwt strategy cuando no hay token:
+      const noTokenMessages = ['No auth token', 'No authorization token was found']; 
+      if (noTokenMessages.includes(info.message)) {
+        return null; // Opcional: el usuario no está autenticado, no es un error.
+      }
+      // Para otros errores relacionados con el token (ej. malformado, expirado pero la estrategia lo pasa como info error),
+      // los lanzamos para que sean manejados como errores de autenticación.
+      throw info; 
     }
+
     // Si no hay error y el usuario es decodificado correctamente, devolvemos el usuario.
-    // Si no hay token o el token no es válido de una manera que no produce un error (raro, pero posible según la estrategia),
-    // 'user' será false o null. Devolvemos 'user' tal cual.
-    // La ruta entonces puede verificar req.user.
+    // Si no hubo token y la estrategia pasó user=false/null sin error/info, se devuelve user.
     return user;
   }
 } 
