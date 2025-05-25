@@ -1,72 +1,22 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import Cookies from 'js-cookie';
+import { getToken, clearAuth } from './auth';
 
-// Define extended interface for Axios instance with custom method
-interface CustomAxiosInstance extends AxiosInstance {
-  refreshImageUrl: (key: string) => Promise<string | null>;
-}
-
-// Determinar la baseURL usando la variable de entorno o fallback a '/api'
-let baseURL = '/api'; // Valor por defecto para desarrollo
-if (process.env.NEXT_PUBLIC_API_URL) {
-  // Evitar duplicación de /api en la URL
-  baseURL = process.env.NEXT_PUBLIC_API_URL;
-  if (!baseURL.endsWith('/')) baseURL += '/';
-  // Eliminar /api del final si existe
-  if (baseURL.endsWith('/api/')) {
-    baseURL = baseURL.slice(0, -5); // Eliminar '/api/'
-  } else if (baseURL.endsWith('/api')) {
-    baseURL = baseURL.slice(0, -4); // Eliminar '/api'
-  }
-}
+const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 console.log('API Base URL:', baseURL); // Para debugging
 
 // Create an Axios instance with default config
 const api = axios.create({
-  baseURL, // Usar la URL de la API configurada
+  baseURL,
   timeout: 30000, // 30 seconds timeout
   headers: {
     'Content-Type': 'application/json',
   },
-}) as CustomAxiosInstance;
-
-// Request interceptor to add auth token to all requests
-api.interceptors.request.use(
-  (config) => {
-    const token = Cookies.get('token');
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Response interceptor to handle common errors
-api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  (error) => {
-    // Handle specific error cases
-    if (error.response) {
-      // The request was made and the server responded with a status code
-      // that falls out of the range of 2xx
-      if (error.response.status === 401) {
-        // Unauthorized - Clear token and redirect to login
-        Cookies.remove('token');
-        window.location.href = '/login';
-      }
-    }
-    return Promise.reject(error);
-  }
-);
+});
 
 // Add utility function for refreshing image URLs
-api.refreshImageUrl = async (key: string): Promise<string | null> => {
+const refreshImageUrl = async (key: string): Promise<string | null> => {
   try {
     const response = await api.get('/images/refresh-url', {
       params: { key }
@@ -81,5 +31,48 @@ api.refreshImageUrl = async (key: string): Promise<string | null> => {
     return null;
   }
 };
+
+// Request interceptor to add auth token to all requests
+api.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const token = getToken(); // Usar getToken que verifica expiración
+    if (token && config.headers) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error: unknown) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor to handle common errors
+api.interceptors.response.use(
+  (response: AxiosResponse) => {
+    return response;
+  },
+  (error: unknown) => {
+    // Handle specific error cases
+    if (axios.isAxiosError(error) && error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      if (error.response.status === 401) {
+        // Unauthorized - Clear token and redirect to login
+        clearAuth(); // Usar clearAuth para notificar a los componentes
+        
+        // Solo redirigir si no estamos ya en la página de login
+        const currentPath = window.location.pathname;
+        if (!currentPath.includes('/login')) {
+          const redirectPath = encodeURIComponent(currentPath);
+          window.location.href = `/login?redirect=${redirectPath}`;
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Add the refreshImageUrl function to the api instance
+(api as any).refreshImageUrl = refreshImageUrl;
 
 export default api; 

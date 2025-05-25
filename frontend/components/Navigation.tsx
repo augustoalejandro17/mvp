@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { getCookie } from 'cookies-next';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../styles/Navigation.module.css';
+import { getToken, subscribeToAuth, clearAuth } from '../utils/auth';
 
 interface DecodedToken {
   sub: string;
@@ -40,21 +41,17 @@ const Navigation: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  useEffect(() => {
-    const token = getCookie('token');
+  const checkAuth = useCallback(() => {
+    const token = getToken();
     if (token) {
       try {
-        const decoded = jwtDecode<DecodedToken>(token as string);
-         
+        const decoded = jwtDecode<DecodedToken>(token);
         
         // Handle the case where the role is an array
         let primaryRole: string;
         if (Array.isArray(decoded.role)) {
-          
-          
           // Normalize roles to lowercase for comparison
           const normalizedRoles = decoded.role.map(role => String(role).toLowerCase());
-          
           
           // Find the highest precedence role in the array
           const normalizedPrecedence = ROLE_PRECEDENCE.map(role => role.toLowerCase());
@@ -70,35 +67,48 @@ const Navigation: React.FC = () => {
             if (matchingRole) {
               // Use the original casing from the token
               foundRole = decoded.role[normalizedRoles.indexOf(matchingRole)];
-              
               break;
             }
           }
           
           primaryRole = foundRole || decoded.role[0]; // Use the highest precedence or default to first
-          
         } else {
           primaryRole = decoded.role;
         }
-        
-        
-        
         
         setIsAuthenticated(true);
         setUserRole(primaryRole);
         setUserEmail(decoded.email);
       } catch (error) {
         console.error('Error decoding token:', error);
+        clearAuth();
       }
+    } else {
+      setIsAuthenticated(false);
+      setUserRole(null);
+      setUserEmail(null);
     }
   }, []);
 
+  useEffect(() => {
+    checkAuth();
+    // Suscribirse a cambios en la autenticación
+    const unsubscribe = subscribeToAuth(checkAuth);
+    return () => {
+      unsubscribe();
+    };
+  }, [checkAuth]);
+
   const handleLogout = useCallback(() => {
-    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    setIsDropdownOpen(false); // Cerrar el dropdown primero
+    clearAuth(); // Esto notificará a los listeners y limpiará el token
+    
+    // Limpiar el estado local después de que clearAuth haya terminado
     setIsAuthenticated(false);
     setUserRole(null);
     setUserEmail(null);
-    setIsDropdownOpen(false);
+    
+    // Redirigir después de limpiar todo
     router.push('/login');
   }, [router]);
 

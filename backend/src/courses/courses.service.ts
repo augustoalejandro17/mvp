@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, UnauthorizedException, HttpException, InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Course } from './schemas/course.schema';
@@ -22,6 +22,15 @@ const compareRole = (userRole: any, enumRole: UserRole): boolean => {
   
   return userRoleStr === enumRoleStr;
 };
+
+interface ClassItem {
+  _id: Types.ObjectId;
+  title: string;
+  description?: string;
+  isPublic?: boolean;
+  order?: number;
+  [key: string]: any;
+}
 
 @Injectable()
 export class CoursesService {
@@ -138,55 +147,65 @@ export class CoursesService {
   async findAll(userId?: string, role?: UserRole | string, schoolId?: string) {
     try {
       let query: any = {};
-      
-      // Si se especifica una escuela, filtramos por ella
+      const conditions = []; // Usaremos un array para construir condiciones $or o $and más complejas
+
+      // Si se especifica una escuela, es una condición principal
       if (schoolId) {
-        query.school = schoolId;
+        query.school = new Types.ObjectId(schoolId);
       }
       
-      // Si no hay usuario autenticado, solo mostrar cursos públicos
-      if (!userId || !role) {
+      const roleStr = role ? String(role).toLowerCase() : '';
+      this.logger.debug(`[CoursesService findAll] roleStr: '${roleStr}', UserRole.TEACHER.toLowerCase(): '${UserRole.TEACHER.toLowerCase()}'`);
+      
+      const isAdminRole = [
+        UserRole.SUPER_ADMIN.toLowerCase(),
+        'superadmin', // common alias
+        UserRole.SCHOOL_OWNER.toLowerCase(),
+        UserRole.ADMINISTRATIVE.toLowerCase(),
+        UserRole.ADMIN.toLowerCase()
+      ].includes(roleStr);
+
+      if (isAdminRole) {
+        this.logger.debug(`Admin role ${roleStr} accessing all courses (potentially filtered by school)`);
+        // Los administradores ven todos los cursos (públicos y privados) de la escuela (si se especifica) o de todas las escuelas.
+        // No se necesita query.isPublic = true ni otras condiciones de visibilidad.
+      } else if (!userId || !role) {
+        // No autenticado o sin rol: solo cursos públicos
         query.isPublic = true;
+        this.logger.debug('Unauthenticated user or no role, showing only public courses');
       } else {
-        // Normalize role for comparison
-        const roleStr = String(role).toLowerCase();
+        // Usuario autenticado (profesor, estudiante, u otro)
+        this.logger.debug(`Authenticated user ${userId} with role ${roleStr}`);
+        const userSpecificConditions: any[] = [];
+
+        userSpecificConditions.push({ isPublic: true });
+
+        if (roleStr === UserRole.TEACHER.toLowerCase()) { 
+          this.logger.debug(`[CoursesService findAll] Matched role as TEACHER. Adding teacher/teachers/students conditions for userId: ${userId}`);
+          userSpecificConditions.push({ teacher: new Types.ObjectId(userId) });
+          userSpecificConditions.push({ teachers: new Types.ObjectId(userId) });
+          userSpecificConditions.push({ students: new Types.ObjectId(userId) }); 
+        } else { 
+          this.logger.debug(`[CoursesService findAll] Role '${roleStr}' did NOT match TEACHER. Adding only students condition for userId: ${userId}`);
+          userSpecificConditions.push({ students: new Types.ObjectId(userId) });
+        }
         
-        // Super admins pueden ver todos los cursos
-        if (roleStr === 'super_admin') {
-          // No aplicamos ningún filtro adicional para super_admin
-        }
-        // Los usuarios admin también pueden ver todos los cursos
-        else if (roleStr === 'admin') {
-          // No aplicamos ningún filtro adicional para admin
-        }
-        // Para otros roles, filtramos por cursos públicos o donde esté asociado
-        else {
-          if (roleStr === 'teacher') {
-            query = { 
-              ...query,
-              $or: [
-                { isPublic: true },
-                { teacher: userId }
-              ] 
-            };
-          } else {
-            query = { 
-              ...query,
-              $or: [
-                { isPublic: true },
-                { students: userId }
-              ] 
-            };
-          }
+        // Si hay condiciones específicas del usuario, se combinan con $or
+        if (userSpecificConditions.length > 0) {
+          query.$or = userSpecificConditions;
         }
       }
+      
+      this.logger.debug('Final query for courses:', JSON.stringify(query, null, 2));
       
       const courses = await this.courseModel.find(query)
         .populate('school', 'name')
         .populate('teacher', 'name email')
+        .populate('teachers', 'name email')
         .select('-students -classes')
-        .sort({ promotionOrder: 1, title: 1 }); // Ordenar primero por orden de promoción, luego alfabéticamente
+        .sort({ promotionOrder: 1, title: 1 });
       
+      this.logger.debug(`Se encontraron ${courses.length} cursos`);
       return courses;
     } catch (error) {
       this.logger.error(`Error al buscar cursos: ${error.message}`, error.stack);
@@ -1023,43 +1042,71 @@ export class CoursesService {
           options: { sort: { order: 1 } }
         })
         .lean();
-      
+
       if (!course) {
         throw new NotFoundException(`Curso con ID ${id} no encontrado`);
       }
 
-      // Si no hay usuario autenticado o el curso no es público
-      if ((!userId || !userRole) && !course.isPublic) {
-        throw new UnauthorizedException('Este curso requiere autenticación');
+      const normalizedRole = userRole ? String(userRole).toLowerCase() : null;
+      this.logger.debug(`[getCourseForUser] Intentando acceder - Curso ID: ${id}, Usuario ID: ${userId}, Rol: ${normalizedRole}`);
+      this.logger.debug(`[getCourseForUser] Datos del curso - esPublico: ${course.isPublic}, teacher: ${JSON.stringify(course.teacher)}, teachers: ${JSON.stringify(course.teachers)}, students: ${JSON.stringify(course.students)}`);
+
+      const adminRoles = ['super_admin', 'superadmin', 'school_owner', 'administrative', 'admin'];
+      if (normalizedRole && adminRoles.includes(normalizedRole)) {
+        this.logger.debug('[getCourseForUser] Acceso concedido: Rol administrativo');
+        return {
+          ...course,
+          classes: Array.isArray(course.classes) ? (course.classes as any[]).map(c => ({ ...c, isVisible: true })) : []
+        };
       }
-      
-      const courseWithVisibility = {
-        ...course,
-        classes: Array.isArray(course.classes) ? course.classes.map(classItem => {
-          // Safely check if isPublic and order properties exist
-          const isPublic = typeof classItem === 'object' && 'isPublic' in classItem ? classItem.isPublic : false;
-          const order = typeof classItem === 'object' && 'order' in classItem ? classItem.order : 0;
-          
-          // Para usuarios no autenticados, solo mostrar clases públicas
-          if (!userId || !userRole) {
-            return {
-              ...classItem,
-              isVisible: isPublic === true
-            };
-          }
-          
-          return {
-            ...classItem,
-            // Mark only the first class as visible by default for authenticated users
-            isVisible: isPublic === true || order === 1 || order === 0,
-          };
-        }) : []
-      };
-      
-      return courseWithVisibility;
+
+      const isCourseTeacher = normalizedRole === 'teacher' && userId && (
+        (course.teacher && (course.teacher as any)._id && (course.teacher as any)._id.toString() === userId) || // Comparar _id si teacher está populado
+        (course.teacher && !(course.teacher as any)._id && course.teacher.toString() === userId) || // Comparar directamente si teacher es solo ObjectId
+        (course.teachers && course.teachers.some(t => {
+          if (!t) return false;
+          if ((t as any)._id) return (t as any)._id.toString() === userId; // Si t está populado
+          return t.toString() === userId; // Si t es solo ObjectId
+        }))
+      );
+      if (isCourseTeacher) {
+        this.logger.debug('[getCourseForUser] Acceso concedido: Profesor del curso');
+        return {
+          ...course,
+          classes: Array.isArray(course.classes) ? (course.classes as any[]).map(c => ({ ...c, isVisible: true })) : []
+        };
+      }
+
+      const isEnrolledStudent = userId && course.students &&
+        course.students.some(sId => sId && sId.toString() === userId);
+      if (isEnrolledStudent) {
+        this.logger.debug('[getCourseForUser] Acceso concedido: Estudiante matriculado');
+        return {
+          ...course,
+          classes: Array.isArray(course.classes) ? (course.classes as any[]).map(c => ({ ...c, isVisible: true })) : []
+        };
+      }
+
+      if (course.isPublic) {
+        this.logger.debug('[getCourseForUser] Acceso concedido: Curso público');
+        const allClassVisible = !!userId;
+        return {
+          ...course,
+          classes: Array.isArray(course.classes) ? (course.classes as any[]).map((c, index) => ({
+            ...c,
+            isVisible: allClassVisible || index === 0 || (c && c.isPublic === true)
+          })) : []
+        };
+      }
+
+      this.logger.warn(`[getCourseForUser] ACCESO DENEGADO FINAL. Curso ID: ${id}, Usuario ID: ${userId}, Rol: ${normalizedRole}`);
+      throw new UnauthorizedException('No tienes permiso para ver este curso o requiere autenticación.');
     } catch (error) {
-      this.logger.error(`Error al buscar curso ${id}: ${error.message}`, error.stack);
-      throw error;
+      this.logger.error(`[getCourseForUser] ERROR EXCEPCION. Curso ID: ${id}, Error: ${error.message}`, error.stack);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Ocurrió un error al procesar tu solicitud.');
     }
   }
 

@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Body, Param, UseGuards, Req, Logger, Query,
 import { CoursesService } from './courses.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../auth/enums/user-role.enum';
@@ -19,6 +20,7 @@ export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
   @Get()
+  @UseGuards(OptionalJwtAuthGuard)
   async findAll(@Req() req, @Query('schoolId') schoolId?: string) {
     let userId = null;
     let userRole = null;
@@ -76,6 +78,7 @@ export class CoursesController {
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string, @Req() req) {
     try {
       // Get user information from token if available
