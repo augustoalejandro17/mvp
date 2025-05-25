@@ -1364,260 +1364,97 @@
   .table td {
     padding: 0.75rem 0.5rem;
     font-size: 0.85rem;
+    vertical-align: middle;
   }
   
   .table th {
     white-space: nowrap;
   }
-  
-  .table .actionButtons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-    justify-content: flex-start;
+
+  /* Columna de Numeración (#) */
+  .table th:nth-child(1),
+  .table td:nth-child(1) {
+    width: 35px;
+    min-width: 35px;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  /* Columna de Estudiante */
+  .table th:nth-child(2),
+  .table td:nth-child(2) {
+    min-width: 150px;
+    white-space: normal;
+  }
+
+  /* Columna de Asistencia */
+  .table th:nth-child(3),
+  .table td:nth-child(3) {
+    min-width: 130px;
   }
   
-  .emailContainer {
-    max-width: 120px;
-  }
-  
-  .iconButton {
-    padding: 0.3rem !important;
-    margin: 0.1rem !important;
-  }
-  
-  .searchFilterRow {
+  .studentPresent {
     flex-direction: column;
-    gap: 0.75rem;
-  }
-  
-  .searchWrapper,
-  .filterWrapper {
-    max-width: 100%;
-    flex: 1;
-  }
-  
-  .actionButtonsRow {
-    justify-content: space-between;
-    padding-top: 1rem;
-  }
-  
-  .createButton, 
-  .altButton {
-    padding: 0.6rem 0.75rem;
-    font-size: 0.85rem;
-  }
-  
-  /* Mejora la paginación en móviles */
-  .pagination {
-    flex-direction: column;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem;
-  }
-  
-  .paginationControls {
-    width: 100%;
-    justify-content: space-between;
-  }
-  
-  .paginationButton {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.85rem;
-  }
-  
-  /* Ajustes para modales en pantallas pequeñas */
-  .modal {
-    width: 95%;
-    padding: 1.5rem;
-    max-height: 85vh;
-  }
-  
-  .modalTitle {
-    font-size: 1.25rem;
-    margin-bottom: 1rem;
-  }
-  
-  .formGroup label {
-    font-size: 0.9rem;
-  }
-  
-  .input, .select {
-    padding: 0.6rem;
-    font-size: 0.95rem;
-  }
-  
-  .formActions {
-    flex-direction: column;
+    align-items: flex-start;
     gap: 0.5rem;
   }
-  
-  .submitButton, .cancelButton {
+
+  /* Columna de Notas */
+  .table th:nth-child(4),
+  .table td:nth-child(4) {
+    display: table-cell !important;
+    min-width: 150px;
+  }
+  .table td:nth-child(4) input {
     width: 100%;
-    padding: 0.6rem;
+    box-sizing: border-box;
   }
 }
 
-/* Ajustes específicos para pantallas muy pequeñas */
 @media (max-width: 480px) {
-  .controlPanel {
-    padding: 1rem;
-  }
-  
-  .actionButtonsRow {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  
-  .createButton, 
-  .altButton {
-    width: 100%;
-    justify-content: center;
-  }
-  
   .table th,
   .table td {
     padding: 0.6rem 0.4rem;
     font-size: 0.8rem;
   }
-  
-  .roleBadge {
-    padding: 0.15rem 0.5rem;
-    font-size: 0.7rem;
-  }
-  
-  .emailContainer {
-    max-width: 100px;
-  }
-  
-  /* Columnas prioritarias */
-  .table th:nth-child(4),
-  .table td:nth-child(4),
-  .table th:nth-child(5),
-  .table td:nth-child(5) {
-    display: none;
-  }
-  
-  /* Icono de botón más pequeño */
-  .iconButton {
-    padding: 0.25rem !important;
-    font-size: 0.8rem !important;
-  }
-}
 
-@media (max-width: 768px) {
-  .actionButtons {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 0.3rem;
-    max-width: 120px; /* Limitar el ancho para que los botones se agrupen mejor */
+  /* Columna de Numeración (#) */
+  .table th:nth-child(1),
+  .table td:nth-child(1) {
+    width: 30px;
+    min-width: 30px;
+    padding-left: 0.3rem;
+    padding-right: 0.3rem;
   }
-}
 
-@media (max-width: 480px) {
-  .actionButtons {
-    max-width: 100px;
-  }
-}
-
-/* Ajustes para los roleBadge en móviles */
-@media (max-width: 768px) {
-  .roleBadge {
-    padding: 0.2rem 0.5rem;
-    font-size: 0.7rem;
-    white-space: nowrap;
-  }
-  
-  .admin, .super_admin, .teacher, .student, .school_owner, .administrative, .unregistered {
-    white-space: nowrap;
-    font-size: 0.7rem;
-    padding: 0.2rem 0.5rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .roleBadge {
-    padding: 0.15rem 0.4rem;
-    font-size: 0.65rem;
-  }
-  
-  .admin, .super_admin, .teacher, .student, .school_owner, .administrative, .unregistered {
-    font-size: 0.65rem;
-    padding: 0.15rem 0.4rem;
-  }
-}
-
-/* Mejoras adicionales para tablas en móviles */
-@media (max-width: 768px) {
-  .tableContainer {
-    border-radius: 6px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-  }
-  
-  .table th {
-    font-size: 0.8rem;
-    padding: 0.7rem 0.5rem;
-  }
-  
-  .table td {
-    padding: 0.7rem 0.5rem;
-    font-size: 0.85rem;
-  }
-  
-  /* Para la primera columna (nombre) hacerla más ancha */
-  .table th:first-child,
-  .table td:first-child {
-    min-width: 110px;
-  }
-  
-  /* Para tablas de usuarios registrados */
-  .table th:nth-child(5),
-  .table td:nth-child(5) {
-    display: none; /* Ocultar fecha de registro en móviles */
-  }
-}
-
-@media (max-width: 480px) {
-  .tableContainer {
-    margin-left: -1rem;
-    margin-right: -1rem;
-    width: calc(100% + 2rem);
-    border-radius: 0;
-  }
-  
-  .table {
-    border-radius: 0;
-  }
-  
-  .table th {
-    font-size: 0.75rem;
-    padding: 0.6rem 0.4rem;
-  }
-  
-  .table td {
-    padding: 0.6rem 0.4rem;
-    font-size: 0.8rem;
-  }
-  
-  /* Ocultar columnas menos importantes en pantallas muy pequeñas */
-  .table th:nth-child(4),
-  .table td:nth-child(4),
-  .table th:nth-child(5),
-  .table td:nth-child(5) {
-    display: none;
-  }
-  
-  /* Ajustar tamaño de columnas restantes */
-  .table th:first-child,
-  .table td:first-child {
-    min-width: 100px;
-    max-width: 120px;
-  }
-  
+  /* Columna de Estudiante */
   .table th:nth-child(2),
   .table td:nth-child(2) {
-    min-width: 80px;
-    max-width: 90px;
+    min-width: 120px;
+  }
+
+  /* Columna de Asistencia */
+  .table th:nth-child(3),
+  .table td:nth-child(3) {
+    min-width: 110px;
+  }
+  .radioLabel {
+    gap: 6px;
+    font-size: 0.9rem;
+    padding: 6px 4px;
+  }
+  .radioLabel input[type="radio"] {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Columna de Notas */
+  .table th:nth-child(4),
+  .table td:nth-child(4) {
+    display: table-cell !important;
+    min-width: 130px;
   }
 }
 
