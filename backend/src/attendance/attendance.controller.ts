@@ -5,6 +5,7 @@ import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { BulkAttendanceDto } from './dto/bulk-attendance.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Permission, RequirePermissions, PermissionsGuard } from '../auth/guards/permissions.guard';
+import { toZonedTime } from 'date-fns-tz';
 
 @Controller('attendance')
 export class AttendanceController {
@@ -53,13 +54,12 @@ export class AttendanceController {
   ) {
     // Log fecha recibida para depuración
     this.logger.debug(`Fecha recibida del frontend: ${dateStr}`);
-    
     // Si no se proporciona fecha, usar la fecha actual
-    const date = dateStr ? new Date(dateStr) : new Date();
-    
+    // Ajustar la fecha a GMT-5 (America/Lima)
+    const timeZone = 'America/Lima';
+    const date = dateStr ? toZonedTime(new Date(dateStr), timeZone) : toZonedTime(new Date(), timeZone);
     // Imprimir información de depuración sobre la fecha
     this.logger.debug(`Fecha parseada: ${date.toISOString()}`);
-    
     return this.attendanceService.findByCourseAndDate(courseId, date);
   }
 

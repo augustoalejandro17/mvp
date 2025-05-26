@@ -198,7 +198,7 @@ export default function AdminDashboard() {
       // Probar el endpoint de overview
       console.log('Testing overview endpoint...');
       
-      const response = await fetch(`${apiUrl}/api/admin-stats/overview`, {
+      const response = await fetch(`${apiUrl}/api/admin/stats/overview`, {
         headers: { 'Accept': 'application/json' }
       });
       

@@ -7,6 +7,7 @@ import { Course } from '../courses/schemas/course.schema';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { BulkAttendanceDto } from './dto/bulk-attendance.dto';
+import { toDate } from 'date-fns-tz';
 
 @Injectable()
 export class AttendanceService {
@@ -21,13 +22,13 @@ export class AttendanceService {
   // Registrar asistencia individual
   async create(createAttendanceDto: CreateAttendanceDto, teacherId: string): Promise<Attendance> {
     const { courseId, studentId, date: dateString, present, notes } = createAttendanceDto;
-
+    
     // Verificar que el curso existe
     const course = await this.courseModel.findById(courseId);
     if (!course) {
       throw new NotFoundException(`Curso con ID ${courseId} no encontrado`);
     }
-
+    
     // Se asume que studentId es un ObjectId de un usuario existente (registrado o no registrado)
     // La validación de IsMongoId en el DTO debería ayudar si studentId no es un formato ObjectId,
     // aunque aquí studentId en DTO es IsString() para permitir flexibilidad pasada, ahora debería ser un ObjectId.
@@ -37,13 +38,13 @@ export class AttendanceService {
     }
     
     const student = await this.userModel.findById(studentId);
-    if (!student) {
+      if (!student) {
       throw new NotFoundException(`Estudiante con ID ${studentId} no encontrado`);
-    }
-    
-    // Verificar que el estudiante está matriculado en el curso
+      }
+      
+      // Verificar que el estudiante está matriculado en el curso
     // Esta validación es importante
-    const isEnrolled = student.enrolledCourses.some(
+      const isEnrolled = student.enrolledCourses.some(
       cId => cId.toString() === courseId
     );
     
@@ -67,44 +68,44 @@ export class AttendanceService {
     const searchDate = new Date(dateString); 
     
     const startDate = new Date(searchDate);
-    startDate.setUTCHours(0, 0, 0, 0);
-    
+      startDate.setUTCHours(0, 0, 0, 0);
+      
     const endDate = new Date(searchDate);
-    endDate.setUTCHours(23, 59, 59, 999);
-    
+      endDate.setUTCHours(23, 59, 59, 999);
+      
     this.logger.debug(`Buscando asistencia existente para estudiante ${studentId} en curso ${courseId} entre ${startDate.toISOString()} y ${endDate.toISOString()}`);
 
-    const existingAttendance = await this.attendanceModel.findOne({
+      const existingAttendance = await this.attendanceModel.findOne({
       course: courseId,
       student: studentId,
       date: { $gte: startDate, $lt: endDate }
-    });
+      });
 
-    if (existingAttendance) {
+      if (existingAttendance) {
       this.logger.debug(`Actualizando asistencia existente ID: ${existingAttendance._id}`);
       existingAttendance.present = present;
       existingAttendance.notes = notes;
-      existingAttendance.updatedAt = new Date();
+        existingAttendance.updatedAt = new Date();
       existingAttendance.recordedBy = teacherId as any; // Mongoose maneja la conversión String -> ObjectId
       existingAttendance.markedBy = teacherId as any;   // Mongoose maneja la conversión String -> ObjectId
-      return existingAttendance.save();
-    }
-    
+        return existingAttendance.save();
+      }
+      
     this.logger.debug(`Creando nueva asistencia para estudiante ${studentId} en curso ${courseId}`);
-    const attendance = new this.attendanceModel({
+      const attendance = new this.attendanceModel({
       course: courseId,
       student: studentId,
-      studentModel: 'User',
+        studentModel: 'User',
       date: new Date(), 
       present: present,
       notes: notes,
       markedBy: teacherId, // Mongoose maneja la conversión String -> ObjectId
       recordedBy: teacherId // Mongoose maneja la conversión String -> ObjectId
-    });
-    
-    const savedAttendance = await attendance.save();
+      });
+      
+      const savedAttendance = await attendance.save();
     this.logger.debug(`Nueva asistencia guardada ID: ${savedAttendance._id} con fecha ${savedAttendance.date.toISOString()}`);
-    return savedAttendance;
+      return savedAttendance;
   }
 
   // Registrar asistencia masiva (para múltiples estudiantes a la vez)
@@ -115,16 +116,16 @@ export class AttendanceService {
     if (!course) {
       throw new NotFoundException(`Curso con ID ${courseId} no encontrado`);
     }
-
+    
     const results: Attendance[] = [];
     
     const searchDate = new Date(dateString);
     const startDate = new Date(searchDate);
-    startDate.setUTCHours(0, 0, 0, 0);
+      startDate.setUTCHours(0, 0, 0, 0);
     const endDate = new Date(searchDate);
-    endDate.setUTCHours(23, 59, 59, 999);
+      endDate.setUTCHours(23, 59, 59, 999);
     this.logger.debug(`Procesando bulk. Rango de búsqueda para existentes: ${startDate.toISOString()} a ${endDate.toISOString()}`);
-
+      
     for (const attendanceData of attendances) {
       const currentStudentId = attendanceData.studentId;
       const currentPresent = attendanceData.present;
@@ -139,7 +140,7 @@ export class AttendanceService {
       if (!student) {
         this.logger.warn(`Estudiante con ID ${currentStudentId} no encontrado en bulk. Saltando.`);
         continue;
-      }
+        }
 
       const isEnrolled = student.enrolledCourses.some(cId => cId.toString() === courseId);
       if (!isEnrolled && student.role !== UserRole.UNREGISTERED) {
@@ -153,21 +154,21 @@ export class AttendanceService {
         }
       }
 
-      const existingAttendance = await this.attendanceModel.findOne({
+        const existingAttendance = await this.attendanceModel.findOne({
         course: courseId,
         student: currentStudentId,
         date: { $gte: startDate, $lt: endDate }
-      });
-
-      if (existingAttendance) {
+        });
+        
+        if (existingAttendance) {
         this.logger.debug(`Actualizando asistencia existente ID: ${existingAttendance._id} en bulk.`);
         existingAttendance.present = currentPresent;
         existingAttendance.notes = currentNotes || existingAttendance.notes;
-        existingAttendance.updatedAt = new Date();
+          existingAttendance.updatedAt = new Date();
         existingAttendance.recordedBy = teacherId as any; // Mongoose maneja la conversión
         existingAttendance.markedBy = teacherId as any;   // Mongoose maneja la conversión
         results.push(await existingAttendance.save());
-      } else {
+        } else {
         this.logger.debug(`Creando nueva asistencia para estudiante ${currentStudentId} en bulk.`);
         const newAttendance = new this.attendanceModel({
           course: courseId,
@@ -180,8 +181,8 @@ export class AttendanceService {
           recordedBy: teacherId // Mongoose maneja la conversión
         });
         results.push(await newAttendance.save());
+        }
       }
-    }
     this.logger.debug(`Bulk create completo. ${results.length} registros procesados.`);
     return results;
   }
@@ -203,13 +204,21 @@ export class AttendanceService {
 
   // Obtener asistencia por curso y fecha
   async findByCourseAndDate(courseId: string, date: Date): Promise<Attendance[]> {
-    // Create date range without timezone adjustments
-    // Set the hours to cover the full day in UTC
-    const startDate = new Date(date);
-    startDate.setUTCHours(0, 0, 0, 0);
-    
-    const endDate = new Date(date);
-    endDate.setUTCHours(23, 59, 59, 999);
+    // Calcular el rango del día en GMT-5 (America/Lima)
+    const timeZone = 'America/Lima';
+    const localDate = new Date(date);
+    const year = localDate.getFullYear();
+    const month = localDate.getMonth() + 1;
+    const day = localDate.getDate();
+    // Implementar manualmente la conversión local->UTC si zonedTimeToUtc no está disponible
+    function localToUtc(dateString: string, timeZone: string) {
+      // Crea la fecha como si fuera local y ajusta el offset de la zona horaria
+      const localDate = toDate(dateString);
+      // Offset de Lima: -5 horas
+      return new Date(localDate.getTime() + 5 * 60 * 60 * 1000);
+    }
+    const startDate = localToUtc(`${year}-${month.toString().padStart(2,'0')}-${day.toString().padStart(2,'0')}T00:00:00`, timeZone);
+    const endDate = localToUtc(`${year}-${month.toString().padStart(2,'0')}-${day.toString().padStart(2,'0')}T23:59:59.999`, timeZone);
     
     console.log(`Finding attendance records for course ${courseId}`);
     console.log(`Date provided: ${date.toISOString()}`);

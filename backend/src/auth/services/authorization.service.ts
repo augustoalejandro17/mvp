@@ -114,7 +114,9 @@ export class AuthorizationService {
     
     // Verificar rol específico en la escuela
     const schoolRole = await this.getUserRoleInSchool(userId, schoolId);
-    if (schoolRole === UserRole.SCHOOL_OWNER || schoolRole === UserRole.ADMIN) {
+    if (schoolRole === UserRole.SCHOOL_OWNER || 
+        schoolRole === UserRole.ADMIN || 
+        schoolRole === UserRole.ADMINISTRATIVE) {
       return true;
     }
     
@@ -124,6 +126,11 @@ export class AuthorizationService {
     }
     
     if (user.role === UserRole.ADMIN && user.administratedSchools.some(id => id.toString() === schoolId)) {
+      return true;
+    }
+    
+    // Añadir comprobación para ADMINISTRATIVE por compatibilidad si se asigna directamente a user.role
+    if (user.role === UserRole.ADMINISTRATIVE && user.schoolRoles?.some(sr => sr.schoolId.toString() === schoolId && sr.role === UserRole.ADMINISTRATIVE)) {
       return true;
     }
     
@@ -153,8 +160,10 @@ export class AuthorizationService {
     const schoolId = course.school.toString();
     const schoolRole = await this.getUserRoleInSchool(userId, schoolId);
     
-    // Administradores y dueños de escuela pueden gestionar todos los cursos
-    return schoolRole === UserRole.SCHOOL_OWNER || schoolRole === UserRole.ADMIN;
+    // Administradores, dueños de escuela y personal administrativo pueden gestionar todos los cursos
+    return schoolRole === UserRole.SCHOOL_OWNER || 
+           schoolRole === UserRole.ADMIN ||
+           schoolRole === UserRole.ADMINISTRATIVE;
   }
 
   /**

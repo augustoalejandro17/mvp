@@ -50,7 +50,7 @@ export class UsersController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE)
   findAll(@Req() req: Request) {
     const userId = req.user['sub'] || req.user['_id'];
     const userRole = req.user['role'];
@@ -74,7 +74,7 @@ export class UsersController {
 
   @Get('by-role/:role')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SCHOOL_OWNER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE)
   async findByRole(@Param('role') role: UserRole) {
     this.logger.log(`Buscando usuarios con rol: ${role}`);
     return this.usersService.findByRole(role);
@@ -82,7 +82,7 @@ export class UsersController {
 
   @Get('unregistered')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SCHOOL_OWNER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE)
   async findUnregistered(@Req() req: Request) {
     const userId = req.user['sub'] || req.user['_id'];
     const userRole = req.user['role'];
@@ -104,7 +104,7 @@ export class UsersController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE)
   async create(@Body() createUserDto: any): Promise<AuthUser> {
     return this.usersService.create(createUserDto);
   }
@@ -118,14 +118,14 @@ export class UsersController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE)
   update(@Param('id') id: string, @Body() updateUserDto: Partial<AuthUser>) {
     return this.usersService.update(id, updateUserDto);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE)
   remove(@Param('id') id: string) {
     return this.usersService.remove(id);
   }
@@ -160,7 +160,7 @@ export class UsersController {
 
   @Patch(':id/admin-password')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE)
   async adminChangePassword(
     @Param('id') id: string,
     @Body() changePasswordDto: ChangePasswordDto,

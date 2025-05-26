@@ -44,7 +44,7 @@ export class StatisticsController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMIN, UserRole.ADMINISTRATIVE)
   async getStats(@Query('schoolId') schoolId: string, @Request() req) {
     try {
       const user = req.user;
@@ -85,6 +85,17 @@ export class StatisticsController {
             $or: [{ admin: userId }, { teachers: userId }] 
           });
           const schoolIds = adminSchools.map(school => school._id);
+          stats.users = await this.getUserCountForSchools(schoolIds);
+          stats.schools = schoolIds.length;
+          stats.courses = await this.getCourseCountForSchools(schoolIds);
+          stats.classes = await this.getClassCountForSchools(schoolIds);
+        } else if (user.role === UserRole.ADMINISTRATIVE) {
+          // Para 'administrative', asumimos que son administradores de escuelas específicas (ej. teachers con rol administrative)
+          // Esta lógica puede necesitar ajustarse según tu definición exacta de 'ADMINISTRATIVE'
+          const administrativeSchools = await this.schoolModel.find({ 
+            $or: [{ administrative: userId }, { teachers: userId }] 
+          });
+          const schoolIds = administrativeSchools.map(school => school._id);
           stats.users = await this.getUserCountForSchools(schoolIds);
           stats.schools = schoolIds.length;
           stats.courses = await this.getCourseCountForSchools(schoolIds);
@@ -422,18 +433,13 @@ export class StatisticsController {
       return false;
     }
     const isAdmin = school.admin && school.admin.toString() === userId;
-    // Asegurarse de que school.teachers exista y sea un array antes de usar .some
     const isTeacher = Array.isArray(school.teachers) && school.teachers.some(teacherId => teacherId && teacherId.toString() === userId);
-    
-    // Si el rol es SCHOOL_OWNER, debe ser el admin de la escuela
-    if (user.role === UserRole.SCHOOL_OWNER) {
-        return isAdmin;
-    }
-    // Si el rol es ADMIN (asumido como un profesor con permisos elevados o un admin específico de escuela)
-    if (user.role === UserRole.ADMIN) {
-        return isAdmin || isTeacher;
-    }
-    return false;
+    // Permitir administrativos si están en school.administratives
+    const isAdministrative = Array.isArray(school.administratives) && school.administratives.some(adminId => adminId && adminId.toString() === userId);
+    if (user.role === UserRole.SCHOOL_OWNER) return isAdmin;
+    if (user.role === UserRole.ADMIN) return isAdmin || isTeacher;
+    if (user.role === UserRole.ADMINISTRATIVE) return isAdministrative;
+    return isAdmin || isTeacher || isAdministrative;
   }
 
   private async getUserCountForSchool(schoolId: string): Promise<number> {

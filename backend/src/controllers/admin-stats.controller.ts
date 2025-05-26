@@ -14,7 +14,7 @@ import { Plan } from '../plans/schemas/plan.schema';
 
 @Controller('admin/stats')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMIN)
+@Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMIN, UserRole.ADMINISTRATIVE)
 export class AdminStatsController {
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
@@ -69,6 +69,16 @@ export class AdminStatsController {
           const adminSchools = await this.schoolModel.find({ teachers: userId });
           const schoolIds = adminSchools.map(school => school._id);
           
+          stats.users = await this.getUserCountForSchools(schoolIds);
+          stats.schools = schoolIds.length;
+          stats.courses = await this.getCourseCountForSchools(schoolIds);
+          stats.classes = await this.getClassCountForSchools(schoolIds);
+        } else if (user.role === UserRole.ADMINISTRATIVE) {
+          // Para 'administrative', buscar correctamente en administratives
+          const administrativeSchools = await this.schoolModel.find({ 
+            $or: [{ administratives: userId }, { teachers: userId }] 
+          });
+          const schoolIds = administrativeSchools.map(school => school._id);
           stats.users = await this.getUserCountForSchools(schoolIds);
           stats.schools = schoolIds.length;
           stats.courses = await this.getCourseCountForSchools(schoolIds);
@@ -273,27 +283,26 @@ export class AdminStatsController {
   }
 
   private async checkSchoolAccess(user: any, schoolId: string): Promise<boolean> {
-    // Normalizar el ID del usuario
     const userId = user.sub || (user._id ? user._id.toString() : null);
     if (!userId) {
       return false;
     }
-    
     if (user.role === UserRole.SUPER_ADMIN) {
       return true; // Super admin has access to all schools
     }
-    
     const school = await this.schoolModel.findById(schoolId);
     if (!school) {
       return false;
     }
-    
     // Check if user is admin or teacher
     const isAdmin = school.admin && school.admin.toString() === userId;
-    const isTeacher = school.teachers && 
-      school.teachers.some(teacherId => teacherId.toString() === userId);
-    
-    return isAdmin || isTeacher;
+    const isTeacher = school.teachers && school.teachers.some(teacherId => teacherId.toString() === userId);
+    // Permitir administrativos si están en school.administratives
+    const isAdministrative = school.administratives && school.administratives.some(adminId => adminId.toString() === userId);
+    if (user.role === UserRole.SCHOOL_OWNER) return isAdmin;
+    if (user.role === UserRole.ADMIN) return isAdmin || isTeacher;
+    if (user.role === UserRole.ADMINISTRATIVE) return isAdministrative;
+    return isAdmin || isTeacher || isAdministrative;
   }
   
   private async getUserCountForSchool(schoolId: string): Promise<number> {

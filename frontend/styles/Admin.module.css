@@ -444,13 +444,13 @@
     align-items: flex-start;
     gap: 0.75rem;
   }
-
+  
   .controlsRow {
     flex-direction: column;
     align-items: center;
     gap: 1rem;
   }
-
+  
   .datePickerContainer, .exportButton {
     width: auto;
     min-width: 250px;
@@ -470,7 +470,7 @@
   .exportButton {
     /* Similar al datePickerContainer, min-width ayuda. */
   }
-
+  
   .backButton {
     margin-top: 0.5rem;
     align-self: flex-end;
@@ -1370,7 +1370,7 @@
   .table th {
     white-space: nowrap;
   }
-
+  
   /* Columna de Numeración (#) */
   .table th:nth-child(1),
   .table td:nth-child(1) {
@@ -1381,7 +1381,7 @@
     text-align: center;
     white-space: nowrap;
   }
-
+  
   /* Columna de Estudiante */
   .table th:nth-child(2),
   .table td:nth-child(2) {
@@ -1400,7 +1400,7 @@
     align-items: flex-start;
     gap: 0.5rem;
   }
-
+  
   /* Columna de Notas */
   .table th:nth-child(4),
   .table td:nth-child(4) {
@@ -1419,7 +1419,7 @@
     padding: 0.6rem 0.4rem;
     font-size: 0.8rem;
   }
-
+  
   /* Columna de Numeración (#) */
   .table th:nth-child(1),
   .table td:nth-child(1) {
@@ -1428,13 +1428,13 @@
     padding-left: 0.3rem;
     padding-right: 0.3rem;
   }
-
+  
   /* Columna de Estudiante */
   .table th:nth-child(2),
   .table td:nth-child(2) {
     min-width: 120px;
   }
-
+  
   /* Columna de Asistencia */
   .table th:nth-child(3),
   .table td:nth-child(3) {
@@ -1449,7 +1449,7 @@
     width: 16px;
     height: 16px;
   }
-
+  
   /* Columna de Notas */
   .table th:nth-child(4),
   .table td:nth-child(4) {

@@ -9,6 +9,7 @@ import { format, parse, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay }
 import { es } from 'date-fns/locale';
 import { FaPlus, FaCheck, FaTimes, FaArrowLeft, FaCalendarAlt, FaSave, FaChalkboardTeacher, FaFileExcel } from 'react-icons/fa';
 import * as XLSX from 'xlsx';
+import { toZonedTime } from 'date-fns-tz';
 
 interface Student {
   _id: string;
@@ -62,8 +63,11 @@ export default function AttendancePage() {
   const [course, setCourse] = useState<Course | null>(null);
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [date, setDate] = useState(() => {
+    // Obtener la fecha local en formato yyyy-MM-dd
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const offset = now.getTimezoneOffset();
+    const localDate = new Date(now.getTime() - offset * 60 * 1000);
+    return localDate.toISOString().slice(0, 10);
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -126,14 +130,14 @@ export default function AttendancePage() {
       setError('');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
-
+      
       console.log(`Fetching attendance for course ${id} on date ${date}`);
       const response = await axios.get(`${apiUrl}/api/attendance/course/${id}?date=${date}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-
+      
       const finalAttendanceMap = new Map<string, Attendance>();
-
+      
       // 1. Pre-cargar studentInfoMap si hay IDs de string en la respuesta de la API para optimizar
       let studentInfoMap: Record<string, any> = {};
       if (response.data && Array.isArray(response.data)) {
@@ -189,7 +193,7 @@ export default function AttendancePage() {
           let studentIdFromApi: string | undefined;
           let studentNameFromApi: string | undefined;
           let isRegisteredFromApi = false;
-
+          
           if (typeof apiRecord.student === 'object' && apiRecord.student !== null) {
             studentIdFromApi = apiRecord.student._id;
             studentNameFromApi = apiRecord.student.name;
@@ -200,7 +204,7 @@ export default function AttendancePage() {
             if (studentIdFromApi) { // Asegurarse que studentIdFromApi no es undefined
               studentDetail = studentInfoMap[studentIdFromApi]; // Usar el mapa pre-cargado
             }
-
+              
             if (studentDetail && studentDetail.name !== 'Usuario no encontrado en API') {
                 studentNameFromApi = studentDetail.name;
                 isRegisteredFromApi = true;
@@ -238,7 +242,7 @@ export default function AttendancePage() {
           .filter(att => att.studentName && att.studentName !== 'Usuario no encontrado en API' && att.studentName !== 'Estudiante desconocido'); // Filtro final
           
       finalAttendancesArray.sort((a, b) => (a.studentName || '').localeCompare((b.studentName || ''), undefined, { sensitivity: 'base' }));
-
+        
       console.log('Final combined and deduplicated attendance records:', finalAttendancesArray);
       setAttendances(finalAttendancesArray);
 
@@ -308,18 +312,24 @@ export default function AttendancePage() {
       console.log('Asistente creado con éxito:', response.data);
       
       // Agregar el asistente a la lista local con su ID real
-    const newAttendance = {
+      const newAttendance = {
         studentId: response.data._id, // Usar el ID real devuelto por la API
-      studentName: studentName,
-      present: null,
-      notes: '',
+        studentName: studentName,
+        present: null,
+        notes: '',
         isRegistered: false,
         isTemporary: false // Ya no es temporal porque existe en la base de datos
-    };
-    
-    setAttendances(prev => [...prev, newAttendance]);
-    setNewStudentName('');
-    setShowAddNonRegisteredModal(false);
+      };
+      setAttendances(prev => {
+        // Elimina cualquier entrada temporal con el mismo nombre
+        const filtered = prev.filter(a => a.studentName?.toLowerCase() !== studentName.toLowerCase());
+        return [...filtered, newAttendance];
+      });
+      // Refrescar la lista de estudiantes y asistencias para asegurar que el usuario aparece correctamente
+      await fetchCourse();
+      await fetchAttendances();
+      setNewStudentName('');
+      setShowAddNonRegisteredModal(false);
       setSuccess('Asistente no registrado añadido correctamente');
       
     } catch (error) {
@@ -346,17 +356,11 @@ export default function AttendancePage() {
           attendance.studentName && 
           attendance.studentName !== 'Usuario no encontrado')
         .map(attendance => {
-          // Si es un asistente no registrado, asegurar que se use el nombre
-          if (!attendance.isRegistered) {
-            console.log('Preparando asistente no registrado:', attendance.studentName);
-          }
-          
           return {
-          ...attendance,
+            ...attendance,
             present: attendance.present === null ? false : attendance.present,
-            // Si es un asistente no registrado, enviar el nombre como studentId
-            studentId: attendance.isRegistered ? attendance.studentId : attendance.studentName,
-            _id: attendance._id // Ensure _id is included for existing records
+            studentId: attendance.studentId,
+            _id: attendance._id
           };
         });
       
@@ -371,12 +375,22 @@ export default function AttendancePage() {
       
       const promises = attendancesToSave.map(async (attendance) => {
         try {
-          const dateString = date + 'T12:00:00.000Z';
+          let dateString: string;
+          if (date.length === 10) { // yyyy-MM-dd
+            // Construir la fecha local (sin sumar offset)
+            const now = new Date();
+            const [year, month, day] = date.split('-').map(Number);
+            const localDate = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds());
+            dateString = localDate.toISOString();
+          } else {
+            // Si ya viene con hora, usar tal cual
+            dateString = new Date(date).toISOString();
+          }
           
           if (attendance._id) { // Actualizar registro existente
             const updateData = {
-              present: attendance.present,
-              notes: attendance.notes || '',
+            present: attendance.present,
+            notes: attendance.notes || '',
               date: dateString, // El backend puede optar por usar esta fecha o no para el campo 'date' en sí
               courseId: id as string
             };
@@ -399,7 +413,7 @@ export default function AttendancePage() {
             
             console.log('Sending create data:', createData);
             return axios.post(`${apiUrl}/api/attendance`, createData, {
-              headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` }
             }).catch(error => {
               console.error('Error creating attendance:', error.response?.status, error.response?.data);
               throw error;
@@ -462,6 +476,7 @@ export default function AttendancePage() {
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Mantener la fecha local seleccionada
     setDate(e.target.value);
   };
 
@@ -476,8 +491,9 @@ export default function AttendancePage() {
       const decoded = jwtDecode<DecodedToken>(token);
       setCurrentUser(decoded);
       
-      // Solo los profesores y administradores pueden acceder a esta página
-      if (decoded.role !== 'teacher' && decoded.role !== 'admin' && decoded.role !== 'school_owner' && decoded.role !== 'super_admin') {
+      // Solo los roles permitidos pueden acceder a esta página
+      const allowedRoles = ['teacher', 'admin', 'school_owner', 'super_admin', 'administrative'];
+      if (!allowedRoles.includes(decoded.role.toLowerCase())) {
         router.push('/');
         return;
       }
@@ -754,6 +770,7 @@ export default function AttendancePage() {
                         <th style={{ width: '25%' }}>Estudiante</th>
                         <th style={{ width: '35%' }}>Asistencia</th>
                         <th>Notas (opcional)</th>
+                        {/*<th>Fecha/Hora (GMT-5)</th>*/}
                       </tr>
                     </thead>
                     <tbody>
@@ -811,6 +828,18 @@ export default function AttendancePage() {
                                   placeholder="Notas (opcional)"
                                 />
                               </td>
+                              {/*<td>
+                                {attendance._id && attendance.date && (
+                                  (() => {
+                                    const limaDate = toZonedTime(new Date(attendance.date), 'America/Lima');
+                                    return (
+                                      <span>
+                                        {format(limaDate, 'dd/MM/yyyy HH:mm:ss', { locale: es })}
+                                      </span>
+                                    );
+                                  })()
+                                )}
+                              </td>*/}
                             </tr>
                           );
                         })}
