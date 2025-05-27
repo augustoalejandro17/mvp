@@ -4,11 +4,12 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../../styles/Course.module.css';
-import { FaPlus, FaTrashAlt, FaEye, FaEdit, FaUserCheck, FaSpinner, FaArrowLeft } from 'react-icons/fa';
+import { FaPlus, FaTrashAlt, FaEye, FaEdit, FaUserCheck, FaSpinner, FaArrowLeft, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import { jwtDecode } from 'jwt-decode';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import ImageFallback from '../../components/ImageFallback';
 import { canModifyClass, canManageVideos, canManageAttendance } from '../../utils/permission-utils';
+import { useMediaQuery } from 'react-responsive';
 
 interface Course {
   _id: string;
@@ -65,6 +66,8 @@ export default function CourseDetail() {
   const { handleApiError } = useApiErrorHandler();
   const [videoStreamUrl, setVideoStreamUrl] = useState<string | null>(null);
   const [videoLoadError, setVideoLoadError] = useState(false);
+  const isMobile = useMediaQuery({ maxWidth: 767 });
+  const [classesCollapsed, setClassesCollapsed] = useState(true);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -394,73 +397,136 @@ export default function CourseDetail() {
         
         <div className={styles.courseContent}>
           <div className={styles.classesList}>
-            <h2 className={styles.sectionTitle}>Clases del Curso</h2>
-            
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h2 className={styles.sectionTitle}>Clases del Curso</h2>
+              <button
+                className={styles.collapseIconButton}
+                aria-label={classesCollapsed ? 'Mostrar todas las clases' : 'Ver solo clase actual'}
+                onClick={() => setClassesCollapsed((prev) => !prev)}
+                type="button"
+              >
+                {classesCollapsed ? <FaChevronDown /> : <FaChevronUp />}
+              </button>
+            </div>
             {classes.length === 0 ? (
               <div className={styles.noClasses}>
                 <p>Este curso aún no tiene clases disponibles.</p>
               </div>
             ) : (
               <ul className={styles.classList}>
-                {classes.map((classItem) => (
-                  <li 
-                    key={classItem._id} 
-                    className={`${styles.classItem} ${selectedClass?._id === classItem._id ? styles.active : ''}`}
-                  >
-                    <div 
-                      className={styles.classContent}
-                      onClick={() => handleClassClick(classItem)}
-                    >
-                      <div className={styles.classInfo}>
-                        <h3 className={styles.classTitle}>{classItem.title}</h3>
-                        {classItem.duration && (
-                          <span className={styles.duration}>
-                            {Math.floor(classItem.duration / 60)}:{(classItem.duration % 60).toString().padStart(2, '0')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className={styles.classActions}>
-                      <button 
-                        className={styles.classActionBtn}
-                        onClick={() => handleClassClick(classItem)}
-                        title="Ver detalles"
+                {classesCollapsed
+                  ? selectedClass && (
+                      <li 
+                        key={selectedClass._id} 
+                        className={`${styles.classItem} ${styles.active}`}
                       >
-                        <FaEye />
-                      </button>
-                      
-                      {(user?.role === 'super_admin' || (classItem.createdBy && canModifyClassItem(classItem.createdBy._id))) && (
-                        <>
-                          <Link 
-                            href={`/class/edit/${classItem._id}`}
-                            className={styles.classActionBtn}
-                            title="Editar clase"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <FaEdit />
-                          </Link>
-                          
+                        <div 
+                          className={styles.classContent}
+                          onClick={() => handleClassClick(selectedClass)}
+                        >
+                          <div className={styles.classInfo}>
+                            <h3 className={styles.classTitle}>{selectedClass.title}</h3>
+                            {selectedClass.duration && (
+                              <span className={styles.duration}>
+                                {Math.floor(selectedClass.duration / 60)}:{(selectedClass.duration % 60).toString().padStart(2, '0')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className={styles.classActions}>
                           <button 
                             className={styles.classActionBtn}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteClass(classItem._id);
-                            }}
-                            disabled={deletingClassId === classItem._id}
-                            title="Eliminar clase"
+                            onClick={() => handleClassClick(selectedClass)}
+                            title="Ver detalles"
                           >
-                            {deletingClassId === classItem._id ? (
-                              <FaSpinner className={styles.spinner} />
-                            ) : (
-                              <FaTrashAlt />
-                            )}
+                            <FaEye />
                           </button>
-                        </>
-                      )}
-                    </div>
-                  </li>
-                ))}
+                          {(user?.role === 'super_admin' || (selectedClass.createdBy && canModifyClassItem(selectedClass.createdBy._id))) && (
+                            <>
+                              <Link 
+                                href={`/class/edit/${selectedClass._id}`}
+                                className={styles.classActionBtn}
+                                title="Editar clase"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <FaEdit />
+                              </Link>
+                              <button 
+                                className={styles.classActionBtn}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClass(selectedClass._id);
+                                }}
+                                disabled={deletingClassId === selectedClass._id}
+                                title="Eliminar clase"
+                              >
+                                {deletingClassId === selectedClass._id ? (
+                                  <FaSpinner className={styles.spinner} />
+                                ) : (
+                                  <FaTrashAlt />
+                                )}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </li>
+                    )
+                  : classes.map((classItem) => (
+                      <li 
+                        key={classItem._id} 
+                        className={`${styles.classItem} ${selectedClass?._id === classItem._id ? styles.active : ''}`}
+                      >
+                        <div 
+                          className={styles.classContent}
+                          onClick={() => handleClassClick(classItem)}
+                        >
+                          <div className={styles.classInfo}>
+                            <h3 className={styles.classTitle}>{classItem.title}</h3>
+                            {classItem.duration && (
+                              <span className={styles.duration}>
+                                {Math.floor(classItem.duration / 60)}:{(classItem.duration % 60).toString().padStart(2, '0')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className={styles.classActions}>
+                          <button 
+                            className={styles.classActionBtn}
+                            onClick={() => handleClassClick(classItem)}
+                            title="Ver detalles"
+                          >
+                            <FaEye />
+                          </button>
+                          {(user?.role === 'super_admin' || (classItem.createdBy && canModifyClassItem(classItem.createdBy._id))) && (
+                            <>
+                              <Link 
+                                href={`/class/edit/${classItem._id}`}
+                                className={styles.classActionBtn}
+                                title="Editar clase"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <FaEdit />
+                              </Link>
+                              <button 
+                                className={styles.classActionBtn}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClass(classItem._id);
+                                }}
+                                disabled={deletingClassId === classItem._id}
+                                title="Eliminar clase"
+                              >
+                                {deletingClassId === classItem._id ? (
+                                  <FaSpinner className={styles.spinner} />
+                                ) : (
+                                  <FaTrashAlt />
+                                )}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </li>
+                    ))}
               </ul>
             )}
             
