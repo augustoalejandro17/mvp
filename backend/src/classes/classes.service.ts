@@ -514,20 +514,12 @@ export class ClassesService {
     
     // If date is provided, filter by that date
     if (dateString) {
-      const date = new Date(dateString);
-      
-      // Create date range without timezone adjustments
-      // Set the hours to cover the full day in UTC
-      const startDate = new Date(date);
-      startDate.setUTCHours(0, 0, 0, 0);
-      
-      const endDate = new Date(date);
-      endDate.setUTCHours(23, 59, 59, 999);
-      
+      const dateStr = dateString.split('T')[0];
+      const startDate = new Date(`${dateStr}T00:00:00-05:00`);
+      const endDate = new Date(`${dateStr}T23:59:59.999-05:00`);
       console.log(`Finding attendance records for class ${classId}, course ${courseId}`);
       console.log(`Date provided: ${dateString}`);
       console.log(`Search between: ${startDate.toISOString()} and ${endDate.toISOString()}`);
-      
       query.date = {
         $gte: startDate,
         $lt: endDate

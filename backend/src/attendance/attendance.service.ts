@@ -202,24 +202,10 @@ export class AttendanceService {
     return attendance;
   }
 
-  // Obtener asistencia por curso y fecha
   async findByCourseAndDate(courseId: string, date: Date): Promise<Attendance[]> {
-    // Calcular el rango del día en GMT-5 (America/Lima)
-    const timeZone = 'America/Lima';
-    const localDate = new Date(date);
-    const year = localDate.getFullYear();
-    const month = localDate.getMonth() + 1;
-    const day = localDate.getDate();
-    // Implementar manualmente la conversión local->UTC si zonedTimeToUtc no está disponible
-    function localToUtc(dateString: string, timeZone: string) {
-      // Crea la fecha como si fuera local y ajusta el offset de la zona horaria
-      const localDate = toDate(dateString);
-      // Offset de Lima: -5 horas
-      return new Date(localDate.getTime() + 5 * 60 * 60 * 1000);
-    }
-    const startDate = localToUtc(`${year}-${month.toString().padStart(2,'0')}-${day.toString().padStart(2,'0')}T00:00:00`, timeZone);
-    const endDate = localToUtc(`${year}-${month.toString().padStart(2,'0')}-${day.toString().padStart(2,'0')}T23:59:59.999`, timeZone);
-    
+    const dateStr = date.toISOString().split('T')[0];
+    const startDate = new Date(`${dateStr}T00:00:00-05:00`);
+    const endDate = new Date(`${dateStr}T23:59:59.999-05:00`);
     console.log(`Finding attendance records for course ${courseId}`);
     console.log(`Date provided: ${date.toISOString()}`);
     console.log(`Search between: ${startDate.toISOString()} and ${endDate.toISOString()}`);
@@ -235,23 +221,9 @@ export class AttendanceService {
     .sort('student.name')
     .exec();
     
-    console.log(`Found ${records.length} attendance records`);
-    records.forEach(record => {
-      let studentIdStr = 'unknown';
-      if (record.student) {
-        if (typeof record.student === 'object' && record.student !== null) {
-          studentIdStr = record.student.toString();
-        } else {
-          studentIdStr = String(record.student);
-        }
-      }
-      console.log(`Record: studentId=${studentIdStr}, present=${record.present}, date=${record.date.toISOString()}`);
-    });
-    
     return records;
   }
 
-  // Obtener estadísticas de asistencia por curso
   async getStatsByStudent(courseId: string, studentId: string): Promise<any> {
     const totalAttendances = await this.attendanceModel.countDocuments({
       course: courseId,
@@ -275,9 +247,7 @@ export class AttendanceService {
     };
   }
 
-  // Obtener estadísticas de asistencia para todos los estudiantes de un curso
   async getStatsByCourse(courseId: string): Promise<any> {
-    // Verificar que el curso existe
     const course = await this.courseModel.findById(courseId).populate('students', 'name email');
     if (!course) {
       throw new NotFoundException(`Curso con ID ${courseId} no encontrado`);
@@ -285,14 +255,11 @@ export class AttendanceService {
     
     const totalClasses = await this.attendanceModel.distinct('date', { course: courseId });
     
-    // Obtener estadísticas para cada estudiante
     const studentStats = [];
     
-    // Convertir a array si no lo es
     const students = Array.isArray(course.students) ? course.students : [];
     
     for (const student of students) {
-      // Asegurar que student es un objeto y no solo un ObjectId
       let studentId: string;
       try {
         if (typeof student === 'object' && student !== null) {
