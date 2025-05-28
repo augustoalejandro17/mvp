@@ -13,6 +13,7 @@ import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { Attendance, AttendanceDocument } from '../attendance/schemas/attendance.schema';
 import { VideoProcessorService } from '../services/video-processor.service';
 import * as fs from 'fs';
+import { Enrollment, EnrollmentDocument } from '../courses/schemas/enrollment.schema';
 
 // Función de utilidad para comparar roles
 const compareRole = (userRole: any, enumRole: UserRole): boolean => {
@@ -40,6 +41,7 @@ export class ClassesService {
     @InjectModel(Class.name) private classModel: Model<ClassDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Attendance.name) private attendanceModel: Model<AttendanceDocument>,
+    @InjectModel(Enrollment.name) private enrollmentModel: Model<EnrollmentDocument>,
     private coursesService: CoursesService,
     private s3Service: S3Service,
     private cloudFrontService: CloudFrontService,
@@ -97,11 +99,20 @@ export class ClassesService {
         }
       }
       
-      // Verificar que el profesor que crea la clase sea el profesor del curso o un admin
-      if (teacherIdFromCourse !== teacherId) {
-        const user = await this.userModel.findById(teacherId);
-        if (!user || user.role !== 'admin') {
-          
+      // Verificar permisos para crear clase
+      const user = await this.userModel.findById(teacherId);
+      const allowedRoles = [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE];
+      // Si es admin, super_admin, school_owner o administrative, permitir
+      if (user && allowedRoles.includes(user.role)) {
+        // permitido
+      } else {
+        // Si es teacher principal o está en el array teachers del curso, permitir
+        const isMainTeacher = teacherIdFromCourse === teacherId;
+        let isAdditionalTeacher = false;
+        if (Array.isArray(course.teachers)) {
+          isAdditionalTeacher = course.teachers.map(String).includes(String(teacherId));
+        }
+        if (!isMainTeacher && !isAdditionalTeacher) {
           throw new BadRequestException('No tienes permisos para crear clases en este curso');
         }
       }
@@ -177,6 +188,20 @@ export class ClassesService {
               { teacher: userId }
             ] 
           };
+        } else if (role === UserRole.STUDENT && courseId) {
+          // Si es estudiante y hay courseId, verificar si está inscrito
+          const enrollment = await this.enrollmentModel.findOne({
+            course: courseId,
+            student: userId,
+            isActive: true
+          });
+          if (enrollment) {
+            // Está inscrito: puede ver todas las clases del curso
+            query = { ...query };
+          } else {
+            // No inscrito: solo públicas
+            query = { ...query, isPublic: true };
+          }
         } else {
           query = { 
             ...query,
@@ -474,9 +499,8 @@ export class ClassesService {
     if (!classItem) {
       throw new NotFoundException(`Class with ID ${classId} not found`);
     }
-    
-    // Use the date provided or current date without timezone manipulation
-    const attendanceDate = new Date(); // Siempre usamos la fecha y hora actuales del servidor para el registro
+    // Usar la fecha y hora exacta en UTC
+    const attendanceDate = new Date();
     
     // Log information for debugging
     console.log(`Recording attendance for class ${classId}`);
@@ -506,26 +530,17 @@ export class ClassesService {
     if (!classItem) {
       throw new NotFoundException(`Class with ID ${classId} not found`);
     }
-    
-    // Get the course ID from the class
     const courseId = classItem.course;
-    
     let query: any = { course: courseId };
-    
-    // If date is provided, filter by that date
     if (dateString) {
       const dateStr = dateString.split('T')[0];
-      const startDate = new Date(`${dateStr}T00:00:00-05:00`);
-      const endDate = new Date(`${dateStr}T23:59:59.999-05:00`);
-      console.log(`Finding attendance records for class ${classId}, course ${courseId}`);
-      console.log(`Date provided: ${dateString}`);
-      console.log(`Search between: ${startDate.toISOString()} and ${endDate.toISOString()}`);
+      const startDate = new Date(`${dateStr}T00:00:00.000Z`);
+      const endDate = new Date(`${dateStr}T23:59:59.999Z`);
       query.date = {
         $gte: startDate,
         $lt: endDate
       };
     }
-    
     return this.attendanceModel.find(query)
       .populate('student', 'name email')
       .populate('recordedBy', 'name email')

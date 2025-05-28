@@ -151,9 +151,9 @@ export default function CreateClass() {
       
       setSuccess('Clase creada exitosamente. Redirigiendo...');
       
-      // Redirigir al dashboard después de 2 segundos
+      // Redirigir al curso después de 2 segundos
       setTimeout(() => {
-        router.push('/');
+        router.push(`/course/${courseId}`);
       }, 2000);
       
     } catch (error) {

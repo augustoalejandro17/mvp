@@ -9,13 +9,15 @@ import { CoursesModule } from '../courses/courses.module';
 import { UsersModule } from '../users/users.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { ServicesModule } from '../services/services.module';
+import { Enrollment, EnrollmentSchema } from '../courses/schemas/enrollment.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Class.name, schema: ClassSchema },
       { name: User.name, schema: UserSchema },
-      { name: Attendance.name, schema: AttendanceSchema }
+      { name: Attendance.name, schema: AttendanceSchema },
+      { name: Enrollment.name, schema: EnrollmentSchema },
     ]),
     AuthModule,
     CoursesModule,

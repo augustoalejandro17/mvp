@@ -204,12 +204,11 @@ export class AttendanceService {
 
   async findByCourseAndDate(courseId: string, date: Date): Promise<Attendance[]> {
     const dateStr = date.toISOString().split('T')[0];
-    const startDate = new Date(`${dateStr}T00:00:00-05:00`);
-    const endDate = new Date(`${dateStr}T23:59:59.999-05:00`);
+    const startDate = new Date(`${dateStr}T00:00:00.000Z`);
+    const endDate = new Date(`${dateStr}T23:59:59.999Z`);
     console.log(`Finding attendance records for course ${courseId}`);
     console.log(`Date provided: ${date.toISOString()}`);
     console.log(`Search between: ${startDate.toISOString()} and ${endDate.toISOString()}`);
-    
     const records = await this.attendanceModel.find({
       course: courseId,
       date: {
@@ -220,7 +219,6 @@ export class AttendanceService {
     .populate({ path: 'student', strictPopulate: false })
     .sort('student.name')
     .exec();
-    
     return records;
   }
 

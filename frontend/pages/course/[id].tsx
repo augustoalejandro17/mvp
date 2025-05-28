@@ -21,6 +21,7 @@ interface Course {
     name: string;
     email: string;
   };
+  teachers?: { _id: string; name: string; email: string }[];
   school: {
     _id: string;
     name: string;
@@ -67,7 +68,7 @@ export default function CourseDetail() {
   const [videoStreamUrl, setVideoStreamUrl] = useState<string | null>(null);
   const [videoLoadError, setVideoLoadError] = useState(false);
   const isMobile = useMediaQuery({ maxWidth: 767 });
-  const [classesCollapsed, setClassesCollapsed] = useState(true);
+  const [classesCollapsed, setClassesCollapsed] = useState(false);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -182,7 +183,11 @@ export default function CourseDetail() {
 
   const isTeacherOfCourse = useCallback((): boolean => {
     if (!user || !course) return false;
-    return course.teacher._id === user.id;
+    if (course.teacher._id === user.id) return true;
+    if (Array.isArray(course.teachers)) {
+      return course.teachers.some(t => t._id === user.id);
+    }
+    return false;
   }, [user, course]);
 
   const canModifyThisCourse = useCallback((): boolean => {
@@ -208,25 +213,13 @@ export default function CourseDetail() {
     return user.role === 'teacher' && isTeacherOfCourse();
   }, [user, course, isTeacherOfCourse]);
 
-  const canModifyClassItem = useCallback((teacherId: string | undefined): boolean => {
-    if (!user?.role || !teacherId || !course) return false;
-    
-    // Roles que pueden modificar clases en cualquier curso
-    if (['super_admin', 'admin'].includes(user.role)) return true;
-    
-    // School owner y administrative pueden modificar clases en sus escuelas
-    if (['school_owner', 'administrative'].includes(user.role) && course.school) {
-      // Aquí necesitaríamos verificar la relación con la escuela
-      return true; // Simplificado
-    }
-    
-    // El profesor del curso puede modificar las clases en su curso
-    if (isTeacherOfCourse()) return true;
-    
-    // Teacher que creó la clase específica también puede modificarla
-    const hasPermission = canModifyClass(user.role, isClassTeacher(teacherId));
-    return hasPermission;
-  }, [user, course, isTeacherOfCourse, isClassTeacher]);
+  const canModifyClassItem = useCallback((): boolean => {
+    if (!user || !course) return false;
+    // Permisos globales
+    if (["super_admin", "admin", "school_owner", "administrative"].includes(user.role)) return true;
+    // Cualquier teacher del curso
+    return isTeacherOfCourse();
+  }, [user, course, isTeacherOfCourse]);
 
   const canTakeAttendance = useCallback((teacherId: string | undefined): boolean => {
     if (!user?.role || !teacherId || !course) return false;
@@ -346,7 +339,7 @@ export default function CourseDetail() {
   useEffect(() => {
     if (user && course) {
       const isTeacher = isClassTeacher(course.teacher._id);
-      const canModify = canModifyClassItem(course.teacher._id);
+      const canModify = canModifyClassItem();
       const canAttend = canTakeAttendance(course.teacher._id);
       
       
@@ -441,7 +434,7 @@ export default function CourseDetail() {
                           >
                             <FaEye />
                           </button>
-                          {(user?.role === 'super_admin' || (selectedClass.createdBy && canModifyClassItem(selectedClass.createdBy._id))) && (
+                          {canModifyClassItem() && (
                             <>
                               <Link 
                                 href={`/class/edit/${selectedClass._id}`}
@@ -497,7 +490,7 @@ export default function CourseDetail() {
                           >
                             <FaEye />
                           </button>
-                          {(user?.role === 'super_admin' || (classItem.createdBy && canModifyClassItem(classItem.createdBy._id))) && (
+                          {canModifyClassItem() && (
                             <>
                               <Link 
                                 href={`/class/edit/${classItem._id}`}
