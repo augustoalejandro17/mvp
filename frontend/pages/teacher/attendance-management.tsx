@@ -111,16 +111,25 @@ export default function AttendanceManagementPage() {
 
   const fetchAttendances = useCallback(async (classId: string) => {
     if (!classId) return;
-    
     try {
       setLoading(true);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
-      
+      // Calcular rango UTC para el día local seleccionado
+      const localDate = new Date(selectedDate + 'T00:00:00');
+      const tzOffset = localDate.getTimezoneOffset();
+      const startUTC = new Date(localDate.getTime() - tzOffset * 60000);
+      const endLocal = new Date(localDate);
+      endLocal.setHours(23, 59, 59, 999);
+      const endUTC = new Date(endLocal.getTime() - tzOffset * 60000);
+      // Enviar el rango como parámetros de la consulta
       const response = await axios.get(`${apiUrl}/api/classes/${classId}/attendance`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          start: startUTC.toISOString(),
+          end: endUTC.toISOString()
+        }
       });
-      
       // Si hay registros de asistencia, mapearlos
       if (response.data && Array.isArray(response.data)) {
         setAttendances(response.data.map(attendance => ({
@@ -134,12 +143,11 @@ export default function AttendanceManagementPage() {
       }
     } catch (error) {
       console.error('Error al obtener las asistencias:', error);
-      // Si no hay asistencias para esta clase, inicializar array vacío
       setAttendances([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedDate]);
 
   useEffect(() => {
     const token = Cookies.get('token');
@@ -176,7 +184,7 @@ export default function AttendanceManagementPage() {
     if (selectedClass) {
       fetchAttendances(selectedClass);
     }
-  }, [selectedClass, fetchAttendances]);
+  }, [selectedClass, fetchAttendances, selectedDate]);
 
   const initializeAttendances = useCallback(() => {
     if (!selectedCourse) return;
@@ -230,45 +238,48 @@ export default function AttendanceManagementPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!selectedClass) {
       setError('Debes seleccionar una clase');
       return;
     }
-    
     try {
       setSaving(true);
       setError('');
       setSuccess('');
-      
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
-      
       // Convertir registros sin selección a 'ausente' (present: false)
       const processedRecords = attendances.map(a => ({
         ...a,
         present: a.present === null ? false : a.present
       }));
-      
+      // Calcular rango UTC para el día local seleccionado
+      const localDate = new Date(selectedDate + 'T00:00:00');
+      const tzOffset = localDate.getTimezoneOffset();
+      const startUTC = new Date(localDate.getTime() - tzOffset * 60000);
+      const endLocal = new Date(localDate);
+      endLocal.setHours(23, 59, 59, 999);
+      const endUTC = new Date(endLocal.getTime() - tzOffset * 60000);
       // Preparar los datos de asistencia
       const attendanceData = {
-        date: new Date(selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')),
+        date: startUTC.toISOString(), // Para guardar la fecha de referencia en UTC
         attendanceRecords: processedRecords.map(a => ({
           studentId: a.studentId,
           present: a.present,
           notes: a.notes || ''
-        }))
+        })),
+        dateRangeUTC: {
+          start: startUTC.toISOString(),
+          end: endUTC.toISOString()
+        }
       };
-      
       await axios.post(`${apiUrl}/api/classes/${selectedClass}/attendance`, attendanceData, {
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         }
       });
-      
       setSuccess('Asistencia registrada correctamente');
-      
       // Actualizar la lista de asistencias
       fetchAttendances(selectedClass);
     } catch (error) {

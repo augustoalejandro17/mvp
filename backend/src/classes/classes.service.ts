@@ -525,14 +525,20 @@ export class ClassesService {
     return { success: true, count: attendanceRecords.length, records: attendanceRecords };
   }
   
-  async getAttendance(classId: string, dateString?: string) {
+  async getAttendance(classId: string, dateString?: string, start?: string, end?: string) {
     const classItem = await this.classModel.findById(classId);
     if (!classItem) {
       throw new NotFoundException(`Class with ID ${classId} not found`);
     }
     const courseId = classItem.course;
     let query: any = { course: courseId };
-    if (dateString) {
+    if (start && end) {
+      // Si se reciben start y end, filtrar por ese rango UTC
+      query.date = {
+        $gte: new Date(start),
+        $lt: new Date(end)
+      };
+    } else if (dateString) {
       const dateStr = dateString.split('T')[0];
       const startDate = new Date(`${dateStr}T00:00:00.000Z`);
       const endDate = new Date(`${dateStr}T23:59:59.999Z`);

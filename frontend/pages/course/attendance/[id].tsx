@@ -569,7 +569,6 @@ export default function AttendancePage() {
         let studentName = '';
         let studentEmail = '';
         let isRegistered = true;
-        
         if (typeof attendance.student === 'object' && attendance.student) {
           // Estudiante registrado con datos poblados
           studentId = attendance.student._id;
@@ -579,7 +578,6 @@ export default function AttendancePage() {
           // Estudiante registrado sin datos poblados
           studentId = attendance.student;
           const studentInfo = studentsMap.get(studentId);
-          
           if (studentInfo) {
             studentName = studentInfo.name;
             studentEmail = studentInfo.email;
@@ -592,16 +590,13 @@ export default function AttendancePage() {
           studentName = attendance.studentName;
           isRegistered = false;
         }
-        
         // Si no tenemos un ID de estudiante válido, omitir este registro
         if (!studentId) return;
-        
         // Buscar o crear entrada para el estudiante
         let studentMonthlyAtt = monthlyAttendances.find(m => 
           m.studentId === studentId || 
           (!isRegistered && m.studentName === studentName)
         );
-        
         if (!studentMonthlyAtt) {
           studentMonthlyAtt = {
             studentId,
@@ -610,15 +605,14 @@ export default function AttendancePage() {
             isRegistered,
             dates: {}
           };
-          
           monthlyAttendances.push(studentMonthlyAtt);
         }
-        
         // Añadir asistencia para la fecha
         if (attendance.date) {
-          // Formatear la fecha al formato yyyy-MM-dd
+          // Convertir la fecha UTC a local antes de formatear
           const attendanceDate = new Date(attendance.date);
-          const formattedDate = format(attendanceDate, 'yyyy-MM-dd');
+          const localDate = new Date(attendanceDate.getTime() - attendanceDate.getTimezoneOffset() * 60000);
+          const formattedDate = format(localDate, 'yyyy-MM-dd');
           studentMonthlyAtt.dates[formattedDate] = attendance.present;
         }
       });

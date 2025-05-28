@@ -320,8 +320,10 @@ export class ClassesController {
   async getAttendance(
     @Param('id') classId: string,
     @Query('date') date?: string,
+    @Query('start') start?: string,
+    @Query('end') end?: string,
   ) {
-    return this.classesService.getAttendance(classId, date);
+    return this.classesService.getAttendance(classId, date, start, end);
   }
 
   @Get(':id/attendance/student/:studentId')

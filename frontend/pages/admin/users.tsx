@@ -103,6 +103,10 @@ export default function UserManagement() {
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null); // Nuevo estado para controlar qué email está expandido
   
+  // Nuevo estado para filtros de asistentes sin registro
+  const [unregSchoolFilter, setUnregSchoolFilter] = useState('');
+  const [unregCourseFilter, setUnregCourseFilter] = useState('');
+  
   // Memoize currentSchool for use in JSX
   const currentSchool = useMemo(() => schools.find(s => s._id === selectedSchool), [schools, selectedSchool]);
   
@@ -1337,8 +1341,10 @@ export default function UserManagement() {
                         value={selectedSchool}
                         onChange={(e) => {
                           setSelectedSchool(e.target.value);
-                          setSelectedCourse(''); // Reset course when school changes
-                          setSelectedSede(''); // Reset sede when school changes
+                          setSelectedCourse('');
+                          setSelectedSede('');
+                          setUnregSchoolFilter('');
+                          setUnregCourseFilter('');
                         }}
                       >
                         <option value="">Todas las escuelas</option>
@@ -1350,11 +1356,11 @@ export default function UserManagement() {
                         ))}
                       </select>
                     </div>
-                    {/* New Course Filter Dropdown */}
+                    {/* Filtros de curso y sede para usuarios registrados */}
                     {selectedSchool && selectedSchool !== 'all' && selectedSchool !== 'unregistered' && (
                       <div className={styles.filterWrapper}>
-                      <select 
-                        className={styles.select}
+                        <select 
+                          className={styles.select}
                           value={selectedCourse}
                           onChange={(e) => setSelectedCourse(e.target.value)}
                         >
@@ -1364,11 +1370,10 @@ export default function UserManagement() {
                               {course.title}
                             </option>
                           ))}
-                      </select>
+                        </select>
                       </div>
                     )}
-                    {/* New Sede Filter Dropdown */}
-                    {(currentSchool && currentSchool.sedes && currentSchool.sedes.length > 0) && (
+                    {(currentSchool && currentSchool.sedes && currentSchool.sedes.length > 0 && selectedSchool !== 'unregistered') && (
                       <div className={styles.filterWrapper}>
                         <select
                           className={styles.select}
@@ -1382,7 +1387,41 @@ export default function UserManagement() {
                             </option>
                           ))}
                         </select>
-                    </div>
+                      </div>
+                    )}
+                    {/* Filtros para asistentes sin registro, mismos estilos y estructura */}
+                    {selectedSchool === 'unregistered' && (
+                      <>
+                        <div className={styles.filterWrapper}>
+                          <select
+                            className={styles.select}
+                            value={unregSchoolFilter}
+                            onChange={e => {
+                              setUnregSchoolFilter(e.target.value);
+                              setUnregCourseFilter('');
+                            }}
+                          >
+                            <option value=''>Todas las escuelas</option>
+                            {schools.map(school => (
+                              <option key={school._id} value={school._id}>{school.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className={styles.filterWrapper}>
+                          <select
+                            className={styles.select}
+                            value={unregCourseFilter}
+                            onChange={e => setUnregCourseFilter(e.target.value)}
+                          >
+                            <option value=''>Todos los cursos</option>
+                            {courses.filter(course =>
+                              !unregSchoolFilter || (typeof course.school === 'string' ? course.school === unregSchoolFilter : (course.school as School)?._id === unregSchoolFilter)
+                            ).map(course => (
+                              <option key={course._id} value={course._id}>{course.title}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </>
                     )}
                   </div>
                 ) : 
@@ -1418,26 +1457,25 @@ export default function UserManagement() {
               
               {/* Tabla de usuarios */}
               {selectedSchool === 'unregistered' ? (
-                // Mostrar tabla de asistentes sin registro
-                <div className={styles.tableContainer}>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th>Nombre</th>
-                        <th>Apariciones</th>
-                        <th>Cursos</th>
-                        <th>Última Asistencia</th>
-                        <th>Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {unregisteredUsers.length > 0 ? (
-                        unregisteredUsers
+                  <div className={styles.tableContainer}>
+                    <table className={styles.table}>
+                      <thead>
+                        <tr>
+                          <th>Nombre</th>
+                          <th>Cursos</th>
+                          <th>Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {unregisteredUsers
+                          .filter(user =>
+                            (!unregSchoolFilter || (user.schools && user.schools.includes(unregSchoolFilter))) &&
+                            (!unregCourseFilter || (user.courses && user.courses.includes(unregCourseFilter)))
+                          )
                           .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                           .map((user) => (
                             <tr key={user._id}>
                               <td>{user.name} <span className={styles.tagNonRegistered}>Asistente</span></td>
-                              <td>{user.occurrences || 1}</td>
                               <td>
                                 {user.courses && user.courses.length > 0 ? (
                                   <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -1454,9 +1492,6 @@ export default function UserManagement() {
                                     </button>
                                   </div>
                                 ) : 'Sin cursos'}
-                              </td>
-                              <td>
-                                {user.lastSeen ? new Date(user.lastSeen).toLocaleDateString() : 'N/A'}
                               </td>
                               <td className={styles.actionButtons}>
                                 <button 
@@ -1490,16 +1525,11 @@ export default function UserManagement() {
                               </td>
                             </tr>
                           ))
-                      ) : (
-                        <tr>
-                          <td colSpan={5} className={styles.noResults}>
-                            No se encontraron asistentes sin registro
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                        }
+                        {/* ...existing code for empty state... */}
+                      </tbody>
+                    </table>
+                  </div>
               ) : (
                 // Mostrar tabla de usuarios registrados
                 <div className={styles.tableContainer}>
