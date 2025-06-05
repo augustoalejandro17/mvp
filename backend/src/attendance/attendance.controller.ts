@@ -5,7 +5,6 @@ import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { BulkAttendanceDto } from './dto/bulk-attendance.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Permission, RequirePermissions, PermissionsGuard } from '../auth/guards/permissions.guard';
-import { toZonedTime } from 'date-fns-tz';
 
 @Controller('attendance')
 export class AttendanceController {
@@ -54,10 +53,11 @@ export class AttendanceController {
   ) {
     // Log fecha recibida para depuración
     this.logger.debug(`Fecha recibida del frontend: ${dateStr}`);
-    // Si no se proporciona fecha, usar la fecha actual
-    // Ajustar la fecha a GMT-5 (America/Lima)
-    const timeZone = 'America/Lima';
-    const date = dateStr ? toZonedTime(new Date(dateStr), timeZone) : toZonedTime(new Date(), timeZone);
+    
+    // Parse the date directly without timezone conversion
+    // The frontend should send the correct UTC date string
+    const date = dateStr ? new Date(dateStr) : new Date();
+    
     // Imprimir información de depuración sobre la fecha
     this.logger.debug(`Fecha parseada: ${date.toISOString()}`);
     return this.attendanceService.findByCourseAndDate(courseId, date);
@@ -153,7 +153,6 @@ export class AttendanceController {
       this.logger.debug(`Usando mes actual: año=${year}, mes=${month}`);
     }
     
-    // Validar que los valores de año y mes son válidos
     if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
       this.logger.error(`Valores de año (${year}) o mes (${month}) inválidos`);
       throw new Error('Valores de año o mes inválidos');

@@ -100,7 +100,7 @@ export class ClassesService {
       }
       
       // Verificar permisos para crear clase
-      const user = await this.userModel.findById(teacherId);
+        const user = await this.userModel.findById(teacherId);
       const allowedRoles = [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE];
       // Si es admin, super_admin, school_owner o administrative, permitir
       if (user && allowedRoles.includes(user.role)) {
@@ -539,12 +539,22 @@ export class ClassesService {
         $lt: new Date(end)
       };
     } else if (dateString) {
-      const dateStr = dateString.split('T')[0];
-      const startDate = new Date(`${dateStr}T00:00:00.000Z`);
-      const endDate = new Date(`${dateStr}T23:59:59.999Z`);
+      // Use the same timezone conversion logic as AttendanceService
+      const date = new Date(dateString);
+      const GMT_5_OFFSET_MINUTES = 5 * 60;
+      const gmt5Date = new Date(date.getTime() - GMT_5_OFFSET_MINUTES * 60000);
+      const localDateStr = gmt5Date.toISOString().split('T')[0];
+      
+      const [year, month, day] = localDateStr.split('-').map(Number);
+      const startLocal = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+      const endLocal = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+      
+      const startUTC = new Date(startLocal.getTime() + GMT_5_OFFSET_MINUTES * 60000);
+      const endUTC = new Date(endLocal.getTime() + GMT_5_OFFSET_MINUTES * 60000);
+      
       query.date = {
-        $gte: startDate,
-        $lt: endDate
+        $gte: startUTC,
+        $lt: endUTC
       };
     }
     return this.attendanceModel.find(query)

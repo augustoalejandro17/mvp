@@ -9,7 +9,7 @@ import { format, parse, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay }
 import { es } from 'date-fns/locale';
 import { FaPlus, FaCheck, FaTimes, FaArrowLeft, FaCalendarAlt, FaSave, FaChalkboardTeacher, FaFileExcel } from 'react-icons/fa';
 import * as XLSX from 'xlsx';
-import { toZonedTime } from 'date-fns-tz';
+import { getCurrentGMT5Date, formatUTCDateAsGMT5, convertGMT5ToUTC } from '../../../utils/timezone-utils';
 
 interface Student {
   _id: string;
@@ -62,13 +62,7 @@ export default function AttendancePage() {
   const { id } = router.query; // id del curso
   const [course, setCourse] = useState<Course | null>(null);
   const [attendances, setAttendances] = useState<Attendance[]>([]);
-  const [date, setDate] = useState(() => {
-    // Obtener la fecha local en formato yyyy-MM-dd
-    const now = new Date();
-    const offset = now.getTimezoneOffset();
-    const localDate = new Date(now.getTime() - offset * 60 * 1000);
-    return localDate.toISOString().slice(0, 10);
-  });
+  const [date, setDate] = useState(getCurrentGMT5Date());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -131,8 +125,17 @@ export default function AttendancePage() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
       
-      console.log(`Fetching attendance for course ${id} on date ${date}`);
-      const response = await axios.get(`${apiUrl}/api/attendance/course/${id}?date=${date}`, {
+      // DEBUG: Log the date value before conversion
+      console.log('🔍 DEBUG: date variable value:', date);
+      console.log('🔍 DEBUG: typeof date:', typeof date);
+      
+      // Convert GMT-5 date to UTC for backend query
+      const utcDate = convertGMT5ToUTC(date);
+      
+      console.log(`Fetching attendance for course ${id} on GMT-5 date ${date}`);
+      console.log(`Converted to UTC: ${utcDate.toISOString()}`);
+      
+      const response = await axios.get(`${apiUrl}/api/attendance/course/${id}?date=${utcDate.toISOString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -377,11 +380,9 @@ export default function AttendancePage() {
         try {
           let dateString: string;
           if (date.length === 10) { // yyyy-MM-dd
-            // Construir la fecha local (sin sumar offset)
-            const now = new Date();
-            const [year, month, day] = date.split('-').map(Number);
-            const localDate = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds());
-            dateString = localDate.toISOString();
+            // Use utility function to convert GMT-5 date to UTC
+            const utcDate = convertGMT5ToUTC(date);
+            dateString = utcDate.toISOString();
           } else {
             // Si ya viene con hora, usar tal cual
             dateString = new Date(date).toISOString();
@@ -477,6 +478,7 @@ export default function AttendancePage() {
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Mantener la fecha local seleccionada
+    console.log('🔍 DEBUG: Date picker changed to:', e.target.value);
     setDate(e.target.value);
   };
 
@@ -609,10 +611,8 @@ export default function AttendancePage() {
         }
         // Añadir asistencia para la fecha
         if (attendance.date) {
-          // Convertir la fecha UTC a local antes de formatear
-          const attendanceDate = new Date(attendance.date);
-          const localDate = new Date(attendanceDate.getTime() - attendanceDate.getTimezoneOffset() * 60000);
-          const formattedDate = format(localDate, 'yyyy-MM-dd');
+          // Use utility function to format UTC date as GMT-5
+          const formattedDate = formatUTCDateAsGMT5(new Date(attendance.date));
           studentMonthlyAtt.dates[formattedDate] = attendance.present;
         }
       });

@@ -6,6 +6,7 @@ import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/IntegratedAttendance.module.css';
 import Layout from '../../components/Layout';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
+import { convertGMT5ToUTC, getUTCRangeForGMT5Date, getCurrentGMT5Date } from '../../utils/timezone-utils';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { FaUserCheck, FaUserTimes, FaCalendarAlt, FaBook, FaChalkboardTeacher, FaCreditCard, FaSave, FaMoneyBillWave } from 'react-icons/fa';
@@ -74,7 +75,7 @@ export default function IntegratedAttendancePage() {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [studentRecords, setStudentRecords] = useState<StudentRecord[]>([]);
-  const [date, setDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [date, setDate] = useState<string>(getCurrentGMT5Date());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -133,24 +134,14 @@ export default function IntegratedAttendancePage() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
       
-      // Construir fecha en formato ISO ajustada a UTC-5
-      const selectedDate = new Date(attendanceDate);
+      // Use utility function to get UTC range for GMT-5 date
+      const { startUTC, endUTC } = getUTCRangeForGMT5Date(attendanceDate);
       
-      // Obtener componentes de la fecha local
-      const year = selectedDate.getFullYear();
-      const month = selectedDate.getMonth();
-      const day = selectedDate.getDate();
+      console.log('Original GMT-5 date string:', attendanceDate);
+      console.log('UTC start date:', startUTC.toISOString());
+      console.log('UTC end date:', endUTC.toISOString());
       
-      // Crear un objeto de fecha respetando UTC-5
-      // Agregamos 5 horas para compensar UTC-5
-      const dateObj = new Date(Date.UTC(year, month, day, 17, 0, 0)); // 12:00 en UTC-5 = 17:00 en UTC
-      const formattedDate = dateObj.toISOString();
-      
-      console.log('Original local date string:', attendanceDate);
-      console.log('UTC-5 adjusted date:', dateObj);
-      console.log('Fetching attendances for date:', formattedDate);
-      
-      const response = await axios.get(`${apiUrl}/api/attendance/course/${courseId}?date=${formattedDate}`, {
+      const response = await axios.get(`${apiUrl}/api/attendance/course/${courseId}?date=${startUTC.toISOString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -283,22 +274,12 @@ export default function IntegratedAttendancePage() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
       
-      // Construir fecha en formato ISO ajustada a UTC-5
-      const selectedDate = new Date(date);
+      // Use utility function to convert GMT-5 date to UTC
+      const utcDate = convertGMT5ToUTC(date);
+      const dateString = utcDate.toISOString();
       
-      // Obtener componentes de la fecha local
-      const year = selectedDate.getFullYear();
-      const month = selectedDate.getMonth();
-      const day = selectedDate.getDate();
-      
-      // Crear un objeto de fecha respetando UTC-5
-      // Agregamos 5 horas para compensar UTC-5
-      const dateObj = new Date(Date.UTC(year, month, day, 17, 0, 0)); // 12:00 en UTC-5 = 17:00 en UTC
-      const dateString = dateObj.toISOString();
-      
-      console.log('Original local date string:', date);
-      console.log('UTC-5 adjusted date:', dateObj);
-      console.log('Date string to send:', dateString);
+      console.log('Original GMT-5 date string:', date);
+      console.log('UTC date to send:', dateString);
       
       if (!dateString) {
         setError('Formato de fecha inválido');

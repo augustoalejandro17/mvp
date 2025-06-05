@@ -709,39 +709,27 @@ export default function UserManagement() {
       const token = Cookies.get('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
-      // Crear usuario con la información del no registrado
+      // Convertir el usuario no registrado existente a registrado
       const response = await axios.post(
-        `${apiUrl}/api/users/with-courses`, 
+        `${apiUrl}/api/users/${selectedUserToLink._id}/register`, 
         {
-          user: {
-            name: selectedUserToLink.name,
-            email: formData.email,
-            password: formData.password,
-            role: 'student',
-          },
-          courses: selectedUserToLink.courses
+          email: formData.email,
+          password: formData.password
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      // Actualizar registros de asistencia para vincular al nuevo usuario
-      await axios.post(
-        `${apiUrl}/api/attendance/link-user`,
-        {
-          unregisteredName: selectedUserToLink.name,
-          userId: response.data._id
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      // El usuario ya tiene sus asistencias vinculadas (mismo ID), no necesitamos vincular nada más
       
       // Actualizar listas
-      setUsers(prev => [...prev, {...response.data, isRegistered: true}]);
-      setUnregisteredUsers(prev => prev.filter(u => u.name !== selectedUserToLink.name));
+      setUsers(prev => [...prev, {...response.data.user, isRegistered: true}]);
+      setUnregisteredUsers(prev => prev.filter(u => u._id !== selectedUserToLink._id));
       
       // Limpiar y cerrar
       setFormData(prev => ({...prev, email: '', password: ''}));
       setSelectedUserToLink(null);
       setShowLinkModal(false);
+      setSuccess('Usuario vinculado correctamente');
       
       // Recargar datos
       fetchData();

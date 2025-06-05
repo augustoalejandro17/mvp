@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { format, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { FaUserCheck, FaUserTimes, FaCalendarAlt, FaBook, FaChalkboardTeacher, FaSearch, FaSave } from 'react-icons/fa';
+import { getUTCRangeForGMT5Date, convertGMT5ToUTC, getCurrentGMT5Date } from '../../utils/timezone-utils';
 
 interface Student {
   _id: string;
@@ -55,7 +56,7 @@ export default function AttendanceManagementPage() {
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [classes, setClasses] = useState<Class[]>([]);
   const [attendances, setAttendances] = useState<Attendance[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(getCurrentGMT5Date());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -115,13 +116,10 @@ export default function AttendanceManagementPage() {
       setLoading(true);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
-      // Calcular rango UTC para el día local seleccionado
-      const localDate = new Date(selectedDate + 'T00:00:00');
-      const tzOffset = localDate.getTimezoneOffset();
-      const startUTC = new Date(localDate.getTime() - tzOffset * 60000);
-      const endLocal = new Date(localDate);
-      endLocal.setHours(23, 59, 59, 999);
-      const endUTC = new Date(endLocal.getTime() - tzOffset * 60000);
+      
+      // Use utility function to get UTC range for GMT-5 date
+      const { startUTC, endUTC } = getUTCRangeForGMT5Date(selectedDate);
+      
       // Enviar el rango como parámetros de la consulta
       const response = await axios.get(`${apiUrl}/api/classes/${classId}/attendance`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -253,13 +251,10 @@ export default function AttendanceManagementPage() {
         ...a,
         present: a.present === null ? false : a.present
       }));
-      // Calcular rango UTC para el día local seleccionado
-      const localDate = new Date(selectedDate + 'T00:00:00');
-      const tzOffset = localDate.getTimezoneOffset();
-      const startUTC = new Date(localDate.getTime() - tzOffset * 60000);
-      const endLocal = new Date(localDate);
-      endLocal.setHours(23, 59, 59, 999);
-      const endUTC = new Date(endLocal.getTime() - tzOffset * 60000);
+      
+      // Use utility function to get UTC range for GMT-5 date
+      const { startUTC, endUTC } = getUTCRangeForGMT5Date(selectedDate);
+      
       // Preparar los datos de asistencia
       const attendanceData = {
         date: startUTC.toISOString(), // Para guardar la fecha de referencia en UTC
