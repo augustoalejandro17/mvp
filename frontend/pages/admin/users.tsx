@@ -1445,8 +1445,8 @@ export default function UserManagement() {
               
               {/* Tabla de usuarios */}
               {selectedSchool === 'unregistered' ? (
-                  <div className={styles.tableContainer}>
-                    <table className={styles.table}>
+                  <div className={`${styles.tableContainer} ${styles.usersTableContainer}`}>
+                    <table className={styles.table} data-table="users">
                       <thead>
                         <tr>
                           <th>Nombre</th>
@@ -1520,8 +1520,8 @@ export default function UserManagement() {
                   </div>
               ) : (
                 // Mostrar tabla de usuarios registrados
-                <div className={styles.tableContainer}>
-                  <table className={styles.table}>
+                <div className={`${styles.tableContainer} ${styles.usersTableContainer}`}>
+                  <table className={styles.table} data-table="users">
                     <thead>
                       <tr>
                         <th onClick={() => handleSort('name')} className={styles.sortableHeader}>
