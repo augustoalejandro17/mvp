@@ -1,6 +1,9 @@
 import { Injectable, CanActivate, ExecutionContext, SetMetadata } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthorizationService } from '../services/authorization.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { User } from '../schemas/user.schema';
 
 export enum Permission {
   // Permisos de escuelas
@@ -43,6 +46,7 @@ export class PermissionsGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private authorizationService: AuthorizationService,
+    @InjectModel(User.name) private userModel: Model<User>,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -179,11 +183,20 @@ export class PermissionsGuard implements CanActivate {
         return courseId ? await this.authorizationService.isCourseTeacher(userId, courseId) : false;
 
       case Permission.VIEW_ATTENDANCE:
+        // Para administrative users y school admins, permitir ver asistencias sin courseId específico
         if (courseId) {
           return await this.authorizationService.isCourseTeacher(userId, courseId) ||
                  await this.authorizationService.isSchoolAdmin(userId, schoolId);
         }
-        return false;
+        
+        // Permitir acceso a administrative users para ver todas las asistencias
+        const user = await this.userModel.findById(userId);
+        if (user && user.role === 'administrative') {
+          return true;
+        }
+        
+        // Permitir acceso a school owners sin courseId específico
+        return await this.authorizationService.isSchoolOwner(userId, schoolId);
         
       case Permission.UPDATE_ATTENDANCE:
         return courseId ? await this.authorizationService.isCourseTeacher(userId, courseId) : false;

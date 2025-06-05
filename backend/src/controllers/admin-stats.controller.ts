@@ -74,9 +74,16 @@ export class AdminStatsController {
           stats.courses = await this.getCourseCountForSchools(schoolIds);
           stats.classes = await this.getClassCountForSchools(schoolIds);
         } else if (user.role === UserRole.ADMINISTRATIVE) {
-          // Para 'administrative', buscar correctamente en administratives
+          // Para 'administrative', buscar en ambos enfoques: school.administratives y user.administratedSchools
+          const userDoc = await this.userModel.findById(userId);
+          const userAdministratedSchools = userDoc?.administratedSchools || [];
+          
           const administrativeSchools = await this.schoolModel.find({ 
-            $or: [{ administratives: userId }, { teachers: userId }] 
+            $or: [
+              { administratives: userId }, 
+              { teachers: userId },
+              { _id: { $in: userAdministratedSchools } }
+            ] 
           });
           const schoolIds = administrativeSchools.map(school => school._id);
           stats.users = await this.getUserCountForSchools(schoolIds);

@@ -64,7 +64,8 @@ interface Course {
 }
 
 interface DecodedToken {
-  sub: string;
+  sub?: string;   // For JWT token payload
+  id?: string;    // For frontend user object
   email: string;
   name: string;
   role: string;
@@ -396,7 +397,39 @@ export default function UserManagement() {
       console.log('[AdminUsers] Fetched Initial Unregistered Users from API count:', initialUnregisteredUsersFromAPI?.length);
 
       setSchools(fetchedSchools);
-      setUserSchools(fetchedSchools); // This will be used by processAttendance...
+      
+      // Determinar qué escuelas puede ver el usuario actual basado en su rol
+      let userAccessibleSchools = fetchedSchools;
+      
+      if (user.role === 'administrative') {
+        try {
+          const adminSchoolsResponse = await axios.get(`${apiUrl}/api/users/${user.id || user.sub}/administered-schools`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          userAccessibleSchools = adminSchoolsResponse.data || [];
+        } catch (error) {
+          console.warn('Error loading administered schools in secondary data, using all schools:', error);
+          userAccessibleSchools = fetchedSchools;
+        }
+      } else if (user.role === 'school_owner') {
+        try {
+          const ownedSchoolsResponse = await axios.get(`${apiUrl}/api/users/${user.id || user.sub}/owned-schools`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          userAccessibleSchools = ownedSchoolsResponse.data || [];
+        } catch (error) {
+          console.warn('Error loading owned schools in secondary data, using all schools:', error);
+          userAccessibleSchools = fetchedSchools;
+        }
+      }
+      
+      setUserSchools(userAccessibleSchools);
+      
+      // Si el usuario administrativo solo tiene acceso a una escuela, seleccionarla automáticamente
+      if (user.role === 'administrative' && userAccessibleSchools.length === 1 && !selectedSchool) {
+        setSelectedSchool(userAccessibleSchools[0]._id);
+      }
+      
       setCourses(fetchedCourses);
       setAttendanceRecords(fetchedAttendanceRecords);
       
@@ -417,7 +450,7 @@ export default function UserManagement() {
     } finally {
       // setLoading(false); // Match setLoading(true) if used
     }
-  }, [user, users, processAttendanceForUnregisteredUsers, setSchools, setUserSchools, setCourses, setAttendanceRecords, setError]); // Dependencies
+  }, [user, users, selectedSchool, processAttendanceForUnregisteredUsers, setSchools, setUserSchools, setCourses, setAttendanceRecords, setError]); // Dependencies
 
   // Cargar escuelas y cursos específicamente - definido con useCallback
   const loadSchoolsAndCourses = useCallback(async () => {
@@ -426,7 +459,7 @@ export default function UserManagement() {
       setDataReady(false); // Indicar que los datos no están listos
       
       const token = Cookies.get('token');
-      if (!token) {
+      if (!token || !user) {
         setError('No hay un token de autenticación disponible');
         setDataReady(false);
         setTimeout(() => {
@@ -454,9 +487,42 @@ export default function UserManagement() {
       setSchools(allSchools);
       setCourses(allCourses);
       
-      // Determinar qué escuelas puede ver el usuario actual
-      // Siempre permitimos ver todas las escuelas disponibles por ahora
-      setUserSchools(allSchools);
+      // Determinar qué escuelas puede ver el usuario actual basado en su rol
+      let userAccessibleSchools = allSchools;
+      
+      if (user.role === 'administrative') {
+        try {
+          // Para usuarios administrativos, obtener solo las escuelas que administran
+          const adminSchoolsResponse = await axios.get(`${apiUrl}/api/users/${user.id || user.sub}/administered-schools`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          userAccessibleSchools = adminSchoolsResponse.data || [];
+        } catch (error) {
+          console.warn('Error loading administered schools, falling back to all schools:', error);
+          // Fallback to all schools if the endpoint fails
+          userAccessibleSchools = allSchools;
+        }
+      } else if (user.role === 'school_owner') {
+        try {
+          // Para dueños de escuela, obtener solo las escuelas que poseen
+          const ownedSchoolsResponse = await axios.get(`${apiUrl}/api/users/${user.id || user.sub}/owned-schools`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          userAccessibleSchools = ownedSchoolsResponse.data || [];
+        } catch (error) {
+          console.warn('Error loading owned schools, falling back to all schools:', error);
+          // Fallback to all schools if the endpoint fails
+          userAccessibleSchools = allSchools;
+        }
+      }
+      // For super_admin and admin roles, keep all schools
+      
+      setUserSchools(userAccessibleSchools);
+      
+      // Si el usuario administrativo solo tiene acceso a una escuela, seleccionarla automáticamente
+      if (user.role === 'administrative' && userAccessibleSchools.length === 1 && !selectedSchool) {
+        setSelectedSchool(userAccessibleSchools[0]._id);
+      }
       
       // Marcar que los datos están listos
       setDataReady(true);
@@ -474,7 +540,7 @@ export default function UserManagement() {
       }, 300);
       return false;
     }
-  }, [handleApiError, setLoading, setDataReady, setError, setSchools, setCourses, setUserSchools]); // Added state setters
+  }, [handleApiError, setLoading, setDataReady, setError, setSchools, setCourses, setUserSchools, user, selectedSchool]); // Added user and selectedSchool dependencies
 
   // useEffect for initial token decoding and primary data fetch
   useEffect(() => {
@@ -1390,7 +1456,7 @@ export default function UserManagement() {
                             }}
                           >
                             <option value=''>Todas las escuelas</option>
-                            {schools.map(school => (
+                            {userSchools.map(school => (
                               <option key={school._id} value={school._id}>{school.name}</option>
                             ))}
                           </select>

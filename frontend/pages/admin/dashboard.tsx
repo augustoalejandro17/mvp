@@ -6,7 +6,8 @@ import styles from '../../styles/AdminDashboard.module.css';
 import Link from 'next/link';
 
 interface DecodedToken {
-  sub: string;
+  sub?: string;   // For JWT token payload
+  id?: string;    // For frontend user object  
   email: string;
   name: string;
   role: string | string[];
@@ -240,21 +241,27 @@ export default function AdminDashboard() {
       try {
         const decoded = jwtDecode<DecodedToken>(token);
         
-        
         // Restaurar temporalmente acceso especial para Augusto durante la depuración
         if (decoded.email && decoded.email.toLowerCase().includes('augusto')) {
           
-          const userInfo = {
-            id: decoded.sub,
-            email: decoded.email,
-            name: decoded.name,
-            role: 'super_admin', // Force role for debugging
-          };
-          setUser(userInfo);
-          setLoading(false);
-          
-          // Fetch schools for this user
-          fetchUserSchools(decoded.sub, 'super_admin');
+                  const userId = decoded.id || decoded.sub;
+        if (!userId) {
+          console.error('No user ID found in token');
+          router.push('/login');
+          return;
+        }
+        
+        const userInfo = {
+          id: userId,
+          email: decoded.email,
+          name: decoded.name,
+          role: 'super_admin', // Force role for debugging
+        };
+        setUser(userInfo);
+        setLoading(false);
+        
+        // Fetch schools for this user
+        fetchUserSchools(userId, 'super_admin');
           // Fetch stats for all schools by default
           fetchStats('all');
           return;
@@ -307,9 +314,15 @@ export default function AdminDashboard() {
           return;
         }
 
+        const userId = decoded.id || decoded.sub;
+        if (!userId) {
+          console.error('No user ID found in token');
+          router.push('/login');
+          return;
+        }
         
         const userInfo = {
-          id: decoded.sub,
+          id: userId,
           email: decoded.email,
           name: decoded.name,
           role: primaryRole,
@@ -317,7 +330,7 @@ export default function AdminDashboard() {
         setUser(userInfo);
         
         // Fetch schools for this user
-        fetchUserSchools(decoded.sub, primaryRole);
+        fetchUserSchools(userId, primaryRole);
         // Fetch stats for all schools by default
         fetchStats('all');
         
