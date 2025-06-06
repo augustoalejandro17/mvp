@@ -26,7 +26,7 @@ export class SchoolsService {
         description,
         logoUrl,
         isPublic,
-        admin: admin || userId,
+        admin: admin, // Allow null admin - owner can be assigned later
         sedes: sedes || [],
         timezone: timezone || 'America/Bogota', // Use provided timezone or default to Colombia
       });
@@ -72,18 +72,21 @@ export class SchoolsService {
       }
       
       // Save the school
+      await school.save();
       const result = await this.schoolModel.findById(school._id);
       
-      // Update the owner's (admin) document to include this school
-      await this.userModel.findByIdAndUpdate(
-        admin || userId,
-        { 
-          $addToSet: { 
-            schools: result._id,
-            ownedSchools: result._id 
-          } 
-        }
-      );
+      // Update the owner's (admin) document to include this school only if admin was specified
+      if (admin) {
+        await this.userModel.findByIdAndUpdate(
+          admin,
+          { 
+            $addToSet: { 
+              schools: result._id,
+              ownedSchools: result._id 
+            } 
+          }
+        );
+      }
       
       return result;
     } catch (error) {
