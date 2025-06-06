@@ -327,35 +327,49 @@
 }
 
 .reportHeader {
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.reportTitleRow {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
-  gap: 16px;
+}
+
+.titleAndInfo {
+  flex: 1;
 }
 
 .reportHeader h2 {
-  margin: 0;
+  margin: 0 0 8px 0;
   color: #2d3748;
   font-size: 1.5rem;
   font-weight: 600;
 }
 
 .reportInfo {
-  flex: 1;
-  min-width: 200px;
+  margin-top: 4px;
 }
 
 .reportInfo p {
-  margin: 4px 0;
+  margin: 0 0 4px 0;
   color: #4a5568;
   font-size: 0.875rem;
+}
+
+.exportButtonContainer {
+  display: flex;
+  align-items: flex-start;
+  margin-left: 20px;
+  margin-top: 18px;
 }
 
 .exportButtons {
   display: flex;
   gap: 8px;
+  justify-content: flex-end;
 }
 
 .exportButton {
@@ -379,11 +393,21 @@
   cursor: not-allowed;
 }
 
+.excelButton {
+  background-color: #2563eb;
+}
+
+.excelButton:hover:not(:disabled) {
+  background-color: #1d4ed8;
+}
+
 .summaryGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .summaryCard {

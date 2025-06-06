@@ -271,19 +271,39 @@ export default function Reports() {
       }
       
       const response = await axios.get(`${apiUrl}/api/reports/attendance/export?${params}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: format === 'excel' ? 'blob' : 'json'
       });
       
-      // Download the file
-      const blob = new Blob([response.data.data], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = response.data.filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      // Handle different response types
+      if (format === 'excel') {
+        // For Excel files, the response is already a blob
+        const blob = response.data;
+        const contentDisposition = response.headers['content-disposition'];
+        const filename = contentDisposition
+          ? contentDisposition.split('filename=')[1]?.replace(/"/g, '')
+          : `asistencia_detallada_${selectedMonth}_${selectedYear}.xlsx`;
+        
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } else {
+        // For CSV files, use the JSON response
+        const blob = new Blob([response.data.data], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = response.data.filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }
       
     } catch (error: any) {
       console.error('Error exporting report:', error);
@@ -459,20 +479,24 @@ export default function Reports() {
             <div className={styles.reportSection}>
               {/* Report Header */}
               <div className={styles.reportHeader}>
-                <h2>📋 Reporte de Asistencia</h2>
-                <div className={styles.reportInfo}>
-                  <p><strong>🏫 Escuela:</strong> {report.school.name}</p>
-                  <p><strong>📅 Período:</strong> {report.period.monthName} {report.period.year}</p>
-                </div>
-                
-                <div className={styles.exportButtons}>
-                  <button 
-                    onClick={() => exportReport('csv')}
-                    disabled={exporting}
-                    className={styles.exportButton}
-                  >
-                    {exporting ? '⏳' : '📥'} Descargar CSV
-                  </button>
+                <div className={styles.reportTitleRow}>
+                  <div className={styles.titleAndInfo}>
+                    <h2>📋 Reporte de Asistencia</h2>
+                    <div className={styles.reportInfo}>
+                      <p><strong>🏫 Escuela:</strong> {report.school.name}</p>
+                      <p><strong>📅 Período:</strong> {report.period.monthName} {report.period.year}</p>
+                    </div>
+                  </div>
+                  
+                  <div className={styles.exportButtonContainer}>
+                    <button 
+                      onClick={() => exportReport('excel')}
+                      disabled={exporting}
+                      className={`${styles.exportButton} ${styles.excelButton}`}
+                    >
+                      {exporting ? '⏳' : '📊'} Descargar Excel Detallado
+                    </button>
+                  </div>
                 </div>
               </div>
 

@@ -64,18 +64,20 @@ export class AttendanceService {
     }
 
     // Usar la fecha del DTO (dateString) para buscar registros existentes en ese día.
-    // Convertir a GMT-5 y crear rango UTC apropiado
+    // Obtener timezone de la escuela y crear rango UTC apropiado
     const searchDate = new Date(dateString);
-    const GMT_5_OFFSET_MINUTES = 5 * 60;
-    const gmt5Date = new Date(searchDate.getTime() - GMT_5_OFFSET_MINUTES * 60000);
-    const localDateStr = gmt5Date.toISOString().split('T')[0];
+    const school = await this.courseModel.findById(courseId).populate('school');
+    const schoolTimezone = school?.school?.timezone || 'America/Bogota';
+    const timezoneOffset = this.getTimezoneOffset(schoolTimezone);
+    const adjustedDate = new Date(searchDate.getTime() - timezoneOffset * 60000);
+    const localDateStr = adjustedDate.toISOString().split('T')[0];
     
     const [year, month, day] = localDateStr.split('-').map(Number);
     const startLocal = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     const endLocal = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
     
-    const startDate = new Date(startLocal.getTime() + GMT_5_OFFSET_MINUTES * 60000);
-    const endDate = new Date(endLocal.getTime() + GMT_5_OFFSET_MINUTES * 60000);
+    const startDate = new Date(startLocal.getTime() + timezoneOffset * 60000);
+    const endDate = new Date(endLocal.getTime() + timezoneOffset * 60000);
       
     this.logger.debug(`Buscando asistencia existente para estudiante ${studentId} en curso ${courseId} entre ${startDate.toISOString()} y ${endDate.toISOString()}`);
 
@@ -116,7 +118,7 @@ export class AttendanceService {
   async createBulk(bulkAttendanceDto: BulkAttendanceDto, teacherId: string): Promise<Attendance[]> {
     const { courseId, date: dateString, attendances } = bulkAttendanceDto;
     
-    const course = await this.courseModel.findById(courseId);
+    const course = await this.courseModel.findById(courseId).populate('school');
     if (!course) {
       throw new NotFoundException(`Curso con ID ${courseId} no encontrado`);
     }
@@ -124,16 +126,17 @@ export class AttendanceService {
     const results: Attendance[] = [];
     
     const searchDate = new Date(dateString);
-    const GMT_5_OFFSET_MINUTES = 5 * 60;
-    const gmt5Date = new Date(searchDate.getTime() - GMT_5_OFFSET_MINUTES * 60000);
-    const localDateStr = gmt5Date.toISOString().split('T')[0];
+    const schoolTimezone = course?.school?.timezone || 'America/Bogota';
+    const timezoneOffset = this.getTimezoneOffset(schoolTimezone);
+    const adjustedDate = new Date(searchDate.getTime() - timezoneOffset * 60000);
+    const localDateStr = adjustedDate.toISOString().split('T')[0];
     
     const [year, month, day] = localDateStr.split('-').map(Number);
     const startLocal = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     const endLocal = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
     
-    const startDate = new Date(startLocal.getTime() + GMT_5_OFFSET_MINUTES * 60000);
-    const endDate = new Date(endLocal.getTime() + GMT_5_OFFSET_MINUTES * 60000);
+    const startDate = new Date(startLocal.getTime() + timezoneOffset * 60000);
+    const endDate = new Date(endLocal.getTime() + timezoneOffset * 60000);
     this.logger.debug(`Procesando bulk. Rango de búsqueda para existentes: ${startDate.toISOString()} a ${endDate.toISOString()}`);
       
     for (const attendanceData of attendances) {
@@ -213,24 +216,26 @@ export class AttendanceService {
   }
 
   async findByCourseAndDate(courseId: string, date: Date): Promise<Attendance[]> {
-    // Convert UTC date back to GMT-5 to get the local date
-    const GMT_5_OFFSET_MINUTES = 5 * 60;
-    const gmt5Date = new Date(date.getTime() - GMT_5_OFFSET_MINUTES * 60000);
-    const localDateStr = gmt5Date.toISOString().split('T')[0];
+    // Get school timezone for the course
+    const course = await this.courseModel.findById(courseId).populate('school');
+    const schoolTimezone = course?.school?.timezone || 'America/Bogota';
+    const timezoneOffset = this.getTimezoneOffset(schoolTimezone);
     
-    // Create UTC range for the local date (GMT-5)
-    // Start: local date 00:00:00 GMT-5 = local date 05:00:00 UTC
-    // End: local date 23:59:59 GMT-5 = next day 04:59:59 UTC
+    // Convert UTC date back to school timezone to get the local date
+    const adjustedDate = new Date(date.getTime() - timezoneOffset * 60000);
+    const localDateStr = adjustedDate.toISOString().split('T')[0];
+    
+    // Create UTC range for the local date
     const [year, month, day] = localDateStr.split('-').map(Number);
     const startLocal = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     const endLocal = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
     
-    const startUTC = new Date(startLocal.getTime() + GMT_5_OFFSET_MINUTES * 60000);
-    const endUTC = new Date(endLocal.getTime() + GMT_5_OFFSET_MINUTES * 60000);
+    const startUTC = new Date(startLocal.getTime() + timezoneOffset * 60000);
+    const endUTC = new Date(endLocal.getTime() + timezoneOffset * 60000);
     
     console.log(`Finding attendance records for course ${courseId}`);
     console.log(`Date provided: ${date.toISOString()}`);
-    console.log(`Local date (GMT-5): ${localDateStr}`);
+    console.log(`Local date (${schoolTimezone}): ${localDateStr}`);
     console.log(`Search between: ${startUTC.toISOString()} and ${endUTC.toISOString()}`);
     
     const records = await this.attendanceModel.find({
@@ -487,17 +492,20 @@ export class AttendanceService {
       // Use timezone-aware date conversion
       console.log(`Creating attendance with date: ${date.toISOString()}`);
       
-      // Crear rango de fechas para el día usando GMT-5
-      const GMT_5_OFFSET_MINUTES = 5 * 60;
-      const gmt5Date = new Date(date.getTime() - GMT_5_OFFSET_MINUTES * 60000);
-      const localDateStr = gmt5Date.toISOString().split('T')[0];
+      // Get school timezone from course
+      const schoolTimezone = course?.school?.timezone || 'America/Bogota';
+      const timezoneOffset = this.getTimezoneOffset(schoolTimezone);
+      
+      // Crear rango de fechas para el día usando el timezone de la escuela
+      const adjustedDate = new Date(date.getTime() - timezoneOffset * 60000);
+      const localDateStr = adjustedDate.toISOString().split('T')[0];
       
       const [year, month, day] = localDateStr.split('-').map(Number);
       const startLocal = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
       const endLocal = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
       
-      const startDate = new Date(startLocal.getTime() + GMT_5_OFFSET_MINUTES * 60000);
-      const endDate = new Date(endLocal.getTime() + GMT_5_OFFSET_MINUTES * 60000);
+      const startDate = new Date(startLocal.getTime() + timezoneOffset * 60000);
+      const endDate = new Date(endLocal.getTime() + timezoneOffset * 60000);
       
       // Verificar si ya existe un registro para este usuario, curso y fecha
       const existingAttendance = await this.attendanceModel.findOne({
@@ -602,25 +610,25 @@ export class AttendanceService {
   async findByCourseAndMonth(courseId: string, year: number, month: number): Promise<Attendance[]> {
     this.logger.debug(`Buscando asistencias para el curso ${courseId} en ${month}/${year}`);
     
-    // Verificar que el curso existe
-    const courseExists = await this.courseModel.exists({ _id: courseId });
-    if (!courseExists) {
+    // Verificar que el curso existe y obtener timezone de la escuela
+    const course = await this.courseModel.findById(courseId).populate('school');
+    if (!course) {
       throw new NotFoundException(`Curso con ID ${courseId} no encontrado`);
     }
     
-    // Crear fechas de inicio y fin del mes usando GMT-5 timezone conversion
-    const GMT_5_OFFSET_MINUTES = 5 * 60;
+    const schoolTimezone = course?.school?.timezone || 'America/Bogota';
+    const timezoneOffset = this.getTimezoneOffset(schoolTimezone);
     
-    // Start: First day of month at 00:00:00 GMT-5 -> converted to UTC
+    // Start: First day of month at 00:00:00 in school timezone -> converted to UTC
     const startLocal = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
-    const startUTC = new Date(startLocal.getTime() + GMT_5_OFFSET_MINUTES * 60000);
+    const startUTC = new Date(startLocal.getTime() + timezoneOffset * 60000);
     
-    // End: Last day of month at 23:59:59 GMT-5 -> converted to UTC  
+    // End: Last day of month at 23:59:59 in school timezone -> converted to UTC  
     const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate(); // Get last day of month
     const endLocal = new Date(Date.UTC(year, month - 1, lastDay, 23, 59, 59, 999));
-    const endUTC = new Date(endLocal.getTime() + GMT_5_OFFSET_MINUTES * 60000);
+    const endUTC = new Date(endLocal.getTime() + timezoneOffset * 60000);
     
-    this.logger.debug(`Rango de búsqueda GMT-5 mes ${month}/${year}: ${startUTC.toISOString()} a ${endUTC.toISOString()}`);
+    this.logger.debug(`Rango de búsqueda ${schoolTimezone} mes ${month}/${year}: ${startUTC.toISOString()} a ${endUTC.toISOString()}`);
     
     // Buscar todas las asistencias para este curso en el rango de fechas
     const attendances = await this.attendanceModel.find({
@@ -637,5 +645,22 @@ export class AttendanceService {
     this.logger.debug(`Se encontraron ${attendances.length} registros de asistencia`);
     
     return attendances;
+  }
+
+  private getTimezoneOffset(timezone: string): number {
+    switch (timezone) {
+      case 'America/Bogota':
+        return 5 * 60; // GMT-5
+      case 'America/New_York':
+        return 5 * 60; // GMT-5 (EST)
+      case 'America/Los_Angeles':
+        return 8 * 60; // GMT-8 (PST)
+      case 'UTC':
+        return 0;
+      case 'Europe/Madrid':
+        return -1 * 60; // GMT+1
+      default:
+        return 5 * 60; // Default to GMT-5 (Bogota)
+    }
   }
 } 

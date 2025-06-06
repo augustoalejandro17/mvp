@@ -13,14 +13,30 @@ export default function AdminNavigation({ userRole }: AdminNavigationProps) {
 
   const isActive = (path: string) => currentPath === path;
 
-  const menuItems = [
+  // Check if user is super_admin
+  const isSuperAdmin = userRole?.toLowerCase().includes('super_admin');
+
+  const baseMenuItems = [
     { href: '/', label: 'Inicio' },
     { href: '/admin/dashboard', label: 'Dashboard' },
     { href: '/admin/users', label: 'Usuarios' },
     { href: '/admin/schools', label: 'Escuelas' },
     { href: '/admin/courses', label: 'Cursos' },
+  ];
+
+  const superAdminItems = [
     { href: '/admin/subscriptions', label: 'Suscripciones' },
+  ];
+
+  const commonEndItems = [
     { href: '/admin/reports', label: 'Reportes' },
+  ];
+
+  // Build menu items based on role
+  const menuItems = [
+    ...baseMenuItems,
+    ...(isSuperAdmin ? superAdminItems : []),
+    ...commonEndItems
   ];
 
   return (

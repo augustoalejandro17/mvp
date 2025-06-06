@@ -26,6 +26,7 @@ import { Class, ClassSchema } from './classes/schemas/class.schema';
 import { Plan, PlanSchema } from './plans/schemas/plan.schema';
 import { Subscription, SubscriptionSchema } from './plans/schemas/subscription.schema';
 import { UserOwnedSchoolsController, UserAdministeredSchoolsController } from './schools/schools.controller';
+import { MigrationService } from './migrations/migration.service';
 
 @Module({
   imports: [
@@ -60,6 +61,6 @@ import { UserOwnedSchoolsController, UserAdministeredSchoolsController } from '.
     UserOwnedSchoolsController,
     UserAdministeredSchoolsController
   ],
-  providers: [AppService, S3Service, CloudFrontService],
+  providers: [AppService, S3Service, CloudFrontService, MigrationService],
 })
 export class AppModule {} 

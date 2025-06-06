@@ -60,6 +60,9 @@ export class School {
 
   @Prop({ type: [String], default: [] })
   sedes: string[];
+
+  @Prop({ default: 'America/Bogota' }) // GMT-5 as default for Colombian schools
+  timezone: string;
 }
 
 export const SchoolSchema = SchemaFactory.createForClass(School); 

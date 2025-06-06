@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import * as XLSX from 'xlsx';
 import { Attendance } from '../attendance/schemas/attendance.schema';
 import { Course } from '../courses/schemas/course.schema';
 import { School } from '../schools/schemas/school.schema';
@@ -10,6 +11,9 @@ import {
   ExportReportParams,
   CourseAttendanceData,
   MonthlyAttendanceReport,
+  DetailedMonthlyAttendanceReport,
+  DetailedCourseAttendanceData,
+  StudentAttendanceDetail,
   ExportResult
 } from './types/report.types';
 
@@ -237,14 +241,13 @@ export class ReportsService {
     };
   }
 
-  async exportMonthlyAttendanceReport(params: ExportReportParams): Promise<any> {
-    const report = await this.getMonthlyAttendanceReport(params);
-    
+  async exportMonthlyAttendanceReport(params: ExportReportParams): Promise<ExportResult> {
     if (params.format === 'csv') {
+      const report = await this.getMonthlyAttendanceReport(params);
       return this.generateCSV(report);
     } else if (params.format === 'excel') {
-      // TODO: Implement Excel export
-      throw new BadRequestException('Excel export not yet implemented');
+      const detailedReport = await this.getDetailedMonthlyAttendanceReport(params);
+      return this.generateExcel(detailedReport);
     }
     
     throw new BadRequestException('Invalid export format');
@@ -287,7 +290,213 @@ export class ReportsService {
 
     return {
       data: csvContent,
-      filename
+      filename,
+      contentType: 'text/csv'
     };
+  }
+
+  async getDetailedMonthlyAttendanceReport(params: MonthlyReportParams): Promise<DetailedMonthlyAttendanceReport> {
+    const basicReport = await this.getMonthlyAttendanceReport(params);
+    
+    // Get detailed data for each course
+    const detailedCourseData = await Promise.all(
+      basicReport.courseDetails.map(async (courseData) => {
+        const course = await this.courseModel.findById(courseData.courseId);
+        if (!course) {
+          throw new BadRequestException(`Course not found: ${courseData.courseId}`);
+        }
+        
+        const startDate = new Date(basicReport.period.year, basicReport.period.month - 1, 1);
+        const endDate = new Date(basicReport.period.year, basicReport.period.month, 0, 23, 59, 59);
+        
+        return this.getDetailedCourseAttendanceData(course, startDate, endDate);
+      })
+    );
+
+    return {
+      ...basicReport,
+      detailedCourseData
+    };
+  }
+
+  private async getDetailedCourseAttendanceData(
+    course: any, 
+    startDate: Date, 
+    endDate: Date
+  ): Promise<DetailedCourseAttendanceData> {
+    // Get basic course data
+    const basicData = await this.getCourseAttendanceData(course, startDate, endDate);
+    
+    // Get school timezone information
+    const school = await this.schoolModel.findById(course.school);
+    const schoolTimezone = school?.timezone || 'America/Bogota'; // Default to GMT-5
+    
+    // Calculate timezone offset in minutes (for America/Bogota it's +300 minutes from UTC)
+    const timezoneOffset = this.getTimezoneOffset(schoolTimezone);
+    
+    // Get all attendance records for this course in the date range
+    const attendanceRecords = await this.attendanceModel.find({
+      course: course._id,
+      date: { $gte: startDate, $lte: endDate }
+    }).populate('student', 'name email');
+
+    // Get unique class dates (convert UTC stored dates back to school's local time)
+    const classDates = [...new Set(attendanceRecords.map(record => {
+      // Convert UTC stored date back to school's local time
+      const localDate = new Date(record.date.getTime() - timezoneOffset * 60000);
+      return localDate.toISOString().split('T')[0];
+    }))].sort();
+
+    // Group by student
+    const studentAttendanceMap = new Map<string, any>();
+    
+    attendanceRecords.forEach(record => {
+      const studentData = record.student as any;
+      const studentId = studentData._id ? studentData._id.toString() : studentData.toString();
+      
+      if (!studentAttendanceMap.has(studentId)) {
+        studentAttendanceMap.set(studentId, {
+          studentId,
+          studentName: studentData.name || 'N/A',
+          studentEmail: studentData.email || 'N/A',
+          attendanceRecords: [],
+          totalPresent: 0,
+          totalAbsent: 0
+        });
+      }
+      
+      const studentAttendance = studentAttendanceMap.get(studentId);
+      // Convert UTC stored date back to school's local time
+      const localDate = new Date(record.date.getTime() - timezoneOffset * 60000);
+      const formattedDate = localDate.toISOString().split('T')[0];
+      
+      studentAttendance.attendanceRecords.push({
+        date: formattedDate,
+        present: record.present,
+        classTitle: (record as any).classTitle || 'Clase'
+      });
+      
+      if (record.present) {
+        studentAttendance.totalPresent++;
+      } else {
+        studentAttendance.totalAbsent++;
+      }
+    });
+
+    // Calculate attendance percentage for each student
+    const studentDetails: StudentAttendanceDetail[] = Array.from(studentAttendanceMap.values()).map(student => {
+      const totalRecords = student.totalPresent + student.totalAbsent;
+      const attendancePercentage = totalRecords > 0 ? Math.round((student.totalPresent / totalRecords) * 100) : 0;
+      
+      return {
+        ...student,
+        attendancePercentage
+      };
+    });
+
+    return {
+      ...basicData,
+      studentDetails,
+      classDates
+    };
+  }
+
+  private generateExcel(report: DetailedMonthlyAttendanceReport): ExportResult {
+    const workbook = XLSX.utils.book_new();
+    
+    // Create summary sheet
+    this.createSummarySheet(workbook, report);
+    
+    // Create detailed sheets for each course
+    report.detailedCourseData.forEach(courseData => {
+      this.createCourseDetailSheet(workbook, courseData, report.period);
+    });
+
+    // Generate Excel buffer
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+    
+    const filename = `asistencia_detallada_${report.school.name.toLowerCase().replace(/\s+/g, '_')}_${report.period.year}_${report.period.month.toString().padStart(2, '0')}.xlsx`;
+
+    return {
+      data: excelBuffer,
+      filename,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    };
+  }
+
+  private createSummarySheet(workbook: XLSX.WorkBook, report: DetailedMonthlyAttendanceReport): void {
+    const summaryData = [
+      [`Reporte de Asistencia - ${report.school.name}`],
+      [`Período: ${report.period.monthName} ${report.period.year}`],
+      [],
+      ['Curso', 'Total Clases', 'Total Estudiantes', 'Asistencias', 'Faltas', 'Porcentaje Asistencia'],
+      ...report.courseDetails.map(course => [
+        course.courseName,
+        course.totalClasses,
+        course.totalStudents,
+        course.presentCount,
+        course.absentCount,
+        `${course.attendancePercentage}%`
+      ]),
+      [],
+      ['Resumen General:'],
+      ['Total Cursos', report.summary.totalCourses],
+      ['Total Clases', report.summary.totalClasses],
+      ['Total Estudiantes', report.summary.totalStudents],
+      ['Porcentaje General', `${report.summary.overallAttendancePercentage}%`]
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Resumen');
+  }
+
+  private createCourseDetailSheet(workbook: XLSX.WorkBook, courseData: DetailedCourseAttendanceData, period: any): void {
+    const sheetName = courseData.courseName.substring(0, 31); // Excel sheet name limit
+    
+    // Create headers
+    const headers = ['Estudiante', 'Email', 'Total Presente', 'Total Ausente', 'Porcentaje', ...courseData.classDates];
+    
+    // Create student rows
+    const studentRows = courseData.studentDetails.map(student => {
+      const row = [
+        student.studentName,
+        student.studentEmail,
+        student.totalPresent,
+        student.totalAbsent,
+        `${student.attendancePercentage}%`
+      ];
+      
+      // Add attendance for each class date
+      courseData.classDates.forEach(date => {
+        const attendanceRecord = student.attendanceRecords.find(record => record.date === date);
+        row.push(attendanceRecord ? (attendanceRecord.present ? 'Presente' : 'Ausente') : 'N/A');
+      });
+      
+      return row;
+    });
+
+    const sheetData = [
+      [`${courseData.courseName} - ${period.monthName} ${period.year}`],
+      [],
+      headers,
+      ...studentRows
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+  }
+
+  private getTimezoneOffset(timezone: string): number {
+    // Helper method to get timezone offset in minutes
+    // For common timezones used in the application
+    const timezoneOffsets: { [key: string]: number } = {
+      'America/Bogota': 5 * 60,        // GMT-5 (Colombia)
+      'America/New_York': 5 * 60,      // GMT-5 (EST) / GMT-4 (EDT) - using standard time
+      'America/Los_Angeles': 8 * 60,   // GMT-8 (PST) / GMT-7 (PDT) - using standard time
+      'UTC': 0,                        // GMT+0
+      'Europe/Madrid': -1 * 60,        // GMT+1 (CET) / GMT+2 (CEST) - using standard time
+    };
+
+    return timezoneOffsets[timezone] || 5 * 60; // Default to GMT-5 if timezone not found
   }
 } 

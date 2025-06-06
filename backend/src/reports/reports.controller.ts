@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, Req, Logger, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Req, Res, Logger, BadRequestException } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard, Permission } from '../auth/guards/permissions.guard';
@@ -63,8 +63,9 @@ export class ReportsController {
     @Query('year') year?: string,
     @Query('courseId') courseId?: string,
     @Query('format') format: 'csv' | 'excel' = 'csv',
-    @Req() req?: any
-  ): Promise<ExportResult> {
+    @Req() req?: any,
+    @Res() res?: any
+  ): Promise<void> {
     try {
       const userId = req.user.sub || req.user._id;
       const userRole = req.user.role;
@@ -74,7 +75,7 @@ export class ReportsController {
       const reportMonth = month ? parseInt(month) : new Date().getMonth() + 1;
       const reportYear = year ? parseInt(year) : new Date().getFullYear();
 
-      return await this.reportsService.exportMonthlyAttendanceReport({
+      const result = await this.reportsService.exportMonthlyAttendanceReport({
         userId,
         userRole,
         schoolId,
@@ -83,6 +84,16 @@ export class ReportsController {
         courseId,
         format
       });
+
+      // Set proper headers for file download
+      res.setHeader('Content-Type', result.contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+      
+      if (format === 'excel') {
+        res.send(result.data);
+      } else {
+        res.send(result.data);
+      }
 
     } catch (error) {
       this.logger.error(`Error exporting attendance report: ${error.message}`, error.stack);

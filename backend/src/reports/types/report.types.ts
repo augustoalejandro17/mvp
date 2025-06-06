@@ -21,6 +21,26 @@ export interface CourseAttendanceData {
   absentCount: number;
 }
 
+// New interfaces for detailed Excel export
+export interface StudentAttendanceDetail {
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  attendanceRecords: Array<{
+    date: string;
+    present: boolean;
+    classTitle?: string;
+  }>;
+  totalPresent: number;
+  totalAbsent: number;
+  attendancePercentage: number;
+}
+
+export interface DetailedCourseAttendanceData extends CourseAttendanceData {
+  studentDetails: StudentAttendanceDetail[];
+  classDates: string[]; // All unique class dates for this course
+}
+
 export interface MonthlyAttendanceReport {
   school: {
     id: string;
@@ -40,7 +60,12 @@ export interface MonthlyAttendanceReport {
   courseDetails: CourseAttendanceData[];
 }
 
+export interface DetailedMonthlyAttendanceReport extends MonthlyAttendanceReport {
+  detailedCourseData: DetailedCourseAttendanceData[];
+}
+
 export interface ExportResult {
-  data: string;
+  data: string | Buffer;
   filename: string;
+  contentType: string;
 } 
