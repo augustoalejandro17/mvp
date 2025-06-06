@@ -686,4 +686,40 @@
 .collapseIconButton:hover, .collapseIconButton:focus {
   background: #e3eafe;
   color: #2563eb;
+}
+
+.viewControls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toggleButton {
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #718096;
+  font-size: 0.875rem;
+}
+
+.toggleButton:hover {
+  background: #f8fafc;
+  border-color: #cbd5e0;
+}
+
+.toggleButton.active {
+  background: #3182ce;
+  border-color: #3182ce;
+  color: white;
+}
+
+.toggleButton.active:hover {
+  background: #2c5282;
+  border-color: #2c5282;
 } 

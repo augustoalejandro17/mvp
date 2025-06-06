@@ -77,15 +77,15 @@ export class SchoolsService {
       
       // Update the owner's (admin) document to include this school only if admin was specified
       if (admin) {
-        await this.userModel.findByIdAndUpdate(
+      await this.userModel.findByIdAndUpdate(
           admin,
-          { 
-            $addToSet: { 
-              schools: result._id,
-              ownedSchools: result._id 
-            } 
-          }
-        );
+        { 
+          $addToSet: { 
+            schools: result._id,
+            ownedSchools: result._id 
+          } 
+        }
+      );
       }
       
       return result;

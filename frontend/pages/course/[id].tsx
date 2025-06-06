@@ -4,12 +4,13 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../../styles/Course.module.css';
-import { FaPlus, FaTrashAlt, FaEye, FaEdit, FaUserCheck, FaSpinner, FaArrowLeft, FaChevronDown, FaChevronUp } from 'react-icons/fa';
+import { FaPlus, FaTrashAlt, FaEdit, FaUserCheck, FaArrowLeft } from 'react-icons/fa';
 import { jwtDecode } from 'jwt-decode';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import ImageFallback from '../../components/ImageFallback';
 import { canModifyClass, canManageVideos, canManageAttendance } from '../../utils/permission-utils';
 import { useMediaQuery } from 'react-responsive';
+import PlaylistManager from '../../components/PlaylistManager';
 
 interface Course {
   _id: string;
@@ -57,18 +58,16 @@ export default function CourseDetail() {
   const { id } = router.query;
   
   const [course, setCourse] = useState<Course | null>(null);
-  const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [user, setUser] = useState<{id: string; email: string; name: string; role: string} | null>(null);
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [deletingClassId, setDeletingClassId] = useState<string | null>(null);
   const { handleApiError } = useApiErrorHandler();
   const [videoStreamUrl, setVideoStreamUrl] = useState<string | null>(null);
   const [videoLoadError, setVideoLoadError] = useState(false);
   const isMobile = useMediaQuery({ maxWidth: 767 });
-  const [classesCollapsed, setClassesCollapsed] = useState(false);
+
 
   useEffect(() => {
     const checkAuth = () => {
@@ -114,37 +113,8 @@ export default function CourseDetail() {
           'Authorization': `Bearer ${token}`
         };
         
-        const [courseResponse, classesResponse] = await Promise.all([
-          axios.get(`${apiUrl}/api/courses/${id}`, { headers }),
-          axios.get(`${apiUrl}/api/classes?courseId=${id}`, { headers })
-        ]);
-        
+        const courseResponse = await axios.get(`${apiUrl}/api/courses/${id}`, { headers });
         setCourse(courseResponse.data);
-        
-        const fetchedClasses = classesResponse.data;
-        if (fetchedClasses && Array.isArray(fetchedClasses)) {
-          // Ordenar clases por orden (si existe el campo) o por fecha de creación
-          const sortedClasses = [...fetchedClasses].sort((a, b) => {
-            // Si ambas clases tienen un campo 'order', ordenar por ese campo
-            if (a.order !== undefined && b.order !== undefined) {
-              return a.order - b.order;
-            }
-            // Si no, usar el campo '_id' como fallback para tener un orden consistente
-            return a._id.localeCompare(b._id);
-          });
-          
-          setClasses(sortedClasses);
-          
-          // Seleccionar la primera clase por defecto
-          if (sortedClasses.length > 0) {
-            setSelectedClass(sortedClasses[0]);
-            
-            // Pre-cargar URL de streaming para la primera clase
-            if (sortedClasses[0]._id) {
-              getVideoStreamUrl(sortedClasses[0]._id);
-            }
-          }
-        }
       } catch (error) {
         console.error('Error al obtener datos:', error);
         setError(handleApiError(error));
@@ -163,15 +133,26 @@ export default function CourseDetail() {
   }, [course]);
 
   const handleClassClick = (classItem: Class) => {
+    console.log('Class clicked:', classItem.title, 'videoUrl:', classItem.videoUrl);
     setSelectedClass(classItem);
-    setVideoStreamUrl(null); // Resetear la URL de streaming para mostrar el mensaje "Cargando video..."
     setVideoLoadError(false); // Resetear el estado de error al cambiar de clase
     
-    // Usar la URL directa de inmediato para mostrar el video
-    // mientras obtenemos la URL de streaming optimizada
-    setVideoStreamUrl(classItem.videoUrl);
+    // Check if the provided videoUrl looks valid (has signature parameters or is recent)
+    const isValidSignedUrl = classItem.videoUrl && (
+      classItem.videoUrl.includes('X-Amz-Signature') || 
+      classItem.videoUrl.includes('CloudFront-Signature') ||
+      classItem.videoUrl.includes('Signature')
+    );
     
-    // Obtener URL de streaming para el video en segundo plano
+    if (isValidSignedUrl) {
+      console.log('Using provided signed URL for class:', classItem.title);
+      setVideoStreamUrl(classItem.videoUrl);
+    } else {
+      console.log('Provided URL may be invalid/expired, fetching new stream URL for class:', classItem.title);
+      setVideoStreamUrl(null); // Clear current URL to show loading state
+    }
+    
+    // Always try to get fresh streaming URL in the background for better reliability
     if (classItem._id) {
       getVideoStreamUrl(classItem._id);
     }
@@ -279,8 +260,6 @@ export default function CourseDetail() {
       return;
     }
     
-    setDeletingClassId(classId);
-    
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
@@ -297,9 +276,6 @@ export default function CourseDetail() {
       
       await axios.delete(`${apiUrl}/api/classes/${classId}`, { headers });
       
-      // Actualizar la lista de clases
-      setClasses(classes.filter(c => c._id !== classId));
-      
       // Si la clase eliminada era la seleccionada, deseleccionarla
       if (selectedClass && selectedClass._id === classId) {
         setSelectedClass(null);
@@ -307,12 +283,19 @@ export default function CourseDetail() {
     } catch (error) {
       console.error('Error al eliminar la clase:', error);
       setError(handleApiError(error));
-    } finally {
-      setDeletingClassId(null);
     }
   };
 
-  const getVideoStreamUrl = async (classId: string) => {
+  // New handlers for PlaylistManager
+  const handleClassView = (classItem: Class) => {
+    handleClassClick(classItem);
+  };
+
+  const handleClassEdit = (classId: string) => {
+    router.push(`/class/edit/${classId}`);
+  };
+
+  const getVideoStreamUrl = async (classId: string, retryCount = 0) => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
@@ -322,17 +305,33 @@ export default function CourseDetail() {
         'Authorization': `Bearer ${token}`
       };
       
+      console.log(`Attempting to get stream URL for class ${classId} (attempt ${retryCount + 1})`);
       const response = await axios.get(`${apiUrl}/api/classes/${classId}/stream-url`, { headers });
       if (response.data && response.data.url) {
+        console.log(`Successfully got stream URL for class ${classId}`);
         setVideoStreamUrl(response.data.url);
-        
+        setVideoLoadError(false); // Reset error state on success
       } else {
-        setVideoStreamUrl(null);
         console.error('No se pudo obtener URL de streaming válida');
+        // Don't clear the URL immediately, try retry first
+        if (retryCount < 2) {
+          console.log(`Retrying stream URL fetch for class ${classId} (attempt ${retryCount + 2})`);
+          setTimeout(() => getVideoStreamUrl(classId, retryCount + 1), 1000 * (retryCount + 1));
+        } else {
+          setVideoStreamUrl(null);
+        }
       }
     } catch (error) {
       console.error('Error al obtener URL de streaming:', error);
-      setVideoStreamUrl(null);
+      
+      // Retry logic for intermittent failures
+      if (retryCount < 2) {
+        console.log(`Retrying stream URL fetch for class ${classId} (attempt ${retryCount + 2}) after error`);
+        setTimeout(() => getVideoStreamUrl(classId, retryCount + 1), 1000 * (retryCount + 1));
+      } else {
+        console.error(`Failed to get stream URL for class ${classId} after 3 attempts`);
+        setVideoStreamUrl(null);
+      }
     }
   };
 
@@ -390,138 +389,16 @@ export default function CourseDetail() {
         
         <div className={styles.courseContent}>
           <div className={styles.classesList}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h2 className={styles.sectionTitle}>Clases del Curso</h2>
-              <button
-                className={styles.collapseIconButton}
-                aria-label={classesCollapsed ? 'Mostrar todas las clases' : 'Ver solo clase actual'}
-                onClick={() => setClassesCollapsed((prev) => !prev)}
-                type="button"
-              >
-                {classesCollapsed ? <FaChevronDown /> : <FaChevronUp />}
-              </button>
-            </div>
-            {classes.length === 0 ? (
-              <div className={styles.noClasses}>
-                <p>Este curso aún no tiene clases disponibles.</p>
-              </div>
-            ) : (
-              <ul className={styles.classList}>
-                {classesCollapsed
-                  ? selectedClass && (
-                      <li 
-                        key={selectedClass._id} 
-                        className={`${styles.classItem} ${styles.active}`}
-                      >
-                        <div 
-                          className={styles.classContent}
-                          onClick={() => handleClassClick(selectedClass)}
-                        >
-                          <div className={styles.classInfo}>
-                            <h3 className={styles.classTitle}>{selectedClass.title}</h3>
-                            {selectedClass.duration && (
-                              <span className={styles.duration}>
-                                {Math.floor(selectedClass.duration / 60)}:{(selectedClass.duration % 60).toString().padStart(2, '0')}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className={styles.classActions}>
-                          <button 
-                            className={styles.classActionBtn}
-                            onClick={() => handleClassClick(selectedClass)}
-                            title="Ver detalles"
-                          >
-                            <FaEye />
-                          </button>
-                          {canModifyClassItem() && (
-                            <>
-                              <Link 
-                                href={`/class/edit/${selectedClass._id}`}
-                                className={styles.classActionBtn}
-                                title="Editar clase"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <FaEdit />
-                              </Link>
-                              <button 
-                                className={styles.classActionBtn}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteClass(selectedClass._id);
-                                }}
-                                disabled={deletingClassId === selectedClass._id}
-                                title="Eliminar clase"
-                              >
-                                {deletingClassId === selectedClass._id ? (
-                                  <FaSpinner className={styles.spinner} />
-                                ) : (
-                                  <FaTrashAlt />
-                                )}
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </li>
-                    )
-                  : classes.map((classItem) => (
-                      <li 
-                        key={classItem._id} 
-                        className={`${styles.classItem} ${selectedClass?._id === classItem._id ? styles.active : ''}`}
-                      >
-                        <div 
-                          className={styles.classContent}
-                          onClick={() => handleClassClick(classItem)}
-                        >
-                          <div className={styles.classInfo}>
-                            <h3 className={styles.classTitle}>{classItem.title}</h3>
-                            {classItem.duration && (
-                              <span className={styles.duration}>
-                                {Math.floor(classItem.duration / 60)}:{(classItem.duration % 60).toString().padStart(2, '0')}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className={styles.classActions}>
-                          <button 
-                            className={styles.classActionBtn}
-                            onClick={() => handleClassClick(classItem)}
-                            title="Ver detalles"
-                          >
-                            <FaEye />
-                          </button>
-                          {canModifyClassItem() && (
-                            <>
-                              <Link 
-                                href={`/class/edit/${classItem._id}`}
-                                className={styles.classActionBtn}
-                                title="Editar clase"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <FaEdit />
-                              </Link>
-                              <button 
-                                className={styles.classActionBtn}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteClass(classItem._id);
-                                }}
-                                disabled={deletingClassId === classItem._id}
-                                title="Eliminar clase"
-                              >
-                                {deletingClassId === classItem._id ? (
-                                  <FaSpinner className={styles.spinner} />
-                                ) : (
-                                  <FaTrashAlt />
-                                )}
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-              </ul>
-            )}
+            <h2 className={styles.sectionTitle}>Clases del Curso</h2>
+            <PlaylistManager
+              courseId={course._id}
+              onClassSelect={handleClassClick}
+              selectedClass={selectedClass}
+              canModify={canModifyThisCourse()}
+              onClassView={handleClassView}
+              onClassEdit={handleClassEdit}
+              onClassDelete={handleDeleteClass}
+            />
             
             {canModifyThisCourse() && (
               <div className={styles.courseActions}>
@@ -587,7 +464,15 @@ export default function CourseDetail() {
                         autoPlay={false}
                         onError={(e) => {
                           console.error('Error al cargar el video:', e);
-                          setVideoLoadError(true);
+                          console.log('Video URL that failed:', videoStreamUrl || selectedClass.videoUrl);
+                          
+                          // Try to refresh the stream URL once more before giving up
+                          if (selectedClass._id && !videoLoadError) {
+                            console.log('Attempting to refresh stream URL due to video error');
+                            getVideoStreamUrl(selectedClass._id);
+                          } else {
+                            setVideoLoadError(true);
+                          }
                         }}
                       >
                         <source src={videoStreamUrl || selectedClass.videoUrl} type="video/mp4" />
