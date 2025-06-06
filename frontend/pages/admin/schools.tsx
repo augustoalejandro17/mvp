@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../../styles/AdminDashboard.module.css';
+import AdminNavigation from '../../components/AdminNavigation';
 
 interface School {
   id: string;
@@ -117,28 +118,7 @@ export default function SchoolsManager() {
       </div>
 
       <div className={styles.content}>
-        <div className={styles.sidebar}>
-          <nav className={styles.nav}>
-            <Link href="/" className={styles.navLink}>
-              Inicio
-            </Link>
-            <Link href="/admin/dashboard" className={styles.navLink}>
-              Dashboard
-            </Link>
-            <Link href="/admin/subscriptions" className={styles.navLink}>
-              Suscripciones
-            </Link>
-            <Link href="/admin/subscriptions/plans" className={styles.navLink}>
-              Planes
-            </Link>
-            <Link href="/admin/users" className={styles.navLink}>
-              Usuarios
-            </Link>
-            <Link href="/admin/schools" className={`${styles.navLink} ${styles.active}`}>
-              Escuelas
-            </Link>
-          </nav>
-        </div>
+        <AdminNavigation userRole="super_admin" />
 
         <div className={styles.mainContent}>
           <div className={styles.actionsRow}>

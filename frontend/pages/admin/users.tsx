@@ -5,6 +5,7 @@ import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/Admin.module.css';
 import dashboardStyles from '../../styles/AdminDashboard.module.css';
+import AdminNavigation from '../../components/AdminNavigation';
 import Link from 'next/link';
 import { FaEdit, FaTrash, FaUserPlus, FaLink, FaUserCheck, FaSearch, FaClock, FaCheckCircle, FaEnvelope, FaUniversity, FaList, FaGraduationCap, FaCalendarAlt, FaMoneyBillWave } from 'react-icons/fa';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
@@ -1348,31 +1349,7 @@ export default function UserManagement() {
       </div>
 
       <div className={dashboardStyles.content}>
-        <div className={dashboardStyles.sidebar}>
-          <nav className={dashboardStyles.nav}>
-            <Link href="/" className={dashboardStyles.navLink}>
-              Inicio
-            </Link>
-            <Link href="/admin/dashboard" className={dashboardStyles.navLink}>
-              Dashboard
-            </Link>
-            <Link href="/admin/users" className={`${dashboardStyles.navLink} ${dashboardStyles.active}`}>
-              Usuarios
-            </Link>
-            <Link href="/admin/schools" className={dashboardStyles.navLink}>
-              Escuelas
-            </Link>
-            <Link href="/admin/courses" className={dashboardStyles.navLink}>
-              Cursos
-            </Link>
-            <Link href="/admin/subscriptions" className={dashboardStyles.navLink}>
-              Suscripciones
-            </Link>
-            <Link href="/admin/stats" className={dashboardStyles.navLink}>
-              Estadísticas
-            </Link>
-          </nav>
-        </div>
+        <AdminNavigation userRole={user?.role} />
 
         <div className={dashboardStyles.mainContent}>
           {/* El contenido principal (el fragmento <>) comienza inmediatamente aquí dentro */}

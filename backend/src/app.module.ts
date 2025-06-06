@@ -13,6 +13,7 @@ import { UploadModule } from './upload/upload.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { PlansModule } from './plans/plans.module';
 import { StatisticsModule } from './statistics/statistics.module';
+import { ReportsModule } from './reports/reports.module';
 import awsConfig from './config/aws.config';
 import { S3Service } from './services/s3.service';
 import { CloudFrontService } from './services/cloudfront.service';
@@ -51,6 +52,7 @@ import { UserOwnedSchoolsController, UserAdministeredSchoolsController } from '.
     AttendanceModule,
     PlansModule,
     StatisticsModule,
+    ReportsModule,
   ],
   controllers: [
     AppController, 

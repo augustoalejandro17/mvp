@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/AdminDashboard.module.css';
+import AdminNavigation from '../../components/AdminNavigation';
 import Link from 'next/link';
 
 interface DecodedToken {
@@ -356,31 +357,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className={styles.content}>
-        <div className={styles.sidebar}>
-          <nav className={styles.nav}>
-            <Link href="/" className={styles.navLink}>
-              Inicio
-            </Link>
-            <Link href="/admin/dashboard" className={`${styles.navLink} ${styles.active}`}>
-              Dashboard
-            </Link>
-            <Link href="/admin/users" className={styles.navLink}>
-              Usuarios
-            </Link>
-            <Link href="/admin/schools" className={styles.navLink}>
-              Escuelas
-            </Link>
-            <Link href="/admin/courses" className={styles.navLink}>
-              Cursos
-            </Link>
-            <Link href="/admin/subscriptions" className={styles.navLink}>
-              Suscripciones
-            </Link>
-            <Link href="/admin/stats" className={styles.navLink}>
-              Estadísticas
-            </Link>
-          </nav>
-        </div>
+        <AdminNavigation userRole={user?.role} />
 
         <div className={styles.mainContent}>
           {/* School selector */}
