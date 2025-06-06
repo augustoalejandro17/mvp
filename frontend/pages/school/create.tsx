@@ -41,8 +41,19 @@ export default function CreateSchool() {
   const [administratives, setAdministratives] = useState<User[]>([]);
   const [selectedAdministratives, setSelectedAdministratives] = useState<string[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [detectedTimezone, setDetectedTimezone] = useState<string>('');
 
   useEffect(() => {
+    // Detect user's timezone automatically
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      setDetectedTimezone(timezone);
+      console.log('Detected timezone:', timezone);
+    } catch (error) {
+      console.error('Error detecting timezone:', error);
+      setDetectedTimezone('America/Bogota'); // Fallback to default
+    }
+
     // Verificar autenticación
     const token = Cookies.get('token');
     if (!token) {
@@ -188,7 +199,8 @@ export default function CreateSchool() {
         isPublic,
         admin: selectedOwnerId,
         teachers: selectedTeachers.length ? selectedTeachers : undefined,
-        administratives: selectedAdministratives.length ? selectedAdministratives : undefined
+        administratives: selectedAdministratives.length ? selectedAdministratives : undefined,
+        timezone: detectedTimezone || 'America/Bogota' // Include detected timezone
       };
 
       const response = await axios.post(
@@ -298,6 +310,29 @@ export default function CreateSchool() {
               ></textarea>
               <p className={styles.inputHelp}>Mínimo 10 caracteres</p>
             </div>
+
+            {/* Timezone Detection Info */}
+            {detectedTimezone && (
+              <div className={styles.formGroup} style={{
+                background: '#f0f9ff',
+                padding: '12px',
+                borderRadius: '4px',
+                border: '1px solid #0ea5e9'
+              }}>
+                <label style={{ color: '#0369a1', fontWeight: 'bold' }}>🌍 Zona Horaria Detectada</label>
+                <p style={{ 
+                  margin: '4px 0 0 0', 
+                  color: '#0369a1', 
+                  fontSize: '14px',
+                  fontFamily: 'monospace'
+                }}>
+                  {detectedTimezone}
+                </p>
+                <p className={styles.inputHelp} style={{ color: '#0369a1' }}>
+                  Esta zona horaria se asignará automáticamente a tu escuela para mostrar fechas y horarios correctamente.
+                </p>
+              </div>
+            )}
             
             {/* Selección de School Owner (solo para admin y super_admin) */}
             {['super_admin', 'admin'].includes(userRole) && (

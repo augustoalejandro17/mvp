@@ -15,7 +15,7 @@ export class SchoolsService {
   ) {}
 
   async create(createSchoolDto: CreateSchoolDto, userId: string) {
-    const { name, description, logoUrl, isPublic, admin, teachers, administratives, sedes } = createSchoolDto;
+    const { name, description, logoUrl, isPublic, admin, teachers, administratives, sedes, timezone } = createSchoolDto;
     
     try {
       // Validate user permissions for creating schools
@@ -28,6 +28,7 @@ export class SchoolsService {
         isPublic,
         admin: admin || userId,
         sedes: sedes || [],
+        timezone: timezone || 'America/Bogota', // Use provided timezone or default to Colombia
       });
       
       // Add teachers if provided

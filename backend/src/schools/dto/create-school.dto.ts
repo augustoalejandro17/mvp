@@ -52,4 +52,8 @@ export class CreateSchoolDto {
   @IsOptional()
   @IsMongoId()
   readonly activeSubscription?: string;
+
+  @IsOptional()
+  @IsString()
+  readonly timezone?: string;
 } 
