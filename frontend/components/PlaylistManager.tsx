@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Cookies from 'js-cookie';
-import { FaPlus, FaEdit, FaTrash, FaList, FaPlay, FaGripVertical, FaTrashAlt, FaMinus } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaList, FaPlay, FaGripVertical, FaTrashAlt, FaMinus, FaChevronDown, FaChevronRight } from 'react-icons/fa';
 import styles from '../styles/PlaylistManager.module.css';
 
 interface Playlist {
@@ -63,7 +63,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
     fetchUnorganizedClasses();
   }, [courseId]);
 
-  const fetchPlaylists = async (retryCount = 0) => {
+  const fetchPlaylists = async (retryCount = 0, preserveExpandedState = false) => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
@@ -72,11 +72,14 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
       });
       setPlaylists(response.data);
       
-      // Auto-expand first playlist or default playlist
-      if (response.data.length > 0) {
-        const defaultPlaylist = response.data.find((p: Playlist) => p.isDefault) || response.data[0];
-        setExpandedPlaylists(new Set([defaultPlaylist._id]));
-        setSelectedPlaylist(defaultPlaylist._id);
+      // Only reset expanded state on initial load, not on refresh
+      if (!preserveExpandedState) {
+        // Start with all playlists collapsed
+        setExpandedPlaylists(new Set());
+        if (response.data.length > 0) {
+          const defaultPlaylist = response.data.find((p: Playlist) => p.isDefault) || response.data[0];
+          setSelectedPlaylist(defaultPlaylist._id);
+        }
       }
     } catch (error) {
       console.error('Error fetching playlists:', error);
@@ -84,7 +87,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
       // Retry logic for intermittent failures (max 2 retries)
       if (retryCount < 2) {
         console.log(`Retrying fetchPlaylists (attempt ${retryCount + 1}/2)...`);
-        setTimeout(() => fetchPlaylists(retryCount + 1), 1000 * (retryCount + 1)); // Exponential backoff
+        setTimeout(() => fetchPlaylists(retryCount + 1, preserveExpandedState), 1000 * (retryCount + 1)); // Exponential backoff
       } else {
         console.error('Failed to fetch playlists after 2 retries');
       }
@@ -125,7 +128,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
       setNewPlaylistDescription('');
       setNewPlaylistIsPublic(true);
       setShowCreateForm(false);
-      fetchPlaylists();
+      fetchPlaylists(0, true); // Preserve expanded state when creating playlist
     } catch (error) {
       console.error('Error creating playlist:', error);
     }
@@ -149,7 +152,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
       setNewPlaylistName('');
       setNewPlaylistDescription('');
       setNewPlaylistIsPublic(true);
-      fetchPlaylists();
+      fetchPlaylists(0, true); // Preserve expanded state when updating playlist
     } catch (error) {
       console.error('Error updating playlist:', error);
     }
@@ -165,7 +168,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      fetchPlaylists();
+      fetchPlaylists(0, true); // Preserve expanded state when deleting playlist
       fetchUnorganizedClasses();
     } catch (error) {
       console.error('Error deleting playlist:', error);
@@ -183,7 +186,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      fetchPlaylists();
+      fetchPlaylists(0, true); // Preserve expanded state when adding class
       fetchUnorganizedClasses();
     } catch (error) {
       console.error('Error adding class to playlist:', error);
@@ -208,7 +211,8 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      fetchPlaylists();
+      // Preserve expanded state when refreshing after reorder
+      fetchPlaylists(0, true);
     } catch (error) {
       console.error('Error reordering classes in playlist:', error);
     }
@@ -224,7 +228,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      fetchPlaylists();
+      fetchPlaylists(0, true); // Preserve expanded state when removing class
       fetchUnorganizedClasses();
     } catch (error) {
       console.error('Error removing class from playlist:', error);
@@ -258,17 +262,20 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
 
   // Drag and Drop handlers
   const handleDragStart = (e: React.DragEvent, classItem: Class, index: number, playlistId: string) => {
+    e.stopPropagation(); // Prevent bubbling to playlist header
     setDraggedItem({ classId: classItem._id, fromIndex: index, playlistId });
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent bubbling to playlist header
     e.dataTransfer.dropEffect = 'move';
   };
 
   const handleDrop = (e: React.DragEvent, targetIndex: number, targetPlaylistId: string) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent bubbling to playlist header
     
     if (!draggedItem || draggedItem.playlistId !== targetPlaylistId) {
       setDraggedItem(null);
@@ -357,13 +364,19 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
 
       {/* Playlists */}
       <div className={styles.playlistList}>
-        {playlists.map((playlist) => (
+        {playlists.map((playlist, index) => (
           <div key={playlist._id} className={styles.playlistItem}>
             <div 
-              className={styles.playlistHeader}
+              className={`${styles.playlistHeader} ${
+                index % 2 === 0 ? styles.playlistHeaderEven : styles.playlistHeaderOdd
+              } ${expandedPlaylists.has(playlist._id) ? styles.playlistHeaderExpanded : ''}`}
               onClick={() => togglePlaylist(playlist._id)}
             >
               <div className={styles.playlistInfo}>
+                {expandedPlaylists.has(playlist._id) ? 
+                  <FaChevronDown className={styles.expandIcon} /> : 
+                  <FaChevronRight className={styles.expandIcon} />
+                }
                 <FaGripVertical className={styles.dragHandle} />
                 <span className={styles.playlistName}>
                   {playlist.name}
@@ -407,7 +420,10 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
                     <div 
                       key={classItem._id}
                       className={`${styles.classItem} ${selectedClass?._id === classItem._id ? styles.activeClass : ''}`}
-                      onClick={() => onClassSelect(classItem)}
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent bubbling to playlist header
+                        onClassSelect(classItem);
+                      }}
                       draggable={canModify && !playlist.isDefault && playlist.classes.length > 1}
                       onDragStart={(e) => canModify && handleDragStart(e, classItem, index, playlist._id)}
                       onDragOver={handleDragOver}
@@ -492,7 +508,10 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
                   <div 
                     key={classItem._id}
                     className={`${styles.classItem} ${selectedClass?._id === classItem._id ? styles.activeClass : ''}`}
-                    onClick={() => onClassSelect(classItem)}
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent bubbling to playlist header
+                      onClassSelect(classItem);
+                    }}
                   >
                     <FaPlay className={styles.playIcon} />
                     <div className={styles.classInfo}>
