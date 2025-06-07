@@ -28,6 +28,9 @@ export class Course {
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], default: [] })
   teachers: MongooseSchema.Types.ObjectId[];
 
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Category', required: false })
+  category?: MongooseSchema.Types.ObjectId;
+
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Class' }], default: [] })
   classes: MongooseSchema.Types.ObjectId[];
 

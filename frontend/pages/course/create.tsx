@@ -51,6 +51,9 @@ export default function CreateCourse() {
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [loadingTeachers, setLoadingTeachers] = useState(false);
   const [additionalTeachers, setAdditionalTeachers] = useState<string[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [loadingCategories, setLoadingCategories] = useState(false);
 
   useEffect(() => {
     // Verificar autenticación
@@ -133,6 +136,11 @@ export default function CreateCourse() {
       setAdditionalTeachers([]);
     }
   }, [schoolId]);
+
+  // Fetch categories on component mount
+  useEffect(() => {
+    fetchCategories();
+  }, []);
 
   // Método para manejar la selección de profesores adicionales
   const handleAdditionalTeacherChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -286,6 +294,21 @@ export default function CreateCourse() {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      setLoadingCategories(true);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      
+      const response = await axios.get(`${apiUrl}/api/categories?hierarchical=true`);
+      setCategories(response.data);
+    } catch (error) {
+      console.error('Error al cargar categorías:', error);
+      setCategories([]);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
   const handleImageUpload = (imageUrl: string) => {
     setImageUrl(imageUrl);
   };
@@ -363,7 +386,8 @@ export default function CreateCourse() {
         isPublic,
         schoolId,
         teacher: selectedTeacherId,
-        teachers: additionalTeachers.length > 0 ? [...additionalTeachers] : undefined
+        teachers: additionalTeachers.length > 0 ? [...additionalTeachers] : undefined,
+        category: selectedCategory || undefined
       };
       
       // Mostrar información de depuración
@@ -565,6 +589,38 @@ export default function CreateCourse() {
               <p className={styles.inputHelp}>
                 Selecciona la escuela donde quieres crear el curso. Solo puedes crear cursos en escuelas donde tienes permisos.
               </p>
+            </div>
+
+            {/* Selección de Categoría */}
+            <div className={styles.formGroup}>
+              <label htmlFor="categoryId">Categoría</label>
+              {loadingCategories ? (
+                <p className={styles.loadingText}>Cargando categorías...</p>
+              ) : (
+                <>
+                  <select
+                    id="categoryId"
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className={styles.select}
+                  >
+                    <option value="">Sin categoría</option>
+                    {categories.map((category) => (
+                      <optgroup key={category._id} label={category.name}>
+                        <option value={category._id}>{category.name}</option>
+                        {category.children && category.children.map((subcategory: any) => (
+                          <option key={subcategory._id} value={subcategory._id}>
+                            &nbsp;&nbsp;{subcategory.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <p className={styles.inputHelp}>
+                    Selecciona una categoría para clasificar tu curso (opcional)
+                  </p>
+                </>
+              )}
             </div>
             
             {/* Selección de Profesor Principal */}

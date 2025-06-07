@@ -36,6 +36,7 @@ interface Course {
   isPublic: boolean;
   teacher: Teacher | string;
   teachers?: (Teacher | string)[];
+  category?: any;
 }
 
 export default function EditCourse() {
@@ -58,6 +59,9 @@ export default function EditCourse() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [loadingCategories, setLoadingCategories] = useState(false);
   const { handleApiError } = useApiErrorHandler();
 
   const fetchCourse = useCallback(async (courseId: string, token: string) => {
@@ -116,6 +120,15 @@ export default function EditCourse() {
       }
       
       setIsPublic(courseData.isPublic || false);
+      
+      // Set category
+      if (courseData.category) {
+        if (typeof courseData.category === 'object' && courseData.category._id) {
+          setSelectedCategory(courseData.category._id);
+        } else if (typeof courseData.category === 'string') {
+          setSelectedCategory(courseData.category);
+        }
+      }
       
     } catch (error) {
       console.error('Error fetching course:', error);
@@ -182,6 +195,7 @@ export default function EditCourse() {
     if (id && typeof id === 'string') {
       fetchCourse(id, token);
       fetchSchools(token);
+      fetchCategories();
     }
   }, [id, router, fetchCourse]);
 
@@ -209,6 +223,21 @@ export default function EditCourse() {
       console.error('Error fetching schools:', error);
       // Don't block the UI for this error, just show a message
       setError(prev => prev || 'Could not load schools. Some options may not be available.');
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      setLoadingCategories(true);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      
+      const response = await axios.get(`${apiUrl}/api/categories?hierarchical=true`);
+      setCategories(response.data);
+    } catch (error) {
+      console.error('Error al cargar categorías:', error);
+      setCategories([]);
+    } finally {
+      setLoadingCategories(false);
     }
   };
 
@@ -283,7 +312,8 @@ export default function EditCourse() {
         schoolId,
         isPublic,
         teacher: teacherId,
-        teachers: allTeachers
+        teachers: allTeachers,
+        category: selectedCategory || undefined
       };
       
       // Usar la ruta correcta con /api/
@@ -387,6 +417,38 @@ export default function EditCourse() {
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Category Selection */}
+          <div className={styles.formGroup}>
+            <label htmlFor="categoryId">Category</label>
+            {loadingCategories ? (
+              <p className={styles.loadingText}>Loading categories...</p>
+            ) : (
+              <>
+                <select
+                  id="categoryId"
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className={styles.select}
+                >
+                  <option value="">No category</option>
+                  {categories.map((category) => (
+                    <optgroup key={category._id} label={category.name}>
+                      <option value={category._id}>{category.name}</option>
+                      {category.children && category.children.map((subcategory: any) => (
+                        <option key={subcategory._id} value={subcategory._id}>
+                          &nbsp;&nbsp;{subcategory.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                <small className={styles.inputHelp}>
+                  Select a category to classify your course (optional)
+                </small>
+              </>
+            )}
           </div>
           
           <div className={styles.formGroup}>
