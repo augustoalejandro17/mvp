@@ -144,11 +144,16 @@ const ClassDetail: React.FC = () => {
   };
 
   const isClassTeacher = useCallback((): boolean => {
-    if (!classData || !classData.createdBy || !classData.createdBy._id || !userId) {
+    if (!classData || !userId) {
       return false;
     }
-    const result = classData.createdBy._id === userId;
     
+    // Check if createdBy exists and has an _id
+    if (!classData.createdBy || !classData.createdBy._id) {
+      return false;
+    }
+    
+    const result = classData.createdBy._id === userId;
     return result;
   }, [classData, userId]);
 
@@ -213,8 +218,14 @@ const ClassDetail: React.FC = () => {
         
         <div className={styles.teacherInfo}>
           <h3>Teacher</h3>
-          <p>{classData.createdBy.firstName} {classData.createdBy.lastName}</p>
-          <p>{classData.createdBy.email}</p>
+          {classData.createdBy ? (
+            <>
+              <p>{classData.createdBy.firstName} {classData.createdBy.lastName}</p>
+              <p>{classData.createdBy.email}</p>
+            </>
+          ) : (
+            <p>Teacher information not available</p>
+          )}
         </div>
         
         {canModify() && (
