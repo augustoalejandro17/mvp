@@ -3,8 +3,8 @@ import { useRouter } from 'next/router';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
-import styles from '../../styles/Admin.module.css';
-import Layout from '../../components/Layout';
+import styles from '../../styles/AdminDashboard.module.css';
+import AdminNavigation from '../../components/AdminNavigation';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import { FaUpload, FaDownload, FaEye, FaCheck, FaTimes, FaSpinner, FaExclamationTriangle, FaSchool, FaUsers, FaChalkboardTeacher } from 'react-icons/fa';
 
@@ -15,7 +15,7 @@ interface School {
 
 interface BulkUploadData {
   curso: string;
-  profe: string;
+  profesor: string;
   estudiante: string;
   edad?: number;
   email?: string;
@@ -236,15 +236,16 @@ export default function BulkUploadPage() {
   }
 
   return (
-    <Layout>
-      <div className={styles.container}>
-        <main className={styles.main}>
-          <div className={styles.header}>
-            <h1 className={styles.title}>
+    <div className={styles.container}>
+      <div className={styles.content}>
+        <AdminNavigation userRole={user.role} />
+        <main className={styles.mainContent}>
+          <div className={styles.dashboardHeader}>
+            <h1>
               <FaUpload style={{ marginRight: '10px' }} />
               Carga Masiva de Asistentes
             </h1>
-            <p className={styles.subtitle}>
+            <p>
               Importa estudiantes y cursos desde un archivo Excel
             </p>
           </div>
@@ -396,7 +397,7 @@ export default function BulkUploadPage() {
                     {previewData.slice(0, 10).map((row, index) => (
                       <tr key={index}>
                         <td>{row.curso}</td>
-                        <td>{row.profe}</td>
+                        <td>{row.profesor}</td>
                         <td>{row.estudiante}</td>
                         <td>{row.edad || '-'}</td>
                         <td>{row.email || '-'}</td>
@@ -518,7 +519,7 @@ export default function BulkUploadPage() {
             <p>El archivo debe contener las siguientes columnas:</p>
             <ul>
               <li><strong>CURSO:</strong> Nombre del curso (requerido)</li>
-              <li><strong>PROFE:</strong> Nombre del profesor (requerido)</li>
+              <li><strong>PROFESOR:</strong> Nombre del profesor (requerido)</li>
               <li><strong>ESTUDIANTE:</strong> Nombre del estudiante (requerido)</li>
               <li><strong>EDAD:</strong> Edad del estudiante (opcional)</li>
               <li><strong>CORREO:</strong> Email del estudiante (opcional)</li>
@@ -528,6 +529,6 @@ export default function BulkUploadPage() {
           </div>
         </main>
       </div>
-    </Layout>
+    </div>
   );
 } 

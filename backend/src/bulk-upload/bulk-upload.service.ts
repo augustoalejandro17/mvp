@@ -10,7 +10,7 @@ import { CoursesService } from '../courses/courses.service';
 
 export interface BulkUploadData {
   curso: string;
-  profe: string;
+  profesor: string;
   estudiante: string;
   edad?: number;
   email?: string;
@@ -84,7 +84,7 @@ export class BulkUploadService {
 
       // Map column indices
       const courseIndex = this.findColumnIndex(headers, ['CURSO']);
-      const teacherIndex = this.findColumnIndex(headers, ['PROFE', 'PROFESOR']);
+      const teacherIndex = this.findColumnIndex(headers, ['PROFESOR', 'PROFE']);
       const studentIndex = this.findColumnIndex(headers, ['ESTUDIANTE', 'ALUMNO', 'NOMBRE']);
       const ageIndex = this.findColumnIndex(headers, ['EDAD']);
       const emailIndex = this.findColumnIndex(headers, ['CORREO', 'EMAIL']);
@@ -105,7 +105,7 @@ export class BulkUploadService {
 
         const data: BulkUploadData = {
           curso: row[courseIndex]?.toString().trim() || '',
-          profe: row[teacherIndex]?.toString().trim() || '',
+          profesor: row[teacherIndex]?.toString().trim() || '',
           estudiante: row[studentIndex]?.toString().trim() || '',
           edad: ageIndex !== -1 ? this.parseAge(row[ageIndex]) : undefined,
           email: emailIndex !== -1 ? row[emailIndex]?.toString().trim() : undefined,
@@ -114,7 +114,7 @@ export class BulkUploadService {
         };
 
         // Only add if we have the required fields
-        if (data.curso && data.profe && data.estudiante) {
+        if (data.curso && data.profesor && data.estudiante) {
           parsedData.push(data);
         }
       }
@@ -159,11 +159,11 @@ export class BulkUploadService {
       
       try {
         // 1. Find or create teacher
-        let teacherId = createdTeachers.get(row.profe.toLowerCase());
+        let teacherId = createdTeachers.get(row.profesor.toLowerCase());
         if (!teacherId) {
-          teacherId = await this.findOrCreateTeacher(row.profe, config.createMissingTeachers);
+          teacherId = await this.findOrCreateTeacher(row.profesor, config.createMissingTeachers);
           if (teacherId) {
-            createdTeachers.set(row.profe.toLowerCase(), teacherId);
+            createdTeachers.set(row.profesor.toLowerCase(), teacherId);
             if (!await this.userModel.findById(teacherId)) {
               result.createdTeachers++;
             }
@@ -171,7 +171,7 @@ export class BulkUploadService {
         }
 
         if (!teacherId) {
-          throw new Error(`Teacher "${row.profe}" not found and creation disabled`);
+          throw new Error(`Teacher "${row.profesor}" not found and creation disabled`);
         }
 
         // 2. Find or create course

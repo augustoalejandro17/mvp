@@ -19,7 +19,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'LearnHub' }) => {
       <main className={styles.main}>{children}</main>
 
       <footer className={styles.footer}>
-        <p>&copy; {new Date().getFullYear()} LearnHub. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} Inti. All rights reserved.</p>
       </footer>
     </div>
   );

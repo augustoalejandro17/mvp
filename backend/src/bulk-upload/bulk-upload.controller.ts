@@ -119,12 +119,12 @@ export class BulkUploadController {
     return {
       success: true,
       templateInfo: {
-        requiredColumns: ['CURSO', 'PROFE', 'ESTUDIANTE'],
+        requiredColumns: ['CURSO', 'PROFESOR', 'ESTUDIANTE'],
         optionalColumns: ['EDAD', 'CORREO', 'CELULAR', 'ESTADO'],
         instructions: [
           'The first row should contain column headers',
           'CURSO: Name of the course',
-          'PROFE: Teacher name',
+          'PROFESOR: Teacher name',
           'ESTUDIANTE: Student name',
           'EDAD: Student age (optional)',
           'CORREO: Student email (optional)',
@@ -133,7 +133,7 @@ export class BulkUploadController {
         ],
         example: {
           CURSO: 'BABY DANCE',
-          PROFE: 'BELUS MAGGI',
+          PROFESOR: 'BELUS MAGGI',
           ESTUDIANTE: 'MAITE PINOS',
           EDAD: 6,
           CORREO: 'student@example.com',
