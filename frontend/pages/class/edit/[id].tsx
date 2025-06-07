@@ -433,12 +433,23 @@ export default function EditClass() {
                  {saving ? 'Actualizando...' : 'Actualizar Clase'}
                </button>
                
-               <Link 
-                 href={`/course/${courseId}`} 
+               <button 
+                 type="button"
+                 onClick={() => {
+                   // Try to go to course page, fallback to previous page
+                   if (courseId) {
+                     router.push(`/course/${courseId}`);
+                   } else if (classData?.course?._id) {
+                     router.push(`/course/${classData.course._id}`);
+                   } else {
+                     router.back();
+                   }
+                 }}
                  className={styles.cancelButton}
+                 disabled={saving}
                >
                  Cancelar
-               </Link>
+               </button>
              </div>
           </form>
         )}

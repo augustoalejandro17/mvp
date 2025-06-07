@@ -8,7 +8,7 @@ const nextConfig = {
     APP_URL: process.env.APP_URL || 'http://localhost:3000',
   },
   images: {
-    domains: ['img.youtube.com'],
+    domains: ['img.youtube.com', 'digooy7d0nfl3.cloudfront.net'],
   },
   async rewrites() {
     // Obtener la URL del backend desde la variable de entorno
@@ -18,6 +18,11 @@ const nextConfig = {
     if (process.env.NODE_ENV !== 'production') {
       console.log('Using API URL for rewrites:', apiUrl);
       return [
+        // Proxy for CloudFront images in development to avoid CORS
+        {
+          source: '/images/:path*',
+          destination: 'https://digooy7d0nfl3.cloudfront.net/images/:path*',
+        },
         // Ruta específica para admin-stats/overview
         {
           source: '/api/admin-stats/overview',
