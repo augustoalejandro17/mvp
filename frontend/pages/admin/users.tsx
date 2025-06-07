@@ -833,7 +833,7 @@ export default function UserManagement() {
 
   // Cambiar estado del usuario
   const handleChangeUserStatus = async (userId: string, userName: string, newStatus: string) => {
-    const statusLabels = {
+    const statusLabels: { [key: string]: string } = {
       'active': 'activar',
       'inactive': 'desactivar', 
       'suspended': 'suspender'
@@ -1719,20 +1719,37 @@ IMPORTANTE: Esta acción:
                                 >
                                   <FaLink />
                                 </button>
-                                <button 
-                                  className={`${styles.iconButton} ${styles.deleteButton}`}
-                                  onClick={() => handleDeleteUser(user._id, user.name)}
-                                  title="Eliminar"
-                                  style={{
-                                    backgroundColor: '#fed7d7',
-                                    color: '#e53e3e',
-                                    padding: '0.35rem',
-                                    borderRadius: '4px',
-                                    margin: '0 3px'
-                                  }}
-                                >
-                                  <FaTrash />
-                                </button>
+                                {(!user.status || user.status === 'active') ? (
+                                  <button 
+                                    className={`${styles.iconButton} ${styles.deleteButton}`}
+                                    onClick={() => handleChangeUserStatus(user._id, user.name, 'inactive')}
+                                    title="Desactivar Asistente"
+                                    style={{
+                                      backgroundColor: '#fed7d7',
+                                      color: '#e53e3e',
+                                      padding: '0.35rem',
+                                      borderRadius: '4px',
+                                      margin: '0 3px'
+                                    }}
+                                  >
+                                    <FaTimesCircle />
+                                  </button>
+                                ) : (
+                                  <button 
+                                    className={`${styles.iconButton} ${styles.activateButton}`}
+                                    onClick={() => handleChangeUserStatus(user._id, user.name, 'active')}
+                                    title="Reactivar Asistente"
+                                    style={{
+                                      backgroundColor: '#c6f6d5',
+                                      color: '#38a169',
+                                      padding: '0.35rem',
+                                      borderRadius: '4px',
+                                      margin: '0 3px'
+                                    }}
+                                  >
+                                    <FaCheckCircle />
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           ))
@@ -1895,11 +1912,28 @@ IMPORTANTE: Esta acción:
                                   ) : null}
                                 </>
                               )}
-                              {/* Keep delete button for unregistered users */}
+                              {/* Status management for assistants (unregistered users) */}
                               {user.isRegistered === false && (
-                                <button onClick={() => handleDeleteUser(user._id, user.name)} className={`${styles.iconButton} ${styles.deleteButton}`} title="Eliminar Usuario">
-                                  <FaTrash />
-                                </button>
+                                <>
+                                  {(!user.status || user.status === 'active') ? (
+                                    <button 
+                                      onClick={() => handleChangeUserStatus(user._id, user.name, 'inactive')} 
+                                      className={`${styles.iconButton} ${styles.deleteButton}`} 
+                                      title="Desactivar Asistente"
+                                    >
+                                      <FaTimesCircle />
+                                    </button>
+                                  ) : (
+                                    <button 
+                                      onClick={() => handleChangeUserStatus(user._id, user.name, 'active')} 
+                                      className={`${styles.iconButton} ${styles.activateButton}`} 
+                                      title="Reactivar Asistente"
+                                      style={{ backgroundColor: '#c6f6d5', color: '#38a169' }}
+                                    >
+                                      <FaCheckCircle />
+                                    </button>
+                                  )}
+                                </>
                               )}
                               </td>
                             </tr>

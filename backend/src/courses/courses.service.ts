@@ -219,6 +219,7 @@ export class CoursesService {
         .populate('teacher', 'name email')
         .populate('teachers', 'name email')
         .populate('school', 'name logoUrl')
+        .populate('students', 'name email status')
         .populate({
           path: 'classes',
           options: { sort: { order: 1 } }
@@ -1082,6 +1083,7 @@ export class CoursesService {
         .populate('teacher', 'name email')
         .populate('teachers', 'name email')
         .populate('school', 'name logoUrl')
+        .populate('students', 'name email status')
         .populate({
           path: 'classes',
           options: { sort: { order: 1 } }

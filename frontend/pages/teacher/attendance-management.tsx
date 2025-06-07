@@ -16,6 +16,7 @@ interface Student {
   _id: string;
   name: string;
   email: string;
+  status?: string;
 }
 
 interface Course {
@@ -190,17 +191,21 @@ export default function AttendanceManagementPage() {
     const selectedCourseObj = courses.find(course => course._id === selectedCourse);
     if (!selectedCourseObj || !selectedCourseObj.students) return;
     
-    // Crear un registro de asistencia para cada estudiante que no tenga uno
+    // Crear un registro de asistencia para cada estudiante activo que no tenga uno
     const newAttendances = [...attendances];
     
     selectedCourseObj.students.forEach(student => {
-      const exists = attendances.some(a => a.studentId === student._id);
-      if (!exists) {
-        newAttendances.push({
-          studentId: student._id,
-          present: null,
-          notes: ''
-        });
+      // Solo incluir estudiantes activos
+      const isActive = !student.status || student.status === 'active';
+      if (isActive) {
+        const exists = attendances.some(a => a.studentId === student._id);
+        if (!exists) {
+          newAttendances.push({
+            studentId: student._id,
+            present: null,
+            notes: ''
+          });
+        }
       }
     });
     
@@ -415,8 +420,9 @@ export default function AttendanceManagementPage() {
                 
                 <div className={styles.tableBody}>
                   {selectedCourseObj.students && selectedCourseObj.students.length > 0 ? (
-                    // Sort students alphabetically by name
+                    // Filter active students and sort alphabetically by name
                     [...selectedCourseObj.students]
+                      .filter(student => !student.status || student.status === 'active')
                       .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
                       .map((student, index) => {
                         const attendance = attendances.find(a => a.studentId === student._id) || {

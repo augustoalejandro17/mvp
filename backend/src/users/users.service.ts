@@ -716,24 +716,21 @@ export class UsersService {
   }
 
   async updateUserStatus(userId: string, status: string, changedBy: string, reason?: string): Promise<User> {
-    // Import UserStatus
-    const { UserStatus } = await import('./schemas/user.schema');
-    
     const user = await this.userModel.findById(userId);
     if (!user) {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
     
     // Update status
-    user.status = status as any;
+    (user as any).status = status;
     
     // Add to status history
-    if (!user.statusHistory) {
-      user.statusHistory = [];
+    if (!(user as any).statusHistory) {
+      (user as any).statusHistory = [];
     }
     
-    user.statusHistory.push({
-      status: status as any,
+    (user as any).statusHistory.push({
+      status: status,
       changedAt: new Date(),
       changedBy,
       reason
@@ -748,8 +745,7 @@ export class UsersService {
     
     // Filter by status if needed
     if (!includeInactive) {
-      const { UserStatus } = await import('./schemas/user.schema');
-      return users.filter(user => user.status === UserStatus.ACTIVE || !user.status);
+      return users.filter(user => (user as any).status === 'active' || !(user as any).status);
     }
     
     return users;

@@ -21,6 +21,7 @@ export default function AdminNavigation({ userRole }: AdminNavigationProps) {
     { href: '/', label: 'Inicio' },
     { href: '/admin/dashboard', label: 'Dashboard' },
     { href: '/admin/users', label: 'Usuarios' },
+    { href: '/admin/bulk-upload', label: 'Carga Masiva' },
     { href: '/admin/courses', label: 'Cursos' },
   ];
 

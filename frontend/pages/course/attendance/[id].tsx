@@ -15,6 +15,7 @@ interface Student {
   _id: string;
   name: string;
   email: string;
+  status?: string;
 }
 
 interface NonRegisteredStudent {
@@ -233,17 +234,24 @@ export default function AttendancePage() {
       }
       
       // 2. Procesar estudiantes del curso primero (esta es la lista "maestra")
+      // Solo incluir estudiantes activos en la lista de asistencia
       if (course && course.students) {
         for (const student of course.students) {
-          if (student && student._id && student.name !== 'Usuario no encontrado') { // Evitar añadir usuarios fantasma
-            finalAttendanceMap.set(student._id, {
-              studentId: student._id,
-              studentName: student.name,
-              present: null, // Default, se sobrescribirá si hay registro en API
-              notes: '',
-              isRegistered: true,
-              isTemporary: false, 
-            });
+          if (student && student._id && student.name !== 'Usuario no encontrado') {
+            // Solo incluir estudiantes activos o sin estado definido (por compatibilidad)
+            const isActive = !student.status || student.status === 'active';
+            if (isActive) {
+              finalAttendanceMap.set(student._id, {
+                studentId: student._id,
+                studentName: student.name,
+                present: null, // Default, se sobrescribirá si hay registro en API
+                notes: '',
+                isRegistered: true,
+                isTemporary: false, 
+              });
+            } else {
+              console.log(`Estudiante ${student.name} excluido de asistencia por estado: ${student.status}`);
+            }
           }
         }
       }
