@@ -102,6 +102,15 @@ export class ReportsService {
       courseDetails: courseAttendanceData
     };
 
+    // 7. If single course selected, add detailed breakdown
+    if (courseId && courses.length === 1) {
+      report.isSingleCourseView = true;
+      const detailedCourseData = await Promise.all(
+        courses.map(course => this.getDetailedCourseAttendanceData(course, startDate, endDate))
+      );
+      report.detailedCourseData = detailedCourseData;
+    }
+
     this.logger.log(`Generated report for ${courses.length} courses with ${summary.totalClasses} total classes`);
     return report;
   }
@@ -532,9 +541,12 @@ export class ReportsService {
     let courseFilter: any = { school: targetSchoolId };
     if (courseId) {
       courseFilter._id = courseId;
+      this.logger.log(`Filtering payment report by courseId: ${courseId}`);
     }
 
+    this.logger.log(`Payment report course filter: ${JSON.stringify(courseFilter)}`);
     const courses = await this.courseModel.find(courseFilter);
+    this.logger.log(`Found ${courses.length} courses for payment report`);
     
     if (courses.length === 0) {
       // Return empty report if no courses found
@@ -568,6 +580,15 @@ export class ReportsService {
       summary,
       courseDetails: coursePaymentData
     };
+
+    // 6. If single course selected, add detailed breakdown
+    if (courseId && courses.length === 1) {
+      report.isSingleCourseView = true;
+      const detailedCourseData = await Promise.all(
+        courses.map(course => this.getDetailedCoursePaymentData(course, month, year))
+      );
+      report.detailedCourseData = detailedCourseData;
+    }
 
     this.logger.log(`Generated payment report for ${courses.length} courses with total revenue: ${summary.totalRevenue}`);
     return report;

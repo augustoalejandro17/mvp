@@ -58,6 +58,8 @@ export interface MonthlyAttendanceReport {
     overallAttendancePercentage: number;
   };
   courseDetails: CourseAttendanceData[];
+  isSingleCourseView?: boolean;
+  detailedCourseData?: DetailedCourseAttendanceData[];
 }
 
 export interface DetailedMonthlyAttendanceReport extends MonthlyAttendanceReport {
@@ -115,6 +117,8 @@ export interface MonthlyPaymentReport {
     overallPaymentPercentage: number;
   };
   courseDetails: CoursePaymentData[];
+  isSingleCourseView?: boolean;
+  detailedCourseData?: DetailedCoursePaymentData[];
 }
 
 export interface DetailedMonthlyPaymentReport extends MonthlyPaymentReport {

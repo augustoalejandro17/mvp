@@ -36,6 +36,25 @@ interface CourseAttendanceData {
   absentCount: number;
 }
 
+interface StudentAttendanceDetail {
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  attendanceRecords: Array<{
+    date: string;
+    present: boolean;
+    classTitle?: string;
+  }>;
+  totalPresent: number;
+  totalAbsent: number;
+  attendancePercentage: number;
+}
+
+interface DetailedCourseAttendanceData extends CourseAttendanceData {
+  studentDetails: StudentAttendanceDetail[];
+  classDates: string[];
+}
+
 interface MonthlyAttendanceReport {
   school: {
     id: string;
@@ -53,6 +72,8 @@ interface MonthlyAttendanceReport {
     overallAttendancePercentage: number;
   };
   courseDetails: CourseAttendanceData[];
+  isSingleCourseView?: boolean;
+  detailedCourseData?: DetailedCourseAttendanceData[];
 }
 
 interface CoursePaymentData {
@@ -63,6 +84,23 @@ interface CoursePaymentData {
   studentsWithoutPayments: number;
   totalRevenue: number;
   paymentPercentage: number;
+}
+
+interface StudentPaymentDetail {
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  paymentRecords: Array<{
+    date: string;
+    amount: number;
+    description?: string;
+  }>;
+  totalPaid: number;
+  hasPayments: boolean;
+}
+
+interface DetailedCoursePaymentData extends CoursePaymentData {
+  studentDetails: StudentPaymentDetail[];
 }
 
 interface MonthlyPaymentReport {
@@ -82,6 +120,8 @@ interface MonthlyPaymentReport {
     overallPaymentPercentage: number;
   };
   courseDetails: CoursePaymentData[];
+  isSingleCourseView?: boolean;
+  detailedCourseData?: DetailedCoursePaymentData[];
 }
 
 export default function Reports() {
@@ -256,10 +296,10 @@ export default function Reports() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
       const params = new URLSearchParams({
-        school: selectedSchool,
+        schoolId: selectedSchool,
         month: selectedMonth.toString(),
         year: selectedYear.toString(),
-        ...(selectedCourse && { course: selectedCourse })
+        ...(selectedCourse && { courseId: selectedCourse })
       });
 
       if (selectedReportType === 'attendance') {
@@ -301,11 +341,11 @@ export default function Reports() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
       const params = new URLSearchParams({
-        school: selectedSchool,
+        schoolId: selectedSchool,
         month: selectedMonth.toString(),
         year: selectedYear.toString(),
         format: format,
-        ...(selectedCourse && { course: selectedCourse })
+        ...(selectedCourse && { courseId: selectedCourse })
       });
 
       let endpoint = '';
@@ -592,6 +632,66 @@ export default function Reports() {
                   📭 No hay datos de asistencia para el período seleccionado.
                 </div>
               )}
+
+              {/* Detailed Single Course Breakdown */}
+              {report.isSingleCourseView && report.detailedCourseData && report.detailedCourseData.length > 0 && (
+                <div className={styles.detailedBreakdown}>
+                  <h3>📊 Detalle de Asistencia por Estudiante</h3>
+                  {report.detailedCourseData.map((detailedCourse) => (
+                    <div key={detailedCourse.courseId} className={styles.detailedCourseSection}>
+                      <h4>{detailedCourse.courseName}</h4>
+                      
+                      {detailedCourse.studentDetails.length > 0 ? (
+                        <div className={styles.detailedTableContainer}>
+                          <table className={styles.detailedTable}>
+                            <thead>
+                              <tr>
+                                <th>Estudiante</th>
+                                <th>Email</th>
+                                <th>Presente</th>
+                                <th>Ausente</th>
+                                <th>% Asistencia</th>
+                                {detailedCourse.classDates.map(date => (
+                                  <th key={date}>{date}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {detailedCourse.studentDetails.map((student) => (
+                                <tr key={student.studentId}>
+                                  <td>{student.studentName}</td>
+                                  <td>{student.studentEmail}</td>
+                                  <td className={styles.presentCount}>{student.totalPresent}</td>
+                                  <td className={styles.absentCount}>{student.totalAbsent}</td>
+                                  <td className={styles.attendancePercentage}>
+                                    <span className={student.attendancePercentage >= 80 ? styles.goodAttendance : 
+                                                   student.attendancePercentage >= 60 ? styles.okAttendance : 
+                                                   styles.poorAttendance}>
+                                      {student.attendancePercentage}%
+                                    </span>
+                                  </td>
+                                  {detailedCourse.classDates.map(date => {
+                                    const attendance = student.attendanceRecords.find(record => record.date === date);
+                                    return (
+                                      <td key={date} className={attendance?.present ? styles.presentMark : styles.absentMark}>
+                                        {attendance ? (attendance.present ? '✓' : '✗') : '-'}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className={styles.noData}>
+                          📭 No hay datos detallados de asistencia para este curso.
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -679,6 +779,65 @@ export default function Reports() {
               ) : (
                 <div className={styles.noData}>
                   📭 No hay datos de pagos para el período seleccionado.
+                </div>
+              )}
+
+              {/* Detailed Single Course Payment Breakdown */}
+              {paymentReport.isSingleCourseView && paymentReport.detailedCourseData && paymentReport.detailedCourseData.length > 0 && (
+                <div className={styles.detailedBreakdown}>
+                  <h3>💰 Detalle de Pagos por Estudiante</h3>
+                  {paymentReport.detailedCourseData.map((detailedCourse) => (
+                    <div key={detailedCourse.courseId} className={styles.detailedCourseSection}>
+                      <h4>{detailedCourse.courseName}</h4>
+                      
+                      {detailedCourse.studentDetails.length > 0 ? (
+                        <div className={styles.detailedTableContainer}>
+                          <table className={styles.detailedTable}>
+                            <thead>
+                              <tr>
+                                <th>Estudiante</th>
+                                <th>Email</th>
+                                <th>Total Pagado</th>
+                                <th>Estado</th>
+                                <th>Número de Pagos</th>
+                                <th>Detalles de Pagos</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {detailedCourse.studentDetails.map((student) => (
+                                <tr key={student.studentId}>
+                                  <td>{student.studentName}</td>
+                                  <td>{student.studentEmail}</td>
+                                  <td className={styles.revenueAmount}>${student.totalPaid.toLocaleString()}</td>
+                                  <td>
+                                    <span className={student.hasPayments ? styles.goodAttendance : styles.poorAttendance}>
+                                      {student.hasPayments ? 'Pagado' : 'Sin Pago'}
+                                    </span>
+                                  </td>
+                                  <td>{student.paymentRecords.length}</td>
+                                  <td className={styles.paymentDetails}>
+                                    {student.paymentRecords.length > 0 ? (
+                                      student.paymentRecords.map((payment, index) => (
+                                        <div key={index} className={styles.paymentRecord}>
+                                          {payment.date}: ${payment.amount} ({payment.description})
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <span className={styles.noPayments}>Sin pagos registrados</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className={styles.noData}>
+                          📭 No hay datos detallados de pagos para este curso.
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
