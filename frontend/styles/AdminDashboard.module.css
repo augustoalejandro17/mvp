@@ -846,6 +846,12 @@
   font-weight: 600;
 }
 
+.revenueAmount {
+  color: #059669 !important;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
 .attendancePercentage {
   text-align: center;
 }

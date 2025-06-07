@@ -68,4 +68,55 @@ export interface ExportResult {
   data: string | Buffer;
   filename: string;
   contentType: string;
+}
+
+// Payment report interfaces
+export interface CoursePaymentData {
+  courseId: string;
+  courseName: string;
+  totalStudents: number;
+  studentsWithPayments: number;
+  studentsWithoutPayments: number;
+  totalRevenue: number;
+  paymentPercentage: number;
+}
+
+export interface StudentPaymentDetail {
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  paymentRecords: Array<{
+    date: string;
+    amount: number;
+    description?: string;
+  }>;
+  totalPaid: number;
+  hasPayments: boolean;
+}
+
+export interface DetailedCoursePaymentData extends CoursePaymentData {
+  studentDetails: StudentPaymentDetail[];
+}
+
+export interface MonthlyPaymentReport {
+  school: {
+    id: string;
+    name: string;
+  };
+  period: {
+    month: number;
+    year: number;
+    monthName: string;
+  };
+  summary: {
+    totalCourses: number;
+    totalStudents: number;
+    totalRevenue: number;
+    overallPaymentPercentage: number;
+  };
+  courseDetails: CoursePaymentData[];
+}
+
+export interface DetailedMonthlyPaymentReport extends MonthlyPaymentReport {
+  detailedCourseData: DetailedCoursePaymentData[];
 } 

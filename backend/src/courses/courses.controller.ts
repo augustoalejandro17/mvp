@@ -286,12 +286,17 @@ export class CoursesController {
     
     // Primero buscar el enrollment
     const enrollments = await this.coursesService.getEnrollmentsByCourse(courseId);
-    const enrollment = enrollments.find(e => 
+    let enrollment = enrollments.find(e => 
       (e.student as any)._id.toString() === studentId || e.student.toString() === studentId
     );
     
+    // Si no existe enrollment, verificar si es un estudiante válido del curso y crear enrollment
     if (!enrollment) {
-      throw new NotFoundException('Enrollment not found for this student and course');
+      const enrollmentResult = await this.coursesService.createEnrollmentForPayment(courseId, studentId, userId);
+      if (!enrollmentResult) {
+        throw new NotFoundException('Student not found in this course');
+      }
+      enrollment = enrollmentResult;
     }
     
     // Acceder al ID de forma segura

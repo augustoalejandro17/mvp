@@ -55,6 +55,35 @@ interface MonthlyAttendanceReport {
   courseDetails: CourseAttendanceData[];
 }
 
+interface CoursePaymentData {
+  courseId: string;
+  courseName: string;
+  totalStudents: number;
+  studentsWithPayments: number;
+  studentsWithoutPayments: number;
+  totalRevenue: number;
+  paymentPercentage: number;
+}
+
+interface MonthlyPaymentReport {
+  school: {
+    id: string;
+    name: string;
+  };
+  period: {
+    month: number;
+    year: number;
+    monthName: string;
+  };
+  summary: {
+    totalCourses: number;
+    totalStudents: number;
+    totalRevenue: number;
+    overallPaymentPercentage: number;
+  };
+  courseDetails: CoursePaymentData[];
+}
+
 export default function Reports() {
   const router = useRouter();
   const [user, setUser] = useState<DecodedToken | null>(null);
@@ -65,6 +94,7 @@ export default function Reports() {
   const [schools, setSchools] = useState<School[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [report, setReport] = useState<MonthlyAttendanceReport | null>(null);
+  const [paymentReport, setPaymentReport] = useState<MonthlyPaymentReport | null>(null);
   
   // Filter states
   const [selectedSchool, setSelectedSchool] = useState<string>('');
@@ -75,7 +105,7 @@ export default function Reports() {
   // UI states
   const [loadingReport, setLoadingReport] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [selectedReportType, setSelectedReportType] = useState<'attendance' | 'performance' | 'enrollment'>('attendance');
+  const [selectedReportType, setSelectedReportType] = useState<'attendance' | 'payments' | 'performance' | 'enrollment'>('attendance');
 
   const monthNames = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -84,6 +114,7 @@ export default function Reports() {
 
   const reportTypes = [
     { value: 'attendance', label: '📊 Reportes de Asistencia', description: 'Asistencia mensual por curso y escuela' },
+    { value: 'payments', label: '💰 Reportes de Pagos', description: 'Pagos mensuales por curso y escuela' },
     { value: 'performance', label: '📈 Reportes de Rendimiento', description: 'Calificaciones y progreso (Próximamente)' },
     { value: 'enrollment', label: '👥 Reportes de Matrícula', description: 'Inscripciones y demografía (Próximamente)' }
   ];
@@ -217,93 +248,91 @@ export default function Reports() {
       return;
     }
 
+    setLoadingReport(true);
+    setError(null);
+    
     try {
-      setLoadingReport(true);
-      setError(null);
-      
       const token = Cookies.get('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
       const params = new URLSearchParams({
-        schoolId: selectedSchool,
+        school: selectedSchool,
         month: selectedMonth.toString(),
         year: selectedYear.toString(),
+        ...(selectedCourse && { course: selectedCourse })
       });
-      
-      if (selectedCourse) {
-        params.append('courseId', selectedCourse);
+
+      if (selectedReportType === 'attendance') {
+        const response = await axios.get(`${apiUrl}/api/reports/attendance/monthly?${params}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        setReport(response.data);
+        setPaymentReport(null);
+      } else if (selectedReportType === 'payments') {
+        const response = await axios.get(`${apiUrl}/api/reports/payments/monthly?${params}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        setPaymentReport(response.data);
+        setReport(null);
       }
-      
-      const response = await axios.get(`${apiUrl}/api/reports/attendance/monthly?${params}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      setReport(response.data);
     } catch (error: any) {
       console.error('Error loading report:', error);
       setError(error.response?.data?.message || 'Error al cargar el reporte');
+      setReport(null);
+      setPaymentReport(null);
     } finally {
       setLoadingReport(false);
     }
   };
 
   const exportReport = async (format: 'csv' | 'excel') => {
-    if (!selectedSchool || !report) {
-      setError('No hay reporte para exportar');
+    if (!selectedSchool) {
+      setError('Por favor selecciona una escuela');
       return;
     }
 
+    setExporting(true);
+    setError(null);
+    
     try {
-      setExporting(true);
-      
       const token = Cookies.get('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
       const params = new URLSearchParams({
-        schoolId: selectedSchool,
+        school: selectedSchool,
         month: selectedMonth.toString(),
         year: selectedYear.toString(),
-        format,
+        format: format,
+        ...(selectedCourse && { course: selectedCourse })
       });
+
+      let endpoint = '';
+      let filename = '';
       
-      if (selectedCourse) {
-        params.append('courseId', selectedCourse);
+      if (selectedReportType === 'attendance') {
+        endpoint = `${apiUrl}/api/reports/attendance/export?${params}`;
+        filename = `reporte_asistencia_${selectedMonth}_${selectedYear}.${format === 'excel' ? 'xlsx' : 'csv'}`;
+      } else if (selectedReportType === 'payments') {
+        endpoint = `${apiUrl}/api/reports/payments/export?${params}`;
+        filename = `reporte_pagos_${selectedMonth}_${selectedYear}.${format === 'excel' ? 'xlsx' : 'csv'}`;
       }
-      
-      const response = await axios.get(`${apiUrl}/api/reports/attendance/export?${params}`, {
+
+      const response = await axios.get(endpoint, {
         headers: { Authorization: `Bearer ${token}` },
-        responseType: format === 'excel' ? 'blob' : 'json'
+        responseType: 'blob'
       });
-      
-      // Handle different response types
-      if (format === 'excel') {
-        // For Excel files, the response is already a blob
-        const blob = response.data;
-        const contentDisposition = response.headers['content-disposition'];
-        const filename = contentDisposition
-          ? contentDisposition.split('filename=')[1]?.replace(/"/g, '')
-          : `asistencia_detallada_${selectedMonth}_${selectedYear}.xlsx`;
-        
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      } else {
-        // For CSV files, use the JSON response
-        const blob = new Blob([response.data.data], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = response.data.filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      }
+
+      // Create blob link to download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
       
     } catch (error: any) {
       console.error('Error exporting report:', error);
@@ -360,16 +389,19 @@ export default function Reports() {
                   key={type.value}
                   className={`${styles.reportTypeCard} ${
                     selectedReportType === type.value ? styles.active : ''
-                  } ${type.value !== 'attendance' ? styles.disabled : ''}`}
+                  } ${!['attendance', 'payments'].includes(type.value) ? styles.disabled : ''}`}
                   onClick={() => {
-                    if (type.value === 'attendance') {
+                    if (['attendance', 'payments'].includes(type.value)) {
                       setSelectedReportType(type.value as any);
+                      // Clear previous reports when switching types
+                      setReport(null);
+                      setPaymentReport(null);
                     }
                   }}
                 >
                   <h3>{type.label}</h3>
                   <p>{type.description}</p>
-                  {type.value !== 'attendance' && (
+                  {!['attendance', 'payments'].includes(type.value) && (
                     <div className={styles.comingSoon}>Próximamente</div>
                   )}
                 </div>
@@ -377,10 +409,10 @@ export default function Reports() {
             </div>
           </div>
 
-          {/* Filter Section - Only show for attendance reports */}
-          {selectedReportType === 'attendance' && (
+          {/* Filter Section - Show for attendance and payment reports */}
+          {['attendance', 'payments'].includes(selectedReportType) && (
             <div className={styles.filterSection}>
-              <h2>🔍 Filtros del Reporte de Asistencia</h2>
+              <h2>🔍 Filtros del Reporte de {selectedReportType === 'attendance' ? 'Asistencia' : 'Pagos'}</h2>
               
               <div className={styles.filterGrid}>
               {/* School Filter */}
@@ -558,6 +590,95 @@ export default function Reports() {
               ) : (
                 <div className={styles.noData}>
                   📭 No hay datos de asistencia para el período seleccionado.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Payment Report Display */}
+          {paymentReport && (
+            <div className={styles.reportSection}>
+              {/* Report Header */}
+              <div className={styles.reportHeader}>
+                <div className={styles.reportTitleRow}>
+                  <div className={styles.titleAndInfo}>
+                    <h2>💰 Reporte de Pagos</h2>
+                    <div className={styles.reportInfo}>
+                      <p><strong>🏫 Escuela:</strong> {paymentReport.school.name}</p>
+                      <p><strong>📅 Período:</strong> {paymentReport.period.monthName} {paymentReport.period.year}</p>
+                    </div>
+                  </div>
+                  
+                  <div className={styles.exportButtonContainer}>
+                    <button 
+                      onClick={() => exportReport('excel')}
+                      disabled={exporting}
+                      className={`${styles.exportButton} ${styles.excelButton}`}
+                    >
+                      {exporting ? '⏳' : '💰'} Descargar Excel Detallado
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary Cards */}
+              <div className={styles.summaryGrid}>
+                <div className={styles.summaryCard}>
+                  <h3>📚 Total Cursos</h3>
+                  <p className={styles.summaryValue}>{paymentReport.summary.totalCourses}</p>
+                </div>
+                <div className={styles.summaryCard}>
+                  <h3>👥 Total Estudiantes</h3>
+                  <p className={styles.summaryValue}>{paymentReport.summary.totalStudents}</p>
+                </div>
+                <div className={styles.summaryCard}>
+                  <h3>💰 Ingresos Totales</h3>
+                  <p className={styles.summaryValue}>${paymentReport.summary.totalRevenue.toLocaleString()}</p>
+                </div>
+                <div className={styles.summaryCard}>
+                  <h3>📊 % de Pago</h3>
+                  <p className={styles.summaryValue}>{paymentReport.summary.overallPaymentPercentage}%</p>
+                </div>
+              </div>
+
+              {/* Course Details Table */}
+              {paymentReport.courseDetails.length > 0 ? (
+                <div className={styles.tableContainer}>
+                  <h3>📋 Detalle por Curso</h3>
+                  <table className={styles.reportTable}>
+                    <thead>
+                      <tr>
+                        <th>Curso</th>
+                        <th>Estudiantes</th>
+                        <th>Con Pagos</th>
+                        <th>Sin Pagos</th>
+                        <th>Ingresos</th>
+                        <th>% Pagos</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paymentReport.courseDetails.map((course) => (
+                        <tr key={course.courseId}>
+                          <td>{course.courseName}</td>
+                          <td>{course.totalStudents}</td>
+                          <td className={styles.presentCount}>{course.studentsWithPayments}</td>
+                          <td className={styles.absentCount}>{course.studentsWithoutPayments}</td>
+                          <td className={styles.revenueAmount}>${course.totalRevenue.toLocaleString()}</td>
+                          <td className={styles.attendancePercentage}>
+                            <span className={course.paymentPercentage >= 80 ? styles.goodAttendance : 
+                                           course.paymentPercentage >= 60 ? styles.okAttendance : 
+                                           styles.poorAttendance}>
+                              {course.paymentPercentage}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className={styles.noData}>
+                  📭 No hay datos de pagos para el período seleccionado.
                 </div>
               )}
             </div>

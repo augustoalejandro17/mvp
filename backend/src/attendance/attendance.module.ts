@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AttendanceService } from './attendance.service';
 import { AttendanceController } from './attendance.controller';
@@ -7,6 +7,7 @@ import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
 import { AuthModule } from '../auth/auth.module';
 import { RemoveClassFieldMigration } from './migration/remove-class-field.migration';
+import { CoursesModule } from '../courses/courses.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { RemoveClassFieldMigration } from './migration/remove-class-field.migrat
       { name: Course.name, schema: CourseSchema },
     ]),
     AuthModule,
+    forwardRef(() => CoursesModule),
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService, RemoveClassFieldMigration],

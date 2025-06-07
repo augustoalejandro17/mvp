@@ -3,7 +3,7 @@ import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard, Permission } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
-import { MonthlyAttendanceReport, ExportResult } from './types/report.types';
+import { MonthlyAttendanceReport, ExportResult, MonthlyPaymentReport } from './types/report.types';
 
 @Controller('reports')
 export class ReportsController {
@@ -97,6 +97,96 @@ export class ReportsController {
 
     } catch (error) {
       this.logger.error(`Error exporting attendance report: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Get('payments/monthly')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.VIEW_COURSE)
+  async getMonthlyPaymentReport(
+    @Query('schoolId') schoolId?: string,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+    @Query('courseId') courseId?: string,
+    @Req() req?: any
+  ): Promise<MonthlyPaymentReport> {
+    try {
+      const userId = req.user.sub || req.user._id;
+      const userRole = req.user.role;
+
+      this.logger.log(`Monthly payment report requested by user ${userId} (${userRole})`);
+
+      // Validate month and year
+      const reportMonth = month ? parseInt(month) : new Date().getMonth() + 1;
+      const reportYear = year ? parseInt(year) : new Date().getFullYear();
+
+      if (reportMonth < 1 || reportMonth > 12) {
+        throw new BadRequestException('Month must be between 1 and 12');
+      }
+
+      if (reportYear < 2020 || reportYear > new Date().getFullYear() + 1) {
+        throw new BadRequestException('Invalid year provided');
+      }
+
+      return await this.reportsService.getMonthlyPaymentReport({
+        userId,
+        userRole,
+        schoolId,
+        month: reportMonth,
+        year: reportYear,
+        courseId
+      });
+
+    } catch (error) {
+      this.logger.error(`Error generating monthly payment report: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Get('payments/export')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.VIEW_COURSE)
+  async exportMonthlyPaymentReport(
+    @Query('schoolId') schoolId?: string,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+    @Query('courseId') courseId?: string,
+    @Query('format') format: 'csv' | 'excel' = 'csv',
+    @Req() req?: any,
+    @Res() res?: any
+  ): Promise<void> {
+    try {
+      const userId = req.user.sub || req.user._id;
+      const userRole = req.user.role;
+
+      this.logger.log(`Payment export requested by user ${userId} in ${format} format`);
+
+      const reportMonth = month ? parseInt(month) : new Date().getMonth() + 1;
+      const reportYear = year ? parseInt(year) : new Date().getFullYear();
+
+      const result = await this.reportsService.exportMonthlyPaymentReport({
+        userId,
+        userRole,
+        schoolId,
+        month: reportMonth,
+        year: reportYear,
+        courseId,
+        format
+      });
+
+      // Set proper headers for file download
+      res.setHeader('Content-Type', result.contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+      
+      if (format === 'excel') {
+        res.send(result.data);
+      } else {
+        res.send(result.data);
+      }
+
+    } catch (error) {
+      this.logger.error(`Error exporting payment report: ${error.message}`, error.stack);
       throw error;
     }
   }

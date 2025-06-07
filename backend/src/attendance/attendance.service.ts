@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, forwardRef, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Attendance, AttendanceDocument } from './schemas/attendance.schema';
@@ -8,6 +8,7 @@ import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { BulkAttendanceDto } from './dto/bulk-attendance.dto';
 import { toDate } from 'date-fns-tz';
+import { CoursesService } from '../courses/courses.service';
 
 @Injectable()
 export class AttendanceService {
@@ -17,6 +18,7 @@ export class AttendanceService {
     @InjectModel(Attendance.name) private attendanceModel: Model<AttendanceDocument>,
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Course.name) private courseModel: Model<Course>,
+    @Inject(forwardRef(() => CoursesService)) private coursesService: CoursesService,
   ) {}
 
   // Registrar asistencia individual
@@ -447,6 +449,14 @@ export class AttendanceService {
             await course.save();
             
           }
+
+          // Crear enrollment record para el nuevo usuario no registrado
+          try {
+            await this.coursesService.enrollStudent(courseId, unregisteredUser._id.toString(), teacherId);
+          } catch (error) {
+            // Si el enrollment ya existe o hay otro error no crítico, continuar
+            this.logger.warn(`Could not create enrollment for new unregistered user: ${error.message}`);
+          }
         } catch (error) {
           this.logger.error(`Error al crear usuario no registrado: ${error.message}`, error.stack);
           throw new BadRequestException(`Error al crear usuario no registrado: ${error.message}`);
@@ -486,6 +496,14 @@ export class AttendanceService {
           course.students.push(unregisteredUser._id as any);
           await course.save();
           
+        }
+
+        // Crear enrollment record para el usuario no registrado
+        try {
+          await this.coursesService.enrollStudent(courseId, unregisteredUser._id.toString(), teacherId);
+        } catch (error) {
+          // Si el enrollment ya existe o hay otro error no crítico, continuar
+          this.logger.warn(`Could not create enrollment for unregistered user: ${error.message}`);
         }
       }
       

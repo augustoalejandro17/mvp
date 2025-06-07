@@ -1274,6 +1274,70 @@ export class CoursesService {
     return enrollment;
   }
 
+  // Create enrollment for payment if student exists in course but has no enrollment record
+  async createEnrollmentForPayment(courseId: string, studentId: string, userId: string): Promise<any> {
+    try {
+      // Verificar que el curso existe
+      const course = await this.courseModel.findById(courseId);
+      if (!course) {
+        this.logger.error(`Course not found: ${courseId}`);
+        return null;
+      }
+
+      // Verificar que el estudiante existe
+      const student = await this.userModel.findById(studentId);
+      if (!student) {
+        this.logger.error(`Student not found: ${studentId}`);
+        return null;
+      }
+
+      // Verificar que el estudiante está asociado al curso
+      const isStudentInCourse = course.students && course.students.some(s => s.toString() === studentId);
+      const isStudentEnrolled = student.enrolledCourses && student.enrolledCourses.some(c => c.toString() === courseId);
+      
+      if (!isStudentInCourse && !isStudentEnrolled) {
+        this.logger.error(`Student ${studentId} is not associated with course ${courseId}`);
+        return null;
+      }
+
+      this.logger.log(`Creating enrollment for payment: student ${studentId} in course ${courseId}`);
+
+      // Crear el enrollment
+      const enrollment = new this.enrollmentModel({
+        course: new Types.ObjectId(courseId),
+        student: new Types.ObjectId(studentId),
+        paymentStatus: false,
+        isActive: true,
+        updatedBy: new Types.ObjectId(userId) as any,
+      });
+
+      const savedEnrollment = await enrollment.save();
+      
+      // Asegurar que el estudiante esté en el array de estudiantes del curso
+      if (!isStudentInCourse) {
+        await this.courseModel.updateOne(
+          { _id: courseId },
+          { $addToSet: { students: new Types.ObjectId(studentId) } }
+        );
+      }
+
+      // Asegurar que el curso esté en el array de cursos inscritos del estudiante
+      if (!isStudentEnrolled) {
+        await this.userModel.updateOne(
+          { _id: studentId },
+          { $addToSet: { enrolledCourses: new Types.ObjectId(courseId) } }
+        );
+      }
+
+      this.logger.log(`Successfully created enrollment ${savedEnrollment._id} for payment`);
+      return savedEnrollment;
+
+    } catch (error) {
+      this.logger.error(`Error creating enrollment for payment: ${error.message}`, error.stack);
+      return null;
+    }
+  }
+
   // Helper para obtener el mes actual en formato YYYY-MM
   private getCurrentMonthAsString(): string {
     const now = new Date();

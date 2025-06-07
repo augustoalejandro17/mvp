@@ -7,6 +7,7 @@ import { Attendance, AttendanceSchema } from '../attendance/schemas/attendance.s
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
 import { School, SchoolSchema } from '../schools/schemas/school.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
+import { Enrollment, EnrollmentSchema } from '../courses/schemas/enrollment.schema';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { User, UserSchema } from '../auth/schemas/user.schema';
       { name: Course.name, schema: CourseSchema },
       { name: School.name, schema: SchoolSchema },
       { name: User.name, schema: UserSchema },
+      { name: Enrollment.name, schema: EnrollmentSchema },
     ]),
     AuthModule,
   ],

@@ -26,10 +26,11 @@ const PaymentRegistrationModal: React.FC<PaymentRegistrationModalProps> = ({
   courses = [],
   onSelectCourse
 }) => {
-  const [amount, setAmount] = useState<number>(0);
+  const [amount, setAmount] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [selectedCourse, setSelectedCourse] = useState<string>('');
   const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonth());
+  const [mouseDownTarget, setMouseDownTarget] = useState<EventTarget | null>(null);
   
   if (!isOpen) return null;
   
@@ -94,10 +95,11 @@ const PaymentRegistrationModal: React.FC<PaymentRegistrationModalProps> = ({
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const numericAmount = parseFloat(amount) || 0;
     if (onSave && userId) {
-      onSave(userId, amount, notes, selectedCourse, selectedMonth);
+      onSave(userId, numericAmount, notes, selectedCourse, selectedMonth);
     } else if (onRegisterPayment) {
-      onRegisterPayment(amount, notes, selectedCourse, selectedMonth);
+      onRegisterPayment(numericAmount, notes, selectedCourse, selectedMonth);
     }
     
     // Update selected course for the parent component if needed
@@ -106,11 +108,17 @@ const PaymentRegistrationModal: React.FC<PaymentRegistrationModalProps> = ({
     }
   };
   
-  // Close modal when clicking outside or pressing Escape
+  // Track where mouse down started
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setMouseDownTarget(e.target);
+  };
+
+  // Close modal only if both mousedown and click happened on backdrop
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
+    if (e.target === e.currentTarget && mouseDownTarget === e.currentTarget) {
       onClose();
     }
+    setMouseDownTarget(null);
   };
 
   // Handle course selection
@@ -126,8 +134,8 @@ const PaymentRegistrationModal: React.FC<PaymentRegistrationModalProps> = ({
   const actualUserName = userName || (user?.name ?? 'Usuario');
   
   return (
-    <div className={styles.backdrop} onClick={handleBackdropClick}>
-      <div className={styles.modal} role="dialog" aria-modal="true">
+    <div className={styles.backdrop} onClick={handleBackdropClick} onMouseDown={handleMouseDown}>
+      <div className={styles.modal} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
           <h2>Registrar Pago - {actualUserName}</h2>
           <button 
@@ -188,10 +196,12 @@ const PaymentRegistrationModal: React.FC<PaymentRegistrationModalProps> = ({
                 type="number"
                 className={styles.input}
                 value={amount}
-                onChange={(e) => setAmount(Number(e.target.value))}
+                onChange={(e) => setAmount(e.target.value)}
                 required
                 min="0"
-                step="0.01"
+                step="any"
+                placeholder="0"
+                lang="en"
               />
             </div>
             
@@ -220,7 +230,7 @@ const PaymentRegistrationModal: React.FC<PaymentRegistrationModalProps> = ({
             <button 
               type="submit" 
               className={styles.submitButton}
-              disabled={amount <= 0}
+              disabled={!amount || parseFloat(amount) <= 0}
             >
               Registrar Pago
             </button>
