@@ -57,6 +57,26 @@ interface MonthlyAttendance {
   };
 }
 
+interface UnpaidStudent {
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  month: string;
+}
+
+interface UnpaidStudentsData {
+  courseId: string;
+  courseName: string;
+  month: number;
+  year: number;
+  targetMonth: string;
+  totalStudents: number;
+  paidCount: number;
+  unpaidCount: number;
+  paidStudents: UnpaidStudent[];
+  unpaidStudents: UnpaidStudent[];
+}
+
 export default function AttendancePage() {
   const router = useRouter();
   const { id } = router.query; // id del curso
@@ -71,6 +91,8 @@ export default function AttendancePage() {
   const [showAddNonRegisteredModal, setShowAddNonRegisteredModal] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
   const [exportLoading, setExportLoading] = useState(false);
+  const [unpaidStudents, setUnpaidStudents] = useState<UnpaidStudentsData | null>(null);
+  const [loadingUnpaid, setLoadingUnpaid] = useState(false);
 
   const fetchCourse = useCallback(async () => {
     try {
@@ -112,6 +134,42 @@ export default function AttendancePage() {
       setError('No se pudo cargar la información del curso');
     } finally {
       setLoading(false);
+    }
+  }, [id]);
+
+  const fetchUnpaidStudents = useCallback(async () => {
+    if (!id) return;
+    
+    try {
+      setLoadingUnpaid(true);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const token = Cookies.get('token');
+      
+      // Use current month and year
+      const currentDate = new Date();
+      const month = currentDate.getMonth() + 1;
+      const year = currentDate.getFullYear();
+      
+      console.log(`🔍 Fetching unpaid students for course ${id}, month ${month}, year ${year}`);
+      
+      const response = await axios.get(
+        `${apiUrl}/api/courses/${id}/unpaid-students?month=${month}&year=${year}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      
+      console.log('🔍 Unpaid students API response:', response.data);
+      console.log('🔍 Total students:', response.data.totalStudents);
+      console.log('🔍 Unpaid count:', response.data.unpaidCount);
+      console.log('🔍 Unpaid students array:', response.data.unpaidStudents);
+      
+      setUnpaidStudents(response.data);
+    } catch (error: any) {
+      console.error('❌ Error fetching unpaid students:', error);
+      console.error('❌ Error response:', error.response?.data);
+    } finally {
+      setLoadingUnpaid(false);
     }
   }, [id]);
 
@@ -257,6 +315,47 @@ export default function AttendancePage() {
       setLoading(false);
     }
   }, [id, date, course]); // Eliminado token de las dependencias
+
+  // Load data when component mounts and when id changes
+  useEffect(() => {
+    if (id) {
+      fetchCourse();
+      fetchUnpaidStudents();
+    }
+  }, [id, fetchCourse, fetchUnpaidStudents]);
+
+  // Load attendances when course and date change
+  useEffect(() => {
+    if (course && date) {
+      fetchAttendances();
+    }
+  }, [course, date, fetchAttendances]);
+
+  // Function to check if a student has paid for the current month
+  const hasStudentPaid = (studentId: string): boolean => {
+    if (!unpaidStudents) {
+      console.log('🔍 No payment data loaded, defaulting to unpaid for student:', studentId);
+      return false; // Default to unpaid (X) if no payment data loaded
+    }
+    
+    console.log('🔍 Checking payment for student:', studentId);
+    console.log('🔍 Total enrolled students:', unpaidStudents.totalStudents);
+    console.log('🔍 Paid count:', unpaidStudents.paidCount);
+    console.log('🔍 Unpaid count:', unpaidStudents.unpaidCount);
+    console.log('🔍 Paid students list:', unpaidStudents.paidStudents?.map(u => u.studentId) || []);
+    console.log('🔍 Unpaid students list:', unpaidStudents.unpaidStudents.map(u => u.studentId));
+    
+    // Check if this student is explicitly in the PAID list
+    const isInPaidList = unpaidStudents.paidStudents?.some(paid => paid.studentId === studentId) || false;
+    
+    if (isInPaidList) {
+      console.log(`🔍 Student ${studentId} is PAID ✅ (found in paid list)`);
+      return true;
+    } else {
+      console.log(`🔍 Student ${studentId} is UNPAID ❌ (not in paid list)`);
+      return false;
+    }
+  };
 
   const handlePresentChange = (studentId: string, present: boolean) => {
     setAttendances(prev => 
@@ -733,6 +832,8 @@ export default function AttendancePage() {
         {error && <div className={styles.error}>{error}</div>}
         {success && <div className={styles.success}>{success}</div>}
         
+
+        
         {loading ? (
           <div className={styles.loading}>Cargando registros de asistencia...</div>
         ) : (
@@ -764,6 +865,7 @@ export default function AttendancePage() {
                         <th style={{ width: '25%' }}>Estudiante</th>
                         <th style={{ width: '35%' }}>Asistencia</th>
                         <th>Notas (opcional)</th>
+                        <th style={{ width: '60px', textAlign: 'center' }}>💰</th>
                         {/*<th>Fecha/Hora (GMT-5)</th>*/}
                       </tr>
                     </thead>
@@ -821,6 +923,13 @@ export default function AttendancePage() {
                                   className={styles.input}
                                   placeholder="Notas (opcional)"
                                 />
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                {hasStudentPaid(attendance.studentId) ? (
+                                  <FaCheck style={{ color: '#38a169', fontSize: '1rem' }} title="Pagado" />
+                                ) : (
+                                  <FaTimes style={{ color: '#e53e3e', fontSize: '1rem' }} title="Sin pago" />
+                                )}
                               </td>
                               {/*<td>
                                 {attendance._id && attendance.date && (

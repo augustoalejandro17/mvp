@@ -1344,6 +1344,60 @@ export class CoursesService {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }
 
+  async getUnpaidStudents(courseId: string, month: number, year: number, userId: string, userRole: string) {
+    // Verify user has access to this course
+    const course = await this.getCourseForUser(courseId, userId, userRole);
+    if (!course) {
+      throw new NotFoundException('Course not found or access denied');
+    }
+
+    // Get all enrollments for this course
+    const enrollments = await this.enrollmentModel.find({
+      course: courseId,
+      isActive: true
+    }).populate('student', 'name email');
+
+    // Format target month for comparison
+    const targetMonth = `${year}-${String(month).padStart(2, '0')}`;
+
+    // Separate students into paid and unpaid
+    const paidStudents = [];
+    const unpaidStudents = [];
+
+    enrollments.forEach(enrollment => {
+      const studentData = enrollment.student as any;
+      const hasPaymentForMonth = enrollment.paymentHistory.some(payment => 
+        payment.month === targetMonth
+      );
+
+      const studentInfo = {
+        studentId: studentData._id.toString(),
+        studentName: studentData.name || 'N/A',
+        studentEmail: studentData.email || 'N/A',
+        month: targetMonth
+      };
+
+      if (hasPaymentForMonth) {
+        paidStudents.push(studentInfo);
+      } else {
+        unpaidStudents.push(studentInfo);
+      }
+    });
+
+    return {
+      courseId,
+      courseName: course.title,
+      month,
+      year,
+      targetMonth,
+      totalStudents: enrollments.length,
+      paidCount: paidStudents.length,
+      unpaidCount: unpaidStudents.length,
+      paidStudents,
+      unpaidStudents
+    };
+  }
+
   /**
    * Método de migración para inicializar los campos de promoción en cursos existentes
    * Debe ser ejecutado manualmente una vez después de actualizar el esquema

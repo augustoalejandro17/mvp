@@ -313,6 +313,31 @@ export class CoursesController {
     );
   }
 
+  @Get(':id/unpaid-students')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.VIEW_COURSE)
+  async getUnpaidStudents(
+    @Param('id') courseId: string,
+    @Req() req,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
+    const userId = getUserIdFromRequest(req);
+    const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
+    
+    try {
+      // Use current month/year if not provided
+      const targetMonth = month ? parseInt(month) : new Date().getMonth() + 1;
+      const targetYear = year ? parseInt(year) : new Date().getFullYear();
+      
+      const unpaidStudents = await this.coursesService.getUnpaidStudents(courseId, targetMonth, targetYear, userId, userRole);
+      return unpaidStudents;
+    } catch (error) {
+      this.logger.error(`Error fetching unpaid students: ${error.message}`);
+      throw error;
+    }
+  }
+
   @Get('migration/promo-fields')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
