@@ -5,6 +5,7 @@ import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/CourseForm.module.css';
 import ImageUploader from '../../components/ImageUploader';
+import ImagePreviewHelper from '../../components/ImagePreviewHelper';
 import { FaTimes } from 'react-icons/fa';
 
 interface DecodedToken {
@@ -54,6 +55,7 @@ export default function CreateCourse() {
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
+  const [imagePosition, setImagePosition] = useState({ x: 0, y: 0, scale: 1 });
 
   useEffect(() => {
     // Verificar autenticación
@@ -816,6 +818,14 @@ export default function CreateCourse() {
                 className={styles.imageUploader}
               />
               <p className={styles.inputHelp}>Sube una imagen para tu curso (opcional)</p>
+              
+              {/* Show preview if there's an image */}
+              {imageUrl && (
+                <ImagePreviewHelper
+                  imageUrl={imageUrl}
+                  title="Vista previa del curso"
+                />
+              )}
             </div>
             
             <div className={styles.formGroup}>

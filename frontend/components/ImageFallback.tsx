@@ -6,6 +6,7 @@ interface ImageFallbackProps {
   alt: string;
   className?: string;
   placeholderClassName?: string;
+  style?: React.CSSProperties;
 }
 
 const ImageFallback: React.FC<ImageFallbackProps> = ({
@@ -13,6 +14,7 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
   alt,
   className = '',
   placeholderClassName = '',
+  style,
 }) => {
   const [imgSrc, setImgSrc] = useState<string>(src);
   const [fallbackActive, setFallbackActive] = useState<boolean>(false);
@@ -189,6 +191,7 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
       src={imgSrc}
       alt={alt}
       className={className}
+      style={style}
       onError={handleError}
       crossOrigin="anonymous" // Importante para CloudFront
     />

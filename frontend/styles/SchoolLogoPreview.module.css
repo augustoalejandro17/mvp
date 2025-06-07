@@ -1,0 +1,280 @@
+.container {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin: 1rem 0;
+}
+
+.title {
+  margin: 0 0 1rem 0;
+  color: #2d3748;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.previewGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.previewItem h5 {
+  margin: 0 0 0.5rem 0;
+  color: #4a5568;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.originalContainer {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 1rem;
+  text-align: center;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.originalContainer img {
+  max-width: 100%;
+  max-height: 80px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+/* Home page card preview - matches actual home page styling */
+.homeCardPreview {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 2rem 1.5rem 1.5rem;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.homeCardPreview:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.homeCardPreview:hover .schoolLogo {
+  border-color: #3182ce;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.schoolLogo {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 1rem auto;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 3px solid #f1f3f4;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.schoolLogo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+  padding: 8px;
+}
+
+.schoolInfo h6 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1rem;
+  color: #2d3748;
+  font-weight: 600;
+}
+
+.schoolInfo p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #718096;
+}
+
+/* School header preview */
+.schoolHeaderPreview {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 100px;
+}
+
+.headerLogo {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+  flex-shrink: 0;
+}
+
+.headerLogo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.headerInfo {
+  flex: 1;
+}
+
+.headerInfo h6 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.1rem;
+  color: #2d3748;
+  font-weight: 600;
+}
+
+.headerSubtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #718096;
+}
+
+/* Navigation preview */
+.navPreview {
+  background: #2d3748;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 60px;
+}
+
+.navLogo {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.navLogo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.navText {
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.tips {
+  background: #edf2f7;
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+.tips h5 {
+  margin: 0 0 0.75rem 0;
+  color: #2d3748;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.tips ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: #4a5568;
+}
+
+.tips li {
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.tips li:last-child {
+  margin-bottom: 0;
+}
+
+.tips strong {
+  color: #2d3748;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .previewGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .container {
+    padding: 1rem;
+  }
+  
+  .schoolLogo {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .headerLogo {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .navLogo {
+    width: 35px;
+    height: 35px;
+  }
+  
+  .originalContainer {
+    min-height: 80px;
+  }
+  
+  .originalContainer img {
+    max-height: 60px;
+  }
+  
+  .schoolHeaderPreview {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .previewGrid {
+    gap: 0.75rem;
+  }
+  
+  .homeCardPreview {
+    padding: 1rem;
+    min-height: 120px;
+  }
+  
+  .schoolLogo {
+    width: 50px;
+    height: 50px;
+  }
+} 

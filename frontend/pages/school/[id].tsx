@@ -373,6 +373,9 @@ export default function SchoolDetail() {
                     <ImageFallback 
                       src={course.coverImageUrl}
                       alt={course.title}
+                      style={{
+                        '--image-position': 'center center'
+                      } as React.CSSProperties}
                     />
                   </div>
                 ) : (

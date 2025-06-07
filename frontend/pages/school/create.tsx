@@ -5,6 +5,7 @@ import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/SchoolForm.module.css';
 import ImageUploader from '../../components/ImageUploader';
+import ImagePreviewHelper from '../../components/ImagePreviewHelper';
 
 interface DecodedToken {
   sub: string;
@@ -240,6 +241,14 @@ export default function CreateSchool() {
                 className={styles.imageUploader}
               />
               <p className={styles.inputHelp}>Sube una imagen para tu escuela (opcional)</p>
+              
+              {/* Show preview if there's an image */}
+              {logoUrl && (
+                <ImagePreviewHelper
+                  imageUrl={logoUrl}
+                  title="Vista previa del logo"
+                />
+              )}
             </div>
             
             <div className={styles.formGroup}>

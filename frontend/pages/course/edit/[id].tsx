@@ -6,6 +6,7 @@ import Cookies from 'js-cookie';
 import styles from '../../../styles/CourseForm.module.css';
 import { useApiErrorHandler } from '../../../utils/api-error-handler';
 import ImageUploader from '../../../components/ImageUploader';
+import ImagePreviewHelper from '../../../components/ImagePreviewHelper';
 import { FaTimes } from 'react-icons/fa';
 import { jwtDecode } from 'jwt-decode';
 
@@ -62,6 +63,7 @@ export default function EditCourse() {
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
+  const [imagePosition, setImagePosition] = useState({ x: 0, y: 0, scale: 1 });
   const { handleApiError } = useApiErrorHandler();
 
   const fetchCourse = useCallback(async (courseId: string, token: string) => {
@@ -405,6 +407,14 @@ export default function EditCourse() {
               className={styles.imageUploader}
             />
             <small className={styles.inputHelp}>Upload an image for your course (optional)</small>
+            
+            {/* Show preview if there's an image */}
+            {coverImageUrl && (
+              <ImagePreviewHelper
+                imageUrl={coverImageUrl}
+                title="Vista previa del curso"
+              />
+            )}
           </div>
           
           <div className={styles.formGroup}>

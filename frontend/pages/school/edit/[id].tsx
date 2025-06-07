@@ -5,6 +5,7 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import styles from '../../../styles/SchoolForm.module.css';
 import ImageUploader from '../../../components/ImageUploader';
+import SchoolLogoPreview from '../../../components/SchoolLogoPreview';
 import { jwtDecode } from 'jwt-decode';
 
 interface DecodedToken {
@@ -281,6 +282,15 @@ export default function EditSchool() {
               className={styles.imageUploader}
             />
             <small className={styles.inputHelp}>Sube una imagen para el logo de tu escuela (opcional)</small>
+            
+            {/* Show preview if there's an image */}
+            {logoUrl && (
+              <SchoolLogoPreview
+                imageUrl={logoUrl}
+                schoolName={name || "Tu Escuela"}
+                title="Vista previa del logo"
+              />
+            )}
           </div>
           
           <div className={styles.formGroup}>
@@ -305,18 +315,6 @@ export default function EditSchool() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+00 123456789"
-              />
-            </div>
-            
-            <div className={styles.formGroup}>
-              <label htmlFor="website">Sitio Web</label>
-              <input
-                type="url"
-                id="website"
-                className={styles.input}
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-                placeholder="https://ejemplo.com"
               />
             </div>
           </div>
