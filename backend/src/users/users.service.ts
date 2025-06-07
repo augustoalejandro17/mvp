@@ -714,4 +714,69 @@ export class UsersService {
     }
     return unregisteredUsers.map(user => user.toObject() as User);
   }
+
+  async updateUserStatus(userId: string, status: string, changedBy: string, reason?: string): Promise<User> {
+    // Import UserStatus
+    const { UserStatus } = await import('./schemas/user.schema');
+    
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+    
+    // Update status
+    user.status = status as any;
+    
+    // Add to status history
+    if (!user.statusHistory) {
+      user.statusHistory = [];
+    }
+    
+    user.statusHistory.push({
+      status: status as any,
+      changedAt: new Date(),
+      changedBy,
+      reason
+    });
+    
+    return user.save();
+  }
+
+  async findAllWithStatus(includeInactive: boolean = false, requestUserId?: string, requestUserRole?: string): Promise<User[]> {
+    // Get base query result
+    const users = await this.findAll(requestUserId, requestUserRole);
+    
+    // Filter by status if needed
+    if (!includeInactive) {
+      const { UserStatus } = await import('./schemas/user.schema');
+      return users.filter(user => user.status === UserStatus.ACTIVE || !user.status);
+    }
+    
+    return users;
+  }
+
+  async getUserStats(): Promise<any> {
+    const { UserStatus } = await import('./schemas/user.schema');
+    
+    const stats = await this.userModel.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+    
+    const total = await this.userModel.countDocuments();
+    const active = stats.find(s => s._id === UserStatus.ACTIVE || s._id === null)?.count || 0;
+    const inactive = stats.find(s => s._id === UserStatus.INACTIVE)?.count || 0;
+    const suspended = stats.find(s => s._id === UserStatus.SUSPENDED)?.count || 0;
+    
+    return {
+      total,
+      active,
+      inactive,
+      suspended
+    };
+  }
 } 

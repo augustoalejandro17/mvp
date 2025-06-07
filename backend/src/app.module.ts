@@ -15,6 +15,7 @@ import { PlansModule } from './plans/plans.module';
 import { StatisticsModule } from './statistics/statistics.module';
 import { ReportsModule } from './reports/reports.module';
 import { CategoriesModule } from './categories/categories.module';
+import { EnrollmentsModule } from './enrollments/enrollments.module';
 import awsConfig from './config/aws.config';
 import { S3Service } from './services/s3.service';
 import { CloudFrontService } from './services/cloudfront.service';
@@ -56,6 +57,7 @@ import { MigrationService } from './migrations/migration.service';
     StatisticsModule,
     ReportsModule,
     CategoriesModule,
+    EnrollmentsModule,
   ],
   controllers: [
     AppController, 

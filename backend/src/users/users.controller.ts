@@ -175,6 +175,40 @@ export class UsersController {
     return { message: 'Password changed successfully by admin' };
   }
 
+  @Patch(':id/status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE)
+  async updateUserStatus(
+    @Param('id') id: string,
+    @Body() body: { status: string; reason?: string },
+    @Req() req: Request
+  ) {
+    const changedBy = req.user['sub'] || req.user['_id'];
+    const { status, reason } = body;
+    
+    const user = await this.usersService.updateUserStatus(id, status, changedBy, reason);
+    return { success: true, user };
+  }
+
+  @Get('stats/overview')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async getUserStats() {
+    return this.usersService.getUserStats();
+  }
+
+  @Get('with-status/all')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE)
+  findAllWithStatus(@Req() req: Request, @Query('includeInactive') includeInactive?: string) {
+    const userId = req.user['sub'] || req.user['_id'];
+    const userRole = req.user['role'];
+    const includeInactiveBoolean = includeInactive === 'true';
+    
+    this.logger.log(`User ${userId} with role ${userRole} is requesting all users with status filter`);
+    return this.usersService.findAllWithStatus(includeInactiveBoolean, userId, userRole);
+  }
+
   /**
    * Asigna un rol específico a un usuario en una escuela
    */
@@ -477,4 +511,5 @@ export class UsersController {
       throw error;
     }
   }
+
 } 

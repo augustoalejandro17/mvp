@@ -7,7 +7,8 @@ import styles from '../../styles/Admin.module.css';
 import dashboardStyles from '../../styles/AdminDashboard.module.css';
 import AdminNavigation from '../../components/AdminNavigation';
 import Link from 'next/link';
-import { FaEdit, FaTrash, FaUserPlus, FaLink, FaUserCheck, FaSearch, FaClock, FaCheckCircle, FaEnvelope, FaUniversity, FaList, FaGraduationCap, FaCalendarAlt, FaMoneyBillWave } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaUserPlus, FaLink, FaUserCheck, FaSearch, FaClock, FaCheckCircle, FaEnvelope, FaUniversity, FaList, FaGraduationCap, FaCalendarAlt, FaMoneyBillWave, FaEye, FaTimes, FaFilter, FaTimesCircle, FaPauseCircle } from 'react-icons/fa';
+import { UserStatus, EnrollmentStatus } from '../../types/user';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import PaymentRegistrationModal from '../../components/PaymentRegistrationModal';
 import UserSearch from '../../components/UserSearch';
@@ -25,6 +26,7 @@ interface User {
   name: string;
   email: string;
   role: string;
+  status?: string;
   age?: number;
   schoolRoles?: SchoolRole[];
   enrolledCourses?: string[];
@@ -96,7 +98,8 @@ export default function UserManagement() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedSchool, setSelectedSchool] = useState<string>('');
   const [selectedCourse, setSelectedCourse] = useState<string>('');
-  const [selectedSede, setSelectedSede] = useState<string>(''); // New state for selected sede
+  const [selectedSede, setSelectedSede] = useState<string>('');
+  const [selectedStatus, setSelectedStatus] = useState<string>(''); // New state for selected sede
   const [attendanceRecords, setAttendanceRecords] = useState<Attendance[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -610,10 +613,20 @@ export default function UserManagement() {
         (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) // Verificar si email existe
       );
     }
+
+    // Aplicar filtro de estado
+    if (selectedStatus) {
+      tempUsers = tempUsers.filter(user => {
+        if (selectedStatus === 'active') {
+          return !user.status || user.status === 'active';
+        }
+        return user.status === selectedStatus;
+      });
+    }
     
     setFilteredUsers(tempUsers);
     setCurrentPage(1); // Resetear a la primera página con cada filtro
-  }, [searchTerm, users, selectedSchool, selectedCourse, selectedSede, schools]); // Added selectedSede and schools
+  }, [searchTerm, users, selectedSchool, selectedCourse, selectedSede, selectedStatus, schools]); // Added selectedSede, selectedStatus and schools
         
   // Actualizar totalPages cuando cambia el ordenamiento o los filtros
   useEffect(() => {
@@ -818,9 +831,25 @@ export default function UserManagement() {
     }
   };
 
-  // Eliminar usuario
-  const handleDeleteUser = async (userId: string, userName: string) => {
-    if (!confirm(`¿Está seguro que desea eliminar al usuario ${userName}?`)) {
+  // Cambiar estado del usuario
+  const handleChangeUserStatus = async (userId: string, userName: string, newStatus: string) => {
+    const statusLabels = {
+      'active': 'activar',
+      'inactive': 'desactivar', 
+      'suspended': 'suspender'
+    };
+    
+    const confirmMessage = `¿Estás seguro de que deseas ${statusLabels[newStatus]} al usuario ${userName}?
+
+IMPORTANTE: Esta acción:
+• Cambiará el estado del usuario a "${newStatus}"
+• Conservará todo el historial (asistencias, pagos, etc.)
+• Mantendrá las estadísticas correctas
+${newStatus === 'inactive' ? '• El usuario no podrá iniciar sesión' : ''}
+${newStatus === 'suspended' ? '• El usuario tendrá acceso limitado' : ''}
+${newStatus === 'active' ? '• El usuario tendrá acceso completo' : ''}`;
+
+    if (!confirm(confirmMessage)) {
       return;
     }
     
@@ -830,19 +859,77 @@ export default function UserManagement() {
       const token = Cookies.get('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
-      await axios.delete(`${apiUrl}/api/users/${userId}`, {
+      await axios.patch(`${apiUrl}/api/users/${userId}/status`, {
+        status: newStatus,
+        reason: `Estado cambiado a ${newStatus} por administrador`
+      }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      // Actualizar lista de usuarios
-      setUsers(prev => prev.filter(u => u._id !== userId));
-      setSuccess(`Usuario ${userName} eliminado correctamente.`);
+      // Actualizar usuario en la lista para mostrar el nuevo estado
+      setUsers(prev => prev.map(u => 
+        u._id === userId 
+          ? { ...u, status: newStatus } 
+          : u
+      ));
+      
+      setSuccess(`Usuario ${userName} ${statusLabels[newStatus]}do correctamente.`);
       
       // Limpiar mensaje después de 3 segundos
       setTimeout(() => setSuccess(''), 3000);
       
     } catch (error) {
-      console.error('Error al eliminar usuario:', error);
+      console.error('Error al cambiar estado del usuario:', error);
+      setError(handleApiError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Desactivar usuario (soft delete para preservar estadísticas)
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    const confirmMessage = `¿Estás seguro de que deseas desactivar al usuario ${userName}?
+
+IMPORTANTE: Esta acción:
+• NO eliminará el usuario permanentemente
+• Cambiará su estado a "inactivo"
+• Conservará todo el historial (asistencias, pagos, etc.)
+• Mantendrá las estadísticas correctas
+• El usuario no podrá iniciar sesión
+
+Para reactivar el usuario más tarde, contacta al administrador.`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      const token = Cookies.get('token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      
+      // Usar PATCH en lugar de DELETE para cambiar status
+      await axios.patch(`${apiUrl}/api/users/${userId}/status`, {
+        status: 'inactive'
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Actualizar usuario en la lista para mostrar el nuevo estado
+      setUsers(prev => prev.map(u => 
+        u._id === userId 
+          ? { ...u, status: 'inactive' } 
+          : u
+      ));
+      
+      setSuccess(`Usuario ${userName} desactivado correctamente. Sus datos históricos se conservaron.`);
+      
+      // Limpiar mensaje después de 3 segundos
+      setTimeout(() => setSuccess(''), 3000);
+      
+    } catch (error) {
+      console.error('Error al desactivar usuario:', error);
       setError(handleApiError(error));
     } finally {
       setLoading(false);
@@ -1105,6 +1192,67 @@ export default function UserManagement() {
     } catch (error) {
       console.error('Error al cargar cursos del usuario:', error);
       setErrorMessage('No se pudieron cargar los cursos del usuario.');
+      setShowErrorModal(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Desenrolar usuario de un curso (soft delete - cambiar status)
+  const handleUnenrollUser = async (courseId: string, courseTitle: string) => {
+    if (!selectedUser) return;
+    
+    const confirmMessage = `¿Estás seguro de que deseas desenrolar a ${selectedUser.name} del curso "${courseTitle}"?
+
+IMPORTANTE: Esta acción:
+• Mantendrá el historial de asistencias y pagos
+• Cambiará el estado de la inscripción a "inactivo"
+• El usuario no podrá acceder al curso
+• Los datos estadísticos se conservarán`;
+
+    if (!confirm(confirmMessage)) return;
+    
+    setLoading(true);
+    
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const token = Cookies.get('token');
+      
+      if (!token) {
+        setErrorMessage('Debes iniciar sesión para realizar esta acción');
+        return;
+      }
+      
+      // Usar PATCH en lugar de DELETE para cambiar status
+      await axios.patch(`${apiUrl}/api/enrollments/status`, {
+        userId: selectedUser._id,
+        courseId: courseId,
+        status: 'inactive'
+      }, {
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      // Actualizar la lista de cursos del usuario
+      const updatedCourses = await getUserCourses(selectedUser._id);
+      setUserCourses(updatedCourses);
+      
+      // Actualizar contador en la tabla principal
+      await updateUserCourseCount(selectedUser._id);
+      
+      setSuccess(`Usuario desenrolado exitosamente del curso "${courseTitle}"`);
+      
+    } catch (error: any) {
+      console.error('Error al desenrolar usuario:', error);
+      let message = 'Error al desenrolar el usuario del curso';
+      
+      if (error.response && error.response.data && error.response.data.message) {
+        message = error.response.data.message;
+      }
+      
+      setErrorMessage(message);
       setShowErrorModal(true);
     } finally {
       setLoading(false);
@@ -1390,6 +1538,7 @@ export default function UserManagement() {
                           setSelectedSchool(e.target.value);
                           setSelectedCourse('');
                           setSelectedSede('');
+                          setSelectedStatus('');
                           setUnregSchoolFilter('');
                           setUnregCourseFilter('');
                         }}
@@ -1433,6 +1582,21 @@ export default function UserManagement() {
                               {sede}
                             </option>
                           ))}
+                        </select>
+                      </div>
+                    )}
+                    {/* Filtro de estado para usuarios registrados */}
+                    {selectedSchool !== 'unregistered' && (
+                      <div className={styles.filterWrapper}>
+                        <select
+                          className={styles.select}
+                          value={selectedStatus}
+                          onChange={(e) => setSelectedStatus(e.target.value)}
+                        >
+                          <option value="">Todos los estados</option>
+                          <option value="active">Activos</option>
+                          <option value="inactive">Inactivos</option>
+                          <option value="suspended">Suspendidos</option>
                         </select>
                       </div>
                     )}
@@ -1592,6 +1756,7 @@ export default function UserManagement() {
                         <th onClick={() => handleSort('role')} className={styles.sortableHeader}>
                           Rol {renderSortIcon('role')}
                         </th>
+                        <th>Estado</th>
                         <th>Cursos</th>
                         <th onClick={() => handleSort('date')} className={styles.sortableHeader}>
                           Fecha Registro {renderSortIcon('date')}
@@ -1624,6 +1789,26 @@ export default function UserManagement() {
                               {user.isRegistered === false && (
                                 <span className={`${styles.roleBadge} ${styles.unregistered}`}>no registrado</span>
                                 )}
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                  {user.status === 'inactive' ? (
+                                    <>
+                                      <FaTimesCircle style={{ color: '#e53e3e', marginRight: '5px' }} />
+                                      <span style={{ color: '#e53e3e' }}>Inactivo</span>
+                                    </>
+                                  ) : user.status === 'suspended' ? (
+                                    <>
+                                      <FaPauseCircle style={{ color: '#d69e2e', marginRight: '5px' }} />
+                                      <span style={{ color: '#d69e2e' }}>Suspendido</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FaCheckCircle style={{ color: '#38a169', marginRight: '5px' }} />
+                                      <span style={{ color: '#38a169' }}>Activo</span>
+                                    </>
+                                  )}
+                                </div>
                               </td>
                               <td>
                                   <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -1668,15 +1853,60 @@ export default function UserManagement() {
                                   <FaLink />
                                 </button>
                               )}
-                              <button onClick={() => handleDeleteUser(user._id, user.name)} className={`${styles.iconButton} ${styles.deleteButton}`} title="Eliminar Usuario">
+                              {/* Status management buttons */}
+                              {user.isRegistered !== false && (
+                                <>
+                                  {(!user.status || user.status === 'active') ? (
+                                    <>
+                                      <button 
+                                        onClick={() => handleChangeUserStatus(user._id, user.name, 'inactive')} 
+                                        className={`${styles.iconButton} ${styles.deleteButton}`} 
+                                        title="Desactivar Usuario"
+                                      >
+                                        <FaTimesCircle />
+                                      </button>
+                                      <button 
+                                        onClick={() => handleChangeUserStatus(user._id, user.name, 'suspended')} 
+                                        className={`${styles.iconButton} ${styles.suspendButton}`} 
+                                        title="Suspender Usuario"
+                                        style={{ backgroundColor: '#fed7d7', color: '#d69e2e' }}
+                                      >
+                                        <FaPauseCircle />
+                                      </button>
+                                    </>
+                                  ) : user.status === 'inactive' ? (
+                                    <button 
+                                      onClick={() => handleChangeUserStatus(user._id, user.name, 'active')} 
+                                      className={`${styles.iconButton} ${styles.activateButton}`} 
+                                      title="Activar Usuario"
+                                      style={{ backgroundColor: '#c6f6d5', color: '#38a169' }}
+                                    >
+                                      <FaCheckCircle />
+                                    </button>
+                                  ) : user.status === 'suspended' ? (
+                                    <button 
+                                      onClick={() => handleChangeUserStatus(user._id, user.name, 'active')} 
+                                      className={`${styles.iconButton} ${styles.activateButton}`} 
+                                      title="Activar Usuario"
+                                      style={{ backgroundColor: '#c6f6d5', color: '#38a169' }}
+                                    >
+                                      <FaCheckCircle />
+                                    </button>
+                                  ) : null}
+                                </>
+                              )}
+                              {/* Keep delete button for unregistered users */}
+                              {user.isRegistered === false && (
+                                <button onClick={() => handleDeleteUser(user._id, user.name)} className={`${styles.iconButton} ${styles.deleteButton}`} title="Eliminar Usuario">
                                   <FaTrash />
                                 </button>
+                              )}
                               </td>
                             </tr>
                           ))
                       ) : (
                         <tr>
-                        <td colSpan={6} className={styles.noDataMessage}>
+                        <td colSpan={7} className={styles.noDataMessage}>
                           {loading ? 'Cargando usuarios...' : 'No se encontraron usuarios que coincidan con los criterios de búsqueda.'}
                           </td>
                         </tr>
@@ -2090,43 +2320,95 @@ export default function UserManagement() {
       {/* Modal para ver cursos del usuario */}
       {showUserCoursesModal && selectedUser && (
         <div className={styles.modalBackdrop}>
-          <div className={styles.modal}>
-            <h2 className={styles.modalTitle}>Cursos de {selectedUser.name}</h2>
+          <div className={styles.modalImproved}>
+            <div className={styles.modalHeader}>
+              <h2 className={styles.modalTitle}>Cursos de {selectedUser.name}</h2>
+              <button 
+                className={styles.modalCloseButton}
+                onClick={() => setShowUserCoursesModal(false)}
+                aria-label="Cerrar modal"
+              >
+                ×
+              </button>
+            </div>
+            
             {userCourses.length > 0 ? (
-              <div className={styles.coursesList}>
-                <table className={styles.coursesTable}>
-                  <thead>
-                    <tr>
-                      <th>Curso</th>
-                      <th>Escuela</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {userCourses.map(course => (
-                      <tr key={course._id}>
-                        <td>{course.title}</td>
-                        <td>
-                          {typeof course.school === 'string' 
-                            ? schools.find(s => s._id === course.school)?.name || 'N/A' 
-                            : course.school?.name || 'N/A'}
-                        </td>
-                        <td>
-                          <span className={styles.activeStatus}>
-                            <FaCheckCircle /> Activo
-                          </span>
-                        </td>
+              <div className={styles.modalBody}>
+                <div className={styles.coursesTableContainer}>
+                  <table className={styles.coursesTable}>
+                    <thead>
+                      <tr>
+                        <th>Curso</th>
+                        <th>Escuela</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {userCourses.map(course => (
+                        <tr key={course._id}>
+                          <td>
+                            <div className={styles.courseInfo}>
+                              <span className={styles.courseName}>{course.title}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={styles.schoolName}>
+                              {typeof course.school === 'string' 
+                                ? schools.find(s => s._id === course.school)?.name || 'N/A' 
+                                : course.school?.name || 'N/A'}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={styles.activeStatus}>
+                              <FaCheckCircle className={styles.statusIcon} /> Activo
+                            </span>
+                          </td>
+                          <td>
+                            <div className={styles.courseActions}>
+                              <button 
+                                className={`${styles.actionBtn} ${styles.viewBtn}`}
+                                onClick={() => window.open(`/course/${course._id}`, '_blank')}
+                                title="Ver curso"
+                              >
+                                <FaEye />
+                              </button>
+                              <button 
+                                className={`${styles.actionBtn} ${styles.removeBtn}`}
+                                onClick={() => handleUnenrollUser(course._id, course.title)}
+                                title="Desenrolar del curso"
+                              >
+                                <FaTimes />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ) : (
-              <p>Este usuario no está inscrito en ningún curso.</p>
+              <div className={styles.modalBody}>
+                <div className={styles.emptyState}>
+                  <FaGraduationCap className={styles.emptyIcon} />
+                  <p>Este usuario no está inscrito en ningún curso.</p>
+                  <button 
+                    className={styles.enrollBtn}
+                    onClick={() => {
+                      setShowUserCoursesModal(false);
+                      handleEnrollUser(selectedUser);
+                    }}
+                  >
+                    Inscribir en un curso
+                  </button>
+                </div>
+              </div>
             )}
-            <div className={styles.formActions}>
+            
+            <div className={styles.modalFooter}>
               <button 
-                className={styles.submitButton} 
+                className={styles.primaryBtn} 
                 onClick={() => setShowUserCoursesModal(false)}
               >
                 Cerrar
