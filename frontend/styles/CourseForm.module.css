@@ -261,6 +261,89 @@
   }
 }
 
+/* Estilos para selección múltiple de categorías */
+.categoriesContainer {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+  max-height: 300px;
+  overflow-y: auto;
+  background-color: #fafafa;
+}
+
+.categoryGroup {
+  margin-bottom: 1rem;
+}
+
+.categoryGroup:last-child {
+  margin-bottom: 0;
+}
+
+.categorySection {
+  margin-bottom: 0.5rem;
+}
+
+.subcategoriesContainer {
+  margin-left: 1rem;
+  border-left: 2px solid #e9ecef;
+  padding-left: 1rem;
+}
+
+.subcategoriesContainer .checkboxLabel {
+  margin-bottom: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.selectedCategoriesPreview {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.selectedCategoriesPreview p {
+  margin-bottom: 0.5rem;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.selectedCategoriesList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.categoryTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background-color: #0070f3;
+  color: white;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.removeCategory {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.removeCategory:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
 @media (max-width: 480px) {
   .formActions {
     flex-direction: column;
@@ -270,5 +353,13 @@
   .submitButton, .cancelButton {
     width: 100%;
     text-align: center;
+  }
+  
+  .categoriesContainer {
+    max-height: 200px;
+  }
+  
+  .selectedCategoriesList {
+    flex-direction: column;
   }
 } 

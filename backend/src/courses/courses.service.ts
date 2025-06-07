@@ -1359,6 +1359,8 @@ export class CoursesService {
 
     // Format target month for comparison
     const targetMonth = `${year}-${String(month).padStart(2, '0')}`;
+    
+    console.log(`🔍 BACKEND: getUnpaidStudents called for course ${courseId}, targetMonth: ${targetMonth}`);
 
     // Separate students into paid and unpaid
     const paidStudents = [];
@@ -1366,9 +1368,20 @@ export class CoursesService {
 
     enrollments.forEach(enrollment => {
       const studentData = enrollment.student as any;
-      const hasPaymentForMonth = enrollment.paymentHistory.some(payment => 
-        payment.month === targetMonth
-      );
+      const studentId = studentData._id.toString();
+      const studentName = studentData.name || 'N/A';
+      
+      console.log(`🔍 BACKEND: Checking student ${studentName} (${studentId})`);
+      console.log(`🔍 BACKEND: Payment history:`, enrollment.paymentHistory);
+      
+      const hasPaymentForMonth = enrollment.paymentHistory.some(payment => {
+        const paymentMonth = payment.month;
+        const matches = paymentMonth === targetMonth;
+        console.log(`🔍 BACKEND: Payment month ${paymentMonth} === target ${targetMonth}? ${matches}`);
+        return matches;
+      });
+      
+      console.log(`🔍 BACKEND: Student ${studentName} has payment for ${targetMonth}:`, hasPaymentForMonth);
 
       const studentInfo = {
         studentId: studentData._id.toString(),
@@ -1379,10 +1392,15 @@ export class CoursesService {
 
       if (hasPaymentForMonth) {
         paidStudents.push(studentInfo);
+        console.log(`🔍 BACKEND: Added ${studentName} to PAID list`);
       } else {
         unpaidStudents.push(studentInfo);
+        console.log(`🔍 BACKEND: Added ${studentName} to UNPAID list`);
       }
     });
+
+    console.log(`🔍 BACKEND: Final result - Paid: ${paidStudents.length}, Unpaid: ${unpaidStudents.length}`);
+    console.log(`🔍 BACKEND: Paid students:`, paidStudents.map(p => p.studentName));
 
     return {
       courseId,

@@ -24,8 +24,10 @@ export class CreateCourseDto {
   teacher: string;
 
   @IsOptional()
-  @IsMongoId({ message: 'El ID de la categoría debe ser un ID válido' })
-  category?: string;
+  @IsArray({ message: 'Las categorías deben ser un arreglo' })
+  @ArrayMaxSize(5, { message: 'Un curso puede tener un máximo de 5 categorías' })
+  @IsMongoId({ each: true, message: 'Cada ID de categoría debe ser un ID válido' })
+  categories?: string[];
 
   @IsOptional()
   @IsArray({ message: 'Los profesores adicionales deben ser un arreglo' })

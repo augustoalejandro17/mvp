@@ -138,19 +138,19 @@ export default function AttendancePage() {
   }, [id]);
 
   const fetchUnpaidStudents = useCallback(async () => {
-    if (!id) return;
+    if (!id || !date) return;
     
     try {
       setLoadingUnpaid(true);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
       
-      // Use current month and year
-      const currentDate = new Date();
-      const month = currentDate.getMonth() + 1;
-      const year = currentDate.getFullYear();
+      // Extract month and year from the selected date string (YYYY-MM-DD format)
+      const [yearStr, monthStr] = date.split('-');
+      const month = parseInt(monthStr, 10);
+      const year = parseInt(yearStr, 10);
       
-      console.log(`🔍 Fetching unpaid students for course ${id}, month ${month}, year ${year}`);
+      console.log(`🔍 Fetching unpaid students for course ${id}, month ${month}, year ${year} (from selected date: ${date})`);
       
       const response = await axios.get(
         `${apiUrl}/api/courses/${id}/unpaid-students?month=${month}&year=${year}`,
@@ -171,7 +171,7 @@ export default function AttendancePage() {
     } finally {
       setLoadingUnpaid(false);
     }
-  }, [id]);
+  }, [id, date]);
 
   const fetchAttendances = useCallback(async () => {
     if (!id || !date || !course) {
@@ -320,9 +320,15 @@ export default function AttendancePage() {
   useEffect(() => {
     if (id) {
       fetchCourse();
+    }
+  }, [id, fetchCourse]);
+
+  // Load payment data when course, date change
+  useEffect(() => {
+    if (id && date) {
       fetchUnpaidStudents();
     }
-  }, [id, fetchCourse, fetchUnpaidStudents]);
+  }, [id, date, fetchUnpaidStudents]);
 
   // Load attendances when course and date change
   useEffect(() => {

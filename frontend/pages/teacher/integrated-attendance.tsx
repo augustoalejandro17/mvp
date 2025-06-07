@@ -68,11 +68,38 @@ interface StudentRecord {
   attendanceId?: string;
 }
 
+// Add interface for month-specific payment data
+interface MonthPaymentData {
+  courseId: string;
+  courseName: string;
+  month: number;
+  year: number;
+  targetMonth: string;
+  totalStudents: number;
+  paidCount: number;
+  unpaidCount: number;
+  paidStudents: Array<{
+    studentId: string;
+    studentName: string;
+    studentEmail: string;
+    month: string;
+  }>;
+  unpaidStudents: Array<{
+    studentId: string;
+    studentName: string;
+    studentEmail: string;
+    month: string;
+  }>;
+}
+
 export default function IntegratedAttendancePage() {
+  console.log('🔍 IntegratedAttendancePage component loaded');
+  
   const router = useRouter();
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<string>('');
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [monthPaymentData, setMonthPaymentData] = useState<MonthPaymentData | null>(null);
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [studentRecords, setStudentRecords] = useState<StudentRecord[]>([]);
   const [date, setDate] = useState<string>(getCurrentGMT5Date());
@@ -109,7 +136,6 @@ export default function IntegratedAttendancePage() {
     if (!courseId) return;
     
     try {
-      setLoading(true);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
       
@@ -121,8 +147,42 @@ export default function IntegratedAttendancePage() {
     } catch (error) {
       const errorMsg = handleApiError(error);
       setError(errorMsg || 'Error al cargar las inscripciones');
-    } finally {
-      setLoading(false);
+    }
+  }, [handleApiError]);
+
+  // Add new function to fetch month-specific payment data
+  const fetchMonthPaymentData = useCallback(async (courseId: string, selectedDate: string) => {
+    if (!courseId || !selectedDate) return;
+    
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const token = Cookies.get('token');
+      
+      // Extract month and year from the selected date string (YYYY-MM-DD format)
+      // Parse manually to avoid timezone issues with Date constructor
+      const [yearStr, monthStr, dayStr] = selectedDate.split('-');
+      const month = parseInt(monthStr, 10);
+      const year = parseInt(yearStr, 10);
+      
+      console.log('🔍 Payment Debug Info:');
+      console.log('🔍 Selected date string:', selectedDate);
+      console.log('🔍 Date parts:', { yearStr, monthStr, dayStr });
+      console.log('🔍 Extracted month:', month);
+      console.log('🔍 Extracted year:', year);
+      console.log('🔍 API call URL:', `${apiUrl}/api/courses/${courseId}/unpaid-students?month=${month}&year=${year}`);
+      
+      const response = await axios.get(`${apiUrl}/api/courses/${courseId}/unpaid-students?month=${month}&year=${year}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      console.log('🔍 Payment API response:', response.data);
+      
+      setMonthPaymentData(response.data);
+    } catch (error: any) {
+      console.error('🔍 Error in fetchMonthPaymentData:', error);
+      console.error('🔍 Error details:', error.response?.status, error.response?.data);
+      const errorMsg = handleApiError(error);
+      setError(errorMsg || 'Error al cargar los datos de pago del mes');
     }
   }, [handleApiError]);
 
@@ -180,13 +240,28 @@ export default function IntegratedAttendancePage() {
       // Buscar el registro de asistencia del estudiante
       const attendance = attendances.find(a => a.studentId === student._id);
       
+      // Check month-specific payment status
+      let monthPaymentStatus = false;
+      if (monthPaymentData) {
+        monthPaymentStatus = monthPaymentData.paidStudents.some(paid => paid.studentId === student._id);
+        console.log(`🔍 Payment status for ${student.name} (${student._id}):`, monthPaymentStatus);
+        if (monthPaymentStatus) {
+          console.log('🔍 Found in paid students list');
+        } else {
+          console.log('🔍 NOT found in paid students list');
+          console.log('🔍 Paid students:', monthPaymentData.paidStudents.map(p => ({ id: p.studentId, name: p.studentName })));
+        }
+      } else {
+        console.log(`🔍 No monthPaymentData available for ${student.name}`);
+      }
+      
       return {
         _id: student._id,
         name: student.name,
         email: student.email,
         present: attendance ? attendance.present : null,
         attendanceNotes: attendance?.notes || '',
-        paymentStatus: enrollment ? enrollment.paymentStatus : false,
+        paymentStatus: monthPaymentStatus, // Use month-specific payment status
         lastPaymentDate: enrollment?.lastPaymentDate,
         paymentNotes: enrollment?.paymentNotes || '',
         enrollmentId: enrollment?._id,
@@ -200,7 +275,7 @@ export default function IntegratedAttendancePage() {
     );
     
     setStudentRecords(sortedRecords);
-  }, [selectedCourse, courses, enrollments, attendances]);
+  }, [selectedCourse, courses, enrollments, attendances, monthPaymentData]);
 
   useEffect(() => {
     const token = Cookies.get('token');
@@ -229,10 +304,16 @@ export default function IntegratedAttendancePage() {
 
   useEffect(() => {
     if (selectedCourse) {
-      fetchEnrollments(selectedCourse);
-      fetchAttendances(selectedCourse, date);
+      setLoading(true);
+      Promise.all([
+        fetchEnrollments(selectedCourse),
+        fetchAttendances(selectedCourse, date),
+        fetchMonthPaymentData(selectedCourse, date)
+      ]).finally(() => {
+        setLoading(false);
+      });
     }
-  }, [selectedCourse, date, fetchEnrollments, fetchAttendances]);
+  }, [selectedCourse, date, fetchEnrollments, fetchAttendances, fetchMonthPaymentData]);
 
   useEffect(() => {
     combineStudentData();
