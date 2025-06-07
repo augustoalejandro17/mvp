@@ -143,7 +143,7 @@ export default function Home() {
                 <p>{school.description}</p>
                 <div className={styles.cardFooter}>
                   <span className={styles.adminInfo}>
-                    Director: {school.admin.name}
+                    <span className={styles.directorLabel}>Director:</span> {school.admin.name}
                   </span>
                   <span className={school.isPublic ? styles.public : styles.private}>
                     {school.isPublic ? 'Público' : 'Privado'}

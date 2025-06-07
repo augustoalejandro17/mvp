@@ -390,7 +390,7 @@ export default function SchoolDetail() {
                 </p>
                 <div className={styles.cardFooter}>
                   <span className={styles.teacher}>
-                    Prof. {course.teacher.name}
+                    <span className={styles.teacherLabel}>Prof.</span> {course.teacher.name}
                   </span>
                   <span className={course.isPublic ? styles.public : styles.private}>
                     {course.isPublic ? 'Público' : 'Privado'}

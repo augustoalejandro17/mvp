@@ -88,6 +88,10 @@
   border-radius: 20px;
   font-size: 0.875rem;
   font-weight: 500;
+  min-width: 70px;
+  text-align: center;
+  display: inline-block;
+  flex-shrink: 0;
 }
 
 .public {
@@ -177,17 +181,24 @@
 }
 
 .cardFooter {
-  padding: 0.75rem 1rem;
+  padding: 1.25rem 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-top: 1px solid #eaeaea;
-  background-color: #fafafa;
+  border-top: 1px solid #edf2f7;
+  gap: 1rem;
 }
 
 .teacher {
   font-size: 0.875rem;
   color: #4a5568;
+  font-weight: 400;
+  flex: 1;
+}
+
+.teacherLabel {
+  font-weight: 600;
+  color: #2d3748;
 }
 
 .noResults {
@@ -295,6 +306,16 @@
   
   .grid {
     grid-template-columns: 1fr;
+  }
+  
+  .cardFooter {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .teacher {
+    font-size: 0.8rem;
   }
 }
 

@@ -372,10 +372,16 @@ export default function CourseDetail() {
             <h1 className={styles.title}>{course.title}</h1>
             <p className={styles.description}>{course.description}</p>
             <div className={styles.meta}>
-              <p className={styles.teacher}>Prof. {course.teacher.name}</p>
+              <p className={styles.teacher}>
+                <span className={styles.teacherLabel}>Prof.</span> {course.teacher.name}
+              </p>
               <div className={styles.tags}>
-                <span className={styles.publicTag}>{course.isPublic ? 'Público' : 'Privado'}</span>
-                <span className={styles.schoolTag}>Escuela: {course.school.name}</span>
+                <span className={styles.schoolInfo}>
+                  <span className={styles.schoolLabel}>Escuela:</span> {course.school.name}
+                </span>
+                <span className={course.isPublic ? styles.public : styles.private}>
+                  {course.isPublic ? 'Público' : 'Privado'}
+                </span>
               </div>
             </div>
           </div>
