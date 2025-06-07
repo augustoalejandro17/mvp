@@ -74,6 +74,9 @@ export class User {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  @Prop({ required: false })
+  age?: number;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User); 

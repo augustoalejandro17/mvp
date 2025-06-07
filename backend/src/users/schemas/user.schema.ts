@@ -20,6 +20,9 @@ export class User extends Document {
 
   @Prop({ default: UserRole.STUDENT, enum: UserRole })
   role: UserRole;
+
+  @Prop({ required: false })
+  age?: number;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User); 

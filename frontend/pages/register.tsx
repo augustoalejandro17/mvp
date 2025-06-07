@@ -11,6 +11,7 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [age, setAge] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -31,9 +32,14 @@ export default function Register() {
       
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
+      const requestData: any = { name, email, password };
+      if (age && !isNaN(Number(age)) && Number(age) > 0) {
+        requestData.age = Number(age);
+      }
+      
       const response = await axios.post(
         `${apiUrl}/api/auth/register`, 
-        { name, email, password },
+        requestData,
         { headers: { 'Content-Type': 'application/json' } }
       );
       
@@ -95,6 +101,29 @@ export default function Register() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className={styles.input}
+                style={{ 
+                  width: '100%', 
+                  padding: '0.75rem',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '4px',
+                  backgroundColor: 'white',
+                  color: '#333',
+                  fontSize: '1rem'
+                }}
+              />
+            </div>
+            
+            <div className={styles.formGroup}>
+              <label htmlFor="age">Age (Optional)</label>
+              <input
+                type="number"
+                id="age"
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                min="1"
+                max="120"
+                className={styles.input}
+                placeholder="Enter your age"
                 style={{ 
                   width: '100%', 
                   padding: '0.75rem',

@@ -25,6 +25,7 @@ interface User {
   name: string;
   email: string;
   role: string;
+  age?: number;
   schoolRoles?: SchoolRole[];
   enrolledCourses?: string[];
   schools?: string[]; // Array de IDs de escuelas asociadas
@@ -129,6 +130,7 @@ export default function UserManagement() {
     password: '',
     school: '',
     course: '',
+    age: '',
   });
 
   const [showAssignRoleModal, setShowAssignRoleModal] = useState(false);
@@ -640,16 +642,22 @@ export default function UserManagement() {
       
       if (createUserType === UserType.REGISTERED) {
         // Crear usuario registrado con acceso a la plataforma
+        const requestData: any = {
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          role: formData.role,
+          schoolId: formData.school || undefined,
+          courseId: formData.course || undefined,
+        };
+        
+        if (formData.age && !isNaN(Number(formData.age)) && Number(formData.age) > 0) {
+          requestData.age = Number(formData.age);
+        }
+        
         const response = await axios.post(
           `${apiUrl}/api/users`, 
-          {
-            name: formData.name,
-            email: formData.email,
-            password: formData.password,
-            role: formData.role,
-            schoolId: formData.school || undefined,
-            courseId: formData.course || undefined,
-          },
+          requestData,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         
@@ -739,6 +747,7 @@ export default function UserManagement() {
         password: '',
         school: '',
         course: '',
+        age: '',
       });
       
     } catch (error: any) {
@@ -793,7 +802,7 @@ export default function UserManagement() {
       setUnregisteredUsers(prev => prev.filter(u => u._id !== selectedUserToLink._id));
       
       // Limpiar y cerrar
-      setFormData(prev => ({...prev, email: '', password: ''}));
+      setFormData(prev => ({...prev, email: '', password: '', age: ''}));
       setSelectedUserToLink(null);
       setShowLinkModal(false);
       setSuccess('Usuario vinculado correctamente');
@@ -850,6 +859,7 @@ export default function UserManagement() {
       password: '', // No incluir la contraseña actual por seguridad
       school: '',
       course: '',
+      age: userToEdit.age ? userToEdit.age.toString() : '',
     });
     setShowEditUserModal(true);
   };
@@ -875,13 +885,19 @@ export default function UserManagement() {
       }
       
       // Update other user data
+      const updateData: any = {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+      };
+      
+      if (formData.age && !isNaN(Number(formData.age)) && Number(formData.age) > 0) {
+        updateData.age = Number(formData.age);
+      }
+      
       const response = await axios.patch(
         `${apiUrl}/api/users/${selectedUser._id}`, 
-        {
-          name: formData.name,
-          email: formData.email,
-          role: formData.role,
-        },
+        updateData,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -1763,6 +1779,20 @@ export default function UserManagement() {
                       )}
                     </select>
                   </div>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="age">Edad (Opcional):</label>
+                    <input
+                      type="number"
+                      id="age"
+                      name="age"
+                      value={formData.age}
+                      onChange={handleInputChange}
+                      className={styles.input}
+                      min="1"
+                      max="120"
+                      placeholder="Ingrese la edad"
+                    />
+                  </div>
                 </>
               )}
               
@@ -1887,6 +1917,20 @@ export default function UserManagement() {
                   value={formData.password}
                   onChange={handleInputChange}
                   className={styles.input}
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label htmlFor="edit-age">Edad (Opcional):</label>
+                <input
+                  type="number"
+                  id="edit-age"
+                  name="age"
+                  value={formData.age}
+                  onChange={handleInputChange}
+                  className={styles.input}
+                  min="1"
+                  max="120"
+                  placeholder="Ingrese la edad"
                 />
               </div>
               <div className={styles.formActions}>
