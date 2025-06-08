@@ -665,12 +665,24 @@ export class UsersService {
         updatedAt: new Date()
       };
       
-      // Añadir courseId si se proporciona
+      // If courseId is provided, get the school from the course
       if (courseId) {
         userDocument.enrolledCourses = [new Types.ObjectId(courseId)];
+        
+        // If no schoolId provided but courseId exists, get school from course
+        if (!schoolId) {
+          try {
+            const course = await this.courseModel.findById(courseId).exec();
+            if (course && course.school) {
+              schoolId = course.school.toString();
+            }
+          } catch (error) {
+            this.logger.warn(`Could not get school from course ${courseId}: ${error.message}`);
+          }
+        }
       }
       
-      // Añadir schoolId si se proporciona
+      // Add schoolId if provided or derived from course
       if (schoolId) {
         userDocument.schools = [new Types.ObjectId(schoolId)];
         userDocument.schoolRoles = [{
@@ -683,16 +695,25 @@ export class UsersService {
       const result = await userCollection.insertOne(userDocument);
       
       
-      // Si hay un courseId, añadir el usuario al curso
+      // If there's a courseId, add user to course and school
       if (courseId) {
         try {
+          // Add user to course's students array
           await this.courseModel.updateOne(
             { _id: new Types.ObjectId(courseId) },
             { $addToSet: { students: result.insertedId } }
           );
           
+          // If we have a schoolId (either provided or derived), add user to school's students array
+          if (schoolId) {
+            await this.schoolModel.updateOne(
+              { _id: new Types.ObjectId(schoolId) },
+              { $addToSet: { students: result.insertedId } }
+            );
+          }
+          
         } catch (error) {
-          this.logger.error(`Error al añadir usuario al curso: ${error.message}`, error.stack);
+          this.logger.error(`Error al añadir usuario al curso/escuela: ${error.message}`, error.stack);
         }
       }
       

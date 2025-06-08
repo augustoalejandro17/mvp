@@ -3,127 +3,196 @@ import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../../../../styles/AdminDashboard.module.css';
+import AdminNavigation from '../../../../components/AdminNavigation';
 
-interface SubscriptionDetails {
-  schoolId: string;
-  schoolName: string;
-  planName: string;
-  planType: string;
-  status: string;
-  startDate: string;
-  endDate?: string;
-  
-  storage: {
-    used: number;
-    limit: number;
-    percentage: number;
-  };
-  
-  streaming: {
-    used: number;
-    limit: number;
-    percentage: number;
-  };
-  
-  users: {
-    count: number;
-    limit: number;
-    percentage: number;
-  };
-  
-  coursesPerUser: {
-    limit: number;
-  };
-  
-  extraResourcesApproved: {
-    extraUsers: number;
-    extraStorageGb: number;
-    extraStreamingMinutes: number;
-    extraCoursesPerUser: number;
-  };
-  
-  monthlyUsage: Array<{
-    month: number;
-    year: number;
-    usedStorageGb: number;
-    usedStreamingMinutes: number;
-    activeUsers: number;
-  }>;
-  
-  error?: string;
+interface Plan {
+  _id: string;
+  id: string;
+  name: string;
+  type: string;
+  description: string;
+  price: number;
+  studentSeats: number;
+  teachers: number;
+  maxConcurrentCoursesPerStudent: number;
+  storageGb: number;
+  streamingHours: number;
+  isActive: boolean;
+  features: string[];
 }
 
-interface ExtraResourcesForm {
-  extraUsers: number;
-  extraStorageGb: number;
-  extraStreamingMinutes: number;
-  extraCoursesPerUser: number;
+interface SchoolPlanDetails {
+  school: {
+    _id: string;
+    name: string;
+    description: string;
+  };
+  currentPlan: Plan | null;
+  planId: string | null;
+  extraSeats: number;
+  extraStorageGB: number;
+  extraStreamingHours: number;
+  currentSeats: number;
+  currentStorageUsageGB: number;
+  currentStreamingUsageHours: number;
+  totalSeats: number;
+  totalStorageGB: number;
+  totalStreamingHours: number;
 }
 
-export default function SchoolSubscriptionDetails() {
+interface Overage {
+  id: string;
+  type: 'student' | 'storage' | 'streaming';
+  quantity: number;
+  unitPriceCents: number;
+  totalCents: number;
+  date: string;
+}
+
+export default function SchoolSubscriptionManager() {
   const router = useRouter();
   const { schoolId } = router.query;
-  
   const [loading, setLoading] = useState(true);
-  const [subscription, setSubscription] = useState<SubscriptionDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
-  // Estado para el formulario de addons
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState<ExtraResourcesForm>({
-    extraUsers: 0,
-    extraStorageGb: 0,
-    extraStreamingMinutes: 0,
-    extraCoursesPerUser: 0
-  });
-  const [updateSuccess, setUpdateSuccess] = useState(false);
+  const [schoolDetails, setSchoolDetails] = useState<SchoolPlanDetails | null>(null);
+  const [availablePlans, setAvailablePlans] = useState<Plan[]>([]);
+  const [overages, setOverages] = useState<Overage[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
+  const [extraSeats, setExtraSeats] = useState<number>(0);
+  const [extraStorage, setExtraStorage] = useState<number>(0);
+  const [extraStreaming, setExtraStreaming] = useState<number>(0);
+  const [saving, setSaving] = useState(false);
+  const [userRole, setUserRole] = useState<string>('');
   
   useEffect(() => {
-    if (!schoolId) return;
+    console.log('Router query:', router.query);
+    console.log('SchoolId:', schoolId);
     
-    const checkAuth = () => {
+    if (router.isReady && schoolId) {
+      checkAuth();
+      fetchSchoolDetails();
+      fetchAvailablePlans();
+      fetchOverages();
+    }
+  }, [router.isReady, schoolId]);
+    
+    const checkAuth = async () => {
       const token = Cookies.get('token');
       if (!token) {
-        router.push('/login?redirect=/admin/subscriptions');
+        router.push('/login');
         return;
       }
 
-      // Verificar si es super admin
+      // Check user role and permissions
       try {
-        const decoded = JSON.parse(atob(token.split('.')[1]));
+        const response = await fetch('/api/auth/profile', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         
-        // Verificar si tiene el rol super_admin
-        const role = Array.isArray(decoded.role) 
-          ? decoded.role.find((r: string) => r.toLowerCase().includes('super_admin'))
-          : decoded.role;
-        
-        if (!role || !role.toLowerCase().includes('super_admin')) {
-          router.push('/admin/dashboard');
+        if (response.ok) {
+          const userData = await response.json();
+          console.log('User data:', userData);
+          setUserRole(userData.role);
+          
+          // Define allowed roles
+          const allowedRoles = ['super_admin', 'administrative', 'school_owner'];
+          
+          if (!allowedRoles.includes(userData.role)) {
+            router.push('/admin/dashboard');
+            return;
+          }
+        } else {
+          console.log('Auth failed, response status:', response.status);
+          router.push('/login');
           return;
         }
-        
-        // Cargar detalles de la suscripción
-        fetchSubscriptionDetails();
       } catch (error) {
-        console.error('Error al verificar rol:', error);
+        console.error('Auth check failed:', error);
         router.push('/login');
+        return;
       }
     };
 
-    checkAuth();
-  }, [schoolId, router]);
-  
-  const fetchSubscriptionDetails = async () => {
-    if (!schoolId) return;
-    
-    try {
-      setLoading(true);
-      setError(null);
+  const fetchSchoolDetails = async () => {
+      try {
+      const token = Cookies.get('token');
+      if (!token) return;
+
+      const response = await fetch(`http://localhost:4000/api/admin/academies/${schoolId}/plan`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+        
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('Backend response:', data);
       
+      // Transform backend response to match frontend interface
+      const transformedData = {
+        school: {
+          _id: data.academy?.id || schoolId,
+          name: data.academy?.name || 'Unknown School',
+          description: data.academy?.description || ''
+        },
+        currentPlan: data.plan ? {
+          _id: data.plan._id,
+          id: data.plan._id,
+          name: data.plan.name,
+          type: data.plan.type,
+          description: '',
+          price: (() => {
+            if (typeof data.plan.monthlyPrice === 'string') {
+              // Remove dollar sign and convert to cents
+              const dollarAmount = parseFloat(data.plan.monthlyPrice.replace('$', ''));
+              return !isNaN(dollarAmount) ? Math.round(dollarAmount * 100) : 0;
+            } else if (typeof data.plan.monthlyPrice === 'number') {
+              return data.plan.monthlyPrice * 100;
+            }
+            return 0;
+          })(),
+          studentSeats: data.limits?.studentSeats || 0,
+          teachers: data.limits?.teachers || 0,
+          maxConcurrentCoursesPerStudent: 1,
+          storageGb: data.limits?.storageGB || 0,
+          streamingHours: data.limits?.streamingHours || 0,
+          isActive: true,
+          features: []
+        } : null,
+        planId: data.plan?._id || null,
+        extraSeats: data.extras?.seats || 0,
+        extraStorageGB: data.extras?.storageGB || 0,
+        extraStreamingHours: data.extras?.streamingHours || 0,
+        currentSeats: data.usage?.currentSeats || 0,
+        currentStorageUsageGB: data.usage?.usedStorageGB || 0,
+        currentStreamingUsageHours: data.usage?.usedStreamingHours || 0,
+        totalSeats: data.limits?.studentSeats || 0,
+        totalStorageGB: data.limits?.storageGB || 0,
+        totalStreamingHours: data.limits?.streamingHours || 0
+      };
+      
+      setSchoolDetails(transformedData);
+      setSelectedPlanId(transformedData.planId || '');
+      setExtraSeats(transformedData.extraSeats || 0);
+      setExtraStorage(transformedData.extraStorageGB || 0);
+      setExtraStreaming(transformedData.extraStreamingHours || 0);
+      } catch (error) {
+      console.error('Error al obtener detalles de la escuela:', error);
+      setError(error instanceof Error ? error.message : 'Error desconocido');
+      }
+    };
+
+  const fetchAvailablePlans = async () => {
+    try {
       const token = Cookies.get('token');
       if (!token) return;
       
-      const response = await fetch(`/api/admin-stats/subscriptions/${schoolId}`, {
+      const response = await fetch('/api/admin/subscriptions/plans', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -134,372 +203,331 @@ export default function SchoolSubscriptionDetails() {
       }
       
       const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-      
-      setSubscription(data);
-      
-      // Inicializar el formulario con valores actuales
-      if (data.extraResourcesApproved) {
-        setFormData({
-          extraUsers: data.extraResourcesApproved.extraUsers || 0,
-          extraStorageGb: data.extraResourcesApproved.extraStorageGb || 0,
-          extraStreamingMinutes: data.extraResourcesApproved.extraStreamingMinutes || 0,
-          extraCoursesPerUser: data.extraResourcesApproved.extraCoursesPerUser || 0
-        });
-      }
+      setAvailablePlans(data.plans || []);
     } catch (error) {
-      console.error('Error al obtener detalles de suscripción:', error);
-      setError(error instanceof Error ? error.message : 'Error desconocido');
+      console.error('Error al obtener planes:', error);
     } finally {
       setLoading(false);
     }
   };
   
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: parseInt(value) || 0
-    });
-  };
-  
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const fetchOverages = async () => {
     try {
-      setUpdateSuccess(false);
-      
       const token = Cookies.get('token');
       if (!token) return;
-      
-      // Obtener el ID de la suscripción desde el objeto subscription
-      const subscriptionId = subscription?.schoolId;
-      if (!subscriptionId) return;
-      
-      // Corregir la ruta para agregar recursos adicionales
-      const response = await fetch(`/api/admin-subscriptions/${subscriptionId}/add-extra-resources`, {
-        method: 'PATCH',
+
+      const response = await fetch(`http://localhost:4000/api/admin/academies/${schoolId}/overages`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
+          'Authorization': `Bearer ${token}`
+        }
       });
-      
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        setOverages(data.overages || []);
       }
-      
-      // Recargar la información
-      fetchSubscriptionDetails();
-      setIsEditing(false);
-      setUpdateSuccess(true);
-      
-      // Ocultar mensaje de éxito después de 3 segundos
-      setTimeout(() => {
-        setUpdateSuccess(false);
-      }, 3000);
     } catch (error) {
-      console.error('Error al actualizar recursos:', error);
-      setError(error instanceof Error ? error.message : 'Error al actualizar recursos adicionales');
+      console.error('Error al obtener sobrecostos:', error);
     }
   };
   
-  if (loading) {
-    return <div className={styles.loading}>Cargando detalles de la suscripción...</div>;
-  }
+  const handleSavePlan = async () => {
+    if (!selectedPlanId) {
+      setError('Por favor selecciona un plan');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const token = Cookies.get('token');
+      if (!token) return;
+      
+      // Assign plan
+      const planResponse = await fetch(`http://localhost:4000/api/admin/academies/${schoolId}/plan`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ planId: selectedPlanId })
+      });
+
+      if (!planResponse.ok) {
+        throw new Error('Error al asignar plan');
+      }
+
+      // Update extra resources
+      const addonsResponse = await fetch(`http://localhost:4000/api/admin/academies/${schoolId}/addons`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          extraSeats,
+          extraStorageGB: extraStorage,
+          extraStreamingHours: extraStreaming
+        })
+      });
+      
+      if (!addonsResponse.ok) {
+        throw new Error('Error al actualizar recursos adicionales');
+      }
+      
+      // Refresh data
+      await fetchSchoolDetails();
+      setError(null);
+      alert('Plan y recursos actualizados correctamente');
+    } catch (error) {
+      console.error('Error al guardar:', error);
+      setError(error instanceof Error ? error.message : 'Error desconocido');
+    } finally {
+      setSaving(false);
+    }
+  };
   
-  if (error) {
+  if (!router.isReady || loading) {
+    return <div className={styles.loading}>
+      {!router.isReady ? 'Inicializando...' : 'Cargando detalles de suscripción...'}
+    </div>;
+  }
+
+  if (!schoolId) {
     return (
       <div className={styles.container}>
+        <div className={styles.dashboardHeader}>
+          <h1>Error</h1>
+          <p className={styles.error}>ID de escuela no válido</p>
+          <Link href="/admin/schools" className={styles.backButton}>
+            Volver a Escuelas
+          </Link>
+        </div>
+      </div>
+    );
+  }
+  
+  if (error && !schoolDetails) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.dashboardHeader}>
         <h1>Error</h1>
         <p className={styles.error}>{error}</p>
-        <button 
-          onClick={fetchSubscriptionDetails}
-          className={styles.refreshButton}
-        >
-          Reintentar
-        </button>
-        <Link href="/admin/subscriptions" className={styles.backButton}>
-          Volver a suscripciones
+          <Link href="/admin/schools" className={styles.backButton}>
+            Volver a Escuelas
         </Link>
+      </div>
       </div>
     );
   }
   
-  if (!subscription) {
-    return (
-      <div className={styles.container}>
-        <h1>No se encontró información</h1>
-        <Link href="/admin/subscriptions" className={styles.backButton}>
-          Volver a suscripciones
-        </Link>
-      </div>
-    );
-  }
-  
-  // Formatear fechas
-  const startDate = new Date(subscription.startDate).toLocaleDateString();
-  const endDate = subscription.endDate 
-    ? new Date(subscription.endDate).toLocaleDateString() 
-    : 'No definido';
+  const selectedPlan = availablePlans.find(plan => plan._id === selectedPlanId);
   
   return (
     <div className={styles.container}>
       <div className={styles.dashboardHeader}>
-        <h1>Detalles de Suscripción</h1>
-        <p>Escuela: {subscription.schoolName}</p>
+        <h1>Gestión de Suscripción</h1>
+        <p>Administra el plan y recursos de {schoolDetails?.school.name}</p>
+        <Link href="/admin/schools" className={styles.backButton}>
+          ← Volver a Escuelas
+        </Link>
       </div>
       
       <div className={styles.content}>
-        <div className={styles.sidebar}>
-          <nav className={styles.nav}>
-            <Link href="/" className={styles.navLink}>
-              Inicio
-            </Link>
-            <Link href="/admin/dashboard" className={styles.navLink}>
-              Dashboard
-            </Link>
-            <Link href="/admin/subscriptions" className={styles.navLink}>
-              Suscripciones
-            </Link>
-            <Link href="/admin/subscriptions/plans" className={styles.navLink}>
-              Planes
-            </Link>
-            <Link href="/admin/users" className={styles.navLink}>
-              Usuarios
-            </Link>
-            <Link href="/admin/schools" className={styles.navLink}>
-              Escuelas
-            </Link>
-          </nav>
-        </div>
+        <AdminNavigation userRole={userRole} />
         
         <div className={styles.mainContent}>
-          {/* Información principal */}
-          <div className={styles.infoCard}>
-            <div className={styles.infoRow}>
-              <div className={styles.infoItem}>
-                <h3>Plan</h3>
-                <p>{subscription.planName} ({subscription.planType})</p>
-              </div>
-              <div className={styles.infoItem}>
-                <h3>Estado</h3>
-                <p>{subscription.status}</p>
-              </div>
-              <div className={styles.infoItem}>
-                <h3>Fecha de inicio</h3>
-                <p>{startDate}</p>
-              </div>
-              <div className={styles.infoItem}>
-                <h3>Fecha de finalización</h3>
-                <p>{endDate}</p>
-              </div>
+          {error && (
+            <div className={styles.error} style={{ marginBottom: '1rem' }}>
+              {error}
             </div>
+          )}
+
+          {/* Current Status */}
+          <div className={styles.card} style={{ marginBottom: '2rem' }}>
+            <h2 className={styles.cardTitle}>Estado Actual</h2>
+            {schoolDetails && (
+              <div className={styles.statsGrid}>
+                <div className={styles.statCard}>
+                  <h3>Plan Actual</h3>
+                  <div className={styles.statValue}>
+                    {schoolDetails.currentPlan ? schoolDetails.currentPlan.name : 'Sin plan'}
           </div>
-          
-          {/* Uso de recursos */}
-          <div className={styles.resourceSection}>
-            <h2>Uso de Recursos</h2>
-            
-            <div className={styles.usageRow}>
-              <div className={styles.usageCard}>
-                <h3>Almacenamiento</h3>
-                <div className={styles.progressBar}>
-                  <div 
-                    className={styles.progressFill} 
-                    style={{ width: `${subscription.storage.percentage}%` }}
-                  ></div>
+                  {schoolDetails.currentPlan && (
+                    <p className={styles.statDescription}>
+                      ${(schoolDetails.currentPlan.price / 100).toFixed(2)}/mes
+                    </p>
+                  )}
                 </div>
-                <p className={styles.usageText}>
-                  {subscription.storage.used.toFixed(2)} GB de {subscription.storage.limit} GB
-                  ({subscription.storage.percentage.toFixed(0)}%)
-                </p>
-              </div>
-              
-              <div className={styles.usageCard}>
-                <h3>Minutos de Streaming</h3>
-                <div className={styles.progressBar}>
-                  <div 
-                    className={styles.progressFill} 
-                    style={{ width: `${subscription.streaming.percentage}%` }}
-                  ></div>
+                <div className={styles.statCard}>
+                  <h3>Asientos</h3>
+                  <div className={styles.statValue}>
+                    {schoolDetails.currentSeats} / {schoolDetails.totalSeats}
+                  </div>
+                  <p className={styles.statDescription}>
+                    Base: {schoolDetails.currentPlan?.studentSeats || 0} + Extra: {schoolDetails.extraSeats}
+                  </p>
                 </div>
-                <p className={styles.usageText}>
-                  {subscription.streaming.used.toFixed(0)} min de {subscription.streaming.limit} min
-                  ({subscription.streaming.percentage.toFixed(0)}%)
-                </p>
-              </div>
-              
-              <div className={styles.usageCard}>
-                <h3>Usuarios</h3>
-                <div className={styles.progressBar}>
-                  <div 
-                    className={styles.progressFill} 
-                    style={{ width: `${subscription.users.percentage}%` }}
-                  ></div>
+                <div className={styles.statCard}>
+                  <h3>Almacenamiento</h3>
+                  <div className={styles.statValue}>
+                    {schoolDetails.currentStorageUsageGB}GB / {schoolDetails.totalStorageGB}GB
+                  </div>
+                  <p className={styles.statDescription}>
+                    Base: {schoolDetails.currentPlan?.storageGb || 0}GB + Extra: {schoolDetails.extraStorageGB}GB
+                  </p>
                 </div>
-                <p className={styles.usageText}>
-                  {subscription.users.count} de {subscription.users.limit} usuarios
-                  ({subscription.users.percentage.toFixed(0)}%)
+                <div className={styles.statCard}>
+                  <h3>Streaming</h3>
+                  <div className={styles.statValue}>
+                    {schoolDetails.currentStreamingUsageHours}h / {schoolDetails.totalStreamingHours}h
+              </div>
+                  <p className={styles.statDescription}>
+                    Base: {schoolDetails.currentPlan?.streamingHours || 0}h + Extra: {schoolDetails.extraStreamingHours}h
                 </p>
               </div>
-              
-              <div className={styles.usageCard}>
-                <h3>Cursos por Usuario</h3>
-                <p className={styles.usageText}>
-                  Límite: {subscription.coursesPerUser.limit} cursos por usuario
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          {/* Recursos adicionales */}
-          <div className={styles.resourceSection}>
-            <h2>Recursos Adicionales Aprobados</h2>
-            
-            {updateSuccess && (
-              <div className={styles.successMessage}>
-                Recursos adicionales actualizados correctamente
               </div>
             )}
-            
-            {isEditing ? (
-              <form onSubmit={handleSubmit} className={styles.resourceForm}>
-                <div className={styles.formRow}>
-                  <div className={styles.formGroup}>
-                    <label htmlFor="extraUsers">Usuarios Extra</label>
-                    <input
-                      type="number"
-                      id="extraUsers"
-                      name="extraUsers"
-                      min="0"
-                      value={formData.extraUsers}
-                      onChange={handleInputChange}
-                      className={styles.formInput}
-                    />
                   </div>
                   
-                  <div className={styles.formGroup}>
-                    <label htmlFor="extraStorageGb">Almacenamiento Extra (GB)</label>
-                    <input
-                      type="number"
-                      id="extraStorageGb"
-                      name="extraStorageGb"
-                      min="0"
-                      value={formData.extraStorageGb}
-                      onChange={handleInputChange}
-                      className={styles.formInput}
-                    />
-                  </div>
-                  
-                  <div className={styles.formGroup}>
-                    <label htmlFor="extraStreamingMinutes">Minutos Streaming Extra</label>
-                    <input
-                      type="number"
-                      id="extraStreamingMinutes"
-                      name="extraStreamingMinutes"
-                      min="0"
-                      value={formData.extraStreamingMinutes}
-                      onChange={handleInputChange}
-                      className={styles.formInput}
-                    />
-                  </div>
-                  
-                  <div className={styles.formGroup}>
-                    <label htmlFor="extraCoursesPerUser">Cursos Extra por Usuario</label>
-                    <input
-                      type="number"
-                      id="extraCoursesPerUser"
-                      name="extraCoursesPerUser"
-                      min="0"
-                      value={formData.extraCoursesPerUser}
-                      onChange={handleInputChange}
-                      className={styles.formInput}
-                    />
-                  </div>
-                </div>
-                
-                <div className={styles.formActions}>
-                  <button type="submit" className={styles.saveButton}>
-                    Guardar Cambios
-                  </button>
-                  <button 
-                    type="button" 
-                    className={styles.cancelButton}
-                    onClick={() => setIsEditing(false)}
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div>
-                <div className={styles.resourceList}>
-                  <div className={styles.resourceItem}>
-                    <strong>Usuarios adicionales:</strong> {subscription.extraResourcesApproved?.extraUsers || 0}
-                  </div>
-                  <div className={styles.resourceItem}>
-                    <strong>Almacenamiento adicional:</strong> {subscription.extraResourcesApproved?.extraStorageGb || 0} GB
-                  </div>
-                  <div className={styles.resourceItem}>
-                    <strong>Minutos de streaming adicionales:</strong> {subscription.extraResourcesApproved?.extraStreamingMinutes || 0} min
-                  </div>
-                  <div className={styles.resourceItem}>
-                    <strong>Cursos adicionales por usuario:</strong> {subscription.extraResourcesApproved?.extraCoursesPerUser || 0}
-                  </div>
-                </div>
-                
-                <button 
-                  className={styles.editButton}
-                  onClick={() => setIsEditing(true)}
+          {/* Plan Assignment - Only for super_admin */}
+          {userRole === 'super_admin' && (
+            <div className={styles.card} style={{ marginBottom: '2rem' }}>
+              <h2 className={styles.cardTitle}>Asignar Plan</h2>
+                    <div className={styles.formGroup}>
+                <label htmlFor="planSelect">Seleccionar Plan:</label>
+                <select
+                  id="planSelect"
+                  className={styles.select}
+                  value={selectedPlanId}
+                  onChange={(e) => setSelectedPlanId(e.target.value)}
                 >
-                  Modificar Recursos Adicionales
-                </button>
-              </div>
-            )}
-          </div>
+                  <option value="">Selecciona un plan...</option>
+                  {availablePlans.map((plan) => (
+                    <option key={plan._id} value={plan._id}>
+                      {plan.name} - ${(plan.price / 100).toFixed(2)}/mes 
+                      ({plan.studentSeats} asientos, {plan.storageGb}GB, {plan.streamingHours}h)
+                    </option>
+                  ))}
+                </select>
+                    </div>
+                    
+              {selectedPlan && (
+                <div className={styles.infoCard} style={{ marginTop: '1rem' }}>
+                  <h3>{selectedPlan.name}</h3>
+                  <p>{selectedPlan.description}</p>
+                  <div className={styles.infoRow}>
+                    <div className={styles.infoItem}>
+                      <strong>Precio:</strong> ${(selectedPlan.price / 100).toFixed(2)}/mes
+                    </div>
+                    <div className={styles.infoItem}>
+                      <strong>Estudiantes:</strong> {selectedPlan.studentSeats}
+                    </div>
+                    <div className={styles.infoItem}>
+                      <strong>Profesores:</strong> {selectedPlan.teachers}
+                    </div>
+                    <div className={styles.infoItem}>
+                      <strong>Cursos/Estudiante:</strong> {selectedPlan.maxConcurrentCoursesPerStudent}
+                    </div>
+                    <div className={styles.infoItem}>
+                      <strong>Almacenamiento:</strong> {selectedPlan.storageGb}GB
+                    </div>
+                    <div className={styles.infoItem}>
+                      <strong>Streaming:</strong> {selectedPlan.streamingHours}h/mes
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           
-          {/* Historial de uso mensual */}
-          <div className={styles.resourceSection}>
-            <h2>Historial de Uso Mensual</h2>
-            
-            {subscription.monthlyUsage && subscription.monthlyUsage.length > 0 ? (
+          {/* Extra Resources - Only for super_admin */}
+          {userRole === 'super_admin' && (
+            <div className={styles.card} style={{ marginBottom: '2rem' }}>
+              <h2 className={styles.cardTitle}>Recursos Adicionales</h2>
+              <div className={styles.formRow}>
+                <div className={styles.formGroup}>
+                  <label htmlFor="extraSeats">Asientos Extra:</label>
+                  <input
+                    type="number"
+                    id="extraSeats"
+                    className={styles.formInput}
+                    value={extraSeats}
+                    onChange={(e) => setExtraSeats(parseInt(e.target.value) || 0)}
+                    min="0"
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label htmlFor="extraStorage">Almacenamiento Extra (GB):</label>
+                  <input
+                    type="number"
+                    id="extraStorage"
+                    className={styles.formInput}
+                    value={extraStorage}
+                    onChange={(e) => setExtraStorage(parseInt(e.target.value) || 0)}
+                    min="0"
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label htmlFor="extraStreaming">Streaming Extra (horas):</label>
+                  <input
+                    type="number"
+                    id="extraStreaming"
+                    className={styles.formInput}
+                    value={extraStreaming}
+                    onChange={(e) => setExtraStreaming(parseInt(e.target.value) || 0)}
+                    min="0"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Overages - Only for super_admin */}
+          {userRole === 'super_admin' && overages.length > 0 && (
+            <div className={styles.card} style={{ marginBottom: '2rem' }}>
+              <h2 className={styles.cardTitle}>Sobrecostos Recientes</h2>
               <div className={styles.tableContainer}>
-                <table className={styles.statsTable}>
+                <table className={styles.dataTable}>
                   <thead>
                     <tr>
-                      <th>Mes/Año</th>
-                      <th>Usuarios Activos</th>
-                      <th>Almacenamiento (GB)</th>
-                      <th>Streaming (min)</th>
+                      <th>Fecha</th>
+                      <th>Tipo</th>
+                      <th>Cantidad</th>
+                      <th>Precio Unitario</th>
+                      <th>Total</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {subscription.monthlyUsage.map((month, index) => (
-                      <tr key={index}>
-                        <td>{month.month}/{month.year}</td>
-                        <td>{month.activeUsers}</td>
-                        <td>{month.usedStorageGb.toFixed(2)}</td>
-                        <td>{month.usedStreamingMinutes.toFixed(0)}</td>
+                    {overages.map((overage) => (
+                      <tr key={overage.id}>
+                        <td>{new Date(overage.date).toLocaleDateString()}</td>
+                        <td style={{ textTransform: 'capitalize' }}>{overage.type}</td>
+                        <td>{overage.quantity}</td>
+                        <td>${(overage.unitPriceCents / 100).toFixed(2)}</td>
+                        <td>${(overage.totalCents / 100).toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            ) : (
-              <p>No hay historial de uso mensual disponible</p>
-            )}
-          </div>
-          
-          <div className={styles.actionButtons}>
-            <Link href="/admin/subscriptions" className={styles.backButton}>
-              Volver a Suscripciones
-            </Link>
-          </div>
+            </div>
+          )}
+
+          {/* Actions - Only for super_admin */}
+          {userRole === 'super_admin' && (
+            <div className={styles.formActions}>
+              <button
+                onClick={handleSavePlan}
+                className={styles.saveButton}
+                disabled={saving || !selectedPlanId}
+              >
+                {saving ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
+              <Link href="/admin/schools" className={styles.cancelButton}>
+                Cancelar
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>

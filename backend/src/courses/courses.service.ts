@@ -558,9 +558,15 @@ export class CoursesService {
         if (!student.enrolledCourses.some(id => id.toString() === courseId)) {
           // Usar el tipo correcto para ObjectId
           student.enrolledCourses.push(new Types.ObjectId(courseId) as any);
-          await student.save();
-          
         }
+        
+        // 4. Asegurarnos que la escuela esté en el array schools del usuario
+        if (!student.schools || !student.schools.some(id => id.toString() === schoolId)) {
+          if (!student.schools) student.schools = [];
+          student.schools.push(new Types.ObjectId(schoolId) as any);
+        }
+        
+        await student.save();
         
         return existingEnrollment;
       }
@@ -611,12 +617,20 @@ export class CoursesService {
     if (!student.enrolledCourses.some(id => id.toString() === courseId)) {
       // Usar el tipo correcto para ObjectId
       student.enrolledCourses.push(new Types.ObjectId(courseId) as any);
-      updatePromises.push(
-        student.save().then(() => {
-          
-        })
-      );
     }
+    
+    // 4. Actualizar el array schools del usuario (agregar la escuela)
+    if (!student.schools || !student.schools.some(id => id.toString() === schoolId)) {
+      if (!student.schools) student.schools = [];
+      student.schools.push(new Types.ObjectId(schoolId) as any);
+    }
+    
+    // Guardar los cambios del estudiante
+    updatePromises.push(
+      student.save().then(() => {
+        
+      })
+    );
     
     // Esperar a que todas las actualizaciones se completen
     try {
@@ -1257,12 +1271,19 @@ export class CoursesService {
         // 3. Asegurarnos que el curso esté en el array enrolledCourses del usuario
         if (!student.enrolledCourses.some(id => id.toString() === courseId)) {
           student.enrolledCourses.push(new Types.ObjectId(courseId) as any);
-          updatePromises.push(
-            student.save().then(() => {
-              
-            })
-          );
         }
+        
+        // 4. Asegurarnos que la escuela esté en el array schools del usuario
+        if (!student.schools || !student.schools.some(id => id.toString() === schoolId)) {
+          if (!student.schools) student.schools = [];
+          student.schools.push(new Types.ObjectId(schoolId) as any);
+        }
+        
+        updatePromises.push(
+          student.save().then(() => {
+            
+          })
+        );
         
         // Esperar a que todas las actualizaciones se completen
         await Promise.all(updatePromises);

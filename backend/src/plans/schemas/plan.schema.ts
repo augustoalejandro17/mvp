@@ -7,8 +7,7 @@ export enum PlanType {
   BASIC = 'basic',
   INTERMEDIATE = 'intermediate',
   ADVANCED = 'advanced',
-  PREMIUM = 'premium',
-  CUSTOM = 'custom'
+  PREMIUM = 'premium'
 }
 
 @Schema()
@@ -22,6 +21,43 @@ export class Plan {
   @Prop({ required: true })
   description: string;
 
+  // Core plan limits (based on authoritative pricing table)
+  @Prop({ required: true })
+  studentSeats: number; // Any user attached to academy
+
+  @Prop({ required: true })
+  teachers: number;
+
+  @Prop({ required: true })
+  maxConcurrentCoursesPerStudent: number;
+
+  @Prop({ required: true })
+  storageGB: number;
+
+  @Prop({ required: true })
+  streamingHoursPerMonth: number;
+
+  // Pricing (all in cents to avoid float math)
+  @Prop({ required: true })
+  monthlyPriceCents: number;
+  
+  // Over-usage unit prices (in cents)
+  @Prop({ required: true })
+  overageStudentCents: number;
+
+  @Prop({ required: true })
+  overageStorageCentsPerGB: number;
+
+  @Prop({ required: true })
+  overageStreamingCentsPerHour: number;
+
+  @Prop({ default: true })
+  isActive: boolean;
+
+  @Prop({ default: Date.now })
+  createdAt: Date;
+
+  // Legacy fields (keeping for backward compatibility)
   @Prop({ required: true })
   maxUsers: number;
 
@@ -51,12 +87,6 @@ export class Plan {
   
   @Prop({ required: true })
   extraCoursePerUserPrice: number;
-
-  @Prop({ default: true })
-  isActive: boolean;
-
-  @Prop({ default: Date.now })
-  createdAt: Date;
 
   @Prop({ required: true })
   price: number;

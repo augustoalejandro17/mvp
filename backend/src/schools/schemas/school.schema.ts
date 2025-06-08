@@ -40,9 +40,34 @@ export class School {
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Course' }], default: [] })
   courses: MongooseSchema.Types.ObjectId[];
 
+  // Plan and subscription tracking
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Plan', required: true })
+  planId: mongoose.Types.ObjectId;
+
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' })
   activeSubscription: mongoose.Types.ObjectId;
 
+  // Purchased add-ons (extras)
+  @Prop({ default: 0 })
+  extraSeats: number;
+
+  @Prop({ default: 0 })
+  extraStorageGB: number;
+
+  @Prop({ default: 0 })
+  extraStreamingHours: number;
+
+  // Live usage counters
+  @Prop({ default: 0 })
+  currentSeats: number;
+
+  @Prop({ default: 0 })
+  usedStorageGB: number;
+
+  @Prop({ default: 0 })
+  usedStreamingHours: number;
+
+  // Legacy fields (keeping for backward compatibility)
   @Prop({ default: 0 })
   storageUsedGb: number;
 

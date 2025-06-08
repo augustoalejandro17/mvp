@@ -27,10 +27,23 @@ interface School {
     name: string;
     email: string;
   } | null;
-  teachers: any[];
-  students: any[];
+  teachers?: any[];
+  students?: any[];
   createdAt: string;
   timezone?: string;
+  planId?: string;
+  currentPlan?: {
+    name: string;
+    type: string;
+    price: number;
+  };
+  currentSeats?: number;
+  extraSeats?: number;
+  extraStorageGB?: number;
+  extraStreamingHours?: number;
+  totalStudents?: number;
+  totalTeachers?: number;
+  totalAdministratives?: number;
 }
 
 export default function SchoolsManager() {
@@ -168,6 +181,8 @@ export default function SchoolsManager() {
                     <th>Nombre</th>
                     <th>Descripción</th>
                     <th>Administrador</th>
+                    <th>Plan Actual</th>
+                    <th>Asientos</th>
                     <th>Estudiantes</th>
                     <th>Profesores</th>
                     <th>Zona Horaria</th>
@@ -207,8 +222,30 @@ export default function SchoolsManager() {
                             )}
                           </div>
                         </td>
-                        <td style={{ textAlign: 'center' }}>{school.students?.length || 0}</td>
-                        <td style={{ textAlign: 'center' }}>{school.teachers?.length || 0}</td>
+                        <td>
+                          {school.currentPlan ? (
+                            <div className={styles.planInfo}>
+                              <span className={styles.planName}>{school.currentPlan.name}</span>
+                              <small className={styles.planPrice}>
+                                ${(school.currentPlan.price / 100).toFixed(2)}/mes
+                              </small>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#e53e3e', fontStyle: 'italic' }}>
+                              Sin plan
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          {school.currentSeats || 0}
+                          {school.extraSeats && school.extraSeats > 0 && (
+                            <span className={styles.extraInfo}>
+                              (+{school.extraSeats})
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>{school.totalStudents || 0}</td>
+                        <td style={{ textAlign: 'center' }}>{school.totalTeachers || 0}</td>
                         <td>{school.timezone || 'America/Bogota'}</td>
                         <td>{new Date(school.createdAt).toLocaleDateString()}</td>
                         <td>
@@ -227,13 +264,22 @@ export default function SchoolsManager() {
                             >
                               Editar
                             </Link>
+                            {isSuperAdmin && (
+                              <Link 
+                                href={`/admin/subscriptions/school/${school._id}`} 
+                                className={styles.planButton}
+                                title="Gestionar plan y suscripción"
+                              >
+                                Plan
+                              </Link>
+                            )}
                           </div>
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={8} className={styles.noDataMessage}>
+                      <td colSpan={10} className={styles.noDataMessage}>
                         {isSuperAdmin 
                           ? 'No hay escuelas registradas en la plataforma.'
                           : 'No tienes escuelas asignadas. Contacta a un administrador.'}

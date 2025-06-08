@@ -67,9 +67,38 @@ export class SubscriptionsController {
     }
   }
 
+  @Get('test')
+  async testDatabase() {
+    try {
+      const count = await this.planModel.countDocuments();
+      const firstPlan = await this.planModel.findOne().exec();
+      
+      return {
+        success: true,
+        totalPlans: count,
+        samplePlan: firstPlan ? {
+          id: firstPlan._id,
+          name: firstPlan.name,
+          monthlyPrice: firstPlan.monthlyPrice,
+          maxUsers: firstPlan.maxUsers,
+          rawData: firstPlan
+        } : null,
+        message: `Connected to database, found ${count} plans`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        message: 'Database connection failed'
+      };
+    }
+  }
+
   @Get('plans')
   async getAllPlans(@Query('active') active?: string) {
     try {
+      console.log('🔍 Getting plans from database...');
+      
       // Build the query based on optional active filter
       const query: any = {};
       if (active === 'true') {
@@ -78,37 +107,71 @@ export class SubscriptionsController {
         query.isActive = false;
       }
 
+      console.log('📝 Query:', JSON.stringify(query));
+
       // Get all plans
       const plans = await this.planModel.find(query)
-        .sort({ price: 1, name: 1 })
+        .sort({ monthlyPriceCents: 1, name: 1 })
         .exec();
 
+      console.log(`📊 Found ${plans.length} plans in database`);
+      
+      if (plans.length > 0) {
+        console.log('📋 First plan raw data:', JSON.stringify(plans[0], null, 2));
+      }
+
       // Count subscriptions for each plan
-      const plansWithStats = await Promise.all(plans.map(async (plan) => {
+      const plansWithStats = await Promise.all(plans.map(async (plan, index) => {
         const subscriptionsCount = await this.subscriptionModel.countDocuments({ plan: plan._id });
         
-        return {
+        // Handle both new and legacy field names
+        const priceCents = plan.monthlyPriceCents || (plan.monthlyPrice * 100) || (plan.price * 100) || 0;
+        const storage = plan.storageGB || plan.maxStorageGb || 0;
+        const streaming = plan.streamingHoursPerMonth || (plan.maxStreamingMinutesPerMonth / 60) || 0;
+        const students = plan.studentSeats || plan.maxUsers || 0;
+        const teachersCount = plan.teachers || 2; // Default fallback
+        const concurrentCourses = plan.maxConcurrentCoursesPerStudent || plan.maxCoursesPerUser || 1;
+        
+        console.log(`Plan ${index + 1} (${plan.name}) field mapping:`);
+        console.log(`  monthlyPriceCents: ${plan.monthlyPriceCents}`);
+        console.log(`  monthlyPrice: ${plan.monthlyPrice}`);
+        console.log(`  price: ${plan.price}`);
+        console.log(`  calculated priceCents: ${priceCents}`);
+        console.log(`  maxUsers: ${plan.maxUsers}`);
+        console.log(`  studentSeats: ${plan.studentSeats}`);
+        console.log(`  calculated students: ${students}`);
+        console.log(`  maxStorageGb: ${plan.maxStorageGb}`);
+        console.log(`  storageGB: ${plan.storageGB}`);
+        console.log(`  calculated storage: ${storage}`);
+        
+        const result = {
+          _id: plan._id,
           id: plan._id,
           name: plan.name,
           type: plan.type,
           description: plan.description,
-          price: plan.price,
-          isActive: plan.isActive,
-          maxUsers: plan.maxUsers,
-          maxStorageGb: plan.maxStorageGb,
-          maxStreamingMinutesPerMonth: plan.maxStreamingMinutesPerMonth,
-          maxCoursesPerUser: plan.maxCoursesPerUser,
-          features: plan.features,
+          price: priceCents, // Price in cents for frontend
+          isActive: plan.isActive !== false, // Default to true if not set
+          studentSeats: students,
+          teachers: teachersCount,
+          maxConcurrentCoursesPerStudent: concurrentCourses,
+          storageGb: storage,
+          streamingHours: streaming,
+          features: plan.features || [],
           subscriptionsCount
         };
+        
+        console.log(`📤 Formatted plan ${index + 1}:`, JSON.stringify(result, null, 2));
+        return result;
       }));
 
+      console.log('✅ Returning formatted plans to frontend');
       return {
         plans: plansWithStats,
         totalCount: plansWithStats.length
       };
     } catch (error) {
-      console.error('Error fetching plans:', error);
+      console.error('❌ Error fetching plans:', error);
       return {
         error: 'Error fetching plans',
         message: error.message

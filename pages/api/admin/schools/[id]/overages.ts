@@ -7,25 +7,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'No autorizado: Token no proporcionado' });
     }
 
-    const { active } = req.query;
+    const { id } = req.query;
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    let url = `${apiUrl}/api/admin/subscriptions/plans`;
-    if (active === 'true' || active === 'false') {
-      url += `?active=${active}`;
+
+    if (req.method === 'GET') {
+      // Get school overages
+      const response = await fetch(`${apiUrl}/api/admin/academies/${id}/overages`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      return res.status(response.status).json(data);
+    } else {
+      return res.status(405).json({ error: 'Método no permitido' });
     }
-
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    const data = await response.json();
-    return res.status(response.status).json(data);
   } catch (error) {
-    console.error('Error en el endpoint de planes:', error);
+    console.error('Error en el endpoint de overages de escuela:', error);
     return res.status(500).json({
       error: 'Error interno del servidor',
       message: error instanceof Error ? error.message : 'Error desconocido'

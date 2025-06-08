@@ -37,7 +37,7 @@ import { MigrationService } from './migrations/migration.service';
       isGlobal: true,
       load: [awsConfig],
     }),
-    MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/mvp'),
+    MongooseModule.forRoot(process.env.MONGODB_URI),
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: School.name, schema: SchoolSchema },

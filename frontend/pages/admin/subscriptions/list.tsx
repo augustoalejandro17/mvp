@@ -18,56 +18,41 @@ interface Subscription {
   currentStreamingMinutes: number;
 }
 
-export default function SubscriptionsList() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
+export default function SubscriptionsManager() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [totalCount, setTotalCount] = useState<number>(0);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [mounted, setMounted] = useState(false);
+  const router = useRouter();
+
+  // Fix hydration mismatch by only rendering after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
-    const checkAuth = () => {
-      const token = Cookies.get('token');
-      if (!token) {
-        router.push('/login?redirect=/admin/subscriptions/list');
-        return;
-      }
+    if (mounted) {
+      checkAuth();
+      fetchSubscriptions();
+    }
+  }, [mounted, statusFilter]);
 
-      // Verificar si es super admin
-      try {
-        const decoded = JSON.parse(atob(token.split('.')[1]));
-        
-        // Verificar si tiene el rol super_admin
-        const role = Array.isArray(decoded.role) 
-          ? decoded.role.find((r: string) => r.toLowerCase().includes('super_admin'))
-          : decoded.role;
-        
-        if (!role || !role.toLowerCase().includes('super_admin')) {
-          router.push('/admin/dashboard');
-          return;
-        }
-        
-        // Cargar suscripciones
-        fetchSubscriptions();
-      } catch (error) {
-        console.error('Error al verificar rol:', error);
-        router.push('/login');
-      }
-    };
-
-    checkAuth();
-  }, [router, statusFilter]);
+  const checkAuth = () => {
+    const token = Cookies.get('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+  };
 
   const fetchSubscriptions = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
       setError(null);
       
       const token = Cookies.get('token');
       if (!token) return;
-
-      console.log('Obteniendo suscripciones, token válido:', !!token);
       
       const response = await fetch(`/api/admin/subscriptions/list?status=${statusFilter}`, {
         headers: {
@@ -75,65 +60,64 @@ export default function SubscriptionsList() {
         }
       });
       
-      console.log('Respuesta:', response.status, response.statusText);
-      
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
       
       const data = await response.json();
-      console.log('Datos recibidos:', data);
       
       if (data.error) {
         throw new Error(data.error);
       }
       
       setSubscriptions(data.subscriptions || []);
-      setTotalCount(data.totalCount || 0);
     } catch (error) {
       console.error('Error al obtener suscripciones:', error);
       setError(error instanceof Error ? error.message : 'Error desconocido');
       setSubscriptions([]);
-      setTotalCount(0);
     } finally {
       setLoading(false);
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'active': return 'Activa';
-      case 'trial': return 'Prueba';
-      case 'expired': return 'Expirada';
-      case 'pending': return 'Pendiente';
-      default: return status;
-    }
-  };
+  // Don't render anything until mounted to avoid hydration mismatch
+  if (!mounted) {
+    return null;
+  }
 
   if (loading) {
-    return <div className={styles.loading}>Cargando lista de suscripciones...</div>;
+    return (
+      <div className={styles.container}>
+        <div className={styles.dashboardHeader}>
+          <h1>Gestión de Suscripciones</h1>
+          <p>Administra las suscripciones de todas las escuelas.</p>
+        </div>
+        <div className={styles.content}>
+          <AdminNavigation userRole="super_admin" />
+          <div className={styles.mainContent}>
+            <div className={styles.loading}>Cargando suscripciones...</div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (error && subscriptions.length === 0) {
     return (
       <div className={styles.container}>
-        <h1>Error</h1>
-        <p className={styles.error}>{error}</p>
-        <button 
-          onClick={fetchSubscriptions}
-          className={styles.refreshButton}
-        >
-          Reintentar
-        </button>
+        <div className={styles.dashboardHeader}>
+          <h1>Error</h1>
+          <p className={styles.error}>{error}</p>
+          <button 
+            onClick={fetchSubscriptions}
+            className={styles.refreshButton}
+          >
+            Reintentar
+          </button>
+          <Link href="/admin/dashboard" className={styles.backButton}>
+            Volver al Dashboard
+          </Link>
+        </div>
       </div>
     );
   }
@@ -141,8 +125,8 @@ export default function SubscriptionsList() {
   return (
     <div className={styles.container}>
       <div className={styles.dashboardHeader}>
-        <h1>Lista de Suscripciones</h1>
-        <p>Administra todas las suscripciones de las escuelas</p>
+        <h1>Gestión de Suscripciones</h1>
+        <p>Administra las suscripciones de todas las escuelas.</p>
       </div>
 
       <div className={styles.content}>
@@ -160,14 +144,15 @@ export default function SubscriptionsList() {
               >
                 <option value="all">Todos</option>
                 <option value="active">Activas</option>
-                <option value="trial">Prueba</option>
-                <option value="expired">Expiradas</option>
-                <option value="pending">Pendientes</option>
+                <option value="inactive">Inactivas</option>
+                <option value="suspended">Suspendidas</option>
               </select>
             </div>
-            <span className={styles.resultsCount}>
-              Mostrando {subscriptions.length} de {totalCount} suscripciones
-            </span>
+            <div className={styles.statsContainer}>
+              <span className={styles.statItem}>
+                Total: {subscriptions.length} suscripción{subscriptions.length !== 1 ? 'es' : ''}
+              </span>
+            </div>
           </div>
 
           <div className={styles.tableContainer}>
@@ -176,11 +161,11 @@ export default function SubscriptionsList() {
                 <tr>
                   <th>Escuela</th>
                   <th>Plan</th>
+                  <th>Tipo</th>
                   <th>Estado</th>
+                  <th>Storage (GB)</th>
+                  <th>Streaming (min)</th>
                   <th>Fecha Inicio</th>
-                  <th>Fecha Fin</th>
-                  <th>Almacenamiento</th>
-                  <th>Streaming</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -189,31 +174,35 @@ export default function SubscriptionsList() {
                   subscriptions.map((subscription) => (
                     <tr key={subscription.id}>
                       <td>{subscription.schoolName}</td>
+                      <td>{subscription.planName}</td>
+                      <td style={{ textTransform: 'capitalize' }}>{subscription.planType}</td>
                       <td>
-                        <span 
-                          className={`${styles.planBadge} ${styles[subscription.planType.toLowerCase()]}`}
-                        >
-                          {subscription.planName}
+                        <span className={`${styles.statusBadge} ${
+                          subscription.status === 'active' ? styles.active : 
+                          subscription.status === 'inactive' ? styles.inactive : styles.suspended
+                        }`}>
+                          {subscription.status === 'active' ? 'Activa' : 
+                           subscription.status === 'inactive' ? 'Inactiva' : 'Suspendida'}
                         </span>
                       </td>
-                      <td>
-                        <span 
-                          className={`${styles.statusBadge} ${styles[subscription.status]}`}
-                        >
-                          {getStatusLabel(subscription.status)}
-                        </span>
-                      </td>
-                      <td>{formatDate(subscription.startDate)}</td>
-                      <td>{formatDate(subscription.endDate)}</td>
-                      <td>{subscription.currentStorageGb.toFixed(2)} GB</td>
-                      <td>{Math.round(subscription.currentStreamingMinutes)} min</td>
+                      <td>{subscription.currentStorageGb?.toFixed(2) || '0.00'}</td>
+                      <td>{subscription.currentStreamingMinutes?.toFixed(0) || '0'}</td>
+                      <td>{new Date(subscription.startDate).toLocaleDateString()}</td>
                       <td>
                         <div className={styles.actionButtons}>
                           <Link 
                             href={`/admin/subscriptions/school/${subscription.schoolId}`} 
                             className={styles.viewButton}
+                            title="Ver detalles de la suscripción"
                           >
-                            Ver Detalles
+                            Ver
+                          </Link>
+                          <Link 
+                            href={`/admin/schools`} 
+                            className={styles.editButton}
+                            title="Gestionar escuela"
+                          >
+                            Gestionar
                           </Link>
                         </div>
                       </td>
@@ -222,7 +211,7 @@ export default function SubscriptionsList() {
                 ) : (
                   <tr>
                     <td colSpan={8} className={styles.noDataMessage}>
-                      No hay suscripciones disponibles con los filtros seleccionados
+                      No hay suscripciones disponibles
                     </td>
                   </tr>
                 )}

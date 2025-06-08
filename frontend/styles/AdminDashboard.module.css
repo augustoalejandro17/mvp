@@ -236,6 +236,15 @@
   z-index: 10;
 }
 
+.sortableHeader {
+  user-select: none;
+  transition: background-color 0.2s ease;
+}
+
+.sortableHeader:hover {
+  background-color: #edf2f7 !important;
+}
+
 .dataTable tr:hover {
   background-color: #f8f9fa;
 }
@@ -2229,5 +2238,395 @@
   
   .helpSection {
     padding: 1.5rem;
+  }
+}
+
+/* ==================== PLAN MANAGEMENT STYLES ==================== */
+
+.planInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.planName {
+  font-weight: 500;
+  color: #2d3748;
+  font-size: 0.9rem;
+}
+
+.planPrice {
+  color: #4a5568;
+  font-size: 0.8rem;
+}
+
+.extraInfo {
+  color: #3182ce;
+  font-size: 0.8rem;
+  font-weight: 500;
+  margin-left: 0.25rem;
+}
+
+.planButton {
+  background-color: #805ad5;
+  color: white;
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.planButton:hover {
+  background-color: #6b46c1;
+  transform: translateY(-1px);
+}
+
+/* Update action buttons to accommodate the new plan button */
+.actionButtons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+/* Responsive adjustments for plan columns */
+@media (max-width: 1200px) {
+  .dataTable th:nth-child(4), /* Plan Actual */
+  .dataTable td:nth-child(4) {
+    min-width: 120px;
+  }
+  
+  .dataTable th:nth-child(5), /* Asientos */
+  .dataTable td:nth-child(5) {
+    min-width: 80px;
+  }
+}
+
+@media (max-width: 768px) {
+  .planInfo {
+    gap: 0.1rem;
+  }
+  
+  .planName {
+    font-size: 0.8rem;
+  }
+  
+  .planPrice {
+    font-size: 0.7rem;
+  }
+  
+  .extraInfo {
+    font-size: 0.7rem;
+  }
+  
+  .planButton {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.7rem;
+  }
+}
+
+/* ==================== SUBSCRIPTION PLANS STYLES ==================== */
+
+.planType {
+  color: #718096;
+  font-size: 0.8rem;
+  font-style: italic;
+  text-transform: capitalize;
+}
+
+.priceCell {
+  font-weight: 600;
+  color: #3182ce;
+  font-size: 1.1rem;
+}
+
+.statCard {
+  background-color: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-align: center;
+  min-width: 140px;
+}
+
+.statCard h3 {
+  font-size: 0.9rem;
+  color: #4a5568;
+  margin: 0 0 0.5rem 0;
+  font-weight: 500;
+}
+
+.statNumber {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #3182ce;
+  margin: 0;
+  line-height: 1;
+}
+
+.statusBadge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.statusBadge.active {
+  background-color: #c6f6d5;
+  color: #22543d;
+}
+
+.statusBadge.inactive {
+  background-color: #fed7d7;
+  color: #742a2a;
+}
+
+.statusBadge.suspended {
+  background-color: #fbb6ce;
+  color: #702459;
+}
+
+.backButton {
+  background-color: #718096;
+  color: white;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-block;
+  margin-top: 1rem;
+}
+
+.backButton:hover {
+  background-color: #4a5568;
+}
+
+/* Plan info styling in table */
+.planInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.planInfo strong {
+  color: #2d3748;
+  font-size: 0.95rem;
+}
+
+.planInfo small {
+  color: #718096;
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+
+/* ==================== RESPONSIVE DESIGN FOR SUBSCRIPTIONS ==================== */
+
+@media (max-width: 768px) {
+  .statsContainer {
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .statCard {
+    padding: 1rem;
+    min-width: 120px;
+  }
+
+  .statNumber {
+    font-size: 1.5rem;
+  }
+
+  .planInfo {
+    gap: 0.15rem;
+  }
+
+  .planInfo strong {
+    font-size: 0.9rem;
+  }
+
+  .priceCell {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .statsContainer {
+    justify-content: center;
+  }
+
+  .statCard {
+    padding: 0.75rem;
+    min-width: 100px;
+  }
+
+  .statCard h3 {
+    font-size: 0.8rem;
+  }
+
+  .statNumber {
+    font-size: 1.25rem;
+  }
+}
+
+/* ==================== MODAL STYLES ==================== */
+
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.modalHeader h2 {
+  margin: 0;
+  color: #2d3748;
+  font-size: 1.25rem;
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #718096;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.closeButton:hover {
+  background-color: #f7fafc;
+  color: #2d3748;
+}
+
+.modalForm {
+  padding: 1.5rem;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.linkButton {
+  background: none;
+  border: none;
+  color: #3182ce;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.linkButton:hover {
+  color: #2c5282;
+}
+
+/* Form input styles for the modal */
+.modalForm .formInput {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+
+.modalForm .formInput:focus {
+  outline: none;
+  border-color: #3182ce;
+  box-shadow: 0 0 0 2px rgba(49, 130, 206, 0.2);
+}
+
+.modalForm textarea.formInput {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* ==================== RESPONSIVE MODAL ==================== */
+
+@media (max-width: 768px) {
+  .modalOverlay {
+    padding: 0.5rem;
+  }
+
+  .modal {
+    max-height: 95vh;
+  }
+
+  .modalHeader {
+    padding: 1rem;
+  }
+
+  .modalForm {
+    padding: 1rem;
+  }
+
+  .modalForm .formRow {
+    flex-direction: column;
+  }
+
+  .modalActions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .modalActions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .modalOverlay {
+    padding: 0.25rem;
+  }
+
+  .modalHeader h2 {
+    font-size: 1.1rem;
+  }
+
+  .modalForm .formInput {
+    padding: 0.6rem;
+    font-size: 0.9rem;
   }
 } 
