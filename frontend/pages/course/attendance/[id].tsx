@@ -84,6 +84,7 @@ export default function AttendancePage() {
   const [course, setCourse] = useState<Course | null>(null);
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [date, setDate] = useState(getCurrentGMT5Date());
+  const [lastFetchedDate, setLastFetchedDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -313,7 +314,47 @@ export default function AttendancePage() {
       finalAttendancesArray.sort((a, b) => (a.studentName || '').localeCompare((b.studentName || ''), undefined, { sensitivity: 'base' }));
         
       console.log('Final combined and deduplicated attendance records:', finalAttendancesArray);
-      setAttendances(finalAttendancesArray);
+      
+      // Preserve user's current selections only when refreshing data for the SAME date
+      setAttendances(prevAttendances => {
+        // If there are no previous attendances, just set the new data
+        if (prevAttendances.length === 0) {
+          setLastFetchedDate(date);
+          return finalAttendancesArray;
+        }
+        
+        // If date has changed, reset selections and use fresh data
+        if (lastFetchedDate !== date) {
+          setLastFetchedDate(date);
+          return finalAttendancesArray;
+        }
+        
+        // Date is the same, so preserve user's current selections when refreshing
+        const currentSelections = new Map<string, { present: boolean | null, notes: string }>();
+        prevAttendances.forEach(attendance => {
+          if (attendance.present !== null || attendance.notes) {
+            currentSelections.set(attendance.studentId, {
+              present: attendance.present,
+              notes: attendance.notes || ''
+            });
+          }
+        });
+        
+        // Apply current selections to the new data
+        const mergedAttendances = finalAttendancesArray.map(newAttendance => {
+          const currentSelection = currentSelections.get(newAttendance.studentId);
+          if (currentSelection) {
+            return {
+              ...newAttendance,
+              present: currentSelection.present,
+              notes: currentSelection.notes
+            };
+          }
+          return newAttendance;
+        });
+        
+        return mergedAttendances;
+      });
 
     } catch (error) {
       console.error('Error fetching attendances:', error);
