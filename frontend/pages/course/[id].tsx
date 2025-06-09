@@ -11,6 +11,7 @@ import ImageFallback from '../../components/ImageFallback';
 import { canModifyClass, canManageVideos, canManageAttendance } from '../../utils/permission-utils';
 import { useMediaQuery } from 'react-responsive';
 import PlaylistManager from '../../components/PlaylistManager';
+import VideoPlayerWithTracking from '../../components/VideoPlayerWithTracking';
 
 interface Course {
   _id: string;
@@ -464,7 +465,14 @@ export default function CourseDetail() {
           <div ref={videoColumnRef} className={styles.videoColumn}>
             {selectedClass ? (
               <>
-                <div className={styles.videoContainer}>
+                <div style={{ 
+                  width: '100%',
+                  minHeight: '400px',
+                  backgroundColor: '#000',
+                  borderRadius: '8px',
+                  overflow: 'visible',
+                  position: 'relative'
+                }}>
                   {selectedClass.videoUrl ? (
                     videoLoadError ? (
                       <div style={{
@@ -491,33 +499,14 @@ export default function CourseDetail() {
                         </a>
                       </div>
                     ) : (
-                      <video
-                        key={videoStreamUrl || selectedClass.videoUrl} // Usar cualquier URL disponible
-                        src={videoStreamUrl || selectedClass.videoUrl}
-                        controls
-                        playsInline
-                        className={styles.videoPlayer}
-                        autoPlay={false}
-                        controlsList="nodownload noremoteplayback" // Disable browser download button
-                        disablePictureInPicture={false} // Keep picture in picture
-                        onContextMenu={(e: React.MouseEvent) => e.preventDefault()} // Disable right-click
-                        onError={(e) => {
-                          console.error('Error al cargar el video:', e);
-                          console.log('Video URL that failed:', videoStreamUrl || selectedClass.videoUrl);
-                          
-                          // Try to refresh the stream URL once more before giving up
-                          if (selectedClass._id && !videoLoadError) {
-                            console.log('Attempting to refresh stream URL due to video error');
-                            getVideoStreamUrl(selectedClass._id);
-                          } else {
-                            setVideoLoadError(true);
-                          }
-                        }}
-                      >
-                        <source src={videoStreamUrl || selectedClass.videoUrl} type="video/mp4" />
-                        <source src={videoStreamUrl || selectedClass.videoUrl} type="video/webm" />
-                        Tu navegador no soporta la reproducción de videos.
-                      </video>
+                      <VideoPlayerWithTracking
+                        url={videoStreamUrl || selectedClass.videoUrl}
+                        title={selectedClass.title}
+                        classId={selectedClass._id}
+                        courseId={course?._id}
+                        schoolId={course?.school._id}
+                        allowDownload={false}
+                      />
                     )
                   ) : (
                     <div style={{
@@ -529,9 +518,6 @@ export default function CourseDetail() {
                       justifyContent: "center",
                       alignItems: "center",
                       background: "#000",
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
                       width: "100%"
                     }}>
                       <p style={{color: "white", marginBottom: "20px"}}>No hay video disponible</p>

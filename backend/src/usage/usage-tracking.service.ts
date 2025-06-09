@@ -415,7 +415,7 @@ export class UsageTrackingService {
   /**
    * Get usage summary for a school in a specific month
    */
-  async getUsageSummary(schoolId: string, month?: number, year?: number): Promise<UsageSummary> {
+  async getUsageSummary(schoolId: string, month?: number, year?: number): Promise<any> {
     const currentDate = new Date();
     const targetMonth = month || currentDate.getMonth() + 1;
     const targetYear = year || currentDate.getFullYear();
@@ -438,32 +438,65 @@ export class UsageTrackingService {
       const planStreamingMinutes = ((plan?.streamingHoursPerMonth || 0) * 60) || plan?.maxStreamingMinutesPerMonth || 0;
 
       return {
-        storageGB: 0,
-        streamingMinutes: 0,
-        overageStorageGB: 0,
-        overageStreamingMinutes: 0,
-        overageStorageCost: 0,
-        overageStreamingCost: 0,
-        totalOverageCost: 0,
-        planLimits: {
-          storageGB: planStorageGB,
-          streamingMinutes: planStreamingMinutes
-        }
+        period: `${targetMonth}/${targetYear}`,
+        totalStorageUsed: 0,
+        totalStorageLimit: planStorageGB,
+        totalStreamingUsed: 0,
+        totalStreamingLimit: planStreamingMinutes,
+        storageOverage: 0,
+        streamingOverage: 0,
+        storageCost: 0,
+        streamingCost: 0,
+        totalCost: 0,
+        storageByType: {
+          video: 0,
+          image: 0,
+          document: 0,
+          audio: 0,
+          other: 0,
+        },
+        topStreamingSessions: [],
       };
     }
 
+    // Calculate storage by type breakdown in GB
+    const storageByType = {
+      video: usageDoc.videoStorageBytes / (1024 * 1024 * 1024),
+      image: usageDoc.imageStorageBytes / (1024 * 1024 * 1024),
+      document: usageDoc.documentStorageBytes / (1024 * 1024 * 1024),
+      audio: 0, // We don't track audio separately yet
+      other: usageDoc.otherStorageBytes / (1024 * 1024 * 1024),
+    };
+
+    // Get top streaming sessions (last 10 completed sessions)
+    const topStreamingSessions = usageDoc.streamingSessions
+      .filter(session => session.endTime)
+      .sort((a, b) => b.endTime!.getTime() - a.endTime!.getTime())
+      .slice(0, 10)
+      .map(session => ({
+        assetId: session.assetId,
+        duration: session.durationMinutes,
+        bytesTransferred: session.bytesTransferred,
+        quality: session.quality,
+        createdAt: session.startTime.toISOString(),
+      }));
+
+    // Calculate total streaming usage in GB (from bytes transferred)
+    const totalStreamingGB = (usageDoc.totalBandwidthBytes || 0) / (1024 * 1024 * 1024);
+
     return {
-      storageGB: usageDoc.totalStorageGB,
-      streamingMinutes: usageDoc.totalStreamingMinutes,
-      overageStorageGB: usageDoc.overageStorageGB,
-      overageStreamingMinutes: usageDoc.overageStreamingMinutes,
-      overageStorageCost: usageDoc.overageStorageCost,
-      overageStreamingCost: usageDoc.overageStreamingCost,
-      totalOverageCost: usageDoc.overageStorageCost + usageDoc.overageStreamingCost,
-      planLimits: {
-        storageGB: usageDoc.planStorageGB,
-        streamingMinutes: usageDoc.planStreamingMinutes
-      }
+      period: `${targetMonth}/${targetYear}`,
+      totalStorageUsed: usageDoc.totalStorageGB,
+      totalStorageLimit: usageDoc.planStorageGB,
+      totalStreamingUsed: totalStreamingGB, // Changed to bytes in GB instead of minutes
+      totalStreamingLimit: usageDoc.planStreamingMinutes,
+      storageOverage: usageDoc.overageStorageGB,
+      streamingOverage: usageDoc.overageStreamingMinutes,
+      storageCost: usageDoc.overageStorageCost / 100, // Convert cents to dollars
+      streamingCost: usageDoc.overageStreamingCost / 100, // Convert cents to dollars
+      totalCost: (usageDoc.overageStorageCost + usageDoc.overageStreamingCost) / 100,
+      storageByType,
+      topStreamingSessions,
     };
   }
 
@@ -491,6 +524,159 @@ export class UsageTrackingService {
       this.logger.log(`Finalized ${usageDocs.length} usage documents for ${month}/${year}`);
     } catch (error) {
       this.logger.error(`Error finalizing monthly usage for ${month}/${year}: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Backfill storage usage for existing videos
+   * This method should be called once to add tracking for videos that were uploaded before tracking was implemented
+   */
+  async backfillStorageUsage(): Promise<{ processed: number; errors: number }> {
+    try {
+      this.logger.log('Starting backfill of storage usage for existing videos...');
+      
+      let processed = 0;
+      let errors = 0;
+
+      // Get all classes with videos
+      const classes = await this.classModel.find({ 
+        videoUrl: { $exists: true, $ne: null }
+      })
+      .populate({
+        path: 'course',
+        select: 'school',
+        populate: {
+          path: 'school',
+          select: '_id name'
+        }
+      })
+      .populate('teacher', '_id')
+      .exec();
+
+      this.logger.log(`Found ${classes.length} classes with videos to process`);
+
+      for (const classItem of classes) {
+        try {
+          // Extract school ID from course
+          const course = classItem.course as any;
+          if (!course || !course.school) {
+            this.logger.warn(`Class ${classItem._id} has no valid course/school, skipping`);
+            errors++;
+            continue;
+          }
+
+          // Handle populated school object or just ID
+          const schoolId = typeof course.school === 'string' ? course.school : course.school._id.toString();
+          const teacherId = (classItem.teacher as any)?._id?.toString() || classItem.teacher?.toString() || 'unknown';
+          const uploadDate = classItem.createdAt || new Date();
+          const month = uploadDate.getMonth() + 1;
+          const year = uploadDate.getFullYear();
+
+          // Estimate file size more accurately based on typical video sizes (default to 10MB for videos)
+          const estimatedSize = 10 * 1024 * 1024; // 10MB default for videos (more realistic)
+          const fileName = `${classItem.title || 'video'}_${classItem._id}.mp4`;
+
+          // Extract asset ID from CloudFront or S3 URL
+          let assetId;
+          try {
+            // Handle CloudFront URLs like: https://diqggv7d0nfl3.cloudfront.net/videos/67b84a4c-081a-4534-b2a6-5d7ba77d87bd.mp4
+            if (classItem.videoUrl.includes('cloudfront.net/videos/') || classItem.videoUrl.includes('amazonaws.com/')) {
+              const urlParts = classItem.videoUrl.split('?')[0]; // Remove query params
+              const pathMatch = urlParts.match(/videos\/([^\/]+\.mp4)$/);
+              if (pathMatch) {
+                assetId = pathMatch[1]; // Just the filename with UUID
+              } else {
+                assetId = `${classItem._id}.mp4`; // Fallback using class ID
+              }
+            } else {
+              assetId = `${classItem._id}.mp4`; // Fallback key
+            }
+          } catch (error) {
+            this.logger.warn(`Error parsing video URL for class ${classItem._id}: ${error.message}`);
+            assetId = `${classItem._id}.mp4`; // Fallback key
+          }
+
+          // Check if usage is already tracked for this asset
+          const existingUsage = await this.usageModel.findOne({
+            school: new Types.ObjectId(schoolId),
+            month,
+            year,
+            'assets.assetId': assetId
+          }).exec();
+
+          if (existingUsage) {
+            this.logger.debug(`Storage usage already tracked for class ${classItem._id}, skipping`);
+            continue;
+          }
+
+          // Track the storage usage
+          await this.trackStorageUsage({
+            assetId,
+            assetType: 'video',
+            fileSizeBytes: estimatedSize,
+            fileName,
+            uploadedBy: teacherId,
+            schoolId,
+            relatedCourse: course._id.toString(),
+            relatedClass: classItem._id.toString()
+          });
+
+          processed++;
+          this.logger.debug(`Tracked storage usage for class ${classItem._id}`);
+
+        } catch (error) {
+          errors++;
+          this.logger.error(`Error processing class ${classItem._id}: ${error.message}`);
+        }
+      }
+
+      this.logger.log(`Backfill completed. Processed: ${processed}, Errors: ${errors}`);
+      return { processed, errors };
+
+    } catch (error) {
+      this.logger.error(`Error during backfill: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Reset storage tracking with corrected file sizes
+   * This clears all storage tracking and recalculates with better size estimates
+   */
+  async resetStorageTracking(): Promise<{ processed: number }> {
+    try {
+      this.logger.log('Resetting storage tracking with corrected sizes...');
+      
+      // Clear all existing storage tracking for the affected school
+      await this.usageModel.updateMany(
+        { school: new Types.ObjectId('68044f6422ec1bd6922709f4') },
+        { 
+          $set: { 
+            assets: [],
+            totalStorageBytes: 0,
+            videoStorageBytes: 0,
+            imageStorageBytes: 0,
+            documentStorageBytes: 0,
+            otherStorageBytes: 0,
+            totalStorageGB: 0,
+            storageByUser: new Map(),
+            overageStorageGB: 0,
+            overageStorageCost: 0
+          }
+        }
+      );
+
+      this.logger.log('Cleared existing storage tracking, running new backfill...');
+      
+      // Run backfill with corrected estimates
+      const result = await this.backfillStorageUsage();
+      
+      this.logger.log(`Reset completed. Processed: ${result.processed} videos`);
+      return { processed: result.processed };
+
+    } catch (error) {
+      this.logger.error(`Error during storage reset: ${error.message}`, error.stack);
       throw error;
     }
   }

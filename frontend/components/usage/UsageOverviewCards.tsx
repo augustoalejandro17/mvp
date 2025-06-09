@@ -32,10 +32,10 @@ const UsageOverviewCards: React.FC<UsageOverviewCardsProps> = ({ usageSummary })
         <div className={styles.cardContent}>
           <div className={styles.usageAmount}>
             <span className={styles.mainNumber}>
-              {UsageTrackingService.formatBytes(usageSummary.totalStorageUsed)}
+              {UsageTrackingService.formatBytes(usageSummary.totalStorageUsed * 1024 * 1024 * 1024)}
             </span>
             <span className={styles.limitText}>
-              de {UsageTrackingService.formatBytes(usageSummary.totalStorageLimit)}
+              de {UsageTrackingService.formatBytes(usageSummary.totalStorageLimit * 1024 * 1024 * 1024)}
             </span>
           </div>
           <div className={styles.progressContainer}>
@@ -59,7 +59,7 @@ const UsageOverviewCards: React.FC<UsageOverviewCardsProps> = ({ usageSummary })
             <div className={styles.overageWarning}>
               <span className={styles.overageIcon}>⚠️</span>
               <span className={styles.overageText}>
-                Exceso: {UsageTrackingService.formatBytes(usageSummary.storageOverage)}
+                Exceso: {UsageTrackingService.formatBytes(usageSummary.storageOverage * 1024 * 1024 * 1024)}
               </span>
               <span className={styles.overageCost}>
                 {UsageTrackingService.formatCurrency(usageSummary.storageCost)}
@@ -78,10 +78,10 @@ const UsageOverviewCards: React.FC<UsageOverviewCardsProps> = ({ usageSummary })
         <div className={styles.cardContent}>
           <div className={styles.usageAmount}>
             <span className={styles.mainNumber}>
-              {UsageTrackingService.formatBytes(usageSummary.totalStreamingUsed)}
+              {UsageTrackingService.formatBytes(usageSummary.totalStreamingUsed * 1024 * 1024 * 1024)}
             </span>
             <span className={styles.limitText}>
-              de {UsageTrackingService.formatBytes(usageSummary.totalStreamingLimit)}
+              de {UsageTrackingService.formatBytes(usageSummary.totalStreamingLimit * 60 * 125000)}
             </span>
           </div>
           <div className={styles.progressContainer}>
@@ -105,7 +105,7 @@ const UsageOverviewCards: React.FC<UsageOverviewCardsProps> = ({ usageSummary })
             <div className={styles.overageWarning}>
               <span className={styles.overageIcon}>⚠️</span>
               <span className={styles.overageText}>
-                Exceso: {UsageTrackingService.formatBytes(usageSummary.streamingOverage)}
+                Exceso: {UsageTrackingService.formatDuration(usageSummary.streamingOverage * 60)}
               </span>
               <span className={styles.overageCost}>
                 {UsageTrackingService.formatCurrency(usageSummary.streamingCost)}

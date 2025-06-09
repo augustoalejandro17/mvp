@@ -40,7 +40,7 @@ const StorageBreakdown: React.FC<StorageBreakdownProps> = ({
       <div className={styles.breakdownHeader}>
         <h3 className={styles.breakdownTitle}>💾 Desglose de Almacenamiento</h3>
         <span className={styles.totalSize}>
-          Total: {UsageTrackingService.formatBytes(totalStorage)}
+          Total: {UsageTrackingService.formatBytes(totalStorage * 1024 * 1024 * 1024)}
         </span>
       </div>
 
@@ -91,7 +91,7 @@ const StorageBreakdown: React.FC<StorageBreakdownProps> = ({
                     </div>
                     <div className={styles.storageItemValues}>
                       <span className={styles.storageSize}>
-                        {UsageTrackingService.formatBytes(item.size)}
+                        {UsageTrackingService.formatBytes(item.size * 1024 * 1024 * 1024)}
                       </span>
                       <span 
                         className={styles.storagePercentage}

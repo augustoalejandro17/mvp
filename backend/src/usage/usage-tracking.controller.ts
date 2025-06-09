@@ -186,6 +186,43 @@ export class UsageTrackingController {
     }
   }
 
+  @Post('admin/backfill-storage')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async backfillStorageUsage(): Promise<{ success: boolean; processed: number; errors: number; message: string }> {
+    try {
+      const result = await this.usageTrackingService.backfillStorageUsage();
+      
+      return { 
+        success: true, 
+        processed: result.processed,
+        errors: result.errors,
+        message: `Backfill completed. Processed: ${result.processed}, Errors: ${result.errors}` 
+      };
+    } catch (error) {
+      this.logger.error(`Error during storage backfill: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Post('admin/reset-storage-tracking')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async resetStorageTracking(): Promise<{ success: boolean; processed: number; message: string }> {
+    try {
+      const result = await this.usageTrackingService.resetStorageTracking();
+      
+      return { 
+        success: true, 
+        processed: result.processed,
+        message: `Storage tracking reset. Processed: ${result.processed} videos with corrected sizes` 
+      };
+    } catch (error) {
+      this.logger.error(`Error resetting storage tracking: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
   @Post('admin/cleanup-stale-sessions')
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)

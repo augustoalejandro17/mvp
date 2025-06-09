@@ -60,12 +60,12 @@ const UsageChart: React.FC<UsageChartProps> = ({ monthlyData, currentMonth }) =>
                     style={{ 
                       height: `${(month.storage / maxStorage) * 100}%`,
                     }}
-                    title={`${month.label}: ${UsageTrackingService.formatBytes(month.storage)}`}
+                    title={`${month.label}: ${UsageTrackingService.formatBytes(month.storage * 1024 * 1024 * 1024)}`}
                   />
                 </div>
                 <span className={styles.barLabel}>{month.label}</span>
                 <span className={styles.barValue}>
-                  {UsageTrackingService.formatBytes(month.storage)}
+                  {UsageTrackingService.formatBytes(month.storage * 1024 * 1024 * 1024)}
                 </span>
               </div>
             ))}
@@ -86,12 +86,12 @@ const UsageChart: React.FC<UsageChartProps> = ({ monthlyData, currentMonth }) =>
                     style={{ 
                       height: `${(month.streaming / maxStreaming) * 100}%`,
                     }}
-                    title={`${month.label}: ${UsageTrackingService.formatBytes(month.streaming)}`}
+                    title={`${month.label}: ${UsageTrackingService.formatBytes(month.streaming * 1024 * 1024 * 1024)}`}
                   />
                 </div>
                 <span className={styles.barLabel}>{month.label}</span>
                 <span className={styles.barValue}>
-                  {UsageTrackingService.formatBytes(month.streaming)}
+                  {UsageTrackingService.formatBytes(month.streaming * 1024 * 1024 * 1024)}
                 </span>
               </div>
             ))}

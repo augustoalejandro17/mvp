@@ -15,6 +15,7 @@ import { VideoProcessorService } from '../services/video-processor.service';
 import { StorageIntegrationService } from '../usage/integration/storage-integration.service';
 import * as fs from 'fs';
 import { Enrollment, EnrollmentDocument } from '../courses/schemas/enrollment.schema';
+import { UsageHooksService } from '../usage/hooks/usage-hooks.service';
 
 // Función de utilidad para comparar roles
 const compareRole = (userRole: any, enumRole: UserRole): boolean => {
@@ -48,6 +49,7 @@ export class ClassesService {
     private cloudFrontService: CloudFrontService,
     private videoProcessorService: VideoProcessorService,
     private storageIntegrationService: StorageIntegrationService,
+    private usageHooksService: UsageHooksService,
   ) {}
 
   // Add permission check method
@@ -149,6 +151,21 @@ export class ClassesService {
           
           const savedClass = await newClass.save();
           
+          // Track storage usage for the uploaded video
+          try {
+            await this.usageHooksService.trackStorageUsage({
+              assetId: this.s3Service.getKeyFromUrl(uploadResult),
+              assetType: 'video',
+              fileSizeBytes: videoFile.size,
+              fileName: videoFile.originalname,
+              uploadedBy: teacherId,
+              schoolId: course.school.toString(),
+              relatedCourse: createClassDto.courseId,
+              relatedClass: savedClass._id.toString()
+            });
+          } catch (trackingError) {
+            this.logger.warn(`Failed to track storage usage for class ${savedClass._id}: ${trackingError.message}`);
+          }
           
           return savedClass;
         } finally {
@@ -681,6 +698,23 @@ export class ClassesService {
           } as any); // Use type assertion to bypass type checking
           
           classItem.videoUrl = uploadResult;
+          
+          // Track storage usage for the uploaded video
+          try {
+            const course = await this.coursesService.findOne(classItem.course.toString());
+            await this.usageHooksService.trackStorageUsage({
+              assetId: this.s3Service.getKeyFromUrl(uploadResult),
+              assetType: 'video',
+              fileSizeBytes: file.size,
+              fileName: file.originalname,
+              uploadedBy: userId,
+              schoolId: course.school.toString(),
+              relatedCourse: classItem.course.toString(),
+              relatedClass: classItem._id.toString()
+            });
+          } catch (trackingError) {
+            this.logger.warn(`Failed to track storage usage for class ${classItem._id}: ${trackingError.message}`);
+          }
           
           // Set video metadata
           if (!classItem.videoMetadata) {

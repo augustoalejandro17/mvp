@@ -6,6 +6,7 @@ import { UsageTrackingController } from './usage-tracking.controller';
 import { StorageIntegrationService } from './integration/storage-integration.service';
 import { StreamingIntegrationService } from './integration/streaming-integration.service';
 import { UsageHooksService } from './hooks/usage-hooks.service';
+import { UsageInitializationService } from './usage-initialization.service';
 
 // Import other schemas needed for the service
 import { User, UserSchema } from '../auth/schemas/user.schema';
@@ -33,6 +34,7 @@ import { Subscription, SubscriptionSchema } from '../plans/schemas/subscription.
     StorageIntegrationService,
     StreamingIntegrationService,
     UsageHooksService,
+    UsageInitializationService,
   ],
   exports: [
     UsageTrackingService,

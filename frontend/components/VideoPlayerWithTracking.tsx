@@ -28,6 +28,7 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
   
   // Usage tracking state
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -36,6 +37,18 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const maxRetries = 2;
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Device detection
   const getDeviceType = (): 'mobile' | 'desktop' | 'tablet' => {
@@ -77,7 +90,7 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
 
       setSessionId(response.sessionId);
       setStartTime(Date.now());
-      console.log('Streaming session started:', response.sessionId);
+
     } catch (error) {
       console.error('Error starting streaming session:', error);
       // Don't fail video playback if tracking fails
@@ -90,7 +103,7 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
 
     try {
       await UsageTrackingService.endStreamingSession(sessionId, bytesTransferred);
-      console.log('Streaming session ended:', sessionId);
+
       setSessionId(null);
       setStartTime(null);
       setBytesTransferred(0);
@@ -121,16 +134,17 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
 
   // Function to get streaming URL
   const getStreamingUrl = useCallback(async () => {
+    // If we already have a URL, use it directly
+    if (url) {
+      setStreamUrl(url);
+      setIsLoading(false);
+      return;
+    }
+    
     if (!classId) {
-      if (url) {
-        setStreamUrl(url);
-        setIsLoading(false);
-        return;
-      } else {
-        setError("No se puede reproducir el video sin un ID de clase o URL");
-        setIsLoading(false);
-        return;
-      }
+      setError("No se puede reproducir el video sin un ID de clase o URL");
+      setIsLoading(false);
+      return;
     }
 
     try {
@@ -161,14 +175,13 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
       try {
         const response = await api.get(`/classes/${classId}`);
         if (response.data && response.data.videoUrl) {
-          console.log('Usando URL directa de video de la clase');
           setStreamUrl(response.data.videoUrl);
           setError(null);
           setIsLoading(false);
           return;
         }
       } catch (directError) {
-        console.warn('Error con URL directa, intentando última alternativa', directError);
+        console.warn('Error with direct URL fallback', directError);
       }
 
       setError("No se pudo obtener la URL del video. Intente de nuevo más tarde.");
@@ -212,6 +225,16 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
   useEffect(() => {
     getStreamingUrl();
   }, [getStreamingUrl, retryCount]);
+
+  // Re-initialize when URL prop changes
+  useEffect(() => {
+    if (url) {
+      setStreamUrl(null);
+      setIsLoading(true);
+      setError(null);
+      getStreamingUrl();
+    }
+  }, [url, getStreamingUrl]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -271,72 +294,199 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
     }
   };
 
+
+
   if (isLoading) {
     return (
-      <div className={styles.loading}>
-        <div className={styles.spinner}></div>
-        <p>Cargando video...</p>
+      <div style={{
+        width: '100%',
+        maxWidth: isMobile ? '100%' : '800px',
+        margin: '0 auto',
+        position: 'relative',
+        backgroundColor: '#000',
+        borderRadius: isMobile ? '6px' : '8px'
+      }}>
+        <div style={{
+          position: 'relative',
+          width: '100%',
+          ...(isMobile ? { height: '450px' } : { paddingBottom: '56.25%', height: 0 })
+        }}>
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            color: 'white'
+          }}>
+            <div className={styles.spinner}></div>
+            <p style={{ marginTop: '16px', fontSize: '16px' }}>Cargando video...</p>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className={styles.error}>
-        <p>{error}</p>
-        {retryCount < maxRetries && (
-          <button 
-            className={styles.retryButton}
-            onClick={handleRetry}
-          >
-            Reintentar
-          </button>
-        )}
+      <div style={{
+        width: '100%',
+        maxWidth: isMobile ? '100%' : '800px',
+        margin: '0 auto',
+        position: 'relative',
+        backgroundColor: '#000',
+        borderRadius: isMobile ? '6px' : '8px'
+      }}>
+        <div style={{
+          position: 'relative',
+          width: '100%',
+          ...(isMobile ? { height: '450px' } : { paddingBottom: '56.25%', height: 0 })
+        }}>
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            color: 'white',
+            padding: '20px',
+            textAlign: 'center'
+          }}>
+            <p style={{ marginBottom: '20px', fontSize: '16px', color: '#ff6b6b' }}>
+              ⚠️ {error}
+            </p>
+            {retryCount < maxRetries && (
+              <button 
+                onClick={handleRetry}
+                style={{
+                  backgroundColor: '#3182ce',
+                  color: 'white',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                🔄 Reintentar
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!streamUrl) {
     return (
-      <div className={styles.noVideo}>
-        <p>No hay video disponible</p>
+      <div style={{
+        width: '100%',
+        maxWidth: isMobile ? '100%' : '800px',
+        margin: '0 auto',
+        position: 'relative',
+        paddingBottom: isMobile ? '45%' : '56.25%',
+        height: 0,
+        backgroundColor: '#000',
+        borderRadius: isMobile ? '6px' : '8px'
+      }}>
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          color: '#666',
+          fontSize: '16px'
+        }}>
+          <p>No hay video disponible</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={styles.container}>
-      <div className={styles.videoWrapper}>
+    <div style={{
+      width: '100%',
+      maxWidth: isMobile ? '100%' : '800px',
+      margin: '0 auto',
+      position: 'relative',
+      backgroundColor: '#000',
+      borderRadius: isMobile ? '6px' : '8px',
+      overflow: 'hidden'
+    }}>
+      <div style={{
+        position: 'relative',
+        width: '100%',
+        ...(isMobile ? { height: '450px' } : { paddingBottom: '56.25%', height: 0 })
+      }}>
         <video 
           ref={videoRef}
           src={streamUrl}
           controls
           autoPlay={false}
-          className={styles.video}
-          poster="/video-poster.jpg"
-          controlsList="nodownload noremoteplayback" // Disable browser download button
-          disablePictureInPicture={false} // Keep picture in picture
+          preload="metadata"
+          controlsList="nodownload noremoteplayback"
+          disablePictureInPicture={false}
           onPlay={handlePlay}
           onPause={handlePause}
           onEnded={handleEnded}
           onTimeUpdate={handleTimeUpdate}
           onError={handleError}
-          onContextMenu={(e: React.MouseEvent) => e.preventDefault()} // Disable right-click
+          onContextMenu={(e: React.MouseEvent) => e.preventDefault()}
+          style={{ 
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%', 
+            height: '100%',
+            backgroundColor: '#000',
+            borderRadius: isMobile ? '6px' : '8px',
+            objectFit: 'contain'
+          }}
         />
       </div>
       
-      {/* Usage tracking indicator */}
-      {sessionId && (
-        <div className={styles.trackingIndicator}>
-          <span className={styles.trackingIcon}>📊</span>
-          <span className={styles.trackingText}>Monitoreando uso</span>
-          {bytesTransferred > 0 && (
-            <span className={styles.trackingBytes}>
-              {UsageTrackingService.formatBytes(bytesTransferred)}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Video info overlay */}
+      <div style={{
+        position: 'absolute',
+        top: isMobile ? '8px' : '10px',
+        left: isMobile ? '8px' : '10px',
+        display: 'flex',
+        gap: isMobile ? '6px' : '8px',
+        zIndex: 10
+      }}>
+        {sessionId && isPlaying && (
+          <div className={styles.trackingIndicator}>
+            <span className={styles.trackingIcon}>🔴</span>
+            <span className={styles.trackingText}>En vivo</span>
+          </div>
+        )}
+        
+        {bytesTransferred > 0 && (
+          <div style={{
+            background: 'rgba(0, 0, 0, 0.7)',
+            color: 'white',
+            padding: isMobile ? '4px 6px' : '4px 8px',
+            borderRadius: '4px',
+            fontSize: isMobile ? '11px' : '12px',
+            fontWeight: '500'
+          }}>
+            {UsageTrackingService.formatBytes(bytesTransferred)}
+          </div>
+        )}
+      </div>
       
       {allowDownload && classId && (
         <div className={styles.downloadContainer}>
