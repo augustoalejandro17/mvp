@@ -152,8 +152,6 @@ export default function AttendancePage() {
       const month = parseInt(monthStr, 10);
       const year = parseInt(yearStr, 10);
       
-      console.log(`🔍 Fetching unpaid students for course ${id}, month ${month}, year ${year} (from selected date: ${date})`);
-      
       const response = await axios.get(
         `${apiUrl}/api/courses/${id}/unpaid-students?month=${month}&year=${year}`,
         {
@@ -161,15 +159,9 @@ export default function AttendancePage() {
         }
       );
       
-      console.log('🔍 Unpaid students API response:', response.data);
-      console.log('🔍 Total students:', response.data.totalStudents);
-      console.log('🔍 Unpaid count:', response.data.unpaidCount);
-      console.log('🔍 Unpaid students array:', response.data.unpaidStudents);
-      
       setUnpaidStudents(response.data);
     } catch (error: any) {
-      console.error('❌ Error fetching unpaid students:', error);
-      console.error('❌ Error response:', error.response?.data);
+      console.error('Error fetching unpaid students:', error);
     } finally {
       setLoadingUnpaid(false);
     }
@@ -185,15 +177,8 @@ export default function AttendancePage() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const token = Cookies.get('token');
       
-      // DEBUG: Log the date value before conversion
-      console.log('🔍 DEBUG: date variable value:', date);
-      console.log('🔍 DEBUG: typeof date:', typeof date);
-      
       // Convert GMT-5 date to UTC for backend query
       const utcDate = convertGMT5ToUTC(date);
-      
-      console.log(`Fetching attendance for course ${id} on GMT-5 date ${date}`);
-      console.log(`Converted to UTC: ${utcDate.toISOString()}`);
       
       const response = await axios.get(`${apiUrl}/api/attendance/course/${id}?date=${utcDate.toISOString()}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -251,7 +236,7 @@ export default function AttendancePage() {
                 isTemporary: false, 
               });
             } else {
-              console.log(`Estudiante ${student.name} excluido de asistencia por estado: ${student.status}`);
+
             }
           }
         }
@@ -301,7 +286,7 @@ export default function AttendancePage() {
               // Estudiante en API pero no en el curso actual (ej. un "no registrado" que ya no está o error)
               // Decidimos no añadirlo si no está en la lista oficial de course.students para evitar "fantasmas"
               // Si se quisiera mostrar TODO lo de la API, aquí se añadiría a finalAttendanceMap.
-              console.log(`Registro de API para estudiante ${studentIdFromApi} (${studentNameFromApi}) no encontrado en la lista actual del curso.`);
+
             }
           }
         }
@@ -313,7 +298,7 @@ export default function AttendancePage() {
           
       finalAttendancesArray.sort((a, b) => (a.studentName || '').localeCompare((b.studentName || ''), undefined, { sensitivity: 'base' }));
         
-      console.log('Final combined and deduplicated attendance records:', finalAttendancesArray);
+
       
       // Preserve user's current selections only when refreshing data for the SAME date
       setAttendances(prevAttendances => {
@@ -389,27 +374,13 @@ export default function AttendancePage() {
   // Function to check if a student has paid for the current month
   const hasStudentPaid = (studentId: string): boolean => {
     if (!unpaidStudents) {
-      console.log('🔍 No payment data loaded, defaulting to unpaid for student:', studentId);
       return false; // Default to unpaid (X) if no payment data loaded
     }
-    
-    console.log('🔍 Checking payment for student:', studentId);
-    console.log('🔍 Total enrolled students:', unpaidStudents.totalStudents);
-    console.log('🔍 Paid count:', unpaidStudents.paidCount);
-    console.log('🔍 Unpaid count:', unpaidStudents.unpaidCount);
-    console.log('🔍 Paid students list:', unpaidStudents.paidStudents?.map(u => u.studentId) || []);
-    console.log('🔍 Unpaid students list:', unpaidStudents.unpaidStudents.map(u => u.studentId));
     
     // Check if this student is explicitly in the PAID list
     const isInPaidList = unpaidStudents.paidStudents?.some(paid => paid.studentId === studentId) || false;
     
-    if (isInPaidList) {
-      console.log(`🔍 Student ${studentId} is PAID ✅ (found in paid list)`);
-      return true;
-    } else {
-      console.log(`🔍 Student ${studentId} is UNPAID ❌ (not in paid list)`);
-      return false;
-    }
+    return isInPaidList;
   };
 
   const handlePresentChange = (studentId: string, present: boolean) => {
@@ -466,7 +437,7 @@ export default function AttendancePage() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      console.log('Asistente creado con éxito:', response.data);
+
       
       // Agregar el asistente a la lista local con su ID real
       const newAttendance = {
@@ -521,7 +492,7 @@ export default function AttendancePage() {
           };
         });
       
-      console.log('Attendances to save:', attendancesToSave.length);
+
       
       // If we have no attendance records to save, skip
       if (attendancesToSave.length === 0) {
@@ -549,7 +520,7 @@ export default function AttendancePage() {
               date: dateString, // El backend puede optar por usar esta fecha o no para el campo 'date' en sí
               courseId: id as string
             };
-            console.log('Sending update data for ID', attendance._id, updateData);
+
             return axios.patch(`${apiUrl}/api/attendance/${attendance._id}`, updateData, {
               headers: { Authorization: `Bearer ${token}` }
             }).catch(error => {
@@ -566,7 +537,7 @@ export default function AttendancePage() {
               // No se envía isRegistered. El backend asume que studentId es un ObjectId de User.
             };
             
-            console.log('Sending create data:', createData);
+
             return axios.post(`${apiUrl}/api/attendance`, createData, {
                 headers: { Authorization: `Bearer ${token}` }
             }).catch(error => {
@@ -587,11 +558,6 @@ export default function AttendancePage() {
       const failedPromises = promiseResults.filter(result => result.status === 'rejected');
       if (failedPromises.length > 0) {
         console.error(`${failedPromises.length} attendance records failed to save`);
-        failedPromises.forEach((result, index) => {
-          if (result.status === 'rejected') {
-            console.error(`Failed promise ${index}:`, result.reason);
-          }
-        });
         
         setError(`Error al guardar ${failedPromises.length} registros de asistencia`);
       } else {
@@ -632,7 +598,6 @@ export default function AttendancePage() {
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Mantener la fecha local seleccionada
-    console.log('🔍 DEBUG: Date picker changed to:', e.target.value);
     setDate(e.target.value);
   };
 
@@ -839,7 +804,6 @@ export default function AttendancePage() {
       
       setSuccess(`Asistencias exportadas correctamente a ${fileName}`);
     } catch (error) {
-      console.error('Error exporting to Excel:', error);
       setError('Error al exportar las asistencias a Excel');
     } finally {
       setExportLoading(false);

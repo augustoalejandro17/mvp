@@ -504,9 +504,6 @@ export class ClassesService {
     // Usar la fecha y hora exacta en UTC
     const attendanceDate = new Date();
     
-    // Log information for debugging
-    console.log(`Recording attendance for class ${classId}`);
-    
     // Get the course ID from the class
     const courseId = classItem.course;
     

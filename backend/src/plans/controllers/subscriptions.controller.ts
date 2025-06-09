@@ -97,8 +97,6 @@ export class SubscriptionsController {
   @Get('plans')
   async getAllPlans(@Query('active') active?: string) {
     try {
-      console.log('🔍 Getting plans from database...');
-      
       // Build the query based on optional active filter
       const query: any = {};
       if (active === 'true') {
@@ -107,18 +105,10 @@ export class SubscriptionsController {
         query.isActive = false;
       }
 
-      console.log('📝 Query:', JSON.stringify(query));
-
       // Get all plans
       const plans = await this.planModel.find(query)
         .sort({ monthlyPriceCents: 1, name: 1 })
         .exec();
-
-      console.log(`📊 Found ${plans.length} plans in database`);
-      
-      if (plans.length > 0) {
-        console.log('📋 First plan raw data:', JSON.stringify(plans[0], null, 2));
-      }
 
       // Count subscriptions for each plan
       const plansWithStats = await Promise.all(plans.map(async (plan, index) => {
@@ -131,18 +121,6 @@ export class SubscriptionsController {
         const students = plan.studentSeats || plan.maxUsers || 0;
         const teachersCount = plan.teachers || 2; // Default fallback
         const concurrentCourses = plan.maxConcurrentCoursesPerStudent || plan.maxCoursesPerUser || 1;
-        
-        console.log(`Plan ${index + 1} (${plan.name}) field mapping:`);
-        console.log(`  monthlyPriceCents: ${plan.monthlyPriceCents}`);
-        console.log(`  monthlyPrice: ${plan.monthlyPrice}`);
-        console.log(`  price: ${plan.price}`);
-        console.log(`  calculated priceCents: ${priceCents}`);
-        console.log(`  maxUsers: ${plan.maxUsers}`);
-        console.log(`  studentSeats: ${plan.studentSeats}`);
-        console.log(`  calculated students: ${students}`);
-        console.log(`  maxStorageGb: ${plan.maxStorageGb}`);
-        console.log(`  storageGB: ${plan.storageGB}`);
-        console.log(`  calculated storage: ${storage}`);
         
         const result = {
           _id: plan._id,
@@ -160,8 +138,6 @@ export class SubscriptionsController {
           features: plan.features || [],
           subscriptionsCount
         };
-        
-        console.log(`📤 Formatted plan ${index + 1}:`, JSON.stringify(result, null, 2));
         return result;
       }));
 

@@ -235,11 +235,6 @@ export class AttendanceService {
     const startUTC = new Date(startLocal.getTime() + timezoneOffset * 60000);
     const endUTC = new Date(endLocal.getTime() + timezoneOffset * 60000);
     
-    console.log(`Finding attendance records for course ${courseId}`);
-    console.log(`Date provided: ${date.toISOString()}`);
-    console.log(`Local date (${schoolTimezone}): ${localDateStr}`);
-    console.log(`Search between: ${startUTC.toISOString()} and ${endUTC.toISOString()}`);
-    
     const records = await this.attendanceModel.find({
       course: courseId,
       date: {
@@ -508,7 +503,6 @@ export class AttendanceService {
       }
       
       // Use timezone-aware date conversion
-      console.log(`Creating attendance with date: ${date.toISOString()}`);
       
       // Get school timezone from course
       const schoolTimezone = course?.school?.timezone || 'America/Bogota';
@@ -552,7 +546,6 @@ export class AttendanceService {
         recordedBy: teacherId
       });
       const savedAttendance = await attendance.save();
-      console.log(`Saved attendance with date: ${savedAttendance.date.toISOString()}`);
       return savedAttendance;
     } catch (error) {
       this.logger.error(`Error en createForNonRegisteredUser: ${error.message}`, error.stack);

@@ -118,15 +118,12 @@ export class CoursesService {
     });
       
       const result = await createdCourse.save();
-      console.log('Curso guardado exitosamente:', result);
       
       // Añadir el curso a la escuela
       try {
       await this.schoolsService.addCourse(schoolId, String(result._id));
-      console.log(`Curso añadido exitosamente a la escuela ${schoolId}`);
       } catch (error) {
         this.logger.error(`Error al añadir curso a escuela: ${error.message}`, error.stack);
-        console.error('Error al añadir curso a escuela:', error);
         // No lanzamos la excepción para evitar que falle la creación del curso
       }
       
@@ -1382,8 +1379,6 @@ export class CoursesService {
 
     // Format target month for comparison
     const targetMonth = `${year}-${String(month).padStart(2, '0')}`;
-    
-    console.log(`🔍 BACKEND: getUnpaidStudents called for course ${courseId}, targetMonth: ${targetMonth}`);
 
     // Separate students into paid and unpaid
     const paidStudents = [];
@@ -1394,17 +1389,11 @@ export class CoursesService {
       const studentId = studentData._id.toString();
       const studentName = studentData.name || 'N/A';
       
-      console.log(`🔍 BACKEND: Checking student ${studentName} (${studentId})`);
-      console.log(`🔍 BACKEND: Payment history:`, enrollment.paymentHistory);
-      
       const hasPaymentForMonth = enrollment.paymentHistory.some(payment => {
         const paymentMonth = payment.month;
         const matches = paymentMonth === targetMonth;
-        console.log(`🔍 BACKEND: Payment month ${paymentMonth} === target ${targetMonth}? ${matches}`);
         return matches;
       });
-      
-      console.log(`🔍 BACKEND: Student ${studentName} has payment for ${targetMonth}:`, hasPaymentForMonth);
 
       const studentInfo = {
         studentId: studentData._id.toString(),
@@ -1415,15 +1404,10 @@ export class CoursesService {
 
       if (hasPaymentForMonth) {
         paidStudents.push(studentInfo);
-        console.log(`🔍 BACKEND: Added ${studentName} to PAID list`);
       } else {
         unpaidStudents.push(studentInfo);
-        console.log(`🔍 BACKEND: Added ${studentName} to UNPAID list`);
       }
     });
-
-    console.log(`🔍 BACKEND: Final result - Paid: ${paidStudents.length}, Unpaid: ${unpaidStudents.length}`);
-    console.log(`🔍 BACKEND: Paid students:`, paidStudents.map(p => p.studentName));
 
     return {
       courseId,

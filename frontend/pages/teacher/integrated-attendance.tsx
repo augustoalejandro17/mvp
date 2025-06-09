@@ -93,7 +93,6 @@ interface MonthPaymentData {
 }
 
 export default function IntegratedAttendancePage() {
-  console.log('🔍 IntegratedAttendancePage component loaded');
   
   const router = useRouter();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -164,23 +163,12 @@ export default function IntegratedAttendancePage() {
       const month = parseInt(monthStr, 10);
       const year = parseInt(yearStr, 10);
       
-      console.log('🔍 Payment Debug Info:');
-      console.log('🔍 Selected date string:', selectedDate);
-      console.log('🔍 Date parts:', { yearStr, monthStr, dayStr });
-      console.log('🔍 Extracted month:', month);
-      console.log('🔍 Extracted year:', year);
-      console.log('🔍 API call URL:', `${apiUrl}/api/courses/${courseId}/unpaid-students?month=${month}&year=${year}`);
-      
       const response = await axios.get(`${apiUrl}/api/courses/${courseId}/unpaid-students?month=${month}&year=${year}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      console.log('🔍 Payment API response:', response.data);
-      
       setMonthPaymentData(response.data);
     } catch (error: any) {
-      console.error('🔍 Error in fetchMonthPaymentData:', error);
-      console.error('🔍 Error details:', error.response?.status, error.response?.data);
       const errorMsg = handleApiError(error);
       setError(errorMsg || 'Error al cargar los datos de pago del mes');
     }
@@ -197,17 +185,12 @@ export default function IntegratedAttendancePage() {
       // Use utility function to get UTC range for GMT-5 date
       const { startUTC, endUTC } = getUTCRangeForGMT5Date(attendanceDate);
       
-      console.log('Original GMT-5 date string:', attendanceDate);
-      console.log('UTC start date:', startUTC.toISOString());
-      console.log('UTC end date:', endUTC.toISOString());
-      
       const response = await axios.get(`${apiUrl}/api/attendance/course/${courseId}?date=${startUTC.toISOString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       // Si hay registros de asistencia, mapearlos
       if (response.data && Array.isArray(response.data)) {
-        console.log('Received attendance records:', response.data);
         setAttendances(response.data.map(attendance => ({
           _id: attendance._id,
           studentId: attendance.student._id,
@@ -218,7 +201,6 @@ export default function IntegratedAttendancePage() {
         setAttendances([]);
       }
     } catch (error) {
-      console.error('Error al obtener las asistencias:', error);
       // Si no hay asistencias para esta fecha, inicializar array vacío
       setAttendances([]);
     } finally {
@@ -244,15 +226,7 @@ export default function IntegratedAttendancePage() {
       let monthPaymentStatus = false;
       if (monthPaymentData) {
         monthPaymentStatus = monthPaymentData.paidStudents.some(paid => paid.studentId === student._id);
-        console.log(`🔍 Payment status for ${student.name} (${student._id}):`, monthPaymentStatus);
-        if (monthPaymentStatus) {
-          console.log('🔍 Found in paid students list');
-        } else {
-          console.log('🔍 NOT found in paid students list');
-          console.log('🔍 Paid students:', monthPaymentData.paidStudents.map(p => ({ id: p.studentId, name: p.studentName })));
-        }
-      } else {
-        console.log(`🔍 No monthPaymentData available for ${student.name}`);
+
       }
       
       return {
@@ -385,7 +359,7 @@ export default function IntegratedAttendancePage() {
         }))
       };
       
-      console.log('Sending bulk attendance data:', bulkData);
+
       
       await axios.post(`${apiUrl}/api/attendance/bulk`, bulkData, {
         headers: { 
@@ -400,13 +374,6 @@ export default function IntegratedAttendancePage() {
       fetchAttendances(selectedCourse, date);
     } catch (error: any) {
       const errorMsg = handleApiError(error);
-      console.error('Error al guardar la asistencia:', error);
-      
-      // Detailed error logging
-      if (error.response) {
-        console.error('Error response data:', error.response.data);
-        console.error('Error response status:', error.response.status);
-      }
       
       setError(errorMsg || 'Error al guardar la asistencia');
     } finally {

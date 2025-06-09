@@ -308,28 +308,18 @@ export class StatisticsService {
   }
 
   private async validateAndParseQuery(query: StatisticsQueryDto, user: any) {
-    console.log('🔍 Statistics validateAndParseQuery - User:', {
-      id: user.sub || user._id,
-      role: user.role,
-      email: user.email
-    });
-    console.log('🔍 Statistics validateAndParseQuery - Query:', query);
-    
     // TEMPORARY: Super admin bypass - check for any super admin variation
     const userRoleStr = String(user.role || '').toLowerCase();
     if (userRoleStr.includes('super') || userRoleStr.includes('admin')) {
-      console.log('✅ SUPER ADMIN BYPASS - Granting full access');
       const from = query.from ? new Date(query.from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const to = query.to ? new Date(query.to) : new Date();
       
       let academyIds: Types.ObjectId[] = [];
       if (query.academyId) {
         academyIds = [new Types.ObjectId(query.academyId)];
-        console.log('✅ Using specific academyId for super admin:', query.academyId);
       } else {
         const allSchools = await this.dailySnapshotModel.distinct('academyId').exec();
         academyIds = allSchools;
-        console.log('✅ Using all schools for super admin:', allSchools.length);
       }
       
       return { from, to, academyIds };
@@ -352,25 +342,18 @@ export class StatisticsService {
       ADMIN: 'admin'
     };
     
-    console.log('🔍 Checking user role:', user.role, 'against SUPER_ADMIN:', UserRole.SUPER_ADMIN);
-    
     // Normalize role for comparison (handle case variations)
     const normalizedUserRole = String(user.role).toLowerCase();
-    console.log('🔍 Normalized user role:', normalizedUserRole);
     
     if (normalizedUserRole === UserRole.SUPER_ADMIN || normalizedUserRole === 'super_admin') {
-      console.log('✅ User is SUPER_ADMIN');
       if (query.academyId) {
         academyIds = [new Types.ObjectId(query.academyId)];
-        console.log('✅ Using specific academyId:', query.academyId);
       } else {
         // Get all academies for super admin if no specific academy requested
         const allSchools = await this.dailySnapshotModel.distinct('academyId').exec();
         academyIds = allSchools;
-        console.log('✅ Using all schools for super admin:', allSchools.length);
       }
     } else if (user.role === UserRole.SCHOOL_OWNER) {
-      console.log('🔍 User is SCHOOL_OWNER');
       // For school owners, get schools they own by checking school.admin field
       const userId = user.sub || (user._id ? user._id.toString() : null);
       if (!userId) {
@@ -390,7 +373,6 @@ export class StatisticsService {
         throw new BadRequestException('School owners must specify academyId parameter');
       }
     } else if (user.role === UserRole.ADMINISTRATIVE || user.role === UserRole.ADMIN) {
-      console.log('🔍 User is ADMINISTRATIVE/ADMIN');
       // For administrative users, check if they have access to the school
       const userId = user.sub || (user._id ? user._id.toString() : null);
       if (!userId) {
@@ -407,16 +389,12 @@ export class StatisticsService {
         throw new BadRequestException('Administrative users must specify academyId parameter');
       }
     } else {
-      console.log('❌ User role not recognized:', user.role);
       throw new ForbiddenException('Insufficient permissions');
     }
 
     if (academyIds.length === 0) {
-      console.log('❌ No accessible schools found');
       throw new ForbiddenException('No accessible schools found');
     }
-
-    console.log('✅ Access granted. Academy IDs:', academyIds.map(id => id.toString()));
     return { from, to, academyIds };
   }
 
@@ -464,7 +442,6 @@ export class StatisticsService {
       
       return isAdmin || isTeacher || isAdministrative;
     } catch (error) {
-      console.error('Error checking school access:', error);
       return false;
     }
   }
