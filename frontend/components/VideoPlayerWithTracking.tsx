@@ -621,35 +621,7 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
         />
       </div>
       
-      {/* Video info overlay */}
-      <div style={{
-        position: 'absolute',
-        top: isMobile ? '8px' : '10px',
-        left: isMobile ? '8px' : '10px',
-        display: 'flex',
-        gap: isMobile ? '6px' : '8px',
-        zIndex: 10
-      }}>
-        {sessionId && isPlaying && (
-          <div className={styles.trackingIndicator}>
-            <span className={styles.trackingIcon}>🔴</span>
-            <span className={styles.trackingText}>En vivo</span>
-          </div>
-        )}
-        
-        {bytesTransferred > 0 && (
-          <div style={{
-            background: 'rgba(0, 0, 0, 0.7)',
-            color: 'white',
-            padding: isMobile ? '4px 6px' : '4px 8px',
-            borderRadius: '4px',
-            fontSize: isMobile ? '11px' : '12px',
-            fontWeight: '500'
-          }}>
-            {UsageTrackingService.formatBytes(bytesTransferred)}
-          </div>
-        )}
-      </div>
+
       
       {allowDownload && classId && (
         <div className={styles.downloadContainer}>
