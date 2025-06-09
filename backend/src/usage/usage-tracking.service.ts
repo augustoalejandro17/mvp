@@ -8,6 +8,8 @@ import { Course } from '../courses/schemas/course.schema';
 import { Class } from '../classes/schemas/class.schema';
 import { Plan } from '../plans/schemas/plan.schema';
 import { Subscription } from '../plans/schemas/subscription.schema';
+import { ConfigService } from '@nestjs/config';
+import { S3 } from 'aws-sdk';
 
 export interface StorageTrackingOptions {
   assetId: string;
@@ -48,6 +50,8 @@ export interface UsageSummary {
 @Injectable()
 export class UsageTrackingService {
   private readonly logger = new Logger(UsageTrackingService.name);
+  private readonly s3: S3;
+  private readonly bucketName: string;
 
   constructor(
     @InjectModel(UsageTracking.name) private usageModel: Model<UsageTrackingDocument>,
@@ -57,7 +61,15 @@ export class UsageTrackingService {
     @InjectModel(Class.name) private classModel: Model<Class>,
     @InjectModel(Plan.name) private planModel: Model<Plan>,
     @InjectModel(Subscription.name) private subscriptionModel: Model<Subscription>,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.s3 = new S3({
+      accessKeyId: this.configService.get<string>('aws.accessKeyId'),
+      secretAccessKey: this.configService.get<string>('aws.secretAccessKey'),
+      region: this.configService.get<string>('aws.region'),
+    });
+    this.bucketName = this.configService.get<string>('aws.s3.bucketName');
+  }
 
   // ========================================
   // STORAGE TRACKING
@@ -284,20 +296,23 @@ export class UsageTrackingService {
         return;
       }
 
-      // Calculate duration
+      // Calculate duration (store as fractional minutes for accuracy)
       session.endTime = currentDate;
-      session.durationMinutes = Math.round((currentDate.getTime() - session.startTime.getTime()) / 60000);
+      const sessionDurationMs = currentDate.getTime() - session.startTime.getTime();
+      session.durationMinutes = sessionDurationMs / 60000; // Don't round - keep fractional minutes
       session.bytesTransferred = bytesTransferred || 0;
+      
+      this.logger.log(`Session ${sessionId} duration: ${sessionDurationMs}ms = ${session.durationMinutes.toFixed(2)} minutes, bytes: ${session.bytesTransferred}`);
 
-      // Update totals
-      usageDoc.totalStreamingMinutes += session.durationMinutes;
+      // Update totals (round to 2 decimal places for storage)
+      usageDoc.totalStreamingMinutes += Math.round(session.durationMinutes * 100) / 100;
       usageDoc.totalBandwidthBytes += session.bytesTransferred;
       usageDoc.totalSessions += 1;
 
       // Update user attribution
       const userId = session.userId.toString();
       const currentUserUsage = usageDoc.streamingByUser.get(userId) || 0;
-      usageDoc.streamingByUser.set(userId, currentUserUsage + session.durationMinutes);
+      usageDoc.streamingByUser.set(userId, Math.round((currentUserUsage + session.durationMinutes) * 100) / 100);
 
       // Update unique viewers count
       const uniqueUserIds = new Set(
@@ -311,7 +326,7 @@ export class UsageTrackingService {
       const completedSessions = usageDoc.streamingSessions.filter(s => s.endTime);
       const totalMinutes = completedSessions.reduce((sum, s) => sum + s.durationMinutes, 0);
       usageDoc.averageSessionMinutes = completedSessions.length > 0 ? 
-        Math.round(totalMinutes / completedSessions.length) : 0;
+        Math.round((totalMinutes / completedSessions.length) * 100) / 100 : 0;
 
       // Calculate streaming overages
       await this.calculateStreamingOverage(usageDoc);
@@ -475,7 +490,7 @@ export class UsageTrackingService {
       .slice(0, 10)
       .map(session => ({
         assetId: session.assetId,
-        duration: session.durationMinutes,
+        duration: Math.round(session.durationMinutes * 60 * 100) / 100, // Convert minutes to seconds with precision
         bytesTransferred: session.bytesTransferred,
         quality: session.quality,
         createdAt: session.startTime.toISOString(),
@@ -498,6 +513,96 @@ export class UsageTrackingService {
       storageByType,
       topStreamingSessions,
     };
+  }
+
+  /**
+   * Get streaming history for a school with date range filter
+   */
+  async getStreamingHistory(
+    schoolId: string,
+    startDate?: string,
+    endDate?: string,
+    limit: number = 50
+  ): Promise<any[]> {
+    try {
+      const dateFilter: any = {};
+      
+      if (startDate || endDate) {
+        if (startDate) {
+          dateFilter.$gte = new Date(startDate);
+        }
+        if (endDate) {
+          const endDateTime = new Date(endDate);
+          endDateTime.setHours(23, 59, 59, 999); // End of day
+          dateFilter.$lte = endDateTime;
+        }
+      }
+
+      // Get usage documents within date range
+      const query: any = { school: new Types.ObjectId(schoolId) };
+      if (Object.keys(dateFilter).length > 0) {
+        query.lastUpdated = dateFilter;
+      }
+
+      const usageDocs = await this.usageModel.find(query).exec();
+
+      // Collect all streaming sessions from all months
+      const allSessions: any[] = [];
+      
+      for (const doc of usageDocs) {
+        const sessions = doc.streamingSessions
+          .filter(session => session.endTime) // Only completed sessions
+          .filter(session => {
+            if (!startDate && !endDate) return true;
+            const sessionDate = session.startTime;
+            if (startDate && sessionDate < new Date(startDate)) return false;
+            if (endDate && sessionDate > new Date(endDate + 'T23:59:59.999Z')) return false;
+            return true;
+          })
+          .map(session => ({
+            sessionId: session.sessionId,
+            assetId: session.assetId,
+            schoolId,
+            userId: session.userId.toString(),
+            duration: Math.round(session.durationMinutes * 60 * 100) / 100, // Convert minutes to seconds with precision
+            bytesTransferred: session.bytesTransferred,
+            quality: session.quality,
+            deviceType: session.deviceType,
+            startTime: session.startTime.toISOString(),
+            endTime: session.endTime?.toISOString(),
+            isActive: false
+          }));
+        
+        allSessions.push(...sessions);
+      }
+
+      // Sort by start time (newest first) and limit
+      return allSessions
+        .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+        .slice(0, limit);
+
+    } catch (error) {
+      this.logger.error(`Error getting streaming history: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Get actual file size from S3
+   */
+  private async getS3FileSize(s3Key: string): Promise<number> {
+    try {
+      const params = {
+        Bucket: this.bucketName,
+        Key: s3Key
+      };
+
+      const headResult = await this.s3.headObject(params).promise();
+      return headResult.ContentLength || 0;
+    } catch (error) {
+      this.logger.warn(`Error getting S3 file size for ${s3Key}: ${error.message}`);
+      throw error;
+    }
   }
 
   /**
@@ -529,10 +634,10 @@ export class UsageTrackingService {
   }
 
   /**
-   * Backfill storage usage for existing videos
-   * This method should be called once to add tracking for videos that were uploaded before tracking was implemented
+   * Backfill storage usage with REAL file sizes from S3
+   * This gets actual file sizes instead of estimates
    */
-  async backfillStorageUsage(): Promise<{ processed: number; errors: number }> {
+  async backfillStorageUsageWithRealSizes(): Promise<{ processed: number; errors: number }> {
     try {
       this.logger.log('Starting backfill of storage usage for existing videos...');
       
@@ -573,10 +678,6 @@ export class UsageTrackingService {
           const month = uploadDate.getMonth() + 1;
           const year = uploadDate.getFullYear();
 
-          // Estimate file size more accurately based on typical video sizes (default to 10MB for videos)
-          const estimatedSize = 10 * 1024 * 1024; // 10MB default for videos (more realistic)
-          const fileName = `${classItem.title || 'video'}_${classItem._id}.mp4`;
-
           // Extract asset ID from CloudFront or S3 URL
           let assetId;
           try {
@@ -597,6 +698,21 @@ export class UsageTrackingService {
             assetId = `${classItem._id}.mp4`; // Fallback key
           }
 
+          // Get REAL file size from S3
+          let actualSize = 0;
+          const fileName = `${classItem.title || 'video'}_${classItem._id}.mp4`;
+          
+          try {
+            // The correct S3 key includes the videos/ prefix
+            const s3Key = `videos/${assetId}`;
+            actualSize = await this.getS3FileSize(s3Key);
+            this.logger.log(`Got real file size for ${s3Key}: ${actualSize} bytes (${(actualSize/1024/1024).toFixed(2)} MB)`);
+          } catch (sizeError) {
+            this.logger.warn(`Could not get real file size for videos/${assetId}, skipping this video: ${sizeError.message}`);
+            errors++;
+            continue; // Skip videos that don't exist in S3 instead of using estimates
+          }
+
           // Check if usage is already tracked for this asset
           const existingUsage = await this.usageModel.findOne({
             school: new Types.ObjectId(schoolId),
@@ -614,7 +730,7 @@ export class UsageTrackingService {
           await this.trackStorageUsage({
             assetId,
             assetType: 'video',
-            fileSizeBytes: estimatedSize,
+            fileSizeBytes: actualSize,
             fileName,
             uploadedBy: teacherId,
             schoolId,
@@ -669,14 +785,37 @@ export class UsageTrackingService {
 
       this.logger.log('Cleared existing storage tracking, running new backfill...');
       
-      // Run backfill with corrected estimates
-      const result = await this.backfillStorageUsage();
+      // Run backfill with REAL file sizes from S3
+      const result = await this.backfillStorageUsageWithRealSizes();
       
       this.logger.log(`Reset completed. Processed: ${result.processed} videos`);
       return { processed: result.processed };
 
     } catch (error) {
       this.logger.error(`Error during storage reset: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Manually fix storage total for a school with the correct values
+   */
+  async fixStorageTotal(schoolId: string, totalBytes: number, totalGB: number): Promise<void> {
+    try {
+      await this.usageModel.updateMany(
+        { school: new Types.ObjectId(schoolId) },
+        { 
+          $set: { 
+            totalStorageBytes: totalBytes,
+            videoStorageBytes: totalBytes, // Assuming all storage is video
+            totalStorageGB: totalGB
+          }
+        }
+      );
+      
+      this.logger.log(`Updated storage total for school ${schoolId} to ${totalGB.toFixed(3)} GB`);
+    } catch (error) {
+      this.logger.error(`Error fixing storage total: ${error.message}`, error.stack);
       throw error;
     }
   }

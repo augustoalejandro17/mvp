@@ -34,8 +34,10 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [bytesTransferred, setBytesTransferred] = useState(0);
+  const [actualVideoSize, setActualVideoSize] = useState<number | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
+  const currentVideoIdRef = useRef<string | null>(null); // Track current video to prevent duplicate sessions
   const maxRetries = 2;
 
   // Detect mobile screen size
@@ -74,11 +76,57 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
     return 'low';
   };
 
+  // Get actual video file size from HTTP headers
+  const getActualVideoSize = useCallback(async (videoUrl: string) => {
+    try {
+      const response = await fetch(videoUrl, { 
+        method: 'HEAD',
+        headers: {
+          'Range': 'bytes=0-0' // Just get headers, not content
+        }
+      });
+      
+      const contentLength = response.headers.get('Content-Length');
+      const contentRange = response.headers.get('Content-Range');
+      
+      if (contentRange) {
+        // Content-Range: bytes 0-0/1843200 (total size is after the /)
+        const match = contentRange.match(/\/(\d+)$/);
+        if (match) {
+          const size = parseInt(match[1], 10);
+          console.log(`Got actual video size from Content-Range: ${size} bytes (${(size/1024/1024).toFixed(2)} MB)`);
+          setActualVideoSize(size);
+          return size;
+        }
+      }
+      
+      if (contentLength) {
+        const size = parseInt(contentLength, 10);
+        console.log(`Got actual video size from Content-Length: ${size} bytes (${(size/1024/1024).toFixed(2)} MB)`);
+        setActualVideoSize(size);
+        return size;
+      }
+      
+      console.log('Could not determine actual video size from headers');
+      setActualVideoSize(null);
+      return null;
+    } catch (error) {
+      console.log('Error getting video size:', error);
+      setActualVideoSize(null);
+      return null;
+    }
+  }, []);
+
   // Start streaming session tracking
   const startStreamingSession = useCallback(async () => {
-    if (!classId || !schoolId || sessionId) return;
+    if (!classId || !schoolId || sessionId) {
+      console.log('Skipping session start:', { hasClassId: !!classId, hasSchoolId: !!schoolId, hasSessionId: !!sessionId });
+      return;
+    }
 
     try {
+      console.log('Starting streaming session for:', { classId, schoolId, courseId });
+      
       const response = await UsageTrackingService.startStreamingSession({
         assetId: classId,
         schoolId: schoolId,
@@ -90,6 +138,8 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
 
       setSessionId(response.sessionId);
       setStartTime(Date.now());
+      
+      console.log('Session started:', response.sessionId);
 
     } catch (error) {
       console.error('Error starting streaming session:', error);
@@ -99,37 +149,110 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
 
   // End streaming session tracking
   const endStreamingSession = useCallback(async () => {
-    if (!sessionId) return;
+    if (!sessionId || !videoRef.current) return;
 
     try {
-      await UsageTrackingService.endStreamingSession(sessionId, bytesTransferred);
+      // Calculate final bytes using same method as updateBytesTransferred
+      const video = videoRef.current;
+      const currentTime = video.currentTime || 0;
+      const duration = video.duration || 0;
+
+      let finalBytesTransferred = 0;
+      
+      if (duration > 0) {
+        let fileSize = 0;
+        
+        if (actualVideoSize) {
+          fileSize = actualVideoSize;
+        } else {
+          // Fallback estimation
+          const width = video.videoWidth || 0;
+          const height = video.videoHeight || 0;
+          const pixels = width * height;
+          
+          if (pixels > 0) {
+            let bytesPerPixelPerSecond = 0.25;
+            
+            if (pixels >= 1920 * 1080) {
+              bytesPerPixelPerSecond = 0.35;
+            } else if (pixels >= 1280 * 720) {
+              bytesPerPixelPerSecond = 0.3;
+            } else {
+              bytesPerPixelPerSecond = 0.2;
+            }
+            
+            fileSize = pixels * duration * bytesPerPixelPerSecond;
+          } else {
+            fileSize = duration * 500000;
+          }
+        }
+
+        const watchProgress = currentTime / duration;
+        finalBytesTransferred = Math.floor(fileSize * watchProgress);
+      }
+      
+      const sessionDuration = startTime ? (Date.now() - startTime) / 1000 : 0; // Duration in seconds
+      console.log(`Ending session: ${currentTime.toFixed(1)}s/${duration.toFixed(1)}s watched, ${finalBytesTransferred} bytes transferred, session lasted ${sessionDuration.toFixed(1)}s`);
+      
+      await UsageTrackingService.endStreamingSession(sessionId, finalBytesTransferred);
 
       setSessionId(null);
       setStartTime(null);
       setBytesTransferred(0);
+      currentVideoIdRef.current = null;
     } catch (error) {
       console.error('Error ending streaming session:', error);
     }
-  }, [sessionId, bytesTransferred]);
+  }, [sessionId]);
 
-  // Estimate bytes transferred (rough calculation)
+  // Calculate bytes transferred based on actual video properties
   const updateBytesTransferred = useCallback(() => {
     if (!videoRef.current || !startTime) return;
 
     const video = videoRef.current;
-    const duration = video.duration || 0;
     const currentTime = video.currentTime || 0;
-    const quality = getVideoQuality();
+    const duration = video.duration || 0;
 
-    // Rough bitrate estimates (in bytes per second)
-    const bitrateEstimates = {
-      low: 125000,    // 1 Mbps
-      medium: 312500, // 2.5 Mbps  
-      high: 625000    // 5 Mbps
-    };
+    if (duration === 0) return; // Can't calculate without duration
 
-    const estimatedBytes = currentTime * bitrateEstimates[quality];
+    // Use actual video size if available, otherwise estimate
+    let fileSize = 0;
+    
+    if (actualVideoSize) {
+      // Use the actual file size - much more accurate!
+      fileSize = actualVideoSize;
+      console.log(`Using actual video size: ${fileSize} bytes`);
+    } else {
+      // Fallback to estimation only when actual size is unavailable
+      const width = video.videoWidth || 0;
+      const height = video.videoHeight || 0;
+      const pixels = width * height;
+      
+      if (pixels > 0) {
+        let bytesPerPixelPerSecond = 0.25;
+        
+        if (pixels >= 1920 * 1080) {
+          bytesPerPixelPerSecond = 0.35;
+        } else if (pixels >= 1280 * 720) {
+          bytesPerPixelPerSecond = 0.3;
+        } else {
+          bytesPerPixelPerSecond = 0.2;
+        }
+        
+        fileSize = pixels * duration * bytesPerPixelPerSecond;
+      } else {
+        fileSize = duration * 500000; // Fallback estimate
+      }
+      console.log(`Using estimated video size: ${fileSize} bytes`);
+    }
+
+    // Calculate proportional bytes based on watch progress
+    const watchProgress = currentTime / duration;
+    const estimatedBytes = Math.floor(fileSize * watchProgress);
+    
     setBytesTransferred(estimatedBytes);
+    
+    console.log(`Tracking: ${currentTime.toFixed(1)}s/${duration.toFixed(1)}s (${(watchProgress*100).toFixed(1)}%) = ${estimatedBytes} bytes (total: ${Math.floor(fileSize)} bytes)`);
   }, [startTime]);
 
   // Function to get streaming URL
@@ -138,6 +261,8 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
     if (url) {
       setStreamUrl(url);
       setIsLoading(false);
+      // Get actual video file size
+      getActualVideoSize(url);
       return;
     }
     
@@ -165,23 +290,31 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
             setStreamUrl(data.url);
             setError(null);
             setIsLoading(false);
+            // Get actual video file size
+            getActualVideoSize(data.url);
             return;
           }
         }
+        
+        // If response is not ok but no exception, continue to fallback
+        console.log('Streaming endpoint returned non-ok status, trying fallback');
       } catch (streamError) {
-        console.warn('Error con endpoint de streaming, usando alternativa', streamError);
+        console.log('Streaming endpoint failed, trying fallback:', streamError);
       }
       
       try {
         const response = await api.get(`/classes/${classId}`);
-        if (response.data && response.data.videoUrl) {
+        if (response.data && response.data.videoUrl && response.data.videoUrl.trim()) {
+          console.log('Successfully got stream URL for class', classId);
           setStreamUrl(response.data.videoUrl);
           setError(null);
           setIsLoading(false);
+          // Get actual video file size
+          getActualVideoSize(response.data.videoUrl);
           return;
         }
       } catch (directError) {
-        console.warn('Error with direct URL fallback', directError);
+        console.log('Error with direct URL fallback:', directError);
       }
 
       setError("No se pudo obtener la URL del video. Intente de nuevo más tarde.");
@@ -196,17 +329,30 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
   // Video event handlers
   const handlePlay = () => {
     setIsPlaying(true);
-    startStreamingSession();
+    
+    // Only start session if we don't have one already
+    const currentVideoId = classId || url || null;
+    
+    if (!sessionId) {
+      console.log('Starting new session on play for video:', currentVideoId);
+      currentVideoIdRef.current = currentVideoId;
+      startStreamingSession();
+    } else {
+      console.log('Session already active, continuing playback');
+    }
   };
 
   const handlePause = () => {
     setIsPlaying(false);
     updateBytesTransferred();
+    // Don't end session on pause - user might resume
+    console.log('Video paused, session continues');
   };
 
   const handleEnded = () => {
     setIsPlaying(false);
     updateBytesTransferred();
+    console.log('Video ended naturally, ending session');
     endStreamingSession();
   };
 
@@ -217,6 +363,16 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
   const handleError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
     console.error('Error playing video:', e);
     setIsPlaying(false);
+    
+    // If this is the first error and we have retries left, don't show error - just retry
+    if (retryCount === 0) {
+      console.log('Video error on first load, attempting retry...');
+      setStreamUrl(null); // Clear the bad URL
+      setIsLoading(true);
+      setRetryCount(1);
+      return;
+    }
+    
     setError("Error al reproducir el video. El formato puede no ser compatible o el archivo puede estar dañado.");
     endStreamingSession();
   };
@@ -226,24 +382,31 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
     getStreamingUrl();
   }, [getStreamingUrl, retryCount]);
 
-  // Re-initialize when URL prop changes
+  // Re-initialize when URL prop changes (but not when sessionId changes)
   useEffect(() => {
     if (url) {
+      // Only end session if this is a completely different video URL
+      const currentVideoId = classId || url || null;
+      if (sessionId && currentVideoId !== currentVideoIdRef.current) {
+        console.log('Different video URL detected, ending current session');
+        endStreamingSession();
+      }
       setStreamUrl(null);
       setIsLoading(true);
       setError(null);
       getStreamingUrl();
     }
-  }, [url, getStreamingUrl]);
+  }, [url, getStreamingUrl]); // Removed sessionId and endStreamingSession from dependencies
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (sessionId) {
+        console.log('Component unmounting, ending session');
         endStreamingSession();
       }
     };
-  }, [sessionId, endStreamingSession]);
+  }, []);
 
   // Handle page visibility change (user switches tabs)
   useEffect(() => {

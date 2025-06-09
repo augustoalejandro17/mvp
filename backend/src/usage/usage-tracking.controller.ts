@@ -5,7 +5,6 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../auth/enums/user-role.enum';
 import { UsageTrackingService, UsageSummary } from './usage-tracking.service';
 import { StreamingIntegrationService } from './integration/streaming-integration.service';
-
 @Controller('usage')
 @UseGuards(JwtAuthGuard)
 export class UsageTrackingController {
@@ -156,7 +155,12 @@ export class UsageTrackingController {
     @Query('limit') limit?: string
   ): Promise<any[]> {
     try {
-      return [];
+      return await this.usageTrackingService.getStreamingHistory(
+        schoolId, 
+        startDate, 
+        endDate, 
+        parseInt(limit || '50')
+      );
     } catch (error) {
       this.logger.error(`Error getting streaming history for school ${schoolId}: ${error.message}`, error.stack);
       throw error;
@@ -191,13 +195,13 @@ export class UsageTrackingController {
   @Roles(UserRole.SUPER_ADMIN)
   async backfillStorageUsage(): Promise<{ success: boolean; processed: number; errors: number; message: string }> {
     try {
-      const result = await this.usageTrackingService.backfillStorageUsage();
+      const result = await this.usageTrackingService.backfillStorageUsageWithRealSizes();
       
       return { 
         success: true, 
         processed: result.processed,
         errors: result.errors,
-        message: `Backfill completed. Processed: ${result.processed}, Errors: ${result.errors}` 
+        message: `Backfill completed with REAL file sizes. Processed: ${result.processed}, Errors: ${result.errors}` 
       };
     } catch (error) {
       this.logger.error(`Error during storage backfill: ${error.message}`, error.stack);
@@ -262,6 +266,27 @@ export class UsageTrackingController {
     } catch (error) {
       this.logger.error(`Error getting active sessions stats: ${error.message}`, error.stack);
       throw error;
+    }
+  }
+
+  @Post('admin/fix-storage-total')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async fixStorageTotal(@Body() body: { schoolId: string; totalMB: number }) {
+    try {
+      const { schoolId, totalMB } = body;
+      const totalBytes = totalMB * 1024 * 1024; // Convert MB to bytes
+      const totalGB = totalMB / 1024; // Convert MB to GB
+
+      // Update all usage documents for this school to have the correct total
+      await this.usageTrackingService.fixStorageTotal(schoolId, totalBytes, totalGB);
+
+      return {
+        success: true,
+        message: `Storage total updated to ${totalMB} MB (${totalGB.toFixed(3)} GB) for school ${schoolId}`
+      };
+    } catch (error) {
+      throw new Error(`Error fixing storage total: ${error.message}`);
     }
   }
 

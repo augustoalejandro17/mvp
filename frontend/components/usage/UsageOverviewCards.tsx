@@ -35,7 +35,7 @@ const UsageOverviewCards: React.FC<UsageOverviewCardsProps> = ({ usageSummary })
               {UsageTrackingService.formatBytes(usageSummary.totalStorageUsed * 1024 * 1024 * 1024)}
             </span>
             <span className={styles.limitText}>
-              de {UsageTrackingService.formatBytes(usageSummary.totalStorageLimit * 1024 * 1024 * 1024)}
+              de {UsageTrackingService.formatBytes(usageSummary.totalStorageLimit * 1024 * 1024 * 1024)} (estimado)
             </span>
           </div>
           <div className={styles.progressContainer}>
@@ -81,7 +81,7 @@ const UsageOverviewCards: React.FC<UsageOverviewCardsProps> = ({ usageSummary })
               {UsageTrackingService.formatBytes(usageSummary.totalStreamingUsed * 1024 * 1024 * 1024)}
             </span>
             <span className={styles.limitText}>
-              de {UsageTrackingService.formatBytes(usageSummary.totalStreamingLimit * 60 * 125000)}
+              Datos transferidos este mes
             </span>
           </div>
           <div className={styles.progressContainer}>
@@ -89,7 +89,7 @@ const UsageOverviewCards: React.FC<UsageOverviewCardsProps> = ({ usageSummary })
               <div 
                 className={styles.progressFill}
                 style={{ 
-                  width: `${streamingPercentage}%`,
+                  width: `${Math.min(streamingPercentage, 100)}%`,
                   backgroundColor: streamingColor
                 }}
               />
@@ -98,7 +98,7 @@ const UsageOverviewCards: React.FC<UsageOverviewCardsProps> = ({ usageSummary })
               className={styles.percentageText}
               style={{ color: streamingColor }}
             >
-              {streamingPercentage.toFixed(1)}%
+              Unlimited
             </span>
           </div>
           {usageSummary.streamingOverage > 0 && (

@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { S3 } from 'aws-sdk';
 import { v4 as uuidv4 } from 'uuid';
 import { CloudFrontService } from '../services/cloudfront.service';
-import { StorageIntegrationService } from '../usage/integration/storage-integration.service';
 
 @Injectable()
 export class S3Service {
@@ -13,9 +12,7 @@ export class S3Service {
 
   constructor(
     private configService: ConfigService,
-    private cloudFrontService: CloudFrontService,
-    @Inject(forwardRef(() => StorageIntegrationService))
-    private storageIntegrationService?: StorageIntegrationService
+    private cloudFrontService: CloudFrontService
   ) {
     this.s3 = new S3({
       accessKeyId: this.configService.get<string>('aws.accessKeyId'),
@@ -56,16 +53,8 @@ export class S3Service {
       
       const uploadResult = await this.s3.upload(uploadParams).promise();
 
-      // Track storage usage for billing
-      if (this.storageIntegrationService) {
-        try {
-          // Note: We need additional parameters for proper tracking
-          // This would need to be called from a higher level with proper context
-          this.logger.log(`Video uploaded: ${key}, size: ${file.size} bytes - tracking should be called from controller level`);
-        } catch (trackingError) {
-          this.logger.warn(`Failed to track storage usage: ${trackingError.message}`);
-        }
-      }
+      // Note: Storage usage tracking should be handled at the controller level
+      this.logger.log(`Video uploaded: ${key}, size: ${file.size} bytes`);
       
       // Priorizar el uso de CloudFront como fuente de la URL
       if (this.cloudFrontService) {

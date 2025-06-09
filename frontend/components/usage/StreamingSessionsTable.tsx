@@ -23,6 +23,9 @@ const StreamingSessionsTable: React.FC<StreamingSessionsTableProps> = ({
   const [fullSessions, setFullSessions] = useState<StreamingSessionData[]>([]);
   const [loading, setLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalSessions, setTotalSessions] = useState(0);
+  const sessionsPerPage = 20;
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
@@ -37,9 +40,10 @@ const StreamingSessionsTable: React.FC<StreamingSessionsTableProps> = ({
         schoolId,
         dateRange.startDate,
         dateRange.endDate,
-        100
+        sessionsPerPage * 10 // Get more records to enable pagination
       );
       setFullSessions(sessions);
+      setTotalSessions(sessions.length);
     } catch (error) {
       console.error('Error fetching streaming history:', error);
     } finally {
@@ -49,9 +53,10 @@ const StreamingSessionsTable: React.FC<StreamingSessionsTableProps> = ({
 
   useEffect(() => {
     fetchFullHistory();
+    setCurrentPage(1); // Reset to first page when filters change
   }, [showHistory, dateRange, schoolId]);
 
-  const displaySessions = showHistory ? fullSessions : topSessions.map(session => ({
+  const allSessions = showHistory ? fullSessions : topSessions.map(session => ({
     sessionId: `top-${session.assetId}`,
     assetId: session.assetId,
     schoolId,
@@ -64,6 +69,12 @@ const StreamingSessionsTable: React.FC<StreamingSessionsTableProps> = ({
     endTime: undefined,
     isActive: false
   }));
+
+  // Pagination logic
+  const totalPages = Math.ceil(allSessions.length / sessionsPerPage);
+  const startIndex = (currentPage - 1) * sessionsPerPage;
+  const endIndex = startIndex + sessionsPerPage;
+  const displaySessions = allSessions.slice(startIndex, endIndex);
 
   return (
     <div className={styles.sessionsTable}>
@@ -169,18 +180,46 @@ const StreamingSessionsTable: React.FC<StreamingSessionsTableProps> = ({
               </tbody>
             </table>
 
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className={styles.paginationContainer}>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className={styles.paginationButton}
+                >
+                  ← Anterior
+                </button>
+                
+                <div className={styles.paginationInfo}>
+                  <span>Página {currentPage} de {totalPages}</span>
+                  <span className={styles.paginationSubtext}>
+                    ({startIndex + 1}-{Math.min(endIndex, allSessions.length)} de {allSessions.length} sesiones)
+                  </span>
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className={styles.paginationButton}
+                >
+                  Siguiente →
+                </button>
+              </div>
+            )}
+
             {/* Summary Stats */}
             <div className={styles.tableSummary}>
               <div className={styles.summaryStats}>
                 <div className={styles.summaryItem}>
                   <span className={styles.summaryLabel}>Total de Sesiones:</span>
-                  <span className={styles.summaryValue}>{displaySessions.length}</span>
+                  <span className={styles.summaryValue}>{allSessions.length}</span>
                 </div>
                 <div className={styles.summaryItem}>
                   <span className={styles.summaryLabel}>Tiempo Total:</span>
                   <span className={styles.summaryValue}>
                     {UsageTrackingService.formatDuration(
-                      displaySessions.reduce((acc, session) => acc + session.duration, 0)
+                      allSessions.reduce((acc, session) => acc + session.duration, 0)
                     )}
                   </span>
                 </div>
@@ -188,14 +227,14 @@ const StreamingSessionsTable: React.FC<StreamingSessionsTableProps> = ({
                   <span className={styles.summaryLabel}>Datos Totales:</span>
                   <span className={styles.summaryValue}>
                     {UsageTrackingService.formatBytes(
-                      displaySessions.reduce((acc, session) => acc + session.bytesTransferred, 0)
+                      allSessions.reduce((acc, session) => acc + session.bytesTransferred, 0)
                     )}
                   </span>
                 </div>
                 <div className={styles.summaryItem}>
                   <span className={styles.summaryLabel}>Sesiones Activas:</span>
                   <span className={styles.summaryValue}>
-                    {displaySessions.filter(session => session.isActive).length}
+                    {allSessions.filter(session => session.isActive).length}
                   </span>
                 </div>
               </div>
