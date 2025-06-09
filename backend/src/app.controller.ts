@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { AppService } from './app.service';
 
 @Controller()
@@ -72,5 +72,31 @@ export class AppController {
       s3BucketName: process.env.AWS_S3_BUCKET_NAME || 'no configurado',
       credsAvailable: !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY),
     };
+  }
+
+  // TEMPORARY: Remove after testing
+  @Get('trigger-snapshots')
+  async triggerSnapshots(@Query('days') days?: string): Promise<any> {
+    try {
+      console.log('🚀 Manually triggering snapshot generation...');
+      
+      // Import the services dynamically
+      const { StatisticsService } = require('./statistics/services/statistics.service');
+      const { SnapshotService } = require('./statistics/services/snapshot.service');
+      
+      // This is a simplified approach - in a real scenario we'd need proper DI
+      return {
+        success: true,
+        message: 'Trigger endpoint created - but needs proper service injection',
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('❌ Error:', error);
+      return {
+        success: false,
+        message: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
   }
 } 

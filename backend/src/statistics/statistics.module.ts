@@ -1,47 +1,33 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ScheduleModule } from '@nestjs/schedule';
+import { StatisticsController } from './statistics.controller';
+
+import { StatisticsService } from './services/statistics.service';
+import { SnapshotService } from './services/snapshot.service';
+import { DailySnapshot, DailySnapshotSchema } from './schemas/daily-snapshot.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
-import { Course, CourseSchema } from '../courses/schemas/course.schema';
-import { Enrollment, EnrollmentSchema } from '../courses/schemas/enrollment.schema';
-import { Attendance, AttendanceSchema } from '../attendance/schemas/attendance.schema';
 import { School, SchoolSchema } from '../schools/schemas/school.schema';
-import { Class, ClassSchema } from '../classes/schemas/class.schema';
-import { Subscription, SubscriptionSchema } from '../plans/schemas/subscription.schema';
-import { Plan, PlanSchema } from '../plans/schemas/plan.schema';
-import { RetentionService } from './services/retention.service';
-import { PerformanceService } from './services/performance.service';
-import { RevenueService } from './services/revenue.service';
-import { DropoutService } from './services/dropout.service';
-import { DemographicsService } from './services/demographics.service';
-import { StatisticsController } from './controllers/statistics.controller';
+import { Course, CourseSchema } from '../courses/schemas/course.schema';
+import { Category, CategorySchema } from '../categories/schemas/category.schema';
+import { Attendance, AttendanceSchema } from '../attendance/schemas/attendance.schema';
+import { Enrollment, EnrollmentSchema } from '../enrollments/schemas/enrollment.schema';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     MongooseModule.forFeature([
+      { name: DailySnapshot.name, schema: DailySnapshotSchema },
       { name: User.name, schema: UserSchema },
-      { name: Course.name, schema: CourseSchema },
-      { name: Enrollment.name, schema: EnrollmentSchema },
-      { name: Attendance.name, schema: AttendanceSchema },
       { name: School.name, schema: SchoolSchema },
-      { name: Class.name, schema: ClassSchema },
-      { name: Subscription.name, schema: SubscriptionSchema },
-      { name: Plan.name, schema: PlanSchema },
+      { name: Course.name, schema: CourseSchema },
+      { name: Category.name, schema: CategorySchema },
+      { name: Attendance.name, schema: AttendanceSchema },
+      { name: Enrollment.name, schema: EnrollmentSchema },
     ]),
   ],
   controllers: [StatisticsController],
-  providers: [
-    RetentionService,
-    PerformanceService,
-    RevenueService,
-    DropoutService,
-    DemographicsService,
-  ],
-  exports: [
-    RetentionService,
-    PerformanceService,
-    RevenueService,
-    DropoutService,
-    DemographicsService,
-  ],
+  providers: [StatisticsService, SnapshotService],
+  exports: [StatisticsService, SnapshotService],
 })
 export class StatisticsModule {} 

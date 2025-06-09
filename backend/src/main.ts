@@ -8,7 +8,7 @@ const logger = new Logger('Bootstrap');
 // Valores por defecto para variables de entorno críticas
 const DEFAULT_PORT = 4000;
 const DEFAULT_FRONTEND_URL = 'http://localhost:3000';
-const DEFAULT_MONGODB_URI = 'mongodb://localhost:27017/learnhub';
+const DEFAULT_MONGODB_URI = 'mongodb://localhost:27017/inti';
 const DEFAULT_JWT_SECRET = 'insecure-jwt-secret-please-change-in-production';
 
 async function bootstrap() {

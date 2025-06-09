@@ -14,6 +14,7 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
 import { ServicesModule } from '../services/services.module';
 import { Enrollment, EnrollmentSchema } from '../courses/schemas/enrollment.schema';
+import { UsageModule } from '../usage/usage.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { Enrollment, EnrollmentSchema } from '../courses/schemas/enrollment.sche
     CoursesModule,
     UsersModule,
     ServicesModule,
+    UsageModule,
   ],
   controllers: [ClassesController, PlaylistsController],
   providers: [ClassesService, PlaylistsService],

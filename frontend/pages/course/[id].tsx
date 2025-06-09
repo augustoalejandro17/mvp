@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import Cookies from 'js-cookie';
@@ -67,6 +67,7 @@ export default function CourseDetail() {
   const [videoStreamUrl, setVideoStreamUrl] = useState<string | null>(null);
   const [videoLoadError, setVideoLoadError] = useState(false);
   const isMobile = useMediaQuery({ maxWidth: 767 });
+  const videoColumnRef = useRef<HTMLDivElement>(null);
 
 
   useEffect(() => {
@@ -150,6 +151,35 @@ export default function CourseDetail() {
     } else {
       console.log('Provided URL may be invalid/expired, fetching new stream URL for class:', classItem.title);
       setVideoStreamUrl(null); // Clear current URL to show loading state
+    }
+    
+    // Auto-scroll to video section on mobile devices
+    if (window.innerWidth <= 768) {
+      // Small delay to ensure the video section has been updated
+      setTimeout(() => {
+        if (videoColumnRef.current) {
+          // Add a brief highlight effect to show the user where the video is
+          const originalBoxShadow = videoColumnRef.current.style.boxShadow;
+          const originalTransition = videoColumnRef.current.style.transition;
+          
+          videoColumnRef.current.style.transition = 'box-shadow 0.3s ease';
+          videoColumnRef.current.style.boxShadow = '0 0 0 3px rgba(49, 130, 206, 0.5), 0 4px 12px rgba(49, 130, 206, 0.15)';
+          
+          videoColumnRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start',
+            inline: 'nearest'
+          });
+          
+          // Remove highlight after scroll animation
+          setTimeout(() => {
+            if (videoColumnRef.current) {
+              videoColumnRef.current.style.boxShadow = originalBoxShadow;
+              videoColumnRef.current.style.transition = originalTransition;
+            }
+          }, 1200);
+        }
+      }, 200);
     }
     
     // Always try to get fresh streaming URL in the background for better reliability
@@ -431,7 +461,7 @@ export default function CourseDetail() {
             )}
           </div>
           
-          <div className={styles.videoColumn}>
+          <div ref={videoColumnRef} className={styles.videoColumn}>
             {selectedClass ? (
               <>
                 <div className={styles.videoContainer}>

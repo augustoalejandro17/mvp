@@ -32,8 +32,15 @@ export default function SubscriptionsManager() {
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+
     const checkAuth = () => {
       const token = Cookies.get('token');
       if (!token) {
@@ -64,7 +71,7 @@ export default function SubscriptionsManager() {
     };
 
     checkAuth();
-  }, [router]);
+  }, [router, isMounted]);
 
   const fetchSubscriptionStats = async () => {
     try {
@@ -104,7 +111,7 @@ export default function SubscriptionsManager() {
     }
   };
 
-  if (initialLoading && !Cookies.get('token')) {
+  if (!isMounted || (initialLoading && isMounted)) {
     return <div className={styles.loading}>Verificando sesión...</div>;
   }
 

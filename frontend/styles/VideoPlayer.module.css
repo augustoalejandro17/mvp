@@ -302,4 +302,33 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+.trackingIndicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #3b82f6;
+  margin-top: 0.5rem;
+}
+
+.trackingIcon {
+  font-size: 1rem;
+}
+
+.trackingText {
+  font-weight: 500;
+}
+
+.trackingBytes {
+  font-weight: 600;
+  background: rgba(59, 130, 246, 0.2);
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
 } 

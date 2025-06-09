@@ -17,17 +17,22 @@ import { ReportsModule } from './reports/reports.module';
 import { CategoriesModule } from './categories/categories.module';
 import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { BulkUploadModule } from './bulk-upload/bulk-upload.module';
+import { UsageModule } from './usage/usage.module';
 import awsConfig from './config/aws.config';
 import { S3Service } from './services/s3.service';
 import { CloudFrontService } from './services/cloudfront.service';
 import { ImagesController } from './controllers/images.controller';
 import { SubscriptionAdminController } from './controllers/subscription-admin.controller';
+import { AdminStatsController } from './controllers/admin-stats.controller';
+import { ApiStatsController } from './controllers/api-stats.controller';
+
 import { User, UserSchema } from './auth/schemas/user.schema';
 import { School, SchoolSchema } from './schools/schemas/school.schema';
 import { Course, CourseSchema } from './courses/schemas/course.schema';
 import { Class, ClassSchema } from './classes/schemas/class.schema';
 import { Plan, PlanSchema } from './plans/schemas/plan.schema';
 import { Subscription, SubscriptionSchema } from './plans/schemas/subscription.schema';
+import { Attendance, AttendanceSchema } from './attendance/schemas/attendance.schema';
 import { UserOwnedSchoolsController, UserAdministeredSchoolsController } from './schools/schools.controller';
 import { MigrationService } from './migrations/migration.service';
 
@@ -60,12 +65,15 @@ import { MigrationService } from './migrations/migration.service';
     CategoriesModule,
     EnrollmentsModule,
     BulkUploadModule,
+    UsageModule,
   ],
   controllers: [
     AppController, 
     ImagesController, 
     UserOwnedSchoolsController,
-    UserAdministeredSchoolsController
+    UserAdministeredSchoolsController,
+    AdminStatsController,
+    ApiStatsController
   ],
   providers: [AppService, S3Service, CloudFrontService, MigrationService],
 })

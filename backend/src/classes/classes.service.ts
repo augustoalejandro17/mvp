@@ -12,6 +12,7 @@ import { RecordAttendanceDto } from './dto/record-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { Attendance, AttendanceDocument } from '../attendance/schemas/attendance.schema';
 import { VideoProcessorService } from '../services/video-processor.service';
+import { StorageIntegrationService } from '../usage/integration/storage-integration.service';
 import * as fs from 'fs';
 import { Enrollment, EnrollmentDocument } from '../courses/schemas/enrollment.schema';
 
@@ -46,6 +47,7 @@ export class ClassesService {
     private s3Service: S3Service,
     private cloudFrontService: CloudFrontService,
     private videoProcessorService: VideoProcessorService,
+    private storageIntegrationService: StorageIntegrationService,
   ) {}
 
   // Add permission check method

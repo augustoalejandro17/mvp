@@ -30,6 +30,8 @@
     "@nestjs/mongoose": "^10.0.0",
     "@nestjs/passport": "^10.0.0",
     "@nestjs/platform-express": "^10.0.0",
+    "@nestjs/schedule": "^6.0.0",
+    "@nestjs/swagger": "^8.1.1",
     "@types/fluent-ffmpeg": "^2.1.27",
     "@types/xlsx": "^0.0.36",
     "argon2": "^0.41.1",
@@ -49,6 +51,7 @@
     "passport-jwt": "^4.0.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
+    "swagger-ui-express": "^5.0.1",
     "uuid": "^11.1.0",
     "xlsx": "^0.18.5"
   },

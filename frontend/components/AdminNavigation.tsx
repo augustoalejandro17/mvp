@@ -34,6 +34,12 @@ export default function AdminNavigation({ userRole }: AdminNavigationProps) {
     { href: '/admin/subscriptions', label: 'Suscripciones' },
   ];
 
+  // Usage tracking and analytics available for all admin roles
+  const usageTrackingItems = [
+    { href: '/admin/usage', label: 'Uso de Recursos' },
+    { href: '/admin/analytics', label: 'Analiticas' },
+  ];
+
   const commonEndItems = [
     { href: '/admin/reports', label: 'Reportes' },
   ];
@@ -43,6 +49,7 @@ export default function AdminNavigation({ userRole }: AdminNavigationProps) {
     ...baseMenuItems,
     ...(isSuperAdmin || isSchoolOwner ? schoolManagementItems : []),
     ...(isSuperAdmin ? superAdminItems : []),
+    ...usageTrackingItems,
     ...commonEndItems
   ];
 
