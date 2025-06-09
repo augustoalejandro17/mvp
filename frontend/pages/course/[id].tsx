@@ -495,9 +495,15 @@ export default function CourseDetail() {
                         key={videoStreamUrl || selectedClass.videoUrl} // Usar cualquier URL disponible
                         src={videoStreamUrl || selectedClass.videoUrl}
                         controls
+                        controlsList="nodownload noremoteplayback"
                         playsInline
-                        className={styles.videoPlayer}
+                        className={`${styles.videoPlayer} video-protected`}
                         autoPlay={false}
+                        disablePictureInPicture={false}
+                        disableRemotePlayback={true}
+                        onContextMenu={(e) => e.preventDefault()}
+                        onDragStart={(e) => e.preventDefault()}
+                        draggable={false}
                         onError={(e) => {
                           console.error('Error al cargar el video:', e);
                           console.log('Video URL that failed:', videoStreamUrl || selectedClass.videoUrl);

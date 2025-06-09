@@ -4,6 +4,17 @@
   overflow: hidden;
   background-color: #000;
   border-radius: 8px;
+  /* Prevent text selection and image dragging */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  /* Prevent drag and drop */
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
 }
 
 .videoWrapper {
@@ -214,6 +225,26 @@
   width: 100%;
   border-radius: 8px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  /* Additional security for video element */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  pointer-events: auto; /* Allow controls but prevent dragging */
+}
+
+/* Hide download button from video controls */
+.video::-webkit-media-controls-download-button {
+  display: none !important;
+}
+
+.video::-webkit-media-controls-enclosure {
+  overflow: hidden;
+}
+
+/* For Firefox */
+.video::-moz-media-controls {
+  /* Custom styles for Firefox if needed */
 }
 
 .noVideo {

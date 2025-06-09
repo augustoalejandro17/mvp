@@ -8,9 +8,10 @@ interface VideoPlayerProps {
   title?: string;
   classId?: string;
   allowDownload?: boolean;
+  preventDownload?: boolean; // New prop to enable download protection
 }
 
-const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, classId, allowDownload = false }) => {
+const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, classId, allowDownload = false, preventDownload = true }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -103,11 +104,43 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, classId, allowDow
     }
   };
 
-  // Video player attributes
+  // Security event handlers to prevent downloads
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (preventDownload) {
+      e.preventDefault();
+      return false;
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (preventDownload) {
+      // Block common developer tools shortcuts
+      if (
+        e.key === 'F12' ||
+        (e.ctrlKey && e.shiftKey && e.key === 'I') ||
+        (e.ctrlKey && e.shiftKey && e.key === 'C') ||
+        (e.ctrlKey && e.shiftKey && e.key === 'J') ||
+        (e.ctrlKey && e.key === 's') ||
+        (e.ctrlKey && e.key === 'S')
+      ) {
+        e.preventDefault();
+        return false;
+      }
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent) => {
+    if (preventDownload) {
+      e.preventDefault();
+    }
+  };
+
+  // Video player attributes with security features
   const videoAttrs = {
     ref: videoRef,
     src: streamUrl || undefined,
-    controls: true,
+    controls: !preventDownload,
+    controlsList: preventDownload ? "nodownload noremoteplayback" : undefined,
     autoPlay: false,
     className: styles.video,
     poster: '/video-poster.jpg',
@@ -119,6 +152,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, classId, allowDow
       setIsPlaying(false);
       setError("Error al reproducir el video. El formato puede no ser compatible o el archivo puede estar dañado.");
     },
+    onContextMenu: handleContextMenu,
+    onDragStart: handleDragStart,
+    draggable: false,
+    disablePictureInPicture: false,
+    disableRemotePlayback: preventDownload,
   };
 
   // Handle video download
@@ -183,12 +221,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, classId, allowDow
   }
 
   return (
-    <div className={styles.container}>
+    <div 
+      className={`${styles.container} ${preventDownload ? 'video-protected' : ''}`}
+      onContextMenu={handleContextMenu}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+    >
       <div className={styles.videoWrapper}>
         <video {...videoAttrs} />
       </div>
       
-      {allowDownload && classId && (
+      {allowDownload && classId && !preventDownload && (
         <div className={styles.downloadContainer}>
           <button 
             className={styles.downloadButton}

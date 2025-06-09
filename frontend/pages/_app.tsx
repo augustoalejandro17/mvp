@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { AppProps } from 'next/app';
 import Head from 'next/head';
 import '../styles/globals.css';
+import '../styles/video-protection.css';
 import Navigation from '../components/Navigation';
 import navStyles from '../styles/Navigation.module.css';
 

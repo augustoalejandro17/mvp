@@ -207,6 +207,7 @@ const ClassDetail: React.FC = () => {
               title={classData.title} 
               classId={classData._id}
               allowDownload={canManageVideo()}
+              preventDownload={true}
             />
           </div>
         )}

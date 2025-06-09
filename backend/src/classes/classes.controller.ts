@@ -64,39 +64,8 @@ export class ClassesController {
     }
   }
 
-  @Get(':id/download-url')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  async getDownloadUrl(@Param('id') id: string, @Req() req) {
-    try {
-      // Find the class
-      const classItem = await this.classesService.findOne(id);
-      
-      if (!classItem) {
-        throw new NotFoundException(`Class with ID ${id} not found`);
-      }
-      
-      // Generate a URL specifically for download
-      // We'll reuse the streaming URL method but will later modify it to support downloads
-      const downloadUrl = await this.classesService.getSignedUrlForStreaming(classItem.videoUrl);
-      
-      
-      
-      return {
-        success: true,
-        url: downloadUrl,
-        title: classItem.title,
-        filename: `${classItem.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp4`,
-        contentType: 'video/mp4'
-      };
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      this.logger.error(`Error generating download URL: ${error.message}`, error.stack);
-      throw new InternalServerErrorException(`Error generating download URL: ${error.message}`);
-    }
-  }
+  // Download endpoint removed for security - videos should only be streamed, not downloaded
+  // If download functionality is needed in the future, implement with additional security measures
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
