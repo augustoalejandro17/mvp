@@ -21,7 +21,7 @@ const logger = new Logger('AuthModule');
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const secret = configService.get<string>('JWT_SECRET');
-        const expiresIn = configService.get<string>('JWT_EXPIRATION') || '7d';
+        const expiresIn = configService.get<string>('JWT_EXPIRATION') || '8h';
         
         if (!secret) {
           logger.error('JWT_SECRET no está definido en las variables de entorno');

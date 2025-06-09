@@ -28,7 +28,8 @@ export default function Login() {
       );
       
       const { token } = response.data;
-      Cookies.set('token', token, { expires: 7 });
+      // Set cookie to expire in 8 hours (0.33 days)
+      Cookies.set('token', token, { expires: 0.33 });
       
       window.location.href = '/';
     } catch (error: any) {

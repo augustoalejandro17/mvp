@@ -77,6 +77,16 @@ export class User {
 
   @Prop({ required: false })
   age?: number;
+
+  // Session management for single device login
+  @Prop({ required: false })
+  currentSessionId?: string;
+
+  @Prop({ required: false })
+  lastLoginAt?: Date;
+
+  @Prop({ required: false })
+  sessionExpiredAt?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User); 

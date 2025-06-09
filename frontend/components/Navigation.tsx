@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { getCookie } from 'cookies-next';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../styles/Navigation.module.css';
-import { getToken, subscribeToAuth, clearAuth } from '../utils/auth';
+import { getToken, subscribeToAuth, clearAuth, logout } from '../utils/auth';
 
 interface DecodedToken {
   sub: string;
@@ -99,11 +99,19 @@ const Navigation: React.FC = () => {
     };
   }, [checkAuth]);
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
     setIsDropdownOpen(false); // Cerrar el dropdown primero
-    clearAuth(); // Esto notificará a los listeners y limpiará el token
     
-    // Limpiar el estado local después de que clearAuth haya terminado
+    try {
+      // Use the new logout function that invalidates server session
+      await logout();
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Fallback to local logout if server logout fails
+      clearAuth();
+    }
+    
+    // Limpiar el estado local después de que logout haya terminado
     setIsAuthenticated(false);
     setUserRole(null);
     setUserEmail(null);

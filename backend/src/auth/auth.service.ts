@@ -30,13 +30,29 @@ export class AuthService {
     });
   }
 
-  // Método auxiliar para generar token JWT
+  // Método auxiliar para generar token JWT con session tracking
   private async generateToken(user: UserDocument): Promise<string> {
+    // Generate unique session ID
+    const sessionId = Date.now().toString() + Math.random().toString(36).substring(2);
+    
+    // Calculate session expiration (8 hours from now)
+    const sessionExpiration = new Date();
+    sessionExpiration.setHours(sessionExpiration.getHours() + 8);
+    
+    // Update user with new session info - this invalidates any previous sessions
+    await this.userModel.findByIdAndUpdate(user._id, {
+      currentSessionId: sessionId,
+      lastLoginAt: new Date(),
+      sessionExpiredAt: sessionExpiration
+    });
+    
     const payload = { 
       sub: user._id,
       email: user.email,
       name: user.name,
       role: user.role,
+      sessionId: sessionId, // Include session ID in token
+      iat: Math.floor(Date.now() / 1000), // Issued at time
     };
     
     return this.jwtService.sign(payload);
@@ -237,6 +253,23 @@ export class AuthService {
       };
     } catch (error) {
       this.logger.error(`Error fetching user profile: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async logout(userId: string): Promise<void> {
+    try {
+      // Clear session data to invalidate all tokens for this user
+      await this.userModel.findByIdAndUpdate(userId, {
+        $unset: {
+          currentSessionId: 1,
+          sessionExpiredAt: 1
+        }
+      });
+      
+      this.logger.log(`Usuario ${userId} ha cerrado sesión correctamente`);
+    } catch (error) {
+      this.logger.error(`Error al cerrar sesión: ${error.message}`, error.stack);
       throw error;
     }
   }

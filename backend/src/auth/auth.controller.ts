@@ -43,6 +43,21 @@ export class AuthController {
     }
   }
 
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async logout(@Req() req: Request) {
+    try {
+      const userId = (req.user as any)._id;
+      await this.authService.logout(userId);
+      
+      return { message: 'Sesión cerrada correctamente' };
+    } catch (error) {
+      this.logger.error(`Error durante el logout: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
   @Get('profile')
   @UseGuards(JwtAuthGuard)
   async getProfile(@Req() req: Request) {

@@ -124,4 +124,31 @@ export const hasRole = (user: any, roles: string[]) => {
 export const redirectToLogin = (router: any, redirectPath: string) => {
   clearAuth();
   router.push(`/login?redirect=${encodeURIComponent(redirectPath)}`);
+};
+
+/**
+ * Cierra sesión del usuario de manera segura, invalidando la sesión en el servidor
+ */
+export const logout = async () => {
+  try {
+    const token = Cookies.get('token');
+    if (token) {
+      // Call backend logout endpoint to invalidate session
+      await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/auth/logout`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+    }
+  } catch (error) {
+    console.error('Error al cerrar sesión en el servidor:', error);
+    // Continue with local logout even if server call fails
+  } finally {
+    // Always clear local auth data
+    clearAuth();
+  }
 }; 
