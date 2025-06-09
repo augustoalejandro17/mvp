@@ -130,11 +130,8 @@ export class CloudFrontService {
             DateLessThan: {
               'AWS:EpochTime': expires
             },
-            // Additional security conditions
-            IpAddress: {
-              // You can add IP restrictions here if needed
-              // 'AWS:SourceIp': ['192.168.0.0/16']
-            }
+            // No incluimos condiciones para ContentDisposition o ContentType
+            // para permitir la visualización del video sin forzar la descarga
           }
         }]
       };

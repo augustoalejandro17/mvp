@@ -360,7 +360,9 @@ export default function EditClass() {
                       objectFit: 'contain',
                       backgroundColor: '#000',
                       borderRadius: '4px'
-                    }} 
+                    }}
+                    controlsList="nodownload noremoteplayback"
+                    onContextMenu={(e: React.MouseEvent) => e.preventDefault()}
                   />
                   <p className={styles.inputHelp}>
                     Selecciona un nuevo video abajo para reemplazar el actual (opcional)
@@ -401,7 +403,9 @@ export default function EditClass() {
                        objectFit: 'contain',
                        backgroundColor: '#000',
                        borderRadius: '4px'
-                     }} 
+                     }}
+                     controlsList="nodownload noremoteplayback"
+                     onContextMenu={(e: React.MouseEvent) => e.preventDefault()}
                    />
                  </div>
                </div>

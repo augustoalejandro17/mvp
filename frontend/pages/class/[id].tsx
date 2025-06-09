@@ -6,7 +6,7 @@ import VideoPlayer from '../../components/VideoPlayer';
 import Layout from '../../components/Layout';
 import styles from '../../styles/ClassDetail.module.css';
 import { UserRole } from '../../types/user';
-import { canModifyClass, canManageVideos } from '../../utils/permission-utils';
+import { canModifyClass, canManageVideos, canDownloadVideos } from '../../utils/permission-utils';
 
 // Interfaces
 interface Class {
@@ -166,7 +166,7 @@ const ClassDetail: React.FC = () => {
 
   const canManageVideo = useCallback((): boolean => {
     if (!userRole) return false;
-    const result = canManageVideos(userRole);
+    const result = canDownloadVideos(userRole); // Use more restrictive download permission
     
     return result;
   }, [userRole]);
@@ -207,7 +207,6 @@ const ClassDetail: React.FC = () => {
               title={classData.title} 
               classId={classData._id}
               allowDownload={canManageVideo()}
-              preventDownload={true}
             />
           </div>
         )}

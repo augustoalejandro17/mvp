@@ -4,17 +4,6 @@
   overflow: hidden;
   background-color: #000;
   border-radius: 8px;
-  /* Prevent text selection and image dragging */
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-  /* Prevent drag and drop */
-  -webkit-user-drag: none;
-  -khtml-user-drag: none;
-  -moz-user-drag: none;
-  -o-user-drag: none;
-  user-drag: none;
 }
 
 .videoWrapper {
@@ -27,6 +16,11 @@
   backface-visibility: visible !important;
   perspective: none !important;
   transform-origin: center center !important;
+  /* Disable text selection and context menu */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 .videoFrame {
@@ -225,26 +219,21 @@
   width: 100%;
   border-radius: 8px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  /* Additional security for video element */
+  /* Download protection */
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
-  pointer-events: auto; /* Allow controls but prevent dragging */
+  pointer-events: auto;
 }
 
-/* Hide download button from video controls */
+/* Hide download button in browser video controls */
 .video::-webkit-media-controls-download-button {
   display: none !important;
 }
 
-.video::-webkit-media-controls-enclosure {
-  overflow: hidden;
-}
-
-/* For Firefox */
-.video::-moz-media-controls {
-  /* Custom styles for Firefox if needed */
+.video::-webkit-media-controls-fullscreen-button {
+  display: block !important;
 }
 
 .noVideo {

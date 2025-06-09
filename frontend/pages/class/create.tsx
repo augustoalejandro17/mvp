@@ -264,6 +264,8 @@ export default function CreateClass() {
                     transform: 'none'
                   }}
                   playsInline
+                  controlsList="nodownload noremoteplayback"
+                  onContextMenu={(e: React.MouseEvent) => e.preventDefault()}
                 />
               )}
             </div>

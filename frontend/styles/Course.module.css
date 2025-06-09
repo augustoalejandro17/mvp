@@ -349,6 +349,11 @@
   height: 0;
   overflow: hidden;
   background-color: #000;
+  /* Disable text selection */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 .videoContainer iframe {
@@ -368,6 +373,21 @@
   height: 100%;
   object-fit: contain;
   background-color: #000;
+  /* Download protection */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  pointer-events: auto;
+}
+
+/* Hide download button in browser video controls */
+.videoPlayer::-webkit-media-controls-download-button {
+  display: none !important;
+}
+
+.videoPlayer::-webkit-media-controls-fullscreen-button {
+  display: block !important;
 }
 
 .classDetails {

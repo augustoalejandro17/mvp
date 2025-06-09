@@ -11,7 +11,6 @@ interface VideoPlayerWithTrackingProps {
   courseId?: string;
   schoolId?: string;
   allowDownload?: boolean;
-  preventDownload?: boolean; // New prop to enable download protection
 }
 
 const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({ 
@@ -20,8 +19,7 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
   classId, 
   courseId,
   schoolId,
-  allowDownload = false,
-  preventDownload = true // Default to preventing downloads
+  allowDownload = false 
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -246,37 +244,6 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
     }
   };
 
-  // Security event handlers to prevent downloads
-  const handleContextMenu = (e: React.MouseEvent) => {
-    if (preventDownload) {
-      e.preventDefault();
-      return false;
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (preventDownload) {
-      // Block common developer tools shortcuts
-      if (
-        e.key === 'F12' ||
-        (e.ctrlKey && e.shiftKey && e.key === 'I') ||
-        (e.ctrlKey && e.shiftKey && e.key === 'C') ||
-        (e.ctrlKey && e.shiftKey && e.key === 'J') ||
-        (e.ctrlKey && e.key === 's') ||
-        (e.ctrlKey && e.key === 'S')
-      ) {
-        e.preventDefault();
-        return false;
-      }
-    }
-  };
-
-  const handleDragStart = (e: React.DragEvent) => {
-    if (preventDownload) {
-      e.preventDefault();
-    }
-  };
-
   const handleDownload = async () => {
     if (!classId || !allowDownload) return;
     
@@ -338,31 +305,23 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
   }
 
   return (
-    <div 
-      className={`${styles.container} ${preventDownload ? 'video-protected' : ''}`}
-      onContextMenu={handleContextMenu}
-      onKeyDown={handleKeyDown}
-      tabIndex={0}
-    >
+    <div className={styles.container}>
       <div className={styles.videoWrapper}>
         <video 
           ref={videoRef}
           src={streamUrl}
-          controls={!preventDownload}
-          controlsList={preventDownload ? "nodownload noremoteplayback" : undefined}
+          controls
           autoPlay={false}
           className={styles.video}
           poster="/video-poster.jpg"
+          controlsList="nodownload noremoteplayback" // Disable browser download button
+          disablePictureInPicture={false} // Keep picture in picture
           onPlay={handlePlay}
           onPause={handlePause}
           onEnded={handleEnded}
           onTimeUpdate={handleTimeUpdate}
           onError={handleError}
-          onContextMenu={handleContextMenu}
-          onDragStart={handleDragStart}
-          draggable={false}
-          disablePictureInPicture={false}
-          disableRemotePlayback={preventDownload}
+          onContextMenu={(e: React.MouseEvent) => e.preventDefault()} // Disable right-click
         />
       </div>
       
@@ -379,7 +338,7 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
         </div>
       )}
       
-      {allowDownload && classId && !preventDownload && (
+      {allowDownload && classId && (
         <div className={styles.downloadContainer}>
           <button 
             className={styles.downloadButton}

@@ -67,6 +67,19 @@ export const canManageVideos = (userRole: UserRole | string): boolean => {
 };
 
 /**
+ * Check if the current user can download videos
+ * More restrictive than canManageVideos - only super_admin can download
+ * @param userRole User's role
+ */
+export const canDownloadVideos = (userRole: UserRole | string): boolean => {
+  if (!userRole) return false;
+  const normalizedRole = normalizeRole(userRole);
+  
+  // Only super_admin can download videos for security reasons
+  return normalizedRole === 'super_admin';
+};
+
+/**
  * Check if the current user can manage users (view, edit, delete)
  * @param userRole User's role
  */

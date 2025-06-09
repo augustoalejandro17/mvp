@@ -146,9 +146,8 @@ export class S3Service {
       Key: cleanKey,
       Expires: expiresIn,
       ResponseContentType: contentType,
-      ResponseCacheControl: 'max-age=3600',
-      // Force inline display to prevent download prompts
-      ResponseContentDisposition: 'inline'
+      ResponseCacheControl: 'max-age=3600'
+      // No incluimos ResponseContentDisposition para permitir la visualización en el navegador
     };
 
     try {
