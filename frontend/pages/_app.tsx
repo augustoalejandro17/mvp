@@ -4,6 +4,8 @@ import Head from 'next/head';
 import '../styles/globals.css';
 import Navigation from '../components/Navigation';
 import navStyles from '../styles/Navigation.module.css';
+// Import auth utility to initialize global axios interceptor
+import '../utils/auth';
 
 function MyApp({ Component, pageProps }: AppProps) {
   useEffect(() => {

@@ -104,7 +104,7 @@ export class UsersController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE, UserRole.ADMIN)
   async create(@Body() createUserDto: any): Promise<AuthUser> {
     return this.usersService.create(createUserDto);
   }

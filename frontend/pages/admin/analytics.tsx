@@ -40,7 +40,7 @@ export default function AnalyticsPage() {
     try {
       const token = Cookies.get('token');
       if (!token) {
-        router.push('/login?redirect=/admin/analytics');
+        router.push('/');
         return;
       }
 

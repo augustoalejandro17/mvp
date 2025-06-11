@@ -120,7 +120,8 @@ export default function SchoolSubscriptionManager() {
       const token = Cookies.get('token');
       if (!token) return;
 
-      const response = await fetch(`http://localhost:4000/api/admin/academies/${schoolId}/plan`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await fetch(`${apiUrl}/api/admin/academies/${schoolId}/plan`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -216,7 +217,8 @@ export default function SchoolSubscriptionManager() {
       const token = Cookies.get('token');
       if (!token) return;
 
-      const response = await fetch(`http://localhost:4000/api/admin/academies/${schoolId}/overages`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await fetch(`${apiUrl}/api/admin/academies/${schoolId}/overages`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -243,7 +245,8 @@ export default function SchoolSubscriptionManager() {
       if (!token) return;
       
       // Assign plan
-      const planResponse = await fetch(`http://localhost:4000/api/admin/academies/${schoolId}/plan`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const planResponse = await fetch(`${apiUrl}/api/admin/academies/${schoolId}/plan`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -257,7 +260,7 @@ export default function SchoolSubscriptionManager() {
       }
 
       // Update extra resources
-      const addonsResponse = await fetch(`http://localhost:4000/api/admin/academies/${schoolId}/addons`, {
+      const addonsResponse = await fetch(`${apiUrl}/api/admin/academies/${schoolId}/addons`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -327,9 +330,6 @@ export default function SchoolSubscriptionManager() {
       <div className={styles.dashboardHeader}>
         <h1>Gestión de Suscripción</h1>
         <p>Administra el plan y recursos de {schoolDetails?.school.name}</p>
-        <Link href="/admin/schools" className={styles.backButton}>
-          ← Volver a Escuelas
-        </Link>
       </div>
       
       <div className={styles.content}>
@@ -370,7 +370,7 @@ export default function SchoolSubscriptionManager() {
                 <div className={styles.statCard}>
                   <h3>Almacenamiento</h3>
                   <div className={styles.statValue}>
-                    {schoolDetails.currentStorageUsageGB}GB / {schoolDetails.totalStorageGB}GB
+                    {(schoolDetails.currentStorageUsageGB || 0).toFixed(2)}GB / {schoolDetails.totalStorageGB}GB
                   </div>
                   <p className={styles.statDescription}>
                     Base: {schoolDetails.currentPlan?.storageGb || 0}GB + Extra: {schoolDetails.extraStorageGB}GB
@@ -379,7 +379,7 @@ export default function SchoolSubscriptionManager() {
                 <div className={styles.statCard}>
                   <h3>Streaming</h3>
                   <div className={styles.statValue}>
-                    {schoolDetails.currentStreamingUsageHours}h / {schoolDetails.totalStreamingHours}h
+                    {(schoolDetails.currentStreamingUsageHours || 0).toFixed(2)}h / {schoolDetails.totalStreamingHours}h
               </div>
                   <p className={styles.statDescription}>
                     Base: {schoolDetails.currentPlan?.streamingHours || 0}h + Extra: {schoolDetails.extraStreamingHours}h

@@ -57,14 +57,14 @@ api.interceptors.response.use(
       // The request was made and the server responded with a status code
       // that falls out of the range of 2xx
       if (error.response.status === 401) {
-        // Unauthorized - Clear token and redirect to login
+        // Unauthorized - Clear token and redirect to home
         clearAuth(); // Usar clearAuth para notificar a los componentes
         
-        // Solo redirigir si no estamos ya en la página de login
+        // Solo redirigir si no estamos ya en la página de login o home
         const currentPath = window.location.pathname;
-        if (!currentPath.includes('/login')) {
-          const redirectPath = encodeURIComponent(currentPath);
-          window.location.href = `/login?redirect=${redirectPath}`;
+        if (!currentPath.includes('/login') && currentPath !== '/') {
+          // Redirect to home instead of login with redirect path
+          window.location.href = '/';
         }
       }
     }

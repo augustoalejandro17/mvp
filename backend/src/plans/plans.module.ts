@@ -12,6 +12,7 @@ import { Overage, OverageSchema } from './schemas/overage.schema';
 import { School, SchoolSchema } from '../schools/schemas/school.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
+import { UsageTracking, UsageTrackingSchema } from '../usage/schemas/usage-tracking.schema';
 
 @Module({
   imports: [
@@ -21,7 +22,8 @@ import { Course, CourseSchema } from '../courses/schemas/course.schema';
       { name: Overage.name, schema: OverageSchema },
       { name: School.name, schema: SchoolSchema },
       { name: User.name, schema: UserSchema },
-      { name: Course.name, schema: CourseSchema }
+      { name: Course.name, schema: CourseSchema },
+      { name: UsageTracking.name, schema: UsageTrackingSchema }
     ])
   ],
   controllers: [PlansController, UserSubscriptionsController, SubscriptionsController, AdminPlanController],

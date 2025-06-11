@@ -174,6 +174,13 @@ export class SchoolsController {
       throw error;
     }
   }
+
+  @Post('admin/fix-extra-seats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async fixExtraSeats() {
+    return this.schoolsService.fixExtraSeats();
+  }
 }
 
 @Controller('users/:userId/owned-schools')

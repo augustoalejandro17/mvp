@@ -120,7 +120,8 @@ class UsageTrackingService {
       return response.data;
     } catch (error) {
       console.error('Error fetching monthly usage:', error);
-      throw error;
+      // Return empty array instead of throwing error to prevent UI break
+      return [];
     }
   }
 

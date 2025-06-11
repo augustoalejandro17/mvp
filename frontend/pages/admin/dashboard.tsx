@@ -235,7 +235,7 @@ export default function AdminDashboard() {
     const checkAuth = () => {
       const token = Cookies.get('token');
       if (!token) {
-        router.push('/login?redirect=/admin/dashboard');
+        router.push('/');
         return;
       }
 

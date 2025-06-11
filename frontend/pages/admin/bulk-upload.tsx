@@ -88,7 +88,7 @@ export default function BulkUploadPage() {
       const decoded = jwtDecode<DecodedToken>(token);
       setUser(decoded);
       
-      if (!['admin', 'super_admin', 'school_owner'].includes(decoded.role)) {
+      if (!['admin', 'super_admin', 'school_owner', 'administrative'].includes(decoded.role)) {
         router.push('/');
         return;
       }

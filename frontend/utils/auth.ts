@@ -10,6 +10,40 @@ interface DecodedToken {
   exp: number;
 }
 
+// Global axios interceptor to handle 401 errors from any axios instance
+let isInterceptorAdded = false;
+
+const addGlobalAxiosInterceptor = () => {
+  if (isInterceptorAdded) return;
+  
+  // Add global response interceptor to handle 401 errors
+  axios.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.response?.status === 401) {
+        console.log('Global interceptor: 401 error detected, clearing auth and redirecting to home');
+        clearAuth();
+        
+        // Only redirect if we're not already on home or login
+        if (typeof window !== 'undefined') {
+          const currentPath = window.location.pathname;
+          if (currentPath !== '/' && !currentPath.includes('/login')) {
+            window.location.href = '/';
+          }
+        }
+      }
+      return Promise.reject(error);
+    }
+  );
+  
+  isInterceptorAdded = true;
+};
+
+// Initialize global interceptor
+if (typeof window !== 'undefined') {
+  addGlobalAxiosInterceptor();
+}
+
 // Event emitter para cambios en la autenticación
 const authListeners = new Set<() => void>();
 

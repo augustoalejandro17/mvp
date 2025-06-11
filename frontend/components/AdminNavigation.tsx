@@ -16,6 +16,7 @@ export default function AdminNavigation({ userRole }: AdminNavigationProps) {
   // Check user roles
   const isSuperAdmin = userRole?.toLowerCase().includes('super_admin');
   const isSchoolOwner = userRole?.toLowerCase().includes('school_owner');
+  const isAdministrative = userRole?.toLowerCase().includes('administrative');
 
   const baseMenuItems = [
     { href: '/', label: 'Inicio' },
@@ -25,7 +26,7 @@ export default function AdminNavigation({ userRole }: AdminNavigationProps) {
     { href: '/admin/courses', label: 'Cursos' },
   ];
 
-  // Items only for super_admin and school_owner
+  // Items for super_admin, school_owner, and administrative
   const schoolManagementItems = [
     { href: '/admin/schools', label: 'Escuelas' },
   ];
@@ -47,7 +48,7 @@ export default function AdminNavigation({ userRole }: AdminNavigationProps) {
   // Build menu items based on role
   const menuItems = [
     ...baseMenuItems,
-    ...(isSuperAdmin || isSchoolOwner ? schoolManagementItems : []),
+    ...(isSuperAdmin || isSchoolOwner || isAdministrative ? schoolManagementItems : []),
     ...(isSuperAdmin ? superAdminItems : []),
     ...usageTrackingItems,
     ...commonEndItems

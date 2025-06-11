@@ -1,10 +1,11 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Plan, PlanDocument, PlanType } from './schemas/plan.schema';
 import { School, SchoolDocument } from '../schools/schemas/school.schema';
 import { Overage, OverageDocument, OverageType } from './schemas/overage.schema';
-import { User } from '../users/schemas/user.schema';
+import { User, UserRole } from '../auth/schemas/user.schema';
+import { UsageTracking } from '../usage/schemas/usage-tracking.schema';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
 import { 
@@ -21,7 +22,8 @@ export class PlansService {
     @InjectModel(Plan.name) private planModel: Model<PlanDocument>,
     @InjectModel(School.name) private schoolModel: Model<SchoolDocument>,
     @InjectModel(Overage.name) private overageModel: Model<OverageDocument>,
-    @InjectModel(User.name) private userModel: Model<User>
+    @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(UsageTracking.name) private usageTrackingModel: Model<UsageTracking>
   ) {
     // Initialize default plans using authoritative pricing table
     this.initDefaultPlans();
@@ -429,6 +431,22 @@ export class PlansService {
       }).exec();
     }
     
+    // Get real usage data from usage tracking collection for current month
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth() + 1;
+    const currentYear = currentDate.getFullYear();
+    
+    const usageDoc = await this.usageTrackingModel.findOne({
+      school: new Types.ObjectId(academyId),
+      month: currentMonth,
+      year: currentYear
+    }).exec();
+    
+    // Get real storage and streaming usage from usage tracking
+    const realStorageGB = usageDoc ? usageDoc.totalStorageGB : 0;
+    const realStreamingMinutes = usageDoc ? usageDoc.totalStreamingMinutes : 0;
+    const realStreamingHours = realStreamingMinutes / 60; // Convert minutes to hours
+    
     return {
       academy: {
         id: academy._id,
@@ -448,8 +466,8 @@ export class PlansService {
       },
       usage: {
         currentSeats: calculatedCurrentSeats,
-        usedStorageGB: academy.usedStorageGB || 0,
-        usedStreamingHours: academy.usedStreamingHours || 0
+        usedStorageGB: realStorageGB,
+        usedStreamingHours: realStreamingHours
       },
       extras: {
         seats: academy.extraSeats || 0,
@@ -528,5 +546,34 @@ export class PlansService {
       academyName: academy.name,
       resetFields: ['usedStreamingHours']
     };
+  }
+
+  /**
+   * Check if user has access to manage a specific school
+   */
+  async checkSchoolAccess(user: any, schoolId: string): Promise<boolean> {
+    const school = await this.schoolModel.findById(schoolId).exec();
+    if (!school) {
+      return false;
+    }
+
+    // Super admin has access to all schools
+    if (user.role === UserRole.SUPER_ADMIN) {
+      return true;
+    }
+
+    // School owner has access to schools they own
+    if (user.role === UserRole.SCHOOL_OWNER && school.admin.toString() === user.sub) {
+      return true;
+    }
+
+    // Administrative users have access to schools they're assigned to
+    if (user.role === UserRole.ADMINISTRATIVE && 
+        school.administratives && 
+        school.administratives.includes(user.sub)) {
+      return true;
+    }
+
+    return false;
   }
 } 

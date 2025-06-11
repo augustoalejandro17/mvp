@@ -41,7 +41,7 @@ export class UsageTrackingController {
 
   @Get('schools/overages')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE)
   async getSchoolsWithOverages(
     @Query('month') month: string | undefined,
     @Query('year') year: string | undefined

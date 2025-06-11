@@ -20,7 +20,7 @@ import { getUserIdFromRequest } from '../utils/token-handler';
 
 @Controller('bulk-upload')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER)
+@Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE)
 export class BulkUploadController {
   private readonly logger = new Logger(BulkUploadController.name);
 

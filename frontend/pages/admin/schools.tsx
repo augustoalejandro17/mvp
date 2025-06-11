@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
-import axios from 'axios';
+import api from '../../utils/api-client';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/AdminDashboard.module.css';
 import AdminNavigation from '../../components/AdminNavigation';
@@ -38,6 +38,7 @@ interface School {
     price: number;
   };
   currentSeats?: number;
+  totalAllowedSeats?: number;
   extraSeats?: number;
   extraStorageGB?: number;
   extraStreamingHours?: number;
@@ -58,7 +59,7 @@ export default function SchoolsManager() {
     const checkAuth = () => {
       const token = Cookies.get('token');
       if (!token) {
-        router.push('/login?redirect=/admin/schools');
+        router.push('/');
         return;
       }
 
@@ -66,8 +67,8 @@ export default function SchoolsManager() {
         const decoded: DecodedToken = jwtDecode(token);
         const role = decoded.role?.toLowerCase();
         
-        // Only allow super_admin and school_owner
-        if (!role.includes('super_admin') && !role.includes('school_owner')) {
+        // Only allow super_admin, school_owner, and administrative
+        if (!role.includes('super_admin') && !role.includes('school_owner') && !role.includes('administrative')) {
           router.push('/admin/dashboard');
           return;
         }
@@ -104,11 +105,12 @@ export default function SchoolsManager() {
       } else if (role.includes('school_owner')) {
         // School owner can only see their owned schools
         endpoint = `${apiUrl}/api/users/${user.sub}/owned-schools`;
+      } else if (role.includes('administrative')) {
+        // Administrative users can see their administered schools
+        endpoint = `${apiUrl}/api/users/${user.sub}/administered-schools`;
       }
 
-      const response = await axios.get(endpoint, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await api.get(endpoint);
       
       const schoolsData = response.data.schools || response.data || [];
       setSchools(schoolsData);
@@ -147,6 +149,9 @@ export default function SchoolsManager() {
   }
 
   const isSuperAdmin = userRole?.toLowerCase().includes('super_admin');
+  const isSchoolOwner = userRole?.toLowerCase().includes('school_owner');
+  const isAdministrative = userRole?.toLowerCase().includes('administrative');
+  const canManagePlans = isSuperAdmin || isSchoolOwner || isAdministrative;
 
   return (
     <div className={styles.container}>
@@ -238,11 +243,6 @@ export default function SchoolsManager() {
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           {school.currentSeats || 0}
-                          {school.extraSeats && school.extraSeats > 0 && (
-                            <span className={styles.extraInfo}>
-                              (+{school.extraSeats})
-                            </span>
-                          )}
                         </td>
                         <td style={{ textAlign: 'center' }}>{school.totalStudents || 0}</td>
                         <td style={{ textAlign: 'center' }}>{school.totalTeachers || 0}</td>
@@ -264,7 +264,7 @@ export default function SchoolsManager() {
                             >
                               Editar
                             </Link>
-                            {isSuperAdmin && (
+                            {canManagePlans && (
                               <Link 
                                 href={`/admin/subscriptions/school/${school._id}`} 
                                 className={styles.planButton}

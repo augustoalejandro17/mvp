@@ -125,7 +125,7 @@ export class SchoolsService {
       
       const schools = await this.schoolModel.find(query)
         .populate('admin', 'name email')
-        .populate('planId', 'name type monthlyPriceCents');
+        .populate('planId', 'name type monthlyPriceCents studentSeats maxUsers');
       
       // Transform the response to include plan information and proper counts
       const transformedSchools = await Promise.all(schools.map(async (school) => {
@@ -133,11 +133,16 @@ export class SchoolsService {
         
         // Add plan information
         if (schoolObj.planId && typeof schoolObj.planId === 'object') {
+          const plan = schoolObj.planId;
           schoolObj.currentPlan = {
-            name: schoolObj.planId.name,
-            type: schoolObj.planId.type,
-            price: schoolObj.planId.monthlyPriceCents || 0
+            name: plan.name,
+            type: plan.type,
+            price: plan.monthlyPriceCents || 0,
+            studentSeats: plan.studentSeats || plan.maxUsers || 0
           };
+          
+          // Calculate total allowed seats (plan seats + extra seats)
+          schoolObj.totalAllowedSeats = (plan.studentSeats || plan.maxUsers || 0) + (schoolObj.extraSeats || 0);
         }
         
         // Calculate proper counts
@@ -158,8 +163,13 @@ export class SchoolsService {
           password: { $exists: true }
         }).exec();
         
-        // Update the school object with proper counts
+        // Update the school object with proper counts AND update the database
         schoolObj.currentSeats = registeredUsersCount;
+        
+        // Also update the database to keep it in sync
+        await this.schoolModel.findByIdAndUpdate(schoolObj._id, {
+          currentSeats: registeredUsersCount
+        }).exec();
         schoolObj.totalStudents = totalStudents; // All students (registered + unregistered)
         schoolObj.totalTeachers = totalTeachers;
         schoolObj.totalAdministratives = totalAdministratives;
@@ -700,25 +710,73 @@ export class SchoolsService {
 
   // Método para encontrar escuelas por administrador
   async findSchoolsByAdministrator(userId: string): Promise<School[]> {
-    const schools = await this.schoolModel.find({ administratives: userId })
-      .populate('admin', 'name email')
-      .populate('planId', 'name type monthlyPriceCents')
-      .select('-teachers -students');
+    try {
+      // Get user to access administratedSchools field
+      const user = await this.userModel.findById(userId).exec();
+      const userAdministratedSchools = user?.administratedSchools || [];
+      
+      // Find schools where the user is in administratives array OR in user's administratedSchools
+      const schools = await this.schoolModel.find({
+        $or: [
+          { administratives: userId },
+          { _id: { $in: userAdministratedSchools } }
+        ]
+      })
+        .populate('admin', 'name email')
+        .populate('planId', 'name type monthlyPriceCents studentSeats maxUsers')
+        .select('-teachers -students -administratives')
+        .exec();
 
-    // Transform the response to include plan information in the expected format
-    const transformedSchools = schools.map(school => {
-      const schoolObj = school.toObject() as any;
-      if (schoolObj.planId && typeof schoolObj.planId === 'object') {
-        schoolObj.currentPlan = {
-          name: schoolObj.planId.name,
-          type: schoolObj.planId.type,
-          price: schoolObj.planId.monthlyPriceCents || 0
-        };
-      }
-      return schoolObj;
-    });
-    
-    return transformedSchools;
+      this.logger.log(`Found ${schools.length} administered schools for user ${userId}`);
+
+      // Transform the response to include plan information in the expected format
+      const transformedSchools = await Promise.all(schools.map(async (school) => {
+        const schoolObj = school.toObject() as any;
+        
+        // Add plan information
+        if (schoolObj.planId && typeof schoolObj.planId === 'object') {
+          const plan = schoolObj.planId;
+          schoolObj.currentPlan = {
+            name: plan.name,
+            type: plan.type,
+            price: plan.monthlyPriceCents || 0,
+            studentSeats: plan.studentSeats || plan.maxUsers || 0
+          };
+          
+          // Calculate total allowed seats (plan seats + extra seats)
+          schoolObj.totalAllowedSeats = (plan.studentSeats || plan.maxUsers || 0) + (schoolObj.extraSeats || 0);
+        }
+        
+        // Calculate proper counts (similar to findAll method)
+        const totalStudents = await this.userModel.countDocuments({
+          schools: schoolObj._id,
+          role: { $in: ['student', 'unregistered'] }
+        }).exec();
+        
+        const registeredUsersCount = await this.userModel.countDocuments({
+          schools: schoolObj._id,
+          role: { $in: ['student', 'teacher', 'school_owner', 'administrative'] },
+          email: { $exists: true },
+          password: { $exists: true }
+        }).exec();
+        
+        // Update the school object with proper counts AND update the database
+        schoolObj.currentSeats = registeredUsersCount;
+        
+        // Also update the database to keep it in sync
+        await this.schoolModel.findByIdAndUpdate(schoolObj._id, {
+          currentSeats: registeredUsersCount
+        }).exec();
+        schoolObj.totalStudents = totalStudents;
+        
+        return schoolObj;
+      }));
+      
+      return transformedSchools;
+    } catch (error) {
+      this.logger.error(`Error al buscar escuelas por administrador: ${error.message}`);
+      throw new Error('Error al buscar escuelas por administrador');
+    }
   }
 
   /**
@@ -834,6 +892,47 @@ export class SchoolsService {
       return schools;
     } catch (error) {
       this.logger.error(`Error al buscar escuelas públicas: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async fixExtraSeats() {
+    try {
+      // Find schools with abnormally high extraSeats
+      const schools = await this.schoolModel.find({
+        $or: [
+          { extraSeats: { $gt: 1000 } },
+          { name: 'Mambuco' }
+        ]
+      }).exec();
+
+      const results = [];
+      
+      for (const school of schools) {
+        const originalExtraSeats = school.extraSeats;
+        
+        // Reset extraSeats to 0 if abnormally high
+        if (school.extraSeats > 1000 || school.name === 'Mambuco') {
+          await this.schoolModel.findByIdAndUpdate(school._id, {
+            extraSeats: 0
+          }).exec();
+          
+          results.push({
+            schoolName: school.name,
+            originalExtraSeats,
+            newExtraSeats: 0,
+            fixed: true
+          });
+        }
+      }
+
+      return {
+        success: true,
+        message: `Fixed ${results.length} schools`,
+        results
+      };
+    } catch (error) {
+      this.logger.error(`Error fixing extraSeats: ${error.message}`);
       throw error;
     }
   }

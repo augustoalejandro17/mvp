@@ -163,7 +163,7 @@ export default function Reports() {
   useEffect(() => {
     const token = Cookies.get('token');
     if (!token) {
-      router.push('/login?redirect=/admin/reports');
+      router.push('/');
       return;
     }
 

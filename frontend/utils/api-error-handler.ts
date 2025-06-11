@@ -23,11 +23,11 @@ export const useApiErrorHandler = () => {
         errorMessage = err.response.data.error;
       } else if (err.response?.status === 401) {
         errorMessage = 'No autorizado. Por favor, inicia sesión nuevamente.';
-        // Redirigir al login si es necesario
+        // Redirigir al home si es necesario
         if (typeof window !== 'undefined') {
           
           setTimeout(() => {
-            window.location.href = '/login';
+            window.location.href = '/';
           }, 2000);
         }
       } else if (err.response?.status === 403) {

@@ -121,7 +121,7 @@ export class UsersService {
     }
   }
 
-  async create(userData: Partial<User>): Promise<User> {
+  async create(userData: Partial<User> & { courseId?: string }): Promise<User> {
     try {
       // Si hay una contraseña y no parece estar hasheada (no comienza con $), hashearla
       if (userData.password && !userData.password.startsWith('$')) {
@@ -131,8 +131,61 @@ export class UsersService {
         this.logger.debug(`La contraseña para ${userData.email} ya parece estar hasheada, manteniéndola como está`);
       }
       
-      const createdUser = new this.userModel(userData);
-      return createdUser.save();
+      // Extract courseId from userData to handle separately
+      const { courseId, ...userDataWithoutCourse } = userData;
+      
+      // Create user first
+      const createdUser = new this.userModel(userDataWithoutCourse);
+      const savedUser = await createdUser.save();
+      
+      // If courseId is provided, enroll user in course
+      if (courseId) {
+        this.logger.log(`Enrolling user ${savedUser._id} in course: ${courseId}`);
+        try {
+          // Add course to user's enrolledCourses
+          await this.userModel.findByIdAndUpdate(
+            savedUser._id,
+            { $addToSet: { enrolledCourses: new Types.ObjectId(courseId) } },
+            { new: true }
+          );
+          
+          // Add user to course's students
+          await this.courseModel.findByIdAndUpdate(
+            courseId,
+            { $addToSet: { students: savedUser._id } },
+            { new: true }
+          );
+          
+          // Get course to find the school and add user to school
+          const course = await this.courseModel.findById(courseId).exec();
+          if (course && course.school) {
+            const schoolId = course.school.toString();
+            
+            // Add user to school's students array
+            await this.schoolModel.findByIdAndUpdate(
+              schoolId,
+              { $addToSet: { students: savedUser._id } },
+              { new: true }
+            );
+            
+            // Add school to user's schools array
+            await this.userModel.findByIdAndUpdate(
+              savedUser._id,
+              { $addToSet: { schools: new Types.ObjectId(schoolId) } },
+              { new: true }
+            );
+          }
+          
+          // Return updated user
+          return this.userModel.findById(savedUser._id).exec();
+        } catch (enrollmentError) {
+          this.logger.error(`Error enrolling user in course: ${enrollmentError.message}`, enrollmentError.stack);
+          // Return user even if enrollment fails
+          return savedUser;
+        }
+      }
+      
+      return savedUser;
     } catch (error) {
       this.logger.error(`Error al crear usuario: ${error.message}`, error.stack);
       throw error;
@@ -175,22 +228,21 @@ export class UsersService {
   }
 
   private async enrollUserInCourses(userId: string | Types.ObjectId, courseIds: string[]): Promise<void> {
-    // Importar dynamically para evitar dependencias circulares
-    const { Course } = await import('../courses/schemas/course.schema');
-    const { model } = await import('mongoose');
-    
-    const CourseModel = model<typeof Course>(Course.name);
-    
-    // Asegurar que userId es un ObjectId
-    const userObjectId = typeof userId === 'string' ? new Types.ObjectId(userId) : userId;
-    
-    // Actualizar cada curso
-    for (const courseId of courseIds) {
-      await CourseModel.findByIdAndUpdate(
-        courseId,
-        { $addToSet: { students: userObjectId } },
-        { new: true }
-      );
+    try {
+      // Use the injected course model
+      const userObjectId = typeof userId === 'string' ? new Types.ObjectId(userId) : userId;
+      
+      // Actualizar cada curso
+      for (const courseId of courseIds) {
+        await this.courseModel.findByIdAndUpdate(
+          courseId,
+          { $addToSet: { students: userObjectId } },
+          { new: true }
+        );
+      }
+    } catch (error) {
+      this.logger.error(`Error enrolling user in courses: ${error.message}`, error.stack);
+      throw error;
     }
   }
 
@@ -204,9 +256,6 @@ export class UsersService {
   ): Promise<void> {
     try {
       this.logger.log(`Assigning user ${userId} to schools from courses ${courseIds} with role ${userRole}`);
-      
-      // Import necessary modules to avoid circular dependencies
-      const { AuthorizationService } = await import('../auth/services/authorization.service');
       
       // Get the courses to identify their schools
       const courses = await this.courseModel.find({ _id: { $in: courseIds } });
@@ -236,18 +285,38 @@ export class UsersService {
       
       this.logger.log(`Found schools: ${schoolIds}`);
       
-      // For each school, assign the appropriate role to the user
-      const authService = new AuthorizationService(this.userModel, this.schoolModel, this.courseModel);
+      // For each school, add the user to the school's arrays
+      const userObjectId = typeof userId === 'string' ? new Types.ObjectId(userId) : userId;
       
       for (const schoolId of schoolIds) {
-        // Map user role to school role
-        let schoolRole = 'student';
-        if (userRole === 'teacher') schoolRole = 'teacher';
-        else if (userRole === 'administrative') schoolRole = 'administrative';
-        else if (userRole === 'admin' || userRole === 'school_owner') schoolRole = 'school_owner';
+        // Add user to school based on their role
+        if (userRole === 'teacher') {
+          await this.schoolModel.findByIdAndUpdate(
+            schoolId,
+            { $addToSet: { teachers: userObjectId } },
+            { new: true }
+          );
+        } else if (userRole === 'administrative') {
+          await this.schoolModel.findByIdAndUpdate(
+            schoolId,
+            { $addToSet: { administratives: userObjectId } },
+            { new: true }
+          );
+        } else {
+          // Default to student
+          await this.schoolModel.findByIdAndUpdate(
+            schoolId,
+            { $addToSet: { students: userObjectId } },
+            { new: true }
+          );
+        }
         
-        this.logger.log(`Assigning role ${schoolRole} to user ${userId} in school ${schoolId}`);
-        await authService.assignRoleInSchool(userId.toString(), schoolId, schoolRole);
+        // Also add school to user's schools array
+        await this.userModel.findByIdAndUpdate(
+          userId,
+          { $addToSet: { schools: new Types.ObjectId(schoolId) } },
+          { new: true }
+        );
       }
     } catch (error) {
       this.logger.error(`Error assigning user to schools: ${error.message}`, error.stack);
