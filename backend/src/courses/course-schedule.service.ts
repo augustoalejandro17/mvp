@@ -31,8 +31,6 @@ export class CourseScheduleService {
   }
 
   async updateSchedule(courseId: string, updateScheduleDto: UpdateCourseScheduleDto): Promise<CourseSchedule> {
-    this.logger.debug(`Updating schedule for course ${courseId}`);
-    
     // Validate schedule times don't overlap if provided
     if (updateScheduleDto.scheduleTimes && updateScheduleDto.scheduleTimes.length > 1) {
       this.validateScheduleTimes(updateScheduleDto.scheduleTimes);
@@ -57,8 +55,6 @@ export class CourseScheduleService {
   }
 
   async getUpcomingClasses(timeWindow: { start: Date; end: Date }): Promise<any[]> {
-    this.logger.debug(`🔍 Getting upcoming classes between ${timeWindow.start.toISOString()} and ${timeWindow.end.toISOString()}`);
-    
     // Get all active schedules with notifications enabled
     const schedules = await this.courseScheduleModel.find({
       enableNotifications: true,
@@ -71,32 +67,24 @@ export class CourseScheduleService {
       }
     });
 
-    this.logger.debug(`📅 Found ${schedules.length} schedules with notifications enabled`);
-
     const upcomingClasses = [];
 
     for (const schedule of schedules) {
       if (!schedule.course || !(schedule.course as any).school) {
-        this.logger.warn(`⚠️ Schedule ${schedule._id} missing course or school data`);
+        this.logger.warn(`Schedule ${schedule._id} missing course or school data`);
         continue;
       }
 
       const course = schedule.course as any;
       const school = course.school;
       const schoolTimezone = school.timezone || 'America/Bogota';
-      
-      this.logger.debug(`🏫 Processing course "${course.name}" with school timezone: ${schoolTimezone}`);
 
       for (const scheduleTime of schedule.scheduleTimes) {
         if (!scheduleTime.isActive) continue;
 
         const nextClassTime = this.calculateNextClassTime(scheduleTime, schoolTimezone);
-        
-        this.logger.debug(`⏰ Next class time for ${scheduleTime.dayOfWeek} ${scheduleTime.startTime}: ${nextClassTime.toISOString()}`);
 
         if (nextClassTime >= timeWindow.start && nextClassTime <= timeWindow.end) {
-          this.logger.debug(`✅ Class is within notification window!`);
-          
           upcomingClasses.push({
             courseId: course._id,
             courseName: course.name,
@@ -106,13 +94,10 @@ export class CourseScheduleService {
             notificationMinutes: schedule.notificationMinutes || 10,
             schoolTimezone
           });
-        } else {
-          this.logger.debug(`❌ Class is outside notification window (${nextClassTime.toISOString()} not between ${timeWindow.start.toISOString()} and ${timeWindow.end.toISOString()})`);
         }
       }
     }
 
-    this.logger.debug(`🎯 Found ${upcomingClasses.length} upcoming classes in notification window`);
     return upcomingClasses;
   }
 
@@ -123,16 +108,12 @@ export class CourseScheduleService {
     // Convert current UTC time to school timezone
     const nowInSchoolTz = new Date(now.getTime() - timezoneOffset * 60000);
     
-    this.logger.debug(`🌍 Current time: ${now.toISOString()} (UTC), ${nowInSchoolTz.toISOString()} (School TZ: ${schoolTimezone})`);
-    
     // Parse the schedule time (e.g., "14:50")
     const [hours, minutes] = scheduleTime.startTime.split(':').map(Number);
     
     // Get day of week (0 = Sunday, 1 = Monday, etc.)
     const targetDay = this.getDayNumber(scheduleTime.dayOfWeek);
     const currentDay = nowInSchoolTz.getUTCDay();
-    
-    this.logger.debug(`📅 Target day: ${scheduleTime.dayOfWeek} (${targetDay}), Current day: ${currentDay}`);
     
     // Calculate days until next occurrence
     let daysUntilClass = targetDay - currentDay;
@@ -155,9 +136,6 @@ export class CourseScheduleService {
     
     // Convert back to UTC
     const classDateUTC = new Date(classDateInSchoolTz.getTime() + timezoneOffset * 60000);
-    
-    this.logger.debug(`📍 Class time in school TZ: ${classDateInSchoolTz.toISOString()}`);
-    this.logger.debug(`📍 Class time in UTC: ${classDateUTC.toISOString()}`);
     
     return classDateUTC;
   }

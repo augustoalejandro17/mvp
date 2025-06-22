@@ -64,8 +64,6 @@ export class NotificationsService {
       filter.isRead = false;
     }
 
-    this.logger.debug(`📋 Finding notifications for user ${userId}, filter:`, filter);
-
     const [notifications, total, unreadCount] = await Promise.all([
       this.notificationModel
         .find(filter)
@@ -123,8 +121,6 @@ export class NotificationsService {
   }
 
   async deleteNotification(notificationId: string, userId: string): Promise<void> {
-    this.logger.debug(`🗑️ Deleting notification ${notificationId} for user ${userId}`);
-    
     const result = await this.notificationModel.updateOne(
       { 
         _id: notificationId, 
@@ -136,13 +132,9 @@ export class NotificationsService {
       }
     ).exec();
 
-    this.logger.debug(`📊 Delete result: matched=${result.matchedCount}, modified=${result.modifiedCount}`);
-
     if (result.matchedCount === 0) {
       throw new NotFoundException('Notificación no encontrada');
     }
-
-    this.logger.debug(`✅ Notification ${notificationId} marked as deleted`);
   }
 
   async getUnreadCount(userId: string): Promise<number> {

@@ -65,8 +65,6 @@ const NotificationsPage: React.FC = () => {
 
       if (response.ok) {
         const data: NotificationResponse = await response.json();
-        console.log('📥 Received notifications:', data.notifications.length, 'total:', data.total);
-        console.log('📋 Notification IDs:', data.notifications.map(n => n._id));
         setNotifications(data.notifications);
         setTotalPages(data.totalPages);
         setUnreadCount(data.unreadCount);
@@ -158,14 +156,8 @@ const NotificationsPage: React.FC = () => {
       });
 
       if (response.ok) {
-        console.log('✅ Notification deleted successfully:', notificationId);
-        
         // Immediately remove from local state
-        setNotifications(prev => {
-          const filtered = prev.filter(n => n._id !== notificationId);
-          console.log('🔄 Updated notifications count:', filtered.length);
-          return filtered;
-        });
+        setNotifications(prev => prev.filter(n => n._id !== notificationId));
         
         // If the deleted notification was unread, decrease the count
         const deletedNotification = notifications.find(n => n._id === notificationId);
@@ -173,15 +165,10 @@ const NotificationsPage: React.FC = () => {
           setUnreadCount(prev => Math.max(0, prev - 1));
         }
         
-        // Force a complete refresh after a short delay to ensure backend consistency
+        // Refresh to ensure backend consistency
         setTimeout(() => {
-          console.log('🔄 Refreshing notifications from server...');
           fetchNotifications();
-        }, 1000);
-      } else {
-        console.error('❌ Failed to delete notification:', response.status);
-        const errorData = await response.json();
-        console.error('Error details:', errorData);
+        }, 500);
       }
     } catch (error) {
       console.error('Error deleting notification:', error);
