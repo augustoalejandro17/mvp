@@ -18,6 +18,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { BulkUploadModule } from './bulk-upload/bulk-upload.module';
 import { UsageModule } from './usage/usage.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import awsConfig from './config/aws.config';
 import { S3Service } from './services/s3.service';
 import { CloudFrontService } from './services/cloudfront.service';
@@ -66,6 +67,7 @@ import { MigrationService } from './migrations/migration.service';
     EnrollmentsModule,
     BulkUploadModule,
     UsageModule,
+    NotificationsModule,
   ],
   controllers: [
     AppController, 

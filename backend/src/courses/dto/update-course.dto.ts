@@ -1,4 +1,6 @@
-import { IsString, IsOptional, IsUrl, MinLength, IsNotEmpty, IsMongoId, IsArray, ArrayMaxSize, IsBoolean, IsNumber, Min, Max, ValidateIf } from 'class-validator';
+import { IsString, IsOptional, IsUrl, MinLength, IsNotEmpty, IsMongoId, IsArray, ArrayMaxSize, IsBoolean, IsNumber, Min, Max, ValidateIf, ValidateNested, IsInt } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ScheduleTimeDto } from './course-schedule.dto';
 
 export class UpdateCourseDto {
   @IsString()
@@ -52,4 +54,21 @@ export class UpdateCourseDto {
   @IsOptional()
   @IsString()
   readonly sede?: string;
+
+  // Schedule fields
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ScheduleTimeDto)
+  scheduleTimes?: ScheduleTimeDto[];
+
+  @IsOptional()
+  @IsBoolean()
+  enableNotifications?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(5)
+  @Max(30)
+  notificationMinutes?: number;
 } 

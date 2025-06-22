@@ -10,6 +10,7 @@ import { SchoolsService } from '../schools/schools.service';
 import { Enrollment } from './schemas/enrollment.schema';
 import { School } from '../schools/schemas/school.schema';
 import { CreateClassDto } from '../classes/dto/create-class.dto';
+import { CourseScheduleService } from './course-schedule.service';
 
 // Función de utilidad para comparar roles
 const compareRole = (userRole: any, enumRole: UserRole): boolean => {
@@ -42,10 +43,11 @@ export class CoursesService {
     @InjectModel(School.name) private schoolModel: Model<School>,
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
     private schoolsService: SchoolsService,
+    private courseScheduleService: CourseScheduleService,
   ) {}
 
   async create(createCourseDto: CreateCourseDto, teacherId: string): Promise<Course> {
-    const { schoolId, teacher, teachers, sede, ...courseData } = createCourseDto;
+    const { schoolId, teacher, teachers, sede, scheduleTimes, enableNotifications, notificationMinutes, ...courseData } = createCourseDto;
 
     // Validate School
     const school = await this.schoolModel.findById(schoolId);
@@ -135,6 +137,20 @@ export class CoursesService {
           });
         } catch (error) {
           this.logger.error(`Error al añadir curso al profesor ${tId}: ${error.message}`, error.stack);
+        }
+      }
+
+      // Create schedule if provided
+      if (scheduleTimes && scheduleTimes.length > 0) {
+        try {
+          await this.courseScheduleService.createSchedule(String(result._id), {
+            scheduleTimes,
+            enableNotifications: enableNotifications ?? true,
+            notificationMinutes: notificationMinutes || 10
+          });
+        } catch (error) {
+          this.logger.error(`Error creating schedule for course ${result._id}: ${error.message}`, error.stack);
+          // Don't fail course creation if schedule fails
         }
       }
       
@@ -250,7 +266,7 @@ export class CoursesService {
   }
 
   async update(id: string, updateCourseDto: UpdateCourseDto, userId: string): Promise<Course> {
-    const { schoolId, teacher, teachers, sede, ...courseData } = updateCourseDto;
+    const { schoolId, teacher, teachers, sede, scheduleTimes, enableNotifications, notificationMinutes, ...courseData } = updateCourseDto;
       const course = await this.courseModel.findById(id);
       
       if (!course) {
@@ -324,7 +340,40 @@ export class CoursesService {
     if (sede !== undefined) course.sede = sede; // Apply sede if it was in DTO
 
     course.updatedAt = new Date();
-    return course.save();
+    const updatedCourse = await course.save();
+
+    // Update schedule if provided
+    if (scheduleTimes !== undefined) {
+      try {
+        if (scheduleTimes.length === 0) {
+          // If empty array, delete existing schedule
+          await this.courseScheduleService.deleteSchedule(id);
+        } else {
+          // Check if schedule exists
+          const existingSchedule = await this.courseScheduleService.getSchedule(id);
+          if (existingSchedule) {
+            // Update existing schedule
+            await this.courseScheduleService.updateSchedule(id, {
+              scheduleTimes,
+              enableNotifications: enableNotifications ?? existingSchedule.enableNotifications,
+              notificationMinutes: notificationMinutes || existingSchedule.notificationMinutes
+            });
+          } else {
+            // Create new schedule
+            await this.courseScheduleService.createSchedule(id, {
+              scheduleTimes,
+              enableNotifications: enableNotifications ?? true,
+              notificationMinutes: notificationMinutes || 10
+            });
+          }
+        }
+      } catch (error) {
+        this.logger.error(`Error updating schedule for course ${id}: ${error.message}`, error.stack);
+        // Don't fail course update if schedule fails
+      }
+    }
+
+    return updatedCourse;
   }
 
   async addStudent(courseId: string, studentId: string, userId: string) {
@@ -1088,7 +1137,7 @@ export class CoursesService {
     }
   }
 
-  async getCourseForUser(id: string, userId?: string, userRole?: string) {
+  async getCourseForUser(id: string, userId?: string, userRole?: string, includeSchedule = false) {
     try {
       const course = await this.courseModel.findById(id)
         .populate('teacher', 'name email')
@@ -1109,11 +1158,22 @@ export class CoursesService {
       this.logger.debug(`[getCourseForUser] Intentando acceder - Curso ID: ${id}, Usuario ID: ${userId}, Rol: ${normalizedRole}`);
       this.logger.debug(`[getCourseForUser] Datos del curso - esPublico: ${course.isPublic}, teacher: ${JSON.stringify(course.teacher)}, teachers: ${JSON.stringify(course.teachers)}, students: ${JSON.stringify(course.students)}`);
 
+      // Add schedule data if requested
+      let schedule = null;
+      if (includeSchedule) {
+        try {
+          schedule = await this.courseScheduleService.getSchedule(id);
+        } catch (error) {
+          this.logger.debug(`No schedule found for course ${id}`);
+        }
+      }
+
       const adminRoles = ['super_admin', 'superadmin', 'school_owner', 'administrative', 'admin'];
       if (normalizedRole && adminRoles.includes(normalizedRole)) {
         this.logger.debug('[getCourseForUser] Acceso concedido: Rol administrativo');
         return {
           ...course,
+          schedule,
           classes: Array.isArray(course.classes) ? (course.classes as any[]).map(c => ({ ...c, isVisible: true })) : []
         };
       }
@@ -1131,6 +1191,7 @@ export class CoursesService {
         this.logger.debug('[getCourseForUser] Acceso concedido: Profesor del curso');
         return {
           ...course,
+          schedule,
           classes: Array.isArray(course.classes) ? (course.classes as any[]).map(c => ({ ...c, isVisible: true })) : []
         };
       }
@@ -1141,6 +1202,7 @@ export class CoursesService {
         this.logger.debug('[getCourseForUser] Acceso concedido: Estudiante matriculado');
         return {
           ...course,
+          schedule,
           classes: Array.isArray(course.classes) ? (course.classes as any[]).map(c => ({ ...c, isVisible: true })) : []
         };
       }
@@ -1150,6 +1212,7 @@ export class CoursesService {
         const allClassVisible = !!userId;
         return {
           ...course,
+          schedule,
           classes: Array.isArray(course.classes) ? (course.classes as any[]).map((c, index) => ({
             ...c,
             isVisible: allClassVisible || index === 0 || (c && c.isPublic === true)

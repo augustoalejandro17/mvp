@@ -5,6 +5,7 @@ import { getCookie } from 'cookies-next';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../styles/Navigation.module.css';
 import { getToken, subscribeToAuth, clearAuth, logout } from '../utils/auth';
+import NotificationBell from './NotificationBell';
 
 interface DecodedToken {
   sub: string;
@@ -278,6 +279,7 @@ const Navigation: React.FC = () => {
                     </button>
                   </div>
                 </div>
+                <NotificationBell />
               </>
             ) : (
               <>

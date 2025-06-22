@@ -7,6 +7,7 @@ import styles from '../../../styles/CourseForm.module.css';
 import { useApiErrorHandler } from '../../../utils/api-error-handler';
 import ImageUploader from '../../../components/ImageUploader';
 import ImagePreviewHelper from '../../../components/ImagePreviewHelper';
+import CourseScheduleManager from '../../../components/CourseScheduleManager';
 import { FaTimes } from 'react-icons/fa';
 import { jwtDecode } from 'jwt-decode';
 
@@ -40,6 +41,13 @@ interface Course {
   category?: any;
 }
 
+interface ScheduleTime {
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+}
+
 export default function EditCourse() {
   const router = useRouter();
   const { id } = router.query;
@@ -64,6 +72,12 @@ export default function EditCourse() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0, scale: 1 });
+  
+  // Schedule state
+  const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([]);
+  const [enableNotifications, setEnableNotifications] = useState(true);
+  const [notificationMinutes, setNotificationMinutes] = useState(10);
+  
   const { handleApiError } = useApiErrorHandler();
 
   const fetchCourse = useCallback(async (courseId: string, token: string) => {
@@ -73,7 +87,7 @@ export default function EditCourse() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const response = await axios.get(
-        `${apiUrl}/api/courses/${courseId}`,
+        `${apiUrl}/api/courses/${courseId}?includeSchedule=true`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -135,6 +149,21 @@ export default function EditCourse() {
           ? courseData.category._id 
           : String(courseData.category);
         setSelectedCategories([categoryId]);
+      }
+
+      // Set schedule data
+      if (courseData.schedule) {
+        // Clean schedule times when loading from API and convert to lowercase
+        const cleanScheduleTimes = (courseData.schedule.scheduleTimes || []).map((time: any) => ({
+          dayOfWeek: time.dayOfWeek.toLowerCase(), // Convert to lowercase to match backend enum
+          startTime: time.startTime,
+          endTime: time.endTime,
+          isActive: time.isActive
+        }));
+        
+        setScheduleTimes(cleanScheduleTimes);
+        setEnableNotifications(courseData.schedule.enableNotifications ?? true);
+        setNotificationMinutes(courseData.schedule.notificationMinutes || 10);
       }
       
     } catch (error) {
@@ -312,6 +341,14 @@ export default function EditCourse() {
       // Crear array de profesores con el principal primero
       const allTeachers = [teacherId, ...additionalTeachers];
       
+      // Clean schedule times to remove any extra properties
+      const cleanedScheduleTimes = scheduleTimes.map(time => ({
+        dayOfWeek: time.dayOfWeek,
+        startTime: time.startTime,
+        endTime: time.endTime,
+        isActive: time.isActive
+      }));
+
       const courseData = {
         title,
         description,
@@ -320,7 +357,11 @@ export default function EditCourse() {
         isPublic,
         teacher: teacherId,
         teachers: allTeachers,
-        categories: selectedCategories.length > 0 ? selectedCategories : undefined
+        categories: selectedCategories.length > 0 ? selectedCategories : undefined,
+        // Schedule data
+        scheduleTimes: cleanedScheduleTimes,
+        enableNotifications,
+        notificationMinutes
       };
       
       // Usar la ruta correcta con /api/
@@ -602,6 +643,24 @@ export default function EditCourse() {
                 </ul>
               </div>
             )}
+          </div>
+
+          {/* Schedule Section */}
+          <div className={styles.formGroup}>
+            <label>Horarios del Curso</label>
+            <div className={styles.scheduleSection}>
+              <CourseScheduleManager
+                scheduleTimes={scheduleTimes}
+                enableNotifications={enableNotifications}
+                notificationMinutes={notificationMinutes}
+                onScheduleTimesChange={setScheduleTimes}
+                onEnableNotificationsChange={setEnableNotifications}
+                onNotificationMinutesChange={setNotificationMinutes}
+              />
+            </div>
+            <small className={styles.inputHelp}>
+              Define los días y horarios de las clases (opcional). Si configuras horarios, se enviarán notificaciones automáticas a los profesores.
+            </small>
           </div>
           
           <div className={styles.buttonContainer}>

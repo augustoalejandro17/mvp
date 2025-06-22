@@ -6,6 +6,7 @@ import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/CourseForm.module.css';
 import ImageUploader from '../../components/ImageUploader';
 import ImagePreviewHelper from '../../components/ImagePreviewHelper';
+import CourseScheduleManager from '../../components/CourseScheduleManager';
 import { FaTimes } from 'react-icons/fa';
 
 interface DecodedToken {
@@ -34,6 +35,25 @@ interface Teacher {
   email: string;
 }
 
+interface User {
+  _id: string;
+  name: string;
+  email: string;
+}
+
+interface Category {
+  _id: string;
+  name: string;
+  description: string;
+}
+
+interface ScheduleTime {
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+}
+
 export default function CreateCourse() {
   const router = useRouter();
   const [name, setName] = useState('');
@@ -56,6 +76,11 @@ export default function CreateCourse() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0, scale: 1 });
+  
+  // Schedule state
+  const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([]);
+  const [enableNotifications, setEnableNotifications] = useState(true);
+  const [notificationMinutes, setNotificationMinutes] = useState(10);
 
   useEffect(() => {
     // Verificar autenticación
@@ -380,6 +405,14 @@ export default function CreateCourse() {
         userInfo = 'Error al decodificar token';
       }
       
+      // Clean schedule data before submission
+      const cleanedScheduleTimes = scheduleTimes.map(time => ({
+        dayOfWeek: time.dayOfWeek,
+        startTime: time.startTime,
+        endTime: time.endTime,
+        isActive: time.isActive
+      }));
+
       // Datos para enviar
       const courseData = {
         title: name, 
@@ -389,7 +422,11 @@ export default function CreateCourse() {
         schoolId,
         teacher: selectedTeacherId,
         teachers: additionalTeachers.length > 0 ? [...additionalTeachers] : undefined,
-        categories: selectedCategories.length > 0 ? selectedCategories : undefined
+        categories: selectedCategories.length > 0 ? selectedCategories : undefined,
+        // Schedule data
+        scheduleTimes: cleanedScheduleTimes,
+        enableNotifications,
+        notificationMinutes
       };
       
       // Mostrar información de depuración
@@ -839,6 +876,22 @@ export default function CreateCourse() {
                 <span>Curso Público</span>
               </label>
               <p className={styles.inputHelp}>Los cursos públicos aparecerán en la lista de cursos disponibles</p>
+            </div>
+
+            {/* Schedule Section */}
+            <div className={styles.formGroup}>
+              <label>Horarios del Curso</label>
+              <CourseScheduleManager
+                scheduleTimes={scheduleTimes}
+                enableNotifications={enableNotifications}
+                notificationMinutes={notificationMinutes}
+                onScheduleTimesChange={setScheduleTimes}
+                onEnableNotificationsChange={setEnableNotifications}
+                onNotificationMinutesChange={setNotificationMinutes}
+              />
+              <p className={styles.inputHelp}>
+                Define los días y horarios de las clases (opcional). Si configuras horarios, se enviarán notificaciones automáticas a los profesores.
+              </p>
             </div>
             
             <button type="submit" className={styles.button} disabled={loading || teachers.length === 0}>

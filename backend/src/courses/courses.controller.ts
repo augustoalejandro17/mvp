@@ -79,13 +79,14 @@ export class CoursesController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  async findOne(@Param('id') id: string, @Req() req) {
+  async findOne(@Param('id') id: string, @Req() req, @Query('includeSchedule') includeSchedule?: string) {
     try {
       // Get user information from token if available
       const userId = req.user?.sub;
       const userRole = req.user?.role;
+      const shouldIncludeSchedule = includeSchedule === 'true';
     
-      const result = await this.coursesService.getCourseForUser(id, userId, userRole);
+      const result = await this.coursesService.getCourseForUser(id, userId, userRole, shouldIncludeSchedule);
       return result;
     } catch (error) {
       this.logger.error(`Error al obtener curso ${id}: ${error.message}`, error.stack);
