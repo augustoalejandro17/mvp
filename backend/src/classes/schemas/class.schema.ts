@@ -5,6 +5,13 @@ import { Course } from '../../courses/schemas/course.schema';
 
 export type ClassDocument = Class & Document;
 
+export enum VideoStatus {
+  UPLOADING = 'UPLOADING',
+  PROCESSING = 'PROCESSING',
+  READY = 'READY',
+  ERROR = 'ERROR'
+}
+
 @Schema()
 export class Class {
   @Prop({ required: true })
@@ -13,11 +20,20 @@ export class Class {
   @Prop({ required: true })
   description: string;
 
-  @Prop({ required: true })
+  @Prop()
   videoUrl: string;
 
   @Prop()
   videoKey: string;
+
+  @Prop()
+  tempVideoKey: string;
+
+  @Prop({ type: String, enum: VideoStatus, default: VideoStatus.UPLOADING })
+  videoStatus: VideoStatus;
+
+  @Prop()
+  videoProcessingError: string;
 
   @Prop({ type: Object })
   videoMetadata: {

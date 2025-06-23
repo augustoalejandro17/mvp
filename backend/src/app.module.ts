@@ -23,6 +23,7 @@ import awsConfig from './config/aws.config';
 import { S3Service } from './services/s3.service';
 import { CloudFrontService } from './services/cloudfront.service';
 import { ImagesController } from './controllers/images.controller';
+import { VideosController } from './controllers/videos.controller';
 import { SubscriptionAdminController } from './controllers/subscription-admin.controller';
 import { AdminStatsController } from './controllers/admin-stats.controller';
 import { ApiStatsController } from './controllers/api-stats.controller';
@@ -71,7 +72,8 @@ import { MigrationService } from './migrations/migration.service';
   ],
   controllers: [
     AppController, 
-    ImagesController, 
+    ImagesController,
+    VideosController,
     UserOwnedSchoolsController,
     UserAdministeredSchoolsController,
     AdminStatsController,

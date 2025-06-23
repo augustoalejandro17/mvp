@@ -6,12 +6,135 @@ Marketplace de clases de baile desarrollado con:
 - **Frontend**: Next.js
 - **Backend**: NestJS
 - **Base de datos**: MongoDB
+- **Video Processing**: Worker con FFmpeg
+- **Storage**: AWS S3 + CloudFront
+
+## Video Processing System
+
+The application now includes a sophisticated video processing system that provides:
+
+### Architecture
+
+```
+Frontend → Temp S3 Bucket → Video Worker → Final S3 Bucket → CloudFront → Users
+```
+
+### Features
+
+1. **Direct Upload to Temp Bucket**: Frontend uploads videos directly to a temporary S3 bucket using presigned URLs
+2. **Asynchronous Processing**: A dedicated worker processes videos in the background
+3. **Optimized Output**: Videos are processed with FFmpeg (720p, H.264, web-optimized)
+4. **Secure Delivery**: Final videos are served via CloudFront with signed URLs
+5. **Status Tracking**: Real-time video processing status updates
+
+### Video Processing Flow
+
+1. **Upload**: Frontend gets presigned URL and uploads directly to temp bucket
+2. **Detection**: Worker detects new video (via SQS notifications or polling)
+3. **Processing**: Worker downloads, processes with FFmpeg, and uploads to final bucket
+4. **Delivery**: Videos are served via CloudFront with proper caching and security
+5. **Cleanup**: Temporary files are automatically removed
+
+### Video Status States
+
+- `UPLOADING`: Video is being uploaded to temp bucket
+- `PROCESSING`: Worker is processing the video with FFmpeg
+- `READY`: Video is processed and available for viewing
+- `ERROR`: Processing failed (with error details)
+
+### Environment Variables
+
+Add these new environment variables for video processing:
+
+```bash
+# S3 Bucket Configuration
+AWS_S3_BUCKET_NAME=your-final-videos-bucket
+AWS_S3_TEMP_BUCKET_NAME=your-temp-videos-bucket
+
+# Optional: SQS for real-time notifications
+SQS_QUEUE_URL=https://sqs.region.amazonaws.com/account/queue-name
+```
+
+### Video Worker Deployment
+
+The video worker can be deployed in multiple ways:
+
+#### Docker (Recommended)
+```bash
+cd workers/video-processor
+docker build -t video-processor .
+docker run --env-file .env video-processor
+```
+
+#### AWS Fargate
+```bash
+# Build and push to ECR
+aws ecr create-repository --repository-name video-processor
+docker build -t video-processor .
+docker tag video-processor:latest account.dkr.ecr.region.amazonaws.com/video-processor:latest
+docker push account.dkr.ecr.region.amazonaws.com/video-processor:latest
+
+# Deploy with Fargate service
+```
+
+#### Local Development
+```bash
+cd workers/video-processor
+npm install
+npm start
+```
+
+### S3 Bucket Setup
+
+You'll need two S3 buckets:
+
+1. **Temp Bucket** (private):
+   - Receives direct uploads from frontend
+   - Lifecycle rule: delete files after 7 days
+   - No public access
+
+2. **Final Bucket** (private):
+   - Stores processed videos
+   - Served via CloudFront
+   - Block all public access (CloudFront handles access)
+
+### Lifecycle Rules
+
+Add lifecycle rules to automatically clean up:
+
+```json
+{
+  "Rules": [
+    {
+      "ID": "TempVideoCleanup",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "temp-videos/"
+      },
+      "Expiration": {
+        "Days": 7
+      }
+    }
+  ]
+}
+```
+
+### Monitoring
+
+The worker provides comprehensive monitoring:
+- Health checks for container orchestration
+- Detailed logging with processing progress
+- Error reporting with automatic status updates
+- Metrics for processing time and success rates
+
+For more details, see [Video Worker Documentation](workers/video-processor/README.md).
 
 ## Estructura del Proyecto
 
-El proyecto está dividido en dos repositorios principales:
+El proyecto está dividido en tres partes principales:
 - `backend/`: Código del backend en NestJS
 - `frontend/`: Código del frontend en Next.js
+- `workers/`: Workers para procesamiento de video
 
 ## Requisitos
 

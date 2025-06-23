@@ -6,6 +6,7 @@ export default registerAs('aws', () => ({
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   s3: {
     bucketName: process.env.AWS_S3_BUCKET_NAME,
+    tempBucketName: process.env.AWS_S3_TEMP_BUCKET_NAME,
   },
   // Configuración de CloudFront
   cloudFrontDomain: process.env.AWS_CLOUDFRONT_DOMAIN,

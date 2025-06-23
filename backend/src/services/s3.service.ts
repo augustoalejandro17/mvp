@@ -9,6 +9,7 @@ export class S3Service {
   private readonly s3: S3;
   private readonly logger = new Logger(S3Service.name);
   private readonly bucketName: string;
+  private readonly tempBucketName: string;
 
   constructor(
     private configService: ConfigService,
@@ -20,6 +21,7 @@ export class S3Service {
       region: this.configService.get<string>('aws.region'),
     });
     this.bucketName = this.configService.get<string>('aws.s3.bucketName');
+    this.tempBucketName = this.configService.get<string>('aws.s3.tempBucketName');
     
   }
 
@@ -453,6 +455,203 @@ export class S3Service {
     } catch (error) {
       this.logger.error('Error subiendo imagen a S3:', error);
       throw new Error(`Error al subir imagen: ${error.message}`);
+    }
+  }
+
+  /**
+   * Generate presigned URL for direct upload to temp bucket
+   */
+  async generatePresignedUploadUrl(
+    fileName: string,
+    fileType: string,
+    schoolId: string,
+    classId: string
+  ): Promise<{ uploadUrl: string; key: string }> {
+    try {
+      const fileExtension = fileName.split('.').pop() || 'mp4';
+      const sanitizedName = this.sanitizeFileName(fileName.split('.')[0]);
+      const key = `temp-videos/${schoolId}/${classId}/${sanitizedName}-${Date.now()}.${fileExtension}`;
+
+      const uploadParams = {
+        Bucket: this.tempBucketName,
+        Key: key,
+        Expires: 3600, // 1 hour
+        ContentType: fileType,
+        Metadata: {
+          'school-id': schoolId,
+          'class-id': classId,
+          'original-name': fileName,
+          'upload-timestamp': Date.now().toString()
+        }
+      };
+
+      const uploadUrl = await this.s3.getSignedUrlPromise('putObject', uploadParams);
+      
+      this.logger.log(`Generated presigned upload URL for temp bucket: ${key}`);
+      
+      return { uploadUrl, key };
+    } catch (error) {
+      this.logger.error('Error generating presigned upload URL:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Move processed video from temp bucket to final bucket
+   */
+  async moveProcessedVideo(
+    tempKey: string,
+    schoolId: string,
+    classId: string,
+    originalFileName: string
+  ): Promise<string> {
+    try {
+      const fileExtension = originalFileName.split('.').pop() || 'mp4';
+      const sanitizedName = this.sanitizeFileName(originalFileName.split('.')[0]);
+      const finalKey = `videos/${schoolId}/${classId}/final.${fileExtension}`;
+
+      // Copy from temp bucket to final bucket
+      const copyParams = {
+        Bucket: this.bucketName,
+        CopySource: `${this.tempBucketName}/${tempKey}`,
+        Key: finalKey,
+        ContentType: 'video/mp4',
+        Metadata: {
+          'x-amz-meta-orientation': 'normal',
+          'x-amz-meta-video-rotation': '0',
+          'x-amz-meta-video-transform': 'none',
+          'x-amz-meta-video-display': 'inline'
+        },
+        MetadataDirective: 'REPLACE',
+        ContentDisposition: 'inline',
+        CacheControl: 'max-age=31536000'
+      };
+
+      await this.s3.copyObject(copyParams).promise();
+      
+      this.logger.log(`Video moved from temp to final bucket: ${tempKey} -> ${finalKey}`);
+
+      // Delete from temp bucket
+      await this.deleteFromTempBucket(tempKey);
+
+      // Generate CloudFront URL if available
+      if (this.cloudFrontService) {
+        try {
+          return await this.cloudFrontService.getSignedUrl(finalKey, 86400);
+        } catch (cloudFrontError) {
+          this.logger.warn('CloudFront URL generation failed, using S3 URL');
+        }
+      }
+
+      // Fallback to S3 signed URL
+      const signedUrlParams = {
+        Bucket: this.bucketName,
+        Key: finalKey,
+        Expires: 7 * 24 * 60 * 60, // 1 week
+        ResponseContentType: 'video/mp4'
+      };
+      
+      return await this.s3.getSignedUrlPromise('getObject', signedUrlParams);
+    } catch (error) {
+      this.logger.error('Error moving processed video:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Download video from temp bucket for processing
+   */
+  async downloadFromTempBucket(key: string): Promise<Buffer> {
+    try {
+      const params = {
+        Bucket: this.tempBucketName,
+        Key: key
+      };
+
+      const result = await this.s3.getObject(params).promise();
+      
+      if (!result.Body) {
+        throw new Error('Empty file body');
+      }
+
+      return result.Body as Buffer;
+    } catch (error) {
+      this.logger.error(`Error downloading from temp bucket: ${key}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Upload processed video to final bucket
+   */
+  async uploadProcessedVideo(
+    buffer: Buffer,
+    schoolId: string,
+    classId: string,
+    originalFileName: string
+  ): Promise<string> {
+    try {
+      const fileExtension = originalFileName.split('.').pop() || 'mp4';
+      const sanitizedName = this.sanitizeFileName(originalFileName.split('.')[0]);
+      const key = `videos/${schoolId}/${classId}/final.${fileExtension}`;
+
+      const uploadParams = {
+        Bucket: this.bucketName,
+        Key: key,
+        Body: buffer,
+        ContentType: 'video/mp4',
+        Metadata: {
+          'x-amz-meta-orientation': 'normal',
+          'x-amz-meta-video-rotation': '0',
+          'x-amz-meta-video-transform': 'none',
+          'x-amz-meta-video-display': 'inline'
+        },
+        ContentDisposition: 'inline',
+        CacheControl: 'max-age=31536000'
+      };
+
+      const uploadResult = await this.s3.upload(uploadParams).promise();
+      
+      this.logger.log(`Processed video uploaded: ${key}, size: ${buffer.length} bytes`);
+
+      // Generate CloudFront URL if available
+      if (this.cloudFrontService) {
+        try {
+          return await this.cloudFrontService.getSignedUrl(key, 86400);
+        } catch (cloudFrontError) {
+          this.logger.warn('CloudFront URL generation failed, using S3 URL');
+        }
+      }
+
+      // Fallback to S3 signed URL
+      const signedUrlParams = {
+        Bucket: this.bucketName,
+        Key: key,
+        Expires: 7 * 24 * 60 * 60, // 1 week
+        ResponseContentType: 'video/mp4'
+      };
+      
+      return await this.s3.getSignedUrlPromise('getObject', signedUrlParams);
+    } catch (error) {
+      this.logger.error('Error uploading processed video:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete file from temp bucket
+   */
+  async deleteFromTempBucket(key: string): Promise<void> {
+    try {
+      await this.s3.deleteObject({
+        Bucket: this.tempBucketName,
+        Key: key
+      }).promise();
+      
+      this.logger.log(`File deleted from temp bucket: ${key}`);
+    } catch (error) {
+      this.logger.error(`Error deleting from temp bucket: ${key}`, error);
+      // Don't throw error to avoid breaking the main flow
     }
   }
 }

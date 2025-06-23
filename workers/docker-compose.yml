@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  video-processor:
+    build:
+      context: ./video-processor
+      dockerfile: Dockerfile
+    container_name: video-processor-worker
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_S3_BUCKET_NAME=${AWS_S3_BUCKET_NAME}
+      - AWS_S3_TEMP_BUCKET_NAME=${AWS_S3_TEMP_BUCKET_NAME}
+      - API_URL=${API_URL:-http://host.docker.internal:4000}
+      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
+      - TEMP_VIDEO_DIR=/tmp/videos
+    volumes:
+      - video-temp:/tmp/videos
+    networks:
+      - video-processing
+    healthcheck:
+      test: ["CMD", "ps", "aux", "|", "grep", "node index.js", "|", "grep", "-v", "grep"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+volumes:
+  video-temp:
+    driver: local
+
+networks:
+  video-processing:
+    driver: bridge 

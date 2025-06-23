@@ -16,6 +16,7 @@ import { StorageIntegrationService } from '../usage/integration/storage-integrat
 import * as fs from 'fs';
 import { Enrollment, EnrollmentDocument } from '../courses/schemas/enrollment.schema';
 import { UsageHooksService } from '../usage/hooks/usage-hooks.service';
+import { VideoStatus } from './schemas/class.schema';
 
 // Función de utilidad para comparar roles
 const compareRole = (userRole: any, enumRole: UserRole): boolean => {
@@ -759,6 +760,84 @@ export class ClassesService {
     } catch (error) {
       this.logger.error(`Error al actualizar la clase con nuevo video: ${error.message}`, error.stack);
       throw new InternalServerErrorException(`Error al actualizar la clase: ${error.message}`);
+    }
+  }
+
+  /**
+   * Update video status and temp key
+   */
+  async updateVideoStatus(
+    classId: string,
+    status: VideoStatus,
+    tempVideoKey?: string,
+    error?: string
+  ): Promise<void> {
+    try {
+      const updateData: any = {
+        videoStatus: status,
+        updatedAt: new Date()
+      };
+
+      if (tempVideoKey) {
+        updateData.tempVideoKey = tempVideoKey;
+      }
+
+      if (error) {
+        updateData.videoProcessingError = error;
+      }
+
+      await this.classModel.findByIdAndUpdate(classId, updateData);
+      
+      this.logger.log(`Video status updated for class ${classId}: ${status}`);
+    } catch (error) {
+      this.logger.error(`Error updating video status for class ${classId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update video URL and status
+   */
+  async updateVideoUrlAndStatus(
+    classId: string,
+    videoUrl: string,
+    status: VideoStatus
+  ): Promise<void> {
+    try {
+      const result = await this.classModel.findByIdAndUpdate(
+        classId,
+        {
+          videoUrl,
+          videoStatus: status,
+          updatedAt: new Date()
+        },
+        { new: true }
+      );
+
+      if (!result) {
+        throw new NotFoundException(`Clase con ID ${classId} no encontrada`);
+      }
+
+      this.logger.log(`Updated video URL and status for class ${classId}: ${status}`);
+    } catch (error) {
+      this.logger.error(`Error updating video URL and status for class ${classId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a test class for development/testing purposes (without video file)
+   */
+  async createTestClass(testClassData: any): Promise<ClassDocument> {
+    try {
+      const testClass = new this.classModel(testClassData);
+      const savedClass = await testClass.save();
+      
+      this.logger.log(`Test class created: ${savedClass._id}`);
+      return savedClass;
+    } catch (error) {
+      this.logger.error('Error creating test class:', error);
+      throw error;
     }
   }
 }

@@ -17,6 +17,7 @@ interface CourseScheduleManagerProps {
   onScheduleTimesChange?: (times: ScheduleTime[]) => void;
   onEnableNotificationsChange?: (enabled: boolean) => void;
   onNotificationMinutesChange?: (minutes: number) => void;
+  onScheduleUpdate?: (schedule: any) => void;
 }
 
 const CourseScheduleManager: React.FC<CourseScheduleManagerProps> = ({
@@ -26,7 +27,8 @@ const CourseScheduleManager: React.FC<CourseScheduleManagerProps> = ({
   notificationMinutes: externalNotificationMinutes,
   onScheduleTimesChange,
   onEnableNotificationsChange,
-  onNotificationMinutesChange
+  onNotificationMinutesChange,
+  onScheduleUpdate
 }) => {
   // Determine if we're in controlled mode
   const isControlledMode = externalScheduleTimes !== undefined;
@@ -170,6 +172,15 @@ const CourseScheduleManager: React.FC<CourseScheduleManagerProps> = ({
       if (response.ok) {
         setMessage('Horario guardado exitosamente');
         setTimeout(() => setMessage(''), 3000);
+        
+        // Call the callback if provided
+        if (onScheduleUpdate) {
+          onScheduleUpdate({
+            scheduleTimes: cleanedScheduleTimes,
+            enableNotifications,
+            notificationMinutes
+          });
+        }
       } else {
         const errorData = await response.json();
         setMessage(`Error: ${errorData.message || 'No se pudo guardar el horario'}`);

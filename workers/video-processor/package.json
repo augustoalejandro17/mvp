@@ -1,0 +1,27 @@
+{
+  "name": "video-processor-worker",
+  "version": "1.0.0",
+  "description": "Video processing worker for MVP application",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "node test-worker.js",
+    "build": "echo 'No build step required for this worker'"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1691.0",
+    "axios": "^1.6.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "dotenv": "^16.3.1",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "MVP Team",
+  "license": "MIT"
+} 

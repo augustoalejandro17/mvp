@@ -1,0 +1,186 @@
+.videoUploadContainer {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+}
+
+.uploadSection {
+  margin-bottom: 20px;
+}
+
+.fileInput {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 15px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.fileInput:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.fileInfo {
+  background-color: #e9ecef;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+
+.fileInfo p {
+  margin: 5px 0;
+  font-size: 14px;
+}
+
+.uploadButton {
+  width: 100%;
+  padding: 12px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.uploadButton:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+.uploadButton:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.statusSection {
+  margin-top: 20px;
+}
+
+.statusIndicator {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  color: white;
+  font-weight: bold;
+}
+
+.statusIcon {
+  font-size: 20px;
+  margin-right: 10px;
+}
+
+.statusText {
+  flex: 1;
+}
+
+.progressBar {
+  position: relative;
+  width: 100%;
+  height: 20px;
+  background-color: #e9ecef;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 15px;
+}
+
+.progressFill {
+  height: 100%;
+  background-color: #007bff;
+  transition: width 0.3s ease;
+}
+
+.progressText {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  font-weight: bold;
+  color: #333;
+}
+
+.processingInfo {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  padding: 15px;
+  margin-bottom: 15px;
+}
+
+.processingInfo p {
+  margin: 5px 0;
+  font-size: 14px;
+  color: #856404;
+}
+
+.errorMessage {
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  padding: 10px;
+  color: #721c24;
+  font-weight: bold;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .videoUploadContainer {
+    margin: 10px;
+    padding: 15px;
+  }
+  
+  .fileInput, .uploadButton {
+    font-size: 14px;
+  }
+  
+  .statusIndicator {
+    padding: 10px;
+  }
+  
+  .statusIcon {
+    font-size: 18px;
+  }
+}
+
+/* Animation for processing status */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.statusIndicator[style*="ffc107"] {
+  animation: pulse 2s infinite;
+}
+
+/* Success animation */
+@keyframes success {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.statusIndicator[style*="28a745"] {
+  animation: success 0.5s ease-out;
+} 
