@@ -33,6 +33,12 @@ interface PaymentHistory {
   courseTitle: string;
 }
 
+// Helper function to get current month in YYYY-MM format
+const getCurrentMonth = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+
 const PaymentRegistrationModal: React.FC<PaymentRegistrationModalProps> = ({
   isOpen,
   onClose,
@@ -55,13 +61,71 @@ const PaymentRegistrationModal: React.FC<PaymentRegistrationModalProps> = ({
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistory | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   
+  // Fetch payment history when course or month changes
+  const fetchPaymentHistory = useCallback(async () => {
+    if (!selectedCourse || !selectedMonth || !userId) {
+      setPaymentHistory(null);
+      return;
+    }
+
+    setLoadingHistory(true);
+    try {
+      const token = Cookies.get('token');
+      const url = `/api/courses/${selectedCourse}/enrollment/${userId}/payments/${selectedMonth}?t=${Date.now()}`;
+      
+      const response = await axios.get(url, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      setPaymentHistory(response.data);
+    } catch (error) {
+      console.error('Error fetching payment history:', error);
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        // No payment history found, set empty state
+        setPaymentHistory({
+          payments: [],
+          totalPaid: 0,
+          studentName: userName || 'Unknown',
+          studentEmail: '',
+          month: selectedMonth,
+          courseTitle: 'Unknown Course'
+        });
+      } else {
+        setPaymentHistory(null);
+      }
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [selectedCourse, selectedMonth, userId, userName]);
+
+  // Effect to fetch payment history when dependencies change
+  useEffect(() => {
+    fetchPaymentHistory();
+  }, [fetchPaymentHistory]);
+
+  // Effect to prevent wheel events on number inputs
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      const target = e.target as HTMLInputElement;
+      if (target && target.type === 'number') {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    // Add event listener to the document
+    document.addEventListener('wheel', handleWheel, { passive: false });
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('wheel', handleWheel);
+    };
+  }, []);
+
+  // Early return after all hooks
   if (!isOpen) return null;
-  
-  // Helper function to get current month in YYYY-MM format
-  function getCurrentMonth() {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  }
   
   // Format month for display (YYYY-MM to Month YYYY)
   function formatMonthDisplay(monthStr: string) {
@@ -115,71 +179,6 @@ const PaymentRegistrationModal: React.FC<PaymentRegistrationModalProps> = ({
     
     return options;
   }
-  
-  // Fetch payment history when course or month changes
-  const fetchPaymentHistory = useCallback(async () => {
-    if (!selectedCourse || !selectedMonth || !userId) {
-      setPaymentHistory(null);
-      return;
-    }
-
-    setLoadingHistory(true);
-    try {
-      const token = Cookies.get('token');
-      const url = `/api/courses/${selectedCourse}/enrollment/${userId}/payments/${selectedMonth}?t=${Date.now()}`;
-      
-      const response = await axios.get(url, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      
-
-      
-      setPaymentHistory(response.data);
-    } catch (error) {
-      console.error('Error fetching payment history:', error);
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
-        // No payment history found, set empty state
-        setPaymentHistory({
-          payments: [],
-          totalPaid: 0,
-          studentName: userName || 'Unknown',
-          studentEmail: '',
-          month: selectedMonth,
-          courseTitle: 'Unknown Course'
-        });
-      } else {
-        setPaymentHistory(null);
-      }
-    } finally {
-      setLoadingHistory(false);
-    }
-  }, [selectedCourse, selectedMonth, userId, userName]);
-
-  // Effect to fetch payment history when dependencies change
-  useEffect(() => {
-    fetchPaymentHistory();
-  }, [fetchPaymentHistory]);
-
-  // Effect to prevent wheel events on number inputs
-  useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
-      const target = e.target as HTMLInputElement;
-      if (target && target.type === 'number') {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    };
-
-    // Add event listener to the document
-    document.addEventListener('wheel', handleWheel, { passive: false });
-
-    // Cleanup
-    return () => {
-      document.removeEventListener('wheel', handleWheel);
-    };
-  }, []);
 
   // Format currency
   const formatCurrency = (amount: number) => {
