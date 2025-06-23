@@ -4,7 +4,7 @@ import { Document, Schema as MongooseSchema } from 'mongoose';
 export type EnrollmentDocument = Enrollment & Document;
 
 // Esquema para pagos mensuales
-@Schema({ _id: false, timestamps: true })
+@Schema({ timestamps: true })
 export class MonthlyPayment {
   @Prop({ required: true })
   date: Date;

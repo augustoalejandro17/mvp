@@ -15,8 +15,6 @@ export class CourseScheduleService {
   ) {}
 
   async createSchedule(courseId: string, createScheduleDto: CreateCourseScheduleDto): Promise<CourseSchedule> {
-    this.logger.debug(`Creating schedule for course ${courseId}`);
-    
     // Validate schedule times don't overlap
     if (createScheduleDto.scheduleTimes && createScheduleDto.scheduleTimes.length > 1) {
       this.validateScheduleTimes(createScheduleDto.scheduleTimes);
@@ -178,6 +176,37 @@ export class CourseScheduleService {
   private timeToMinutes(time: string): number {
     const [hours, minutes] = time.split(':').map(Number);
     return hours * 60 + minutes;
+  }
+
+  // Clean up orphaned schedules
+  async cleanupOrphanedSchedules(): Promise<void> {
+    try {
+      // Find schedules where the course doesn't exist or course doesn't have a school
+      const schedules = await this.courseScheduleModel.find({}).populate('course');
+      
+      const orphanedSchedules = [];
+      
+      for (const schedule of schedules) {
+        if (!schedule.course) {
+          // Course doesn't exist
+          orphanedSchedules.push(schedule._id);
+        } else {
+          // Check if course has a school
+          const courseId = (schedule.course as any)._id;
+          const course = await this.courseModel.findById(courseId).populate('school');
+          if (!course || !course.school) {
+            orphanedSchedules.push(schedule._id);
+          }
+        }
+      }
+      
+      if (orphanedSchedules.length > 0) {
+        await this.courseScheduleModel.deleteMany({ _id: { $in: orphanedSchedules } });
+        this.logger.log(`Cleaned up ${orphanedSchedules.length} orphaned course schedules`);
+      }
+    } catch (error) {
+      this.logger.error('Error cleaning up orphaned schedules:', error);
+    }
   }
 
   // Use the same timezone offset method as attendance service

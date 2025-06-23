@@ -73,9 +73,6 @@ export class SnapshotService {
     const startOfDay = new Date(startOfDayLocal.getTime() + timezoneOffset * 60000);
     const endOfDay = new Date(endOfDayLocal.getTime() + timezoneOffset * 60000);
     
-    this.logger.debug(`Generating snapshot for school ${academyId} (${schoolTimezone})`);
-    this.logger.debug(`Local date: ${localDateStr}, UTC range: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
-
     // Check if snapshot already exists (using the start of local day for consistency)
     const existingSnapshot = await this.dailySnapshotModel.findOne({
       academyId,
@@ -152,7 +149,6 @@ export class SnapshotService {
   }
 
   private async getAttendanceData(academyId: Types.ObjectId, startOfDay: Date, endOfDay: Date) {
-    this.logger.debug(`Getting attendance data for academy ${academyId} from ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
     
     // Get attendance data within the timezone-aware date range
     const result = await this.attendanceModel.aggregate([
@@ -181,12 +177,9 @@ export class SnapshotService {
       }
     ]).exec();
     
-    this.logger.debug(`Attendance aggregation result: ${result.length} records`);
     if (result.length > 0) {
-      this.logger.debug(`Sample record: ${JSON.stringify(result[0])}`);
       const presentCount = result.filter(r => r.present).length;
       const absentCount = result.filter(r => !r.present).length;
-      this.logger.debug(`Present: ${presentCount}, Absent: ${absentCount}`);
     }
     
     return result;

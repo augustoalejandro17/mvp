@@ -16,7 +16,6 @@ export class AttendanceController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(Permission.TAKE_ATTENDANCE)
   async create(@Body() createAttendanceDto: CreateAttendanceDto, @Req() req) {
-    
     const teacherId = req.user.sub || req.user._id;
     return this.attendanceService.create(createAttendanceDto, teacherId);
   }
@@ -25,7 +24,6 @@ export class AttendanceController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(Permission.TAKE_ATTENDANCE)
   async createBulk(@Body() bulkAttendanceDto: BulkAttendanceDto, @Req() req) {
-    
     const teacherId = req.user.sub || req.user._id;
     return this.attendanceService.createBulk(bulkAttendanceDto, teacherId);
   }
@@ -33,7 +31,6 @@ export class AttendanceController {
   @Get('records')
   @UseGuards(JwtAuthGuard)
   async getAllRecords() {
-    
     return this.attendanceService.findAllRecords();
   }
 
@@ -51,15 +48,10 @@ export class AttendanceController {
     @Param('courseId') courseId: string,
     @Query('date') dateStr: string
   ) {
-    // Log fecha recibida para depuración
-    this.logger.debug(`Fecha recibida del frontend: ${dateStr}`);
-    
     // Parse the date directly without timezone conversion
     // The frontend should send the correct UTC date string
     const date = dateStr ? new Date(dateStr) : new Date();
     
-    // Imprimir información de depuración sobre la fecha
-    this.logger.debug(`Fecha parseada: ${date.toISOString()}`);
     return this.attendanceService.findByCourseAndDate(courseId, date);
   }
 
@@ -106,7 +98,6 @@ export class AttendanceController {
   @Post('link-user')
   @UseGuards(JwtAuthGuard)
   async linkUserAttendances(@Body() linkData: { unregisteredName: string; userId: string }) {
-    
     const updatedCount = await this.attendanceService.linkAttendancesToRegisteredUser(
       linkData.unregisteredName,
       linkData.userId
@@ -127,8 +118,6 @@ export class AttendanceController {
     @Query('month') monthStr: string,
     @Query('referenceDate') referenceDateStr: string
   ) {
-    this.logger.debug(`Solicitando asistencias mensuales para curso ${courseId}`);
-    
     let year: number;
     let month: number;
     
@@ -137,20 +126,17 @@ export class AttendanceController {
       const referenceDate = new Date(referenceDateStr);
       year = referenceDate.getFullYear();
       month = referenceDate.getMonth() + 1; // getMonth() devuelve 0-11
-      this.logger.debug(`Usando fecha de referencia: ${referenceDateStr}, año=${year}, mes=${month}`);
     } 
     // De lo contrario, usar los parámetros de año y mes proporcionados
     else if (yearStr && monthStr) {
       year = parseInt(yearStr, 10);
       month = parseInt(monthStr, 10);
-      this.logger.debug(`Usando parámetros explícitos: año=${year}, mes=${month}`);
     } 
     // Si no se proporciona ningún parámetro, usar el mes actual
     else {
       const currentDate = new Date();
       year = currentDate.getFullYear();
       month = currentDate.getMonth() + 1;
-      this.logger.debug(`Usando mes actual: año=${year}, mes=${month}`);
     }
     
     if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {

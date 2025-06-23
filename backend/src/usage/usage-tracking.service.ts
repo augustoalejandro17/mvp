@@ -722,7 +722,6 @@ export class UsageTrackingService {
           }).exec();
 
           if (existingUsage) {
-            this.logger.debug(`Storage usage already tracked for class ${classItem._id}, skipping`);
             continue;
           }
 
@@ -739,7 +738,6 @@ export class UsageTrackingService {
           });
 
           processed++;
-          this.logger.debug(`Tracked storage usage for class ${classItem._id}`);
 
         } catch (error) {
           errors++;

@@ -18,8 +18,21 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, classId, allowDow
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const maxRetries = 2; // Máximo número de reintentos
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Función para obtener la URL de streaming de manera robusta 
   const getStreamingUrl = useCallback(async () => {
@@ -103,6 +116,30 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, classId, allowDow
     }
   };
 
+  // Handle play event with mobile fullscreen
+  const handlePlay = () => {
+    setIsPlaying(true);
+    
+    // Auto fullscreen on mobile devices
+    if (isMobile && videoRef.current) {
+      const video = videoRef.current;
+      
+      // Small delay to ensure video is ready
+      setTimeout(() => {
+        // Request fullscreen on mobile using various browser APIs
+        if (video.requestFullscreen) {
+          video.requestFullscreen().catch(console.log);
+        } else if ((video as any).webkitRequestFullscreen) {
+          (video as any).webkitRequestFullscreen().catch(console.log);
+        } else if ((video as any).mozRequestFullScreen) {
+          (video as any).mozRequestFullScreen().catch(console.log);
+        } else if ((video as any).msRequestFullscreen) {
+          (video as any).msRequestFullscreen().catch(console.log);
+        }
+      }, 100);
+    }
+  };
+
   // Video player attributes with download protection
   const videoAttrs = {
     ref: videoRef,
@@ -113,7 +150,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, classId, allowDow
     poster: '/video-poster.jpg',
     controlsList: "nodownload noremoteplayback", // Disable browser download button only
     disablePictureInPicture: false, // Keep picture in picture
-    onPlay: () => setIsPlaying(true),
+    onPlay: handlePlay,
     onPause: () => setIsPlaying(false),
     onEnded: () => setIsPlaying(false),
     onContextMenu: (e: React.MouseEvent) => e.preventDefault(), // Disable right-click

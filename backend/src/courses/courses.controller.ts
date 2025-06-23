@@ -41,9 +41,6 @@ export class CoursesController {
     const userId = getUserIdFromRequest(req);
     const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
     
-    
-    
-    
     return this.coursesService.getTeachingCourses(userId, userRole);
   }
 
@@ -53,12 +50,8 @@ export class CoursesController {
     const userId = getUserIdFromRequest(req);
     const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
     
-    
-    
     // Si se especifica un usuario objetivo y es diferente del usuario actual
     if (targetUserId && targetUserId !== userId) {
-      
-      
       // Verificar si el usuario tiene permiso para ver los cursos de otros (solo admin, school_owner, teacher)
       const isAllowed = 
         userRole === UserRole.SUPER_ADMIN || 
@@ -100,9 +93,6 @@ export class CoursesController {
   async create(@Body() createCourseDto: CreateCourseDto, @Req() req) {
     const userId = getUserIdFromRequest(req);
     
-    
-    
-    
     try {
       // If no teacher is specified, use the current user as the teacher
       if (!createCourseDto.teacher) {
@@ -110,19 +100,6 @@ export class CoursesController {
       }
       
       const result = await this.coursesService.create(createCourseDto, userId);
-      
-      let courseId = 'Unknown ID';
-      try {
-        if (result) {
-          courseId = result.toString();
-        }
-      } catch (err) {
-        this.logger.error(`Error extracting course ID: ${err.message}`);
-      }
-      
-      
-      
-      
       return result;
     } catch (error) {
       this.logger.error(`Error creating course: ${error.message}`, error.stack);
@@ -135,12 +112,8 @@ export class CoursesController {
   async update(@Param('id') id: string, @Body() updateCourseDto: UpdateCourseDto, @Req() req) {
     const userId = getUserIdFromRequest(req);
     
-    
-    
-    
     try {
       const result = await this.coursesService.update(id, updateCourseDto, userId);
-      
       return result;
     } catch (error) {
       this.logger.error(`Error updating course: ${error.message}`, error.stack);
@@ -153,12 +126,8 @@ export class CoursesController {
   async addStudent(@Param('id') id: string, @Param('studentId') studentId: string, @Req() req) {
     const userId = getUserIdFromRequest(req);
     
-    
-    
-    
     try {
       const result = await this.coursesService.addStudent(id, studentId, userId);
-      
       return result;
     } catch (error) {
       this.logger.error(`Error adding student: ${error.message}`, error.stack);
@@ -171,12 +140,8 @@ export class CoursesController {
   async removeStudent(@Param('id') id: string, @Param('studentId') studentId: string, @Req() req) {
     const userId = getUserIdFromRequest(req);
     
-    
-    
-    
     try {
       const result = await this.coursesService.removeStudent(id, studentId, userId);
-      
       return result;
     } catch (error) {
       this.logger.error(`Error removing student: ${error.message}`, error.stack);
@@ -266,7 +231,6 @@ export class CoursesController {
   ) {
     const userId = getUserIdFromRequest(req);
     
-    
     await this.coursesService.unenrollStudent(courseId, studentId, userId);
     return { message: 'Student unenrolled successfully' };
   }
@@ -280,9 +244,6 @@ export class CoursesController {
     @Body() paymentData: PaymentDto,
     @Req() req,
   ) {
-    
-    
-    
     const userId = getUserIdFromRequest(req);
     
     // Primero buscar el enrollment
@@ -312,6 +273,46 @@ export class CoursesController {
       paymentData,
       userId
     );
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.CREATE_COURSE, Permission.UPDATE_COURSE)
+  @Get(':id/enrollment/:studentId/payments/:month')
+  async getPaymentHistory(
+    @Param('id') courseId: string,
+    @Param('studentId') studentId: string,
+    @Param('month') month: string,
+    @Req() req,
+  ) {
+    const userId = getUserIdFromRequest(req);
+    return this.coursesService.getPaymentHistoryForMonth(courseId, studentId, month, userId);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.CREATE_COURSE, Permission.UPDATE_COURSE)
+  @Put(':id/enrollment/:studentId/payments/:paymentId')
+  async updatePayment(
+    @Param('id') courseId: string,
+    @Param('studentId') studentId: string,
+    @Param('paymentId') paymentId: string,
+    @Body() updateData: { amount: number; notes?: string },
+    @Req() req,
+  ) {
+    const userId = getUserIdFromRequest(req);
+    return this.coursesService.updatePayment(courseId, studentId, paymentId, updateData, userId);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.CREATE_COURSE, Permission.UPDATE_COURSE)
+  @Delete(':id/enrollment/:studentId/payments/:paymentId')
+  async deletePayment(
+    @Param('id') courseId: string,
+    @Param('studentId') studentId: string,
+    @Param('paymentId') paymentId: string,
+    @Req() req,
+  ) {
+    const userId = getUserIdFromRequest(req);
+    return this.coursesService.deletePayment(courseId, studentId, paymentId, userId);
   }
 
   @Get(':id/unpaid-students')

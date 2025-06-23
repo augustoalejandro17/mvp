@@ -168,7 +168,6 @@ export class CoursesService {
       }
       
       const roleStr = role ? String(role).toLowerCase() : '';
-      this.logger.debug(`[CoursesService findAll] roleStr: '${roleStr}', UserRole.TEACHER.toLowerCase(): '${UserRole.TEACHER.toLowerCase()}'`);
       
       const isAdminRole = [
         UserRole.SUPER_ADMIN.toLowerCase(),
@@ -179,27 +178,22 @@ export class CoursesService {
       ].includes(roleStr);
 
       if (isAdminRole) {
-        this.logger.debug(`Admin role ${roleStr} accessing all courses (potentially filtered by school)`);
         // Los administradores ven todos los cursos (públicos y privados) de la escuela (si se especifica) o de todas las escuelas.
         // No se necesita query.isPublic = true ni otras condiciones de visibilidad.
       } else if (!userId || !role) {
         // No autenticado o sin rol: solo cursos públicos
         query.isPublic = true;
-        this.logger.debug('Unauthenticated user or no role, showing only public courses');
       } else {
         // Usuario autenticado (profesor, estudiante, u otro)
-        this.logger.debug(`Authenticated user ${userId} with role ${roleStr}`);
         const userSpecificConditions: any[] = [];
 
         userSpecificConditions.push({ isPublic: true });
 
         if (roleStr === UserRole.TEACHER.toLowerCase()) { 
-          this.logger.debug(`[CoursesService findAll] Matched role as TEACHER. Adding teacher/teachers/students conditions for userId: ${userId}`);
           userSpecificConditions.push({ teacher: new Types.ObjectId(userId) });
           userSpecificConditions.push({ teachers: new Types.ObjectId(userId) });
           userSpecificConditions.push({ students: new Types.ObjectId(userId) }); 
         } else { 
-          this.logger.debug(`[CoursesService findAll] Role '${roleStr}' did NOT match TEACHER. Adding only students condition for userId: ${userId}`);
           userSpecificConditions.push({ students: new Types.ObjectId(userId) });
         }
         
@@ -209,8 +203,6 @@ export class CoursesService {
         }
       }
       
-      this.logger.debug('Final query for courses:', JSON.stringify(query, null, 2));
-      
       const courses = await this.courseModel.find(query)
         .populate('school', 'name')
         .populate('teacher', 'name email')
@@ -218,7 +210,6 @@ export class CoursesService {
         .select('-students -classes')
         .sort({ promotionOrder: 1, title: 1 });
       
-      this.logger.debug(`Se encontraron ${courses.length} cursos`);
       return courses;
     } catch (error) {
       this.logger.error(`Error al buscar cursos: ${error.message}`, error.stack);
@@ -488,7 +479,6 @@ export class CoursesService {
       // 1. Super Admin?
       if (actualRole === UserRole.SUPER_ADMIN.toLowerCase() || actualRole === 'superadmin') {
         hasPermission = true;
-        this.logger.debug(`Permiso SUPER_ADMIN concedido para ${loggerSuffix}`);
       }
 
       // 2. Profesor del curso (principal o en la lista de profesores)?
@@ -497,7 +487,6 @@ export class CoursesService {
                                 (course.teachers && course.teachers.some(t => t.toString() === userId));
         if (isCourseTeacher) {
           hasPermission = true;
-          this.logger.debug(`Permiso TEACHER (del curso) concedido para ${loggerSuffix}`);
         }
       }
 
@@ -510,7 +499,6 @@ export class CoursesService {
         if (school.admin && school.admin.toString() === userId && 
             (actualRole === UserRole.SCHOOL_OWNER.toLowerCase() || actualRole === UserRole.ADMIN.toLowerCase() )) {
           hasPermission = true;
-          this.logger.debug(`Permiso SCHOOL_OWNER o ADMIN (de la escuela) concedido para ${loggerSuffix}`);
         }
 
         // Verificar Administrative de la escuela (usando school.administratives)
@@ -518,7 +506,6 @@ export class CoursesService {
           // Asegurarse que school.administratives es un array de ObjectId o strings
           if (school.administratives && school.administratives.some(adminUser => adminUser.toString() === userId)) {
             hasPermission = true;
-            this.logger.debug(`Permiso ADMINISTRATIVE (de la escuela) concedido para ${loggerSuffix}`);
           }
         }
       }
@@ -671,17 +658,12 @@ export class CoursesService {
       student.schools.push(new Types.ObjectId(schoolId) as any);
     }
     
-    // Guardar los cambios del estudiante
-    updatePromises.push(
-      student.save().then(() => {
-        
-      })
-    );
+            // Guardar los cambios del estudiante
+        updatePromises.push(student.save());
     
     // Esperar a que todas las actualizaciones se completen
     try {
       await Promise.all(updatePromises);
-      
     } catch (error) {
       this.logger.error(`Error actualizando referencias: ${error.message}`, error.stack);
       // No lanzar error para no interrumpir el flujo, el enrollment ya se guardó
@@ -785,22 +767,16 @@ export class CoursesService {
       this.courseModel.updateOne(
         { _id: courseId },
         { $pull: { students: new Types.ObjectId(studentId) } }
-      ).then(() => {
-        
-      })
+      )
     );
     
     // 2. Eliminar el curso del array enrolledCourses del usuario
-    if (student.enrolledCourses && student.enrolledCourses.length > 0) {
-      student.enrolledCourses = student.enrolledCourses.filter(
-        id => id.toString() !== courseId
-      );
-      updatePromises.push(
-        student.save().then(() => {
-          
-        })
-      );
-    }
+          if (student.enrolledCourses && student.enrolledCourses.length > 0) {
+        student.enrolledCourses = student.enrolledCourses.filter(
+          id => id.toString() !== courseId
+        );
+        updatePromises.push(student.save());
+      }
     
     // 3. Verificar si el estudiante está enrollado en otros cursos de la misma escuela
     const otherEnrollmentsInSameSchool = await this.enrollmentModel.find({
@@ -812,24 +788,19 @@ export class CoursesService {
       match: { school: schoolId }
     });
     
-    // Si no hay otros enrollments activos en cursos de esta escuela, eliminar al estudiante de la escuela
-    if (!otherEnrollmentsInSameSchool.some(e => e.course)) {
-      updatePromises.push(
-        this.schoolModel.updateOne(
-          { _id: schoolId },
-          { $pull: { students: new Types.ObjectId(studentId) } }
-        ).then(() => {
-          
-        })
-      );
-    } else {
-      
-    }
+          // Si no hay otros enrollments activos en cursos de esta escuela, eliminar al estudiante de la escuela
+      if (!otherEnrollmentsInSameSchool.some(e => e.course)) {
+        updatePromises.push(
+          this.schoolModel.updateOne(
+            { _id: schoolId },
+            { $pull: { students: new Types.ObjectId(studentId) } }
+          )
+        );
+      }
     
     // Esperar a que todas las actualizaciones se completen
     try {
       await Promise.all(updatePromises);
-      
     } catch (error) {
       this.logger.error(`Error actualizando referencias: ${error.message}`, error.stack);
       // No lanzar error para no interrumpir el flujo, el enrollment ya se marcó como inactivo
@@ -1117,7 +1088,7 @@ export class CoursesService {
       
       // Registrar los IDs de los cursos encontrados
       if (courses.length > 0) {
-        
+        // Courses found
       }
       
       // Add enrollment dates to courses
@@ -1155,8 +1126,6 @@ export class CoursesService {
       }
 
       const normalizedRole = userRole ? String(userRole).toLowerCase() : null;
-      this.logger.debug(`[getCourseForUser] Intentando acceder - Curso ID: ${id}, Usuario ID: ${userId}, Rol: ${normalizedRole}`);
-      this.logger.debug(`[getCourseForUser] Datos del curso - esPublico: ${course.isPublic}, teacher: ${JSON.stringify(course.teacher)}, teachers: ${JSON.stringify(course.teachers)}, students: ${JSON.stringify(course.students)}`);
 
       // Add schedule data if requested
       let schedule = null;
@@ -1170,7 +1139,6 @@ export class CoursesService {
 
       const adminRoles = ['super_admin', 'superadmin', 'school_owner', 'administrative', 'admin'];
       if (normalizedRole && adminRoles.includes(normalizedRole)) {
-        this.logger.debug('[getCourseForUser] Acceso concedido: Rol administrativo');
         return {
           ...course,
           schedule,
@@ -1188,7 +1156,6 @@ export class CoursesService {
         }))
       );
       if (isCourseTeacher) {
-        this.logger.debug('[getCourseForUser] Acceso concedido: Profesor del curso');
         return {
           ...course,
           schedule,
@@ -1199,7 +1166,6 @@ export class CoursesService {
       const isEnrolledStudent = userId && course.students &&
         course.students.some(sId => sId && sId.toString() === userId);
       if (isEnrolledStudent) {
-        this.logger.debug('[getCourseForUser] Acceso concedido: Estudiante matriculado');
         return {
           ...course,
           schedule,
@@ -1208,7 +1174,6 @@ export class CoursesService {
       }
 
       if (course.isPublic) {
-        this.logger.debug('[getCourseForUser] Acceso concedido: Curso público');
         const allClassVisible = !!userId;
         return {
           ...course,
@@ -1273,7 +1238,7 @@ export class CoursesService {
     }
     
     // Guardar cambios en la inscripción
-    await enrollment.save();
+    const savedEnrollment = await enrollment.save();
     
     // Si la inscripción estaba inactiva, necesitamos actualizar referencias
     if (wasInactive) {
@@ -1310,9 +1275,7 @@ export class CoursesService {
             this.courseModel.updateOne(
               { _id: courseId },
               { $addToSet: { students: new Types.ObjectId(studentId) } }
-            ).then(() => {
-              
-            })
+            )
           );
         }
         
@@ -1322,9 +1285,7 @@ export class CoursesService {
             this.schoolModel.updateOne(
               { _id: schoolId },
               { $addToSet: { students: new Types.ObjectId(studentId) } }
-            ).then(() => {
-              
-            })
+            )
           );
         }
         
@@ -1354,7 +1315,7 @@ export class CoursesService {
       }
     }
     
-    return enrollment;
+    return savedEnrollment;
   }
 
   // Create enrollment for payment if student exists in course but has no enrollment record
@@ -1383,7 +1344,7 @@ export class CoursesService {
         return null;
       }
 
-      this.logger.log(`Creating enrollment for payment: student ${studentId} in course ${courseId}`);
+
 
       // Crear el enrollment
       const enrollment = new this.enrollmentModel({
@@ -1412,7 +1373,7 @@ export class CoursesService {
         );
       }
 
-      this.logger.log(`Successfully created enrollment ${savedEnrollment._id} for payment`);
+
       return savedEnrollment;
 
     } catch (error) {
@@ -1542,6 +1503,187 @@ export class CoursesService {
         message: `Error en la migración: ${error.message}`,
         updatedCount: 0
       };
+    }
+  }
+
+  async getPaymentHistoryForMonth(courseId: string, studentId: string, month: string, userId: string) {
+    try {
+
+      // Verify user has access to this course
+      const course = await this.getCourseForUser(courseId, userId, null);
+      if (!course) {
+        throw new NotFoundException('Course not found or access denied');
+      }
+
+      // Find the enrollment
+      const enrollment = await this.enrollmentModel.findOne({
+        course: new Types.ObjectId(courseId),
+        student: new Types.ObjectId(studentId),
+      }).populate('student', 'name email');
+
+      if (!enrollment) {
+        return {
+          payments: [],
+          totalPaid: 0,
+          studentName: 'Unknown',
+          month: month,
+          courseTitle: course.title
+        };
+      }
+
+      // Filter payments for the specified month
+      const monthPayments = enrollment.paymentHistory.filter(payment => payment.month === month);
+
+      // Calculate total paid for this month
+      const totalPaid = monthPayments.reduce((sum, payment) => sum + payment.amount, 0);
+
+      // Sort payments by date (newest first)
+      const sortedPayments = monthPayments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      const result = {
+        payments: sortedPayments.map((payment, index) => {
+          const paymentDoc = payment as any;
+          
+          // For consistent IDs, use a hash based on IMMUTABLE payment data
+          // DO NOT include amount or notes since they can be updated
+          // Use date timestamp and month to ensure uniqueness and consistency
+          const crypto = require('crypto');
+          const paymentDataString = `${payment.date.getTime()}-${payment.month}`;
+          const consistentId = crypto.createHash('md5').update(paymentDataString).digest('hex').substring(0, 24);
+          
+
+          
+          return {
+            _id: consistentId,
+            amount: payment.amount,
+            date: payment.date,
+            notes: payment.notes,
+            month: payment.month
+          };
+        }),
+        totalPaid,
+        studentName: (enrollment.student as any).name || 'Unknown',
+        studentEmail: (enrollment.student as any).email || 'Unknown',
+        month: month,
+        courseTitle: course.title
+      };
+
+      return result;
+
+    } catch (error) {
+      this.logger.error(`Error getting payment history: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async updatePayment(
+    courseId: string, 
+    studentId: string, 
+    paymentId: string, 
+    updateData: { amount: number; notes?: string }, 
+    userId: string
+  ) {
+    try {
+
+      
+      // Verify user has access to this course
+      const course = await this.getCourseForUser(courseId, userId, null);
+      if (!course) {
+        throw new NotFoundException('Course not found or access denied');
+      }
+
+      // Find the enrollment
+      const enrollment = await this.enrollmentModel.findOne({
+        course: new Types.ObjectId(courseId),
+        student: new Types.ObjectId(studentId),
+      });
+
+      if (!enrollment) {
+        throw new NotFoundException('Enrollment not found');
+      }
+
+      const crypto = require('crypto');
+      
+      let payment = null;
+      let paymentIndex = -1;
+      
+      enrollment.paymentHistory.forEach((p, idx) => {
+        const paymentDataString = `${p.date.getTime()}-${p.month}`;
+        const consistentId = crypto.createHash('md5').update(paymentDataString).digest('hex').substring(0, 24);
+        
+        if (consistentId === paymentId) {
+          payment = p;
+          paymentIndex = idx;
+        }
+      });
+      
+      if (!payment) {
+        this.logger.error(`Payment with ID ${paymentId} not found in enrollment ${enrollment._id}`);
+        throw new NotFoundException('Payment not found. Please refresh the payment list and try again.');
+      }
+      
+
+      payment.amount = updateData.amount;
+      if (updateData.notes !== undefined) {
+        payment.notes = updateData.notes;
+      }
+
+      await enrollment.save();
+      return { message: 'Payment updated successfully' };
+    } catch (error) {
+      this.logger.error(`Error updating payment: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async deletePayment(courseId: string, studentId: string, paymentId: string, userId: string) {
+    try {
+
+      
+      // Verify user has access to this course
+      const course = await this.getCourseForUser(courseId, userId, null);
+      if (!course) {
+        throw new NotFoundException('Course not found or access denied');
+      }
+
+      // Find the enrollment
+      const enrollment = await this.enrollmentModel.findOne({
+        course: new Types.ObjectId(courseId),
+        student: new Types.ObjectId(studentId),
+      });
+
+      if (!enrollment) {
+        throw new NotFoundException('Enrollment not found');
+      }
+
+      const crypto = require('crypto');
+      
+      let payment = null;
+      let paymentIndex = -1;
+      
+      enrollment.paymentHistory.forEach((p, idx) => {
+        const paymentDataString = `${p.date.getTime()}-${p.month}`;
+        const consistentId = crypto.createHash('md5').update(paymentDataString).digest('hex').substring(0, 24);
+        
+        if (consistentId === paymentId) {
+          payment = p;
+          paymentIndex = idx;
+        }
+      });
+
+      if (!payment) {
+        this.logger.error(`Payment with ID ${paymentId} not found in enrollment ${enrollment._id}`);
+        throw new NotFoundException('Payment not found. Please refresh the payment list and try again.');
+      }
+
+      // Remove the payment by index
+      enrollment.paymentHistory.splice(paymentIndex, 1);
+      await enrollment.save();
+      
+      return { message: 'Payment deleted successfully' };
+    } catch (error) {
+      this.logger.error(`Error deleting payment: ${error.message}`, error.stack);
+      throw error;
     }
   }
 } 

@@ -412,7 +412,7 @@ export default function CreateCourse() {
         endTime: time.endTime,
         isActive: time.isActive
       }));
-
+      
       // Datos para enviar
       const courseData = {
         title: name, 

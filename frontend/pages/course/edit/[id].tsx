@@ -348,7 +348,7 @@ export default function EditCourse() {
         endTime: time.endTime,
         isActive: time.isActive
       }));
-
+      
       const courseData = {
         title,
         description,

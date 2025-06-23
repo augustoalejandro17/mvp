@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import { FaPlus, FaEdit, FaTrash, FaList, FaPlay, FaGripVertical, FaTrashAlt, FaMinus, FaChevronDown, FaChevronRight } from 'react-icons/fa';
@@ -45,6 +45,16 @@ interface PlaylistManagerProps {
   onClassDelete?: (classId: string) => void;
 }
 
+interface DragState {
+  classId: string;
+  fromIndex: number;
+  playlistId: string;
+  startY: number;
+  currentY: number;
+  isDragging: boolean;
+  element?: HTMLElement;
+}
+
 export default function PlaylistManager({ courseId, onClassSelect, selectedClass, canModify, onClassView, onClassEdit, onClassDelete }: PlaylistManagerProps) {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [unorganizedClasses, setUnorganizedClasses] = useState<Class[]>([]);
@@ -57,11 +67,27 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
   const [selectedPlaylist, setSelectedPlaylist] = useState<string | null>(null);
   const [expandedPlaylists, setExpandedPlaylists] = useState<Set<string>>(new Set());
   const [draggedItem, setDraggedItem] = useState<{ classId: string; fromIndex: number; playlistId: string } | null>(null);
+  const [touchDragState, setTouchDragState] = useState<DragState | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  
+  const dragGhostRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchPlaylists();
     fetchUnorganizedClasses();
   }, [courseId]);
+
+  // Clean up touch drag state when component unmounts
+  useEffect(() => {
+    return () => {
+      if (touchDragState?.element) {
+        touchDragState.element.style.transform = '';
+        touchDragState.element.style.zIndex = '';
+        touchDragState.element.style.pointerEvents = '';
+      }
+    };
+  }, []);
 
   const fetchPlaylists = async (retryCount = 0, preserveExpandedState = false) => {
     try {
@@ -260,22 +286,28 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
     setShowCreateForm(false);
   };
 
-  // Drag and Drop handlers
+  // Desktop Drag and Drop handlers
   const handleDragStart = (e: React.DragEvent, classItem: Class, index: number, playlistId: string) => {
     e.stopPropagation(); // Prevent bubbling to playlist header
     setDraggedItem({ classId: classItem._id, fromIndex: index, playlistId });
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     e.stopPropagation(); // Prevent bubbling to playlist header
     e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
   };
 
   const handleDrop = (e: React.DragEvent, targetIndex: number, targetPlaylistId: string) => {
     e.preventDefault();
     e.stopPropagation(); // Prevent bubbling to playlist header
+    setDragOverIndex(null);
     
     if (!draggedItem || draggedItem.playlistId !== targetPlaylistId) {
       setDraggedItem(null);
@@ -300,12 +332,99 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
     setDraggedItem(null);
   };
 
+  // Mobile Touch handlers
+  const handleTouchStart = (e: React.TouchEvent, classItem: Class, index: number, playlistId: string) => {
+    e.stopPropagation();
+    
+    const touch = e.touches[0];
+    const element = e.currentTarget as HTMLElement;
+    const rect = element.getBoundingClientRect();
+    
+    setTouchDragState({
+      classId: classItem._id,
+      fromIndex: index,
+      playlistId,
+      startY: touch.clientY,
+      currentY: touch.clientY,
+      isDragging: false,
+      element
+    });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchDragState) return;
+    
+    e.preventDefault();
+    const touch = e.touches[0];
+    const deltaY = touch.clientY - touchDragState.startY;
+    
+    // Start dragging if moved more than 10px
+    if (!touchDragState.isDragging && Math.abs(deltaY) > 10) {
+      setTouchDragState(prev => prev ? { ...prev, isDragging: true } : null);
+      
+      // Add visual feedback
+      if (touchDragState.element) {
+        touchDragState.element.style.transform = `translateY(${deltaY}px)`;
+        touchDragState.element.style.zIndex = '1000';
+        touchDragState.element.style.opacity = '0.8';
+        touchDragState.element.classList.add(styles.dragging);
+      }
+    }
+    
+    if (touchDragState.isDragging && touchDragState.element) {
+      touchDragState.element.style.transform = `translateY(${deltaY}px)`;
+      
+      // Calculate which item we're over
+      const playlist = playlists.find(p => p._id === touchDragState.playlistId);
+      if (playlist) {
+        const itemHeight = 60; // Approximate height of a class item
+        const newIndex = Math.max(0, Math.min(
+          playlist.classes.length - 1,
+          touchDragState.fromIndex + Math.round(deltaY / itemHeight)
+        ));
+        setDragOverIndex(newIndex);
+      }
+    }
+    
+    setTouchDragState(prev => prev ? { ...prev, currentY: touch.clientY } : null);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchDragState) return;
+    
+    e.stopPropagation();
+    
+    // Reset visual state
+    if (touchDragState.element) {
+      touchDragState.element.style.transform = '';
+      touchDragState.element.style.zIndex = '';
+      touchDragState.element.style.opacity = '';
+      touchDragState.element.classList.remove(styles.dragging);
+    }
+    
+    if (touchDragState.isDragging && dragOverIndex !== null && dragOverIndex !== touchDragState.fromIndex) {
+      const playlist = playlists.find(p => p._id === touchDragState.playlistId);
+      if (playlist) {
+        // Create new order for the classes
+        const newClasses = [...playlist.classes];
+        const [movedClass] = newClasses.splice(touchDragState.fromIndex, 1);
+        newClasses.splice(dragOverIndex, 0, movedClass);
+
+        // Update the playlist order
+        reorderClassesInPlaylist(touchDragState.playlistId, newClasses.map(c => c._id));
+      }
+    }
+    
+    setTouchDragState(null);
+    setDragOverIndex(null);
+  };
+
   if (loading) {
     return <div className={styles.loading}>Cargando listas de reproducción...</div>;
   }
 
   return (
-    <div className={styles.playlistManager}>
+    <div className={styles.playlistManager} ref={containerRef}>
       <div className={styles.header}>
         <h3><FaList /> Listas de Reproducción</h3>
         {canModify && (
@@ -419,15 +538,29 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
                   playlist.classes.map((classItem, index) => (
                     <div 
                       key={classItem._id}
-                      className={`${styles.classItem} ${selectedClass?._id === classItem._id ? styles.activeClass : ''}`}
+                      className={`${styles.classItem} ${
+                        selectedClass?._id === classItem._id ? styles.activeClass : ''
+                      } ${
+                        dragOverIndex === index ? styles.dragOver : ''
+                      } ${
+                        touchDragState?.isDragging && touchDragState.fromIndex === index ? styles.dragging : ''
+                      }`}
                       onClick={(e) => {
                         e.stopPropagation(); // Prevent bubbling to playlist header
+                        if (!touchDragState?.isDragging) {
                         onClassSelect(classItem);
+                        }
                       }}
+                      // Desktop drag and drop
                       draggable={canModify && !playlist.isDefault && playlist.classes.length > 1}
                       onDragStart={(e) => canModify && handleDragStart(e, classItem, index, playlist._id)}
-                      onDragOver={handleDragOver}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, index, playlist._id)}
+                      // Mobile touch events
+                      onTouchStart={(e) => canModify && !playlist.isDefault && playlist.classes.length > 1 && handleTouchStart(e, classItem, index, playlist._id)}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
                     >
                       {canModify && !playlist.isDefault && playlist.classes.length > 1 && (
                         <FaGripVertical className={styles.dragHandle} />

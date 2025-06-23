@@ -32,37 +32,105 @@ const NotificationBell: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState(Date.now()); // Force re-renders
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
+  const [isVisible, setIsVisible] = useState(true);
+  const [pollInterval, setPollInterval] = useState(60000); // Start with 1 minute
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
+  // Mobile and visibility optimization
   useEffect(() => {
-    fetchUnreadCount();
+    const handleVisibilityChange = () => {
+      const visible = !document.hidden;
+      setIsVisible(visible);
+      
+      if (visible) {
+        // When tab becomes visible, fetch immediately and reset to normal polling
+        fetchUnreadCount();
+        setPollInterval(60000); // Reset to 1 minute
+      }
+    };
+
+    const handleFocus = () => {
+      setIsVisible(true);
+      fetchUnreadCount();
+    };
+
+    const handleBlur = () => {
+      setIsVisible(false);
+    };
+
+    // Check if user is on mobile
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(fetchUnreadCount, 30000);
-    
-    return () => clearInterval(interval);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
   }, []);
 
-  // Add more frequent polling when there are notifications
+  // Smart polling with exponential backoff
   useEffect(() => {
-    if (unreadCount > 0) {
-      // Poll every 10 seconds when there are unread notifications
-      const fastInterval = setInterval(fetchUnreadCount, 10000);
-      return () => clearInterval(fastInterval);
-    }
-  }, [unreadCount]);
+    const startPolling = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+
+      const poll = () => {
+        if (isVisible) {
+          fetchUnreadCount();
+        }
+      };
+
+      // Initial fetch
+      poll();
+
+      // Set up interval based on current state
+      let currentInterval = pollInterval;
+      
+      // Reduce polling when tab is not visible
+      if (!isVisible) {
+        currentInterval = Math.min(pollInterval * 3, 300000); // Max 5 minutes when not visible
+      }
+
+      // Increase polling frequency if there are unread notifications
+      if (unreadCount > 0 && isVisible) {
+        currentInterval = Math.max(30000, pollInterval / 2); // Min 30 seconds when there are notifications
+      }
+
+      intervalRef.current = setInterval(poll, currentInterval);
+    };
+
+    startPolling();
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [isVisible, unreadCount, pollInterval]);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
 
+    // Use both mouse and touch events for better mobile support
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   const fetchUnreadCount = useCallback(async () => {
@@ -72,44 +140,40 @@ const NotificationBell: React.FC = () => {
         .find(row => row.startsWith('token='))
         ?.split('=')[1];
 
-      console.log('🔍 NotificationBell: Token found:', !!token);
       if (!token) {
-        console.log('❌ NotificationBell: No token found');
+        // Increase poll interval when not authenticated
+        setPollInterval(prev => Math.min(prev * 1.5, 300000));
         return;
       }
 
-      console.log('📡 NotificationBell: Fetching unread count...');
       const response = await fetch('/api/notifications/unread-count', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
 
-      console.log('📊 NotificationBell: Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
         const newCount = data.unreadCount || data.count || 0;
-        console.log('✅ NotificationBell: Current unread count:', unreadCount);
-        console.log('✅ NotificationBell: New unread count:', newCount);
         
         if (newCount !== unreadCount) {
-          console.log('🔄 NotificationBell: Count changed, updating state');
           setUnreadCount(newCount);
-          setLastUpdate(Date.now()); // Force re-render
+          setLastUpdate(Date.now());
           
-          // Force a re-render by updating a dummy state if needed
-          if (newCount > 0 && unreadCount === 0) {
-            console.log('🎉 NotificationBell: New notifications detected!');
-          }
+          // Reset poll interval on successful update
+          setPollInterval(60000);
         } else {
-          console.log('⏭️ NotificationBell: Count unchanged');
+          // Gradually increase poll interval if no changes (exponential backoff)
+          setPollInterval(prev => Math.min(prev * 1.2, 180000)); // Max 3 minutes
         }
       } else {
-        const errorData = await response.json();
-        console.error('❌ NotificationBell: API error:', errorData);
+        // Increase poll interval on error
+        setPollInterval(prev => Math.min(prev * 2, 300000));
       }
     } catch (error) {
-      console.error('💥 NotificationBell: Error fetching unread count:', error);
+      console.error('Error fetching unread count:', error);
+      // Increase poll interval on error
+      setPollInterval(prev => Math.min(prev * 2, 300000));
     }
   }, [unreadCount]);
 
@@ -200,6 +264,7 @@ const NotificationBell: React.FC = () => {
       markAsRead(notification._id);
     }
 
+    // Navigate to related content
     if (notification.metadata?.actionUrl) {
       router.push(notification.metadata.actionUrl);
     } else if (notification.relatedCourse) {
@@ -210,49 +275,64 @@ const NotificationBell: React.FC = () => {
   };
 
   const toggleDropdown = () => {
-    setIsOpen(!isOpen);
-    if (!isOpen && notifications.length === 0) {
+    if (!isOpen) {
       fetchNotifications();
     }
+    setIsOpen(!isOpen);
   };
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    const diffInDays = Math.floor(diffInHours / 24);
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
 
-    if (diffInMinutes < 1) return 'Ahora mismo';
-    if (diffInMinutes < 60) return `Hace ${diffInMinutes}m`;
-    if (diffInHours < 24) return `Hace ${diffInHours}h`;
-    if (diffInDays < 7) return `Hace ${diffInDays}d`;
-    
-    return date.toLocaleDateString();
+    if (diffInMinutes < 1) return 'Ahora';
+    if (diffInMinutes < 60) return `${diffInMinutes}m`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h`;
+    return `${Math.floor(diffInMinutes / 1440)}d`;
   };
 
   const getNotificationIcon = (type: string, priority: string) => {
-    if (type === 'class_reminder') return '🔔';
-    if (type === 'enrollment') return '📚';
-    if (type === 'payment_due') return '💰';
-    if (priority === 'urgent') return '🚨';
-    if (priority === 'high') return '❗';
-    return 'ℹ️';
+    const baseClass = styles.notificationIcon;
+    const priorityClass = priority === 'high' ? styles.highPriority : 
+                         priority === 'medium' ? styles.mediumPriority : styles.lowPriority;
+    
+    switch (type) {
+      case 'class_reminder':
+        return <span className={`${baseClass} ${priorityClass}`}>📚</span>;
+      case 'enrollment':
+        return <span className={`${baseClass} ${priorityClass}`}>👥</span>;
+      case 'payment_due':
+        return <span className={`${baseClass} ${priorityClass}`}>💳</span>;
+      case 'system':
+        return <span className={`${baseClass} ${priorityClass}`}>⚙️</span>;
+      default:
+        return <span className={`${baseClass} ${priorityClass}`}>📢</span>;
+    }
   };
 
   return (
-    <div className={styles.notificationBell} ref={dropdownRef}>
+    <div className={styles.notificationContainer} ref={dropdownRef}>
       <button 
-        className={styles.bellButton} 
+        className={styles.notificationButton}
         onClick={toggleDropdown}
-        aria-label="Notificaciones"
+        aria-label={`Notificaciones${unreadCount > 0 ? ` (${unreadCount} sin leer)` : ''}`}
+        type="button"
       >
-        <svg className={`${styles.bellIcon} ${unreadCount > 0 ? styles.hasNotifications : ''}`} viewBox="0 0 24 24" fill="currentColor">
-          <path d="M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21"/>
+        <svg 
+          width="20" 
+          height="20" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2"
+          className={styles.bellIcon}
+        >
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
         {unreadCount > 0 && (
-          <span key={`badge-${unreadCount}-${lastUpdate}`} className={styles.badge}>
+          <span key={`badge-${lastUpdate}-${unreadCount}`} className={styles.badge}>
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -260,62 +340,75 @@ const NotificationBell: React.FC = () => {
 
       {isOpen && (
         <div className={styles.dropdown}>
-          <div className={styles.header}>
+          <div className={styles.dropdownHeader}>
             <h3>Notificaciones</h3>
             {unreadCount > 0 && (
               <button 
-                className={styles.markAllRead}
                 onClick={markAllAsRead}
+                className={styles.markAllButton}
+                type="button"
               >
                 Marcar todas como leídas
               </button>
             )}
           </div>
-
-          <div className={styles.content}>
+          
+          <div className={styles.notificationsList}>
             {loading ? (
               <div className={styles.loading}>Cargando...</div>
             ) : notifications.length === 0 ? (
-              <div className={styles.empty}>
-                No tienes notificaciones
+              <div className={styles.emptyState}>
+                <span className={styles.emptyIcon}>🔔</span>
+                <p>No tienes notificaciones</p>
               </div>
             ) : (
               notifications.map((notification) => (
                 <div
                   key={notification._id}
-                  className={`${styles.notification} ${
-                    !notification.isRead ? styles.unread : ''
-                  }`}
+                  className={`${styles.notificationItem} ${!notification.isRead ? styles.unread : ''}`}
                   onClick={() => handleNotificationClick(notification)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      handleNotificationClick(notification);
+                    }
+                  }}
                 >
-                  <div className={styles.icon}>
-                    {getNotificationIcon(notification.type, notification.priority)}
-                  </div>
-                  <div className={styles.text}>
-                    <div className={styles.title}>{notification.title}</div>
-                    <div className={styles.message}>{notification.message}</div>
+                  <div className={styles.notificationContent}>
+                    <div className={styles.notificationHeader}>
+                      {getNotificationIcon(notification.type, notification.priority)}
+                      <span className={styles.notificationTitle}>
+                        {notification.title}
+                      </span>
+                      <span className={styles.notificationTime}>
+                        {formatTime(notification.createdAt)}
+                      </span>
+                    </div>
+                    <p className={styles.notificationMessage}>
+                      {notification.message}
+                    </p>
                     {notification.relatedCourse && (
-                      <div className={styles.course}>
+                      <div className={styles.courseInfo}>
                         📚 {notification.relatedCourse.title}
                       </div>
                     )}
-                    <div className={styles.time}>
-                      {formatTime(notification.createdAt)}
-                    </div>
                   </div>
+                  {!notification.isRead && <div className={styles.unreadDot} />}
                 </div>
               ))
             )}
           </div>
-
+          
           {notifications.length > 0 && (
-            <div className={styles.footer}>
+            <div className={styles.dropdownFooter}>
               <button 
-                className={styles.viewAll}
                 onClick={() => {
                   router.push('/notifications');
                   setIsOpen(false);
                 }}
+                className={styles.viewAllButton}
+                type="button"
               >
                 Ver todas las notificaciones
               </button>

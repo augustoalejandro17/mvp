@@ -1,11 +1,11 @@
-.notificationBell {
+.notificationContainer {
   position: relative;
   display: inline-block;
   margin-left: 4px;
   margin-right: -12px;
 }
 
-.bellButton {
+.notificationButton {
   background: none;
   border: none;
   cursor: pointer;
@@ -16,10 +16,16 @@
   justify-content: center;
   position: relative;
   transition: background-color 0.2s ease;
+  touch-action: manipulation; /* Better mobile touch */
+  -webkit-tap-highlight-color: transparent; /* Remove iOS highlight */
 }
 
-.bellButton:hover {
+.notificationButton:hover {
   background-color: rgba(107, 114, 128, 0.1);
+}
+
+.notificationButton:active {
+  transform: scale(0.95);
 }
 
 .bellIcon {
@@ -47,6 +53,19 @@
   justify-content: center;
   font-size: 0.65rem;
   font-weight: 500;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .dropdown {
@@ -75,7 +94,7 @@
   }
 }
 
-.header {
+.dropdownHeader {
   padding: 16px;
   border-bottom: 1px solid #eee;
   display: flex;
@@ -84,14 +103,14 @@
   background-color: #f8f9fa;
 }
 
-.header h3 {
+.dropdownHeader h3 {
   margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
   color: #333;
 }
 
-.markAllRead {
+.markAllButton {
   background: none;
   border: none;
   color: #007bff;
@@ -100,99 +119,159 @@
   padding: 4px 8px;
   border-radius: 4px;
   transition: background-color 0.2s ease;
+  touch-action: manipulation;
 }
 
-.markAllRead:hover {
+.markAllButton:hover {
   background-color: rgba(0, 123, 255, 0.1);
 }
 
-.content {
-  max-height: calc(100vh - 220px);
-  overflow-y: auto;
+.markAllButton:active {
+  transform: scale(0.95);
 }
 
-.loading, .empty {
+.notificationsList {
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+}
+
+.loading {
   padding: 40px 16px;
   text-align: center;
   color: #666;
   font-style: italic;
 }
 
-.notification {
+.emptyState {
+  padding: 40px 16px;
+  text-align: center;
+  color: #666;
+}
+
+.emptyIcon {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 8px;
+  opacity: 0.5;
+}
+
+.emptyState p {
+  margin: 0;
+  font-style: italic;
+}
+
+.notificationItem {
   display: flex;
   padding: 12px 16px;
   border-bottom: 1px solid #f0f0f0;
   cursor: pointer;
   transition: background-color 0.2s ease;
+  position: relative;
+  touch-action: manipulation;
+  min-height: 60px; /* Better touch targets */
 }
 
-.notification:hover {
+.notificationItem:hover {
   background-color: #f8f9fa;
 }
 
-.notification:last-child {
+.notificationItem:active {
+  background-color: #e9ecef;
+}
+
+.notificationItem:last-child {
   border-bottom: none;
 }
 
-.notification.unread {
+.notificationItem.unread {
   background-color: #f8f9ff;
   border-left: 3px solid #007bff;
 }
 
-.notification.unread:hover {
+.notificationItem.unread:hover {
   background-color: #f0f5ff;
 }
 
-.icon {
-  margin-right: 12px;
-  font-size: 1.2rem;
-  flex-shrink: 0;
-  display: flex;
-  align-items: flex-start;
-  padding-top: 2px;
-}
-
-.text {
+.notificationContent {
   flex: 1;
   min-width: 0;
 }
 
-.title {
+.notificationHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.notificationIcon {
+  flex-shrink: 0;
+  font-size: 1.1rem;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.notificationIcon.highPriority {
+  background-color: rgba(220, 38, 38, 0.1);
+}
+
+.notificationIcon.mediumPriority {
+  background-color: rgba(245, 158, 11, 0.1);
+}
+
+.notificationIcon.lowPriority {
+  background-color: rgba(107, 114, 128, 0.1);
+}
+
+.notificationTitle {
   font-weight: 600;
   font-size: 0.9rem;
   color: #333;
-  margin-bottom: 4px;
   line-height: 1.3;
+  flex: 1;
 }
 
-.message {
+.notificationTime {
+  font-size: 0.75rem;
+  color: #999;
+  flex-shrink: 0;
+}
+
+.notificationMessage {
   font-size: 0.85rem;
   color: #666;
   line-height: 1.4;
-  margin-bottom: 6px;
+  margin: 0 0 6px 0;
   word-wrap: break-word;
 }
 
-.course {
+.courseInfo {
   font-size: 0.8rem;
   color: #007bff;
-  margin-bottom: 4px;
   display: flex;
   align-items: center;
+  gap: 4px;
 }
 
-.time {
-  font-size: 0.75rem;
-  color: #999;
+.unreadDot {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  background-color: #007bff;
+  border-radius: 50%;
 }
 
-.footer {
+.dropdownFooter {
   padding: 12px 16px 16px 16px;
   border-top: 1px solid #eee;
   background-color: #f8f9fa;
 }
 
-.viewAll {
+.viewAllButton {
   width: 100%;
   padding: 8px;
   background: #007bff;
@@ -201,33 +280,145 @@
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.9rem;
-  font-weight: 500;
   transition: background-color 0.2s ease;
+  touch-action: manipulation;
+  min-height: 44px; /* Better touch target */
 }
 
-.viewAll:hover {
-  background-color: #0056b3;
+.viewAllButton:hover {
+  background: #0056b3;
 }
 
-/* Responsive design */
+.viewAllButton:active {
+  transform: scale(0.98);
+}
+
+/* Mobile optimizations */
 @media (max-width: 768px) {
   .dropdown {
-    width: 300px;
-    right: -50px;
+    width: calc(100vw - 40px);
+    right: 20px;
+    left: 20px;
+    max-width: 400px;
+  }
+  
+  .notificationItem {
+    padding: 16px;
+    min-height: 70px;
+  }
+  
+  .notificationTitle {
+    font-size: 0.95rem;
+  }
+  
+  .notificationMessage {
+    font-size: 0.9rem;
   }
 }
 
 @media (max-width: 480px) {
   .dropdown {
-    width: 280px;
-    right: -100px;
+    width: calc(100vw - 20px);
+    right: 10px;
+    left: 10px;
+    top: 50px;
+    max-height: calc(100vh - 80px);
   }
   
-  .notification {
-    padding: 10px 12px;
+  .notificationItem {
+    padding: 18px 16px;
+    min-height: 80px;
   }
   
-  .header {
+  .dropdownHeader {
+    padding: 16px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .markAllButton {
+    align-self: flex-end;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    min-height: 36px;
+  }
+  
+  .notificationTime {
+    font-size: 0.8rem;
+  }
+  
+  .viewAllButton {
     padding: 12px;
+    font-size: 1rem;
+    min-height: 48px;
+  }
+}
+
+/* High DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .bellIcon {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .dropdown {
+    background: #1f2937;
+    border-color: #374151;
+    color: #f9fafb;
+  }
+  
+  .dropdownHeader {
+    background-color: #111827;
+    border-bottom-color: #374151;
+  }
+  
+  .dropdownHeader h3 {
+    color: #f9fafb;
+  }
+  
+  .notificationItem {
+    border-bottom-color: #374151;
+  }
+  
+  .notificationItem:hover {
+    background-color: #374151;
+  }
+  
+  .notificationItem.unread {
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+  
+  .notificationTitle {
+    color: #f9fafb;
+  }
+  
+  .notificationMessage {
+    color: #d1d5db;
+  }
+  
+  .dropdownFooter {
+    background-color: #111827;
+    border-top-color: #374151;
+  }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .badge {
+    animation: none;
+  }
+  
+  .dropdown {
+    animation: none;
+  }
+  
+  .notificationButton:active,
+  .markAllButton:active,
+  .viewAllButton:active {
+    transform: none;
   }
 } 

@@ -330,6 +330,25 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
   const handlePlay = () => {
     setIsPlaying(true);
     
+    // Auto fullscreen on mobile devices
+    if (isMobile && videoRef.current) {
+      const video = videoRef.current;
+      
+      // Small delay to ensure video is ready
+      setTimeout(() => {
+        // Request fullscreen on mobile using various browser APIs
+        if (video.requestFullscreen) {
+          video.requestFullscreen().catch(console.log);
+        } else if ((video as any).webkitRequestFullscreen) {
+          (video as any).webkitRequestFullscreen().catch(console.log);
+        } else if ((video as any).mozRequestFullScreen) {
+          (video as any).mozRequestFullScreen().catch(console.log);
+        } else if ((video as any).msRequestFullscreen) {
+          (video as any).msRequestFullscreen().catch(console.log);
+        }
+      }, 100);
+    }
+    
     // Only start session if we don't have one already
     const currentVideoId = classId || url || null;
     

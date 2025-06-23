@@ -112,7 +112,6 @@ export class StreamingIntegrationService {
 
       // For now, we'll just log this. In a full implementation, you might want to
       // track incremental bandwidth usage or buffer it until session end
-      this.logger.debug(`Bandwidth update: ${sessionId} +${additionalBytes} bytes`);
     } catch (error) {
       this.logger.error(`Error updating streaming bandwidth: ${error.message}`, error.stack);
     }

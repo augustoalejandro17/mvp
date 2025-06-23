@@ -81,8 +81,6 @@ export class AttendanceService {
     const startDate = new Date(startLocal.getTime() + timezoneOffset * 60000);
     const endDate = new Date(endLocal.getTime() + timezoneOffset * 60000);
       
-    this.logger.debug(`Buscando asistencia existente para estudiante ${studentId} en curso ${courseId} entre ${startDate.toISOString()} y ${endDate.toISOString()}`);
-
       const existingAttendance = await this.attendanceModel.findOne({
       course: courseId,
       student: studentId,
@@ -90,7 +88,6 @@ export class AttendanceService {
       });
 
       if (existingAttendance) {
-      this.logger.debug(`Actualizando asistencia existente ID: ${existingAttendance._id}`);
       existingAttendance.present = present;
       existingAttendance.notes = notes;
         existingAttendance.updatedAt = new Date();
@@ -99,7 +96,6 @@ export class AttendanceService {
         return existingAttendance.save();
       }
       
-    this.logger.debug(`Creando nueva asistencia para estudiante ${studentId} en curso ${courseId}`);
       const attendance = new this.attendanceModel({
       course: courseId,
       student: studentId,
@@ -112,7 +108,6 @@ export class AttendanceService {
       });
       
       const savedAttendance = await attendance.save();
-    this.logger.debug(`Nueva asistencia guardada ID: ${savedAttendance._id} con fecha ${savedAttendance.date.toISOString()}`);
       return savedAttendance;
   }
 
@@ -139,7 +134,6 @@ export class AttendanceService {
     
     const startDate = new Date(startLocal.getTime() + timezoneOffset * 60000);
     const endDate = new Date(endLocal.getTime() + timezoneOffset * 60000);
-    this.logger.debug(`Procesando bulk. Rango de búsqueda para existentes: ${startDate.toISOString()} a ${endDate.toISOString()}`);
       
     for (const attendanceData of attendances) {
       const currentStudentId = attendanceData.studentId;
@@ -176,7 +170,6 @@ export class AttendanceService {
         });
         
         if (existingAttendance) {
-        this.logger.debug(`Actualizando asistencia existente ID: ${existingAttendance._id} en bulk.`);
         existingAttendance.present = currentPresent;
         existingAttendance.notes = currentNotes || existingAttendance.notes;
           existingAttendance.updatedAt = new Date();
@@ -184,7 +177,6 @@ export class AttendanceService {
         existingAttendance.markedBy = teacherId as any;   // Mongoose maneja la conversión
         results.push(await existingAttendance.save());
         } else {
-        this.logger.debug(`Creando nueva asistencia para estudiante ${currentStudentId} en bulk.`);
         const newAttendance = new this.attendanceModel({
           course: courseId,
           student: currentStudentId,
@@ -198,7 +190,6 @@ export class AttendanceService {
         results.push(await newAttendance.save());
         }
       }
-    this.logger.debug(`Bulk create completo. ${results.length} registros procesados.`);
     return results;
   }
 
@@ -323,8 +314,6 @@ export class AttendanceService {
 
   // Obtener todos los registros de asistencia (para encontrar usuarios no registrados)
   async findAllRecords(): Promise<Attendance[]> {
-    
-    
     // Obtener todos los registros, incluidos aquellos donde el estudiante podría ser un string
     const records = await this.attendanceModel.find()
       .populate({ path: 'student', strictPopulate: false })
@@ -373,8 +362,6 @@ export class AttendanceService {
 
   // Crear asistencia para un usuario no registrado (solo nombre)
   async createForNonRegisteredUser(courseId: string, studentName: string, date: Date, present: boolean, notes: string, teacherId: string): Promise<Attendance> {
-    
-    
     // Verificar que el curso existe
     const course = await this.courseModel.findById(courseId).populate('school');
     if (!course) {
@@ -402,7 +389,6 @@ export class AttendanceService {
     }
     
     
-    
     try {
       // Buscar si existe un usuario con el mismo nombre y role UNREGISTERED
       let unregisteredUser = await this.userModel.findOne({
@@ -412,7 +398,6 @@ export class AttendanceService {
       
       // Si no existe, crear un nuevo usuario no registrado
       if (!unregisteredUser) {
-        
         try {
           // Convertir IDs a ObjectId
           const courseObjectId = new Types.ObjectId(courseId);
@@ -434,15 +419,11 @@ export class AttendanceService {
           unregisteredUser = new this.userModel(newUserData);
           await unregisteredUser.save();
           
-          
-          
-          
           // Agregar el usuario al curso si no está ya
           if (!course.students || !course.students.some(s => s?.toString() === unregisteredUser._id.toString())) {
             course.students = course.students || [];
             course.students.push(unregisteredUser._id as any);
             await course.save();
-            
           }
 
           // Crear enrollment record para el nuevo usuario no registrado
@@ -457,19 +438,15 @@ export class AttendanceService {
           throw new BadRequestException(`Error al crear usuario no registrado: ${error.message}`);
         }
       } else {
-        
-        
         // Verificar si el curso ya está en enrolledCourses
         if (!unregisteredUser.enrolledCourses.some(c => c?.toString() === courseId)) {
           unregisteredUser.enrolledCourses.push(new Types.ObjectId(courseId) as any);
-          
         }
         
         // Verificar si la escuela ya está en schools
         if (!unregisteredUser.schools || !unregisteredUser.schools.some(s => s?.toString() === schoolId)) {
           unregisteredUser.schools = unregisteredUser.schools || [];
           unregisteredUser.schools.push(new Types.ObjectId(schoolId) as any);
-          
         }
         
         // Verificar si ya tiene el rol para esta escuela
@@ -479,18 +456,15 @@ export class AttendanceService {
             schoolId: new Types.ObjectId(schoolId) as any,
             role: UserRole.STUDENT
           });
-          
         }
         
         await unregisteredUser.save();
-        
         
         // Verificar si el usuario está en el curso
         if (!course.students || !course.students.some(s => s?.toString() === unregisteredUser._id.toString())) {
           course.students = course.students || [];
           course.students.push(unregisteredUser._id as any);
           await course.save();
-          
         }
 
         // Crear enrollment record para el usuario no registrado
@@ -503,7 +477,6 @@ export class AttendanceService {
       }
       
       // Use timezone-aware date conversion
-      
       // Get school timezone from course
       const schoolTimezone = course?.school?.timezone || 'America/Bogota';
       const timezoneOffset = this.getTimezoneOffset(schoolTimezone);
@@ -555,8 +528,6 @@ export class AttendanceService {
 
   // Vincular asistencias de un usuario no registrado a uno registrado
   async linkAttendancesToRegisteredUser(unregisteredName: string, userId: string): Promise<number> {
-    
-    
     // Verificar que el usuario registrado existe
     const registeredUser = await this.userModel.findById(userId);
     if (!registeredUser) {
@@ -619,8 +590,6 @@ export class AttendanceService {
   }
 
   async findByCourseAndMonth(courseId: string, year: number, month: number): Promise<Attendance[]> {
-    this.logger.debug(`Buscando asistencias para el curso ${courseId} en ${month}/${year}`);
-    
     // Verificar que el curso existe y obtener timezone de la escuela
     const course = await this.courseModel.findById(courseId).populate('school');
     if (!course) {
@@ -639,8 +608,6 @@ export class AttendanceService {
     const endLocal = new Date(Date.UTC(year, month - 1, lastDay, 23, 59, 59, 999));
     const endUTC = new Date(endLocal.getTime() + timezoneOffset * 60000);
     
-    this.logger.debug(`Rango de búsqueda ${schoolTimezone} mes ${month}/${year}: ${startUTC.toISOString()} a ${endUTC.toISOString()}`);
-    
     // Buscar todas las asistencias para este curso en el rango de fechas
     const attendances = await this.attendanceModel.find({
       course: courseId,
@@ -652,8 +619,6 @@ export class AttendanceService {
     .populate('student', 'name email role') // Poblar información de estudiantes registrados
     .sort({ date: 1 }) // Ordenar por fecha
     .exec();
-    
-    this.logger.debug(`Se encontraron ${attendances.length} registros de asistencia`);
     
     return attendances;
   }

@@ -29,9 +29,7 @@ export class PlaylistsService {
     for (const classItem of classes) {
       try {
         if (classItem.videoUrl) {
-          this.logger.debug(`Generating signed URL for class ${classItem._id} with videoUrl: ${classItem.videoUrl}`);
           const signedUrl = await this.s3Service.getSignedUrl(classItem.videoUrl);
-          this.logger.debug(`Successfully generated signed URL for class ${classItem._id}`);
           const classObj = classItem.toObject ? classItem.toObject() : { ...classItem };
           classObj.videoUrl = signedUrl;
           classesWithSignedUrls.push(classObj);
@@ -204,15 +202,11 @@ export class PlaylistsService {
 
   async addClassToPlaylist(playlistId: string, addClassDto: AddClassToPlaylistDto, userId: string, userRole: string): Promise<Playlist> {
     try {
-      this.logger.log(`Adding class ${addClassDto.classId} to playlist ${playlistId} by user ${userId} with role ${userRole}`);
-      
       const playlist = await this.playlistModel.findById(playlistId).populate('course');
       if (!playlist) {
         this.logger.error(`Playlist not found: ${playlistId}`);
         throw new NotFoundException('Lista de reproducción no encontrada');
       }
-
-      this.logger.log(`Found playlist: ${playlist.name}, course: ${playlist.course}`);
 
       // Check permissions
       if (!this.canModifyPlaylist(playlist.course, userId, userRole)) {
@@ -225,8 +219,6 @@ export class PlaylistsService {
         this.logger.error(`Class not found: ${addClassDto.classId}`);
         throw new NotFoundException('Clase no encontrada');
       }
-
-      this.logger.log(`Found class: ${classToAdd.title}, course: ${classToAdd.course}`);
 
       // Check if class belongs to the same course
       const playlistCourseId = (playlist.course as any)._id?.toString() || playlist.course.toString();
@@ -247,7 +239,6 @@ export class PlaylistsService {
       playlist.updatedAt = new Date();
       await playlist.save();
 
-      this.logger.log(`Successfully added class ${addClassDto.classId} to playlist ${playlistId}`);
       return await this.findOne(playlistId);
     } catch (error) {
       this.logger.error(`Error adding class to playlist: ${error.message}`, error.stack);

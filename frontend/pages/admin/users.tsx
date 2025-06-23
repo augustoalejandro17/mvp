@@ -228,7 +228,7 @@ export default function UserManagement() {
       initialUnregUsers: User[],
       courseData: Course[]
     ) => {
-      console.log('[AdminUsers] Processing attendance for unregistered users...');
+
       
       const nonRegisteredAttendees = new Map();
       
@@ -328,14 +328,14 @@ export default function UserManagement() {
       
       const finalUnregisteredList = Array.from(nonRegisteredAttendees.values());
       setUnregisteredUsers(finalUnregisteredList);
-      console.log('[AdminUsers] Unregistered users state updated count:', finalUnregisteredList.length);
+
     },
     [setUnregisteredUsers, user?.role, user?.sub] // Dependencias más estables
   );
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchData = useCallback(async () => {
-    console.log('[AdminUsers] useEffect[] -> fetchData CALLED');
+    
     try {
       setLoading(true);
       setDataReady(false);
@@ -373,15 +373,12 @@ export default function UserManagement() {
 
   // Renamed and refactored from fetchSecondaryData
   const fetchSecondaryDataAndProcess = useCallback(async () => {
-    console.log('[AdminUsers] fetchSecondaryDataAndProcess CALLED');
     const token = Cookies.get('token');
     if (!token || !user || users.length === 0) { // Ensure primary data is ready
-      console.log('[AdminUsers] fetchSecondaryDataAndProcess skipped: token, user, or users not ready');
       return;
     }
     
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    console.log('[AdminUsers] Fetching secondary data...');
 
     try {
       // setLoading(true); // Consider if a separate loading for secondary is needed
@@ -397,10 +394,7 @@ export default function UserManagement() {
       const fetchedAttendanceRecords = attendanceResponse.data;
       const initialUnregisteredUsersFromAPI = rawUnregisteredUsersResponse.data;
 
-      console.log('[AdminUsers] Fetched Schools:', fetchedSchools);
-      // console.log('[AdminUsers] Fetched Courses:', fetchedCourses); // Can be noisy
-      console.log('[AdminUsers] Fetched Attendance Records count:', fetchedAttendanceRecords?.length);
-      console.log('[AdminUsers] Fetched Initial Unregistered Users from API count:', initialUnregisteredUsersFromAPI?.length);
+
 
       setSchools(fetchedSchools);
       
@@ -448,7 +442,7 @@ export default function UserManagement() {
         fetchedCourses
       );
 
-      console.log('[AdminUsers] Secondary data processing finished.');
+
       // setDataReady(true); // Or a more specific ready flag
     } catch (err) {
       console.error("[AdminUsers] Error fetching secondary data:", err);
@@ -550,7 +544,6 @@ export default function UserManagement() {
 
   // useEffect for initial token decoding and primary data fetch
   useEffect(() => {
-    console.log('[AdminUsers] Initial useEffect (token & primary data) CALLED');
     const token = Cookies.get('token');
     if (token) {
       try {
@@ -572,12 +565,9 @@ export default function UserManagement() {
   // useEffect for secondary data fetching and processing
   // Runs after 'user' (decoded token) and 'users' (primary user list) are populated
   useEffect(() => {
-    console.log('[AdminUsers] Secondary data useEffect CALLED (dependencies: user, users, fetchSecondaryDataAndProcess)');
     if (user && users.length > 0) {
       fetchSecondaryDataAndProcess();
-          } else {
-      console.log('[AdminUsers] Secondary data useEffect skipped: user or users not ready.');
-            }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, users, fetchSecondaryDataAndProcess]);
     
@@ -2460,6 +2450,8 @@ IMPORTANTE: Esta acción:
           onRegisterPayment={(amount: number, notes: string, courseId?: string, month?: string) => 
             handleRegisterPayment(selectedUser._id, amount, notes, courseId, month)
           }
+          userId={selectedUser._id}
+          userName={selectedUser.name}
           courses={userCourses}
           user={selectedUser}
           onSelectCourse={(courseId: string) => setSelectedCourseId(courseId)}

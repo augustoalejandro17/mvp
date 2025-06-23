@@ -125,7 +125,6 @@ export class UsersService {
     try {
       // Si hay una contraseña y no parece estar hasheada (no comienza con $), hashearla
       if (userData.password && !userData.password.startsWith('$')) {
-        this.logger.debug(`Hasheando contraseña para usuario nuevo ${userData.email}`);
         userData.password = await this.hashPassword(userData.password);
       } else if (userData.password) {
         this.logger.debug(`La contraseña para ${userData.email} ya parece estar hasheada, manteniéndola como está`);
@@ -196,7 +195,6 @@ export class UsersService {
     try {
       // Si hay una contraseña y no parece estar hasheada (no comienza con $), hashearla
       if (userData.password && !userData.password.startsWith('$')) {
-        this.logger.debug(`Hasheando contraseña para usuario nuevo ${userData.email}`);
         userData.password = await this.hashPassword(userData.password);
       } else if (userData.password) {
         this.logger.debug(`La contraseña para ${userData.email} ya parece estar hasheada, manteniéndola como está`);
