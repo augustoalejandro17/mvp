@@ -70,7 +70,7 @@ export default function AdminDashboard() {
       // Get the JWT token from cookies
       const token = Cookies.get('token');
       if (!token) return;
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
       // Determine which endpoint to use based on role
       // NOTE: We must include /api/ prefix for Next.js to route correctly to the backend
@@ -121,7 +121,7 @@ export default function AdminDashboard() {
       const token = Cookies.get('token');
       if (!token) return;
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       // Usar la ruta correcta de la API con la URL base
       let endpoint = `${apiUrl}/api/admin/stats`;
       if (schoolId !== 'all') {
@@ -195,7 +195,7 @@ export default function AdminDashboard() {
   const testApiConnectivity = async () => {
     try {
       console.log('Testing API connectivity...');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       // Probar el endpoint de overview
       console.log('Testing overview endpoint...');

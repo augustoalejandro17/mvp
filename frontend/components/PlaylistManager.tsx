@@ -91,7 +91,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
 
   const fetchPlaylists = async (retryCount = 0, preserveExpandedState = false) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       const response = await axios.get(`${apiUrl}/api/playlists?courseId=${courseId}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -122,7 +122,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
 
   const fetchUnorganizedClasses = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       const response = await axios.get(`${apiUrl}/api/playlists/unorganized?courseId=${courseId}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -139,7 +139,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
     if (!newPlaylistName.trim()) return;
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       await axios.post(`${apiUrl}/api/playlists`, {
         name: newPlaylistName,
@@ -164,7 +164,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
     if (!editingPlaylist || !newPlaylistName.trim()) return;
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       await axios.patch(`${apiUrl}/api/playlists/${editingPlaylist._id}`, {
         name: newPlaylistName,
@@ -188,7 +188,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
     if (!confirm('¿Estás seguro de que quieres eliminar esta lista de reproducción?')) return;
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       await axios.delete(`${apiUrl}/api/playlists/${playlistId}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -203,7 +203,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
 
   const addClassToPlaylist = async (playlistId: string, classId: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       console.log('Adding class to playlist:', { playlistId, classId });
       await axios.post(`${apiUrl}/api/playlists/${playlistId}/add-class`, {
@@ -229,7 +229,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
 
   const reorderClassesInPlaylist = async (playlistId: string, classIds: string[]) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       await axios.post(`${apiUrl}/api/playlists/${playlistId}/reorder`, {
         classIds: classIds,
@@ -246,7 +246,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
 
   const removeClassFromPlaylist = async (playlistId: string, classId: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       await axios.post(`${apiUrl}/api/playlists/${playlistId}/remove-class`, {
         classId: classId,

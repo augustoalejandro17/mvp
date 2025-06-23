@@ -55,7 +55,7 @@ export default function EnrollmentManagementPage() {
 
   const fetchCourses = useCallback(async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       const response = await axios.get(`${apiUrl}/api/courses`, {
@@ -70,7 +70,7 @@ export default function EnrollmentManagementPage() {
 
   const fetchStudents = useCallback(async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       const response = await axios.get(`${apiUrl}/api/users?role=student`, {
@@ -86,7 +86,7 @@ export default function EnrollmentManagementPage() {
   const fetchEnrollments = useCallback(async (courseId?: string) => {
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       const url = courseId 
@@ -154,7 +154,7 @@ export default function EnrollmentManagementPage() {
       setError('');
       setSuccess('');
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       await axios.post(`${apiUrl}/api/courses/${selectedCourse}/enroll`, 
@@ -184,7 +184,7 @@ export default function EnrollmentManagementPage() {
       setError('');
       setSuccess('');
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       await axios.delete(`${apiUrl}/api/enrollments/${enrollmentId}`, {

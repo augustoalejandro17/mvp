@@ -101,7 +101,7 @@ export default function CourseDetail() {
       if (!id) return;
       try {
         setLoading(true);
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL;
         const token = Cookies.get('token');
         
         if (!token) {
@@ -261,7 +261,7 @@ export default function CourseDetail() {
     setIsDeleting(true);
     
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       if (!token) {
@@ -292,7 +292,7 @@ export default function CourseDetail() {
     }
     
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       if (!token) {
@@ -328,7 +328,7 @@ export default function CourseDetail() {
 
   const getVideoStreamUrl = async (classId: string, retryCount = 0) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       const headers = { 

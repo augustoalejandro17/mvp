@@ -208,7 +208,7 @@ export default function Reports() {
   const loadUserSchools = async (userToken: DecodedToken) => {
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const userId = userToken.id || userToken.sub;
       const userRole = userToken.role?.toLowerCase();
 
@@ -248,7 +248,7 @@ export default function Reports() {
   const loadCourses = async (schoolId?: string) => {
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       // If no schoolId provided, clear courses
       if (!schoolId) {
@@ -293,7 +293,7 @@ export default function Reports() {
     
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       const params = new URLSearchParams({
         schoolId: selectedSchool,
@@ -338,7 +338,7 @@ export default function Reports() {
     
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       const params = new URLSearchParams({
         schoolId: selectedSchool,

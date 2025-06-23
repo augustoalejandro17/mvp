@@ -59,7 +59,7 @@ const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({
   const getCurrentUserRole = async () => {
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       // Obtener información del usuario actual
       const response = await axios.get(
@@ -85,7 +85,7 @@ const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({
     
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       const response = await axios.get(
         `${apiUrl}/api/schools`,
@@ -118,7 +118,7 @@ const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({
     
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       // Datos a enviar
       const postData = {

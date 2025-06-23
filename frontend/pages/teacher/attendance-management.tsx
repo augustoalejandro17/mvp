@@ -68,7 +68,7 @@ export default function AttendanceManagementPage() {
   const fetchCourses = useCallback(async () => {
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       const response = await axios.get(`${apiUrl}/api/courses/teaching`, {
@@ -92,7 +92,7 @@ export default function AttendanceManagementPage() {
     
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       const response = await axios.get(`${apiUrl}/api/classes?courseId=${courseId}`, {
@@ -115,7 +115,7 @@ export default function AttendanceManagementPage() {
     if (!classId) return;
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       // Use utility function to get UTC range for GMT-5 date
@@ -249,7 +249,7 @@ export default function AttendanceManagementPage() {
       setSaving(true);
       setError('');
       setSuccess('');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       // Convertir registros sin selección a 'ausente' (present: false)
       const processedRecords = attendances.map(a => ({

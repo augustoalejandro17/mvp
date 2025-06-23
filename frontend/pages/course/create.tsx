@@ -206,7 +206,7 @@ export default function CreateCourse() {
   const fetchSchools = async (token: string, userId: string, role: string) => {
     try {
       setLoadingSchools(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       // Para super_admin y admin, todas las escuelas son editables
       const isSuperOrAdmin = ['super_admin', 'admin'].includes(role);
@@ -291,7 +291,7 @@ export default function CreateCourse() {
         return;
       }
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const response = await axios.get(
         `${apiUrl}/api/users/teachers-by-school/${schoolId}`,
         { headers: { 'Authorization': `Bearer ${token}` } }
@@ -324,7 +324,7 @@ export default function CreateCourse() {
   const fetchCategories = async () => {
     try {
       setLoadingCategories(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       const response = await axios.get(`${apiUrl}/api/categories?hierarchical=true`);
       setCategories(response.data);
@@ -385,7 +385,7 @@ export default function CreateCourse() {
       setLoading(true);
       setError('');
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       if (!token) {

@@ -50,7 +50,7 @@ const UserSearch: React.FC<UserSearchProps> = ({
     
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       // Construir URL - siempre hacemos búsqueda global sin filtrar por escuela
       const url = `${apiUrl}/api/users/search-by-email?email=${encodeURIComponent(searchTerm)}`;

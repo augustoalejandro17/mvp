@@ -76,7 +76,7 @@ export default function SchoolDetail() {
 
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       const headers: any = { 'Content-Type': 'application/json' };
       
@@ -221,7 +221,7 @@ export default function SchoolDetail() {
     setIsDeleting(true);
     
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       if (!token) {

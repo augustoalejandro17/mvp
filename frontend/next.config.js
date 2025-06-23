@@ -5,14 +5,14 @@ const nextConfig = {
   env: {
     APP_NAME: 'Inti',
     APP_DESCRIPTION: 'Plataforma de aprendizaje en línea',
-    APP_URL: process.env.APP_URL || 'http://localhost:3000',
+    APP_URL: process.env.APP_URL,
   },
   images: {
     domains: ['img.youtube.com', 'digooy7d0nfl3.cloudfront.net'],
   },
   async rewrites() {
     // Obtener la URL del backend desde la variable de entorno
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
     
     // Solo aplicar rewrites en desarrollo
     if (process.env.NODE_ENV !== 'production') {

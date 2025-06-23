@@ -69,7 +69,7 @@ export default function AnalyticsPage() {
   const loadUserSchools = async (userToken: DecodedToken) => {
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const userId = userToken.id || userToken.sub;
       const userRole = userToken.role?.toLowerCase();
 
