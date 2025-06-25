@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -43,6 +44,7 @@ import { MigrationService } from './migrations/migration.service';
       isGlobal: true,
       load: [awsConfig],
     }),
+    ScheduleModule.forRoot(),
     MongooseModule.forRoot(process.env.MONGODB_URI),
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },

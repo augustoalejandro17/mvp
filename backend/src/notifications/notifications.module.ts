@@ -1,6 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { NotificationSchedulerService } from './notification-scheduler.service';
@@ -12,7 +11,6 @@ import { CoursesModule } from '../courses/courses.module';
 
 @Module({
   imports: [
-    ScheduleModule.forRoot(),
     MongooseModule.forFeature([
       { name: Notification.name, schema: NotificationSchema },
       { name: Course.name, schema: CourseSchema },
