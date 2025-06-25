@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # Install dependencies needed for building
 RUN apk add --no-cache \
@@ -27,7 +27,7 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Install ffmpeg, runtime dependencies and build tools for rebuilding native modules
 RUN apk add --no-cache \
@@ -65,7 +65,7 @@ RUN addgroup -S nodejs && adduser -S nodejs -G nodejs
 RUN chown -R nodejs:nodejs /usr/src/app && \
     chown -R nodejs:nodejs /tmp/videos
 
-# Set environment variable for temporary directory and CloudFront key path
+# Set environment variables for temporary directory and CloudFront key path
 ENV TEMP_VIDEO_DIR=/tmp/videos
 ENV AWS_CLOUDFRONT_PRIVATE_KEY_PATH=/usr/src/app/keys/private_key.pem
 
