@@ -61,7 +61,7 @@ export default function DropoutPage() {
       const token = Cookies.get('token');
       if (!token) return;
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const response = await fetch(`${apiUrl}/api/admin-stats/dropout`, {
         headers: {
           'Authorization': `Bearer ${token}`

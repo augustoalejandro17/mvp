@@ -64,11 +64,6 @@ export default function CourseSchedulePage() {
     }
   };
 
-  const handleScheduleUpdate = (schedule: any) => {
-    console.log('Schedule updated:', schedule);
-    // You could show a success message or refresh data here
-  };
-
   if (loading) {
     return (
       <Layout>
@@ -115,7 +110,6 @@ export default function CourseSchedulePage() {
 
         <CourseScheduleManager 
           courseId={id as string}
-          onScheduleUpdate={handleScheduleUpdate}
         />
       </div>
     </Layout>

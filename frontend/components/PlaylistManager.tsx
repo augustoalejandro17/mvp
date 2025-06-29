@@ -91,7 +91,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
 
   const fetchPlaylists = async (retryCount = 0, preserveExpandedState = false) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       const response = await axios.get(`${apiUrl}/api/playlists?courseId=${courseId}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -122,7 +122,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
 
   const fetchUnorganizedClasses = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       const response = await axios.get(`${apiUrl}/api/playlists/unorganized?courseId=${courseId}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -139,7 +139,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
     if (!newPlaylistName.trim()) return;
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       await axios.post(`${apiUrl}/api/playlists`, {
         name: newPlaylistName,
@@ -164,7 +164,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
     if (!editingPlaylist || !newPlaylistName.trim()) return;
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       await axios.patch(`${apiUrl}/api/playlists/${editingPlaylist._id}`, {
         name: newPlaylistName,
@@ -188,7 +188,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
     if (!confirm('¿Estás seguro de que quieres eliminar esta lista de reproducción?')) return;
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       await axios.delete(`${apiUrl}/api/playlists/${playlistId}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -203,7 +203,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
 
   const addClassToPlaylist = async (playlistId: string, classId: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       console.log('Adding class to playlist:', { playlistId, classId });
       await axios.post(`${apiUrl}/api/playlists/${playlistId}/add-class`, {
@@ -229,7 +229,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
 
   const reorderClassesInPlaylist = async (playlistId: string, classIds: string[]) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       await axios.post(`${apiUrl}/api/playlists/${playlistId}/reorder`, {
         classIds: classIds,
@@ -246,7 +246,7 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
 
   const removeClassFromPlaylist = async (playlistId: string, classId: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       await axios.post(`${apiUrl}/api/playlists/${playlistId}/remove-class`, {
         classId: classId,
@@ -332,8 +332,30 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
     setDraggedItem(null);
   };
 
+  // Check if the event target is the drag handle or its child
+  const isDragHandle = (element: Element | null): boolean => {
+    if (!element) return false;
+    
+    // Check if the element itself has the drag handle class
+    if (element.classList.contains(styles.dragHandle)) return true;
+    
+    // Check if any parent element has the drag handle class (for SVG icons)
+    let parent = element.parentElement;
+    while (parent && !parent.classList.contains(styles.classItem)) {
+      if (parent.classList.contains(styles.dragHandle)) return true;
+      parent = parent.parentElement;
+    }
+    
+    return false;
+  };
+
   // Mobile Touch handlers
   const handleTouchStart = (e: React.TouchEvent, classItem: Class, index: number, playlistId: string) => {
+    // Only start drag if touch started on the drag handle
+    if (!isDragHandle(e.target as Element)) {
+      return;
+    }
+    
     e.stopPropagation();
     
     const touch = e.touches[0];
@@ -551,19 +573,23 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
                         onClassSelect(classItem);
                         }
                       }}
-                      // Desktop drag and drop
-                      draggable={canModify && !playlist.isDefault && playlist.classes.length > 1}
-                      onDragStart={(e) => canModify && handleDragStart(e, classItem, index, playlist._id)}
+                      // Drop zone for desktop drag and drop
                       onDragOver={(e) => handleDragOver(e, index)}
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, index, playlist._id)}
-                      // Mobile touch events
+                      // Mobile touch events - only for detecting drag handle touch
                       onTouchStart={(e) => canModify && !playlist.isDefault && playlist.classes.length > 1 && handleTouchStart(e, classItem, index, playlist._id)}
                       onTouchMove={handleTouchMove}
                       onTouchEnd={handleTouchEnd}
                     >
                       {canModify && !playlist.isDefault && playlist.classes.length > 1 && (
-                        <FaGripVertical className={styles.dragHandle} />
+                        <div 
+                          className={styles.dragHandle}
+                          draggable={true}
+                          onDragStart={(e) => handleDragStart(e, classItem, index, playlist._id)}
+                        >
+                          <FaGripVertical />
+                        </div>
                       )}
                       <FaPlay className={styles.playIcon} />
                       <div className={styles.classInfo}>

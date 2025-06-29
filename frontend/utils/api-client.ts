@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosR
 import Cookies from 'js-cookie';
 import { getToken, clearAuth } from './auth';
 
-const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const baseURL = process.env.NEXT_PUBLIC_API_URL;
 
 console.log('API Base URL:', baseURL); // Para debugging
 

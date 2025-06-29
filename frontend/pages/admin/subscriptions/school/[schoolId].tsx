@@ -120,7 +120,7 @@ export default function SchoolSubscriptionManager() {
       const token = Cookies.get('token');
       if (!token) return;
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const response = await fetch(`${apiUrl}/api/admin/academies/${schoolId}/plan`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -217,7 +217,7 @@ export default function SchoolSubscriptionManager() {
       const token = Cookies.get('token');
       if (!token) return;
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const response = await fetch(`${apiUrl}/api/admin/academies/${schoolId}/overages`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -245,7 +245,7 @@ export default function SchoolSubscriptionManager() {
       if (!token) return;
       
       // Assign plan
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const planResponse = await fetch(`${apiUrl}/api/admin/academies/${schoolId}/plan`, {
         method: 'PUT',
         headers: {

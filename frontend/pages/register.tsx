@@ -30,7 +30,7 @@ export default function Register() {
       setLoading(true);
       setError('');
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       const requestData: any = { name, email, password };
       if (age && !isNaN(Number(age)) && Number(age) > 0) {

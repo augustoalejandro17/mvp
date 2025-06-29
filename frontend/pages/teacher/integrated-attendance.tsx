@@ -112,7 +112,7 @@ export default function IntegratedAttendancePage() {
   const fetchCourses = useCallback(async () => {
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       const response = await axios.get(`${apiUrl}/api/courses/teaching`, {
@@ -135,7 +135,7 @@ export default function IntegratedAttendancePage() {
     if (!courseId) return;
     
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       const response = await axios.get(`${apiUrl}/api/courses/${courseId}/enrollments`, {
@@ -154,7 +154,7 @@ export default function IntegratedAttendancePage() {
     if (!courseId || !selectedDate) return;
     
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       // Extract month and year from the selected date string (YYYY-MM-DD format)
@@ -179,7 +179,7 @@ export default function IntegratedAttendancePage() {
     
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       // Use utility function to get UTC range for GMT-5 date
@@ -326,7 +326,7 @@ export default function IntegratedAttendancePage() {
       setError('');
       setSuccess('');
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       // Use utility function to convert GMT-5 date to UTC

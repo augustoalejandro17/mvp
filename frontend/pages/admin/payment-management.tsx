@@ -80,7 +80,7 @@ const PaymentManagement = () => {
     try {
       setLoading(true);
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const response = await axios.get(`${apiUrl}/api/courses`, {
         headers: {
           Authorization: `Bearer ${token}`
@@ -100,7 +100,7 @@ const PaymentManagement = () => {
     try {
       setLoading(true);
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const response = await axios.get(`${apiUrl}/api/courses/${courseId}/enrollments`, {
         headers: {
           Authorization: `Bearer ${token}`
@@ -173,7 +173,7 @@ const PaymentManagement = () => {
       closePaymentModal();
       
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       await axios.put(
         `${apiUrl}/api/courses/${selectedCourse}/enrollment/${studentId}`,
         { paymentStatus: isPaid, paymentNotes: notes },

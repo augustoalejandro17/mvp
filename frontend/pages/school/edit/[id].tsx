@@ -49,7 +49,7 @@ export default function EditSchool() {
     setError('');
     
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const response = await axios.get(
         `${apiUrl}/api/schools/${schoolId}`,
         {
@@ -143,7 +143,7 @@ export default function EditSchool() {
     }
     
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       const schoolData = {
         name,

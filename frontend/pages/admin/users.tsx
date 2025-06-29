@@ -146,7 +146,7 @@ export default function UserManagement() {
   const getUserCourses = useCallback(async (userId: string) => {
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       // Primero, obtener la información directa del usuario para garantizar acceso a enrolledCourses
       const userResponse = await axios.get(`${apiUrl}/api/users/${userId}`, {
@@ -347,7 +347,7 @@ export default function UserManagement() {
         return;
       }
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       // 1. Fetch Users
       const usersResponse = await axios.get(`${apiUrl}/api/users`, {
@@ -378,7 +378,7 @@ export default function UserManagement() {
       return;
     }
     
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
     try {
       // setLoading(true); // Consider if a separate loading for secondary is needed
@@ -468,7 +468,7 @@ export default function UserManagement() {
         return false;
       }
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       // Cargar escuelas
       const schoolsResponse = await axios.get(`${apiUrl}/api/schools`, {
@@ -641,7 +641,7 @@ export default function UserManagement() {
     
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       if (createUserType === UserType.REGISTERED) {
         // Crear usuario registrado con acceso a la plataforma
@@ -786,7 +786,7 @@ export default function UserManagement() {
     
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       // Convertir el usuario no registrado existente a registrado
       const response = await axios.post(
@@ -847,7 +847,7 @@ ${newStatus === 'active' ? '• El usuario tendrá acceso completo' : ''}`;
     
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       await axios.patch(`${apiUrl}/api/users/${userId}/status`, {
         status: newStatus,
@@ -897,7 +897,7 @@ Para reactivar el usuario más tarde, contacta al administrador.`;
     
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       // Usar PATCH en lugar de DELETE para cambiar status
       await axios.patch(`${apiUrl}/api/users/${userId}/status`, {
@@ -948,7 +948,7 @@ Para reactivar el usuario más tarde, contacta al administrador.`;
     
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       if (!selectedUser) return;
       
@@ -1051,7 +1051,7 @@ Para reactivar el usuario más tarde, contacta al administrador.`;
     
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       if (!selectedUser || !formData.course) return;
       
@@ -1205,7 +1205,7 @@ IMPORTANTE: Esta acción:
     setLoading(true);
     
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       if (!token) {
@@ -1280,7 +1280,7 @@ IMPORTANTE: Esta acción:
       setLoading(true);
       
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       // Preparar información del mes para incluir en las notas si está disponible
       let paymentNotes = notes;

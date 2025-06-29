@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ScheduleModule } from '@nestjs/schedule';
 import { StatisticsController } from './statistics.controller';
 
 import { StatisticsService } from './services/statistics.service';
@@ -15,7 +14,6 @@ import { Enrollment, EnrollmentSchema } from '../enrollments/schemas/enrollment.
 
 @Module({
   imports: [
-    ScheduleModule.forRoot(),
     MongooseModule.forFeature([
       { name: DailySnapshot.name, schema: DailySnapshotSchema },
       { name: User.name, schema: UserSchema },

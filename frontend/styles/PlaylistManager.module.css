@@ -333,11 +333,11 @@
   gap: 0.75rem;
 }
 
-.classItem[draggable="true"] {
+.dragHandle[draggable="true"] {
   cursor: grab;
 }
 
-.classItem[draggable="true"]:active {
+.dragHandle[draggable="true"]:active {
   cursor: grabbing;
   opacity: 0.8;
 }

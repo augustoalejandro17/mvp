@@ -85,7 +85,7 @@ export default function EditCourse() {
     setError('');
     
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const response = await axios.get(
         `${apiUrl}/api/courses/${courseId}?includeSchedule=true`,
         {
@@ -186,7 +186,7 @@ export default function EditCourse() {
         throw new Error('No active session');
       }
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const response = await axios.get(
         `${apiUrl}/api/schools/${schoolId}/teachers`,
         {
@@ -244,7 +244,7 @@ export default function EditCourse() {
 
   const fetchSchools = async (token: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const response = await axios.get(
         `${apiUrl}/api/schools`,
         {
@@ -265,7 +265,7 @@ export default function EditCourse() {
   const fetchCategories = async () => {
     try {
       setLoadingCategories(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       const response = await axios.get(`${apiUrl}/api/categories?hierarchical=true`);
       setCategories(response.data);
@@ -336,7 +336,7 @@ export default function EditCourse() {
     }
     
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       // Crear array de profesores con el principal primero
       const allTeachers = [teacherId, ...additionalTeachers];

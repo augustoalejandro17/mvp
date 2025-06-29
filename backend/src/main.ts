@@ -1,3 +1,6 @@
+// Import comprehensive crypto polyfill for Docker/Alpine environments
+import './crypto-polyfill';
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger, ValidationPipe } from '@nestjs/common';

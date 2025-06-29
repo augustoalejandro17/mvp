@@ -104,7 +104,7 @@ export default function BulkUploadPage() {
     try {
       setLoading(true);
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       const response = await axios.get(`${apiUrl}/api/schools`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -162,7 +162,7 @@ export default function BulkUploadPage() {
       formData.append('file', selectedFile);
       
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       const response = await axios.post(`${apiUrl}/api/bulk-upload/parse-excel`, formData, {
         headers: {
@@ -201,7 +201,7 @@ export default function BulkUploadPage() {
       formData.append('studentType', config.studentType);
       
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       const response = await axios.post(`${apiUrl}/api/bulk-upload/process`, formData, {
         headers: {

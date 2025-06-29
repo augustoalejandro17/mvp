@@ -19,7 +19,7 @@ export default function Login() {
       setLoading(true);
       setError('');
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       const response = await axios.post(
         `${apiUrl}/api/auth/login`, 

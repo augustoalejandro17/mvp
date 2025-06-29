@@ -75,7 +75,7 @@ export default function Profile() {
         throw new Error('Not authenticated');
       }
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       await axios.patch(
         `${apiUrl}/api/users/${user.id}`, 
         { name },
@@ -149,7 +149,7 @@ export default function Profile() {
         throw new Error('Not authenticated');
       }
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       await axios.patch(
         `${apiUrl}/api/users/${user.id}/password`, 
         { 

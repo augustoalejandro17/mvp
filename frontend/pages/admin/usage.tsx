@@ -54,7 +54,7 @@ export default function UsageTrackingPage() {
 
   const fetchUserSchools = async (token: string, user: DecodedToken) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       // Fetch schools based on user role
       let response;

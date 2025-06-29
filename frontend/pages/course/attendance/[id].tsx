@@ -99,7 +99,7 @@ export default function AttendancePage() {
   const fetchCourse = useCallback(async () => {
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       const response = await axios.get(`${apiUrl}/api/courses/${id}`, {
@@ -144,7 +144,7 @@ export default function AttendancePage() {
     
     try {
       setLoadingUnpaid(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       // Extract month and year from the selected date string (YYYY-MM-DD format)
@@ -174,7 +174,7 @@ export default function AttendancePage() {
     try {
       setLoading(true);
       setError('');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       // Convert GMT-5 date to UTC for backend query
@@ -424,7 +424,7 @@ export default function AttendancePage() {
     
     try {
       // Llamar a la API para crear el asistente permanentemente
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       // Usar la misma API que usa el admin para crear asistentes
@@ -475,7 +475,7 @@ export default function AttendancePage() {
       setSuccess('');
       
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       const attendancesToSave = attendances
@@ -654,7 +654,7 @@ export default function AttendancePage() {
         return;
       }
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       // Usar el nuevo endpoint que retorna todas las asistencias del mes

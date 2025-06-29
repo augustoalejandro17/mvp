@@ -98,7 +98,7 @@ export default function AdminDashboard() {
     setError('');
     
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       // Obtener escuelas
       const schoolsResponse = await axios.get(

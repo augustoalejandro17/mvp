@@ -64,7 +64,7 @@ export default function EditClass() {
   // Fetch available courses
   const fetchCourses = useCallback(async (token: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const response = await axios.get(`${apiUrl}/api/courses`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -83,7 +83,7 @@ export default function EditClass() {
     
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       const headers = { 
@@ -177,7 +177,7 @@ export default function EditClass() {
       setError('');
       
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       let response;
       

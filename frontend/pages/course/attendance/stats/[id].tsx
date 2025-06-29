@@ -47,7 +47,7 @@ export default function AttendanceStatsPage() {
   const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
       
       const response = await axios.get(`${apiUrl}/api/attendance/stats/course/${id}`, {

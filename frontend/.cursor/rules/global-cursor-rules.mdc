@@ -1,6 +1,6 @@
 ---
 description: Global Cursor Rules
-globs:
+globs: 
 alwaysApply: false
 ---
 // These are the rules created and used by the official Cursor team.
@@ -9,6 +9,7 @@ alwaysApply: false
 
 DO NOT GIVE ME HIGH LEVEL SHIT, IF I ASK FOR FIX OR EXPLANATION, I WANT ACTUAL CODE OR EXPLANATION!!! I DON'T WANT "Here's how you can blablabla"
 
+- Do not auto commit or push to git
 - Be casual unless otherwise specified
 - Be terse
 - Suggest solutions that I didn't think about—anticipate my needs

@@ -83,7 +83,7 @@ export default function SubscriptionsManager() {
         return;
       }
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const response = await fetch(`${apiUrl}/api/admin/stats/subscriptions`, {
         headers: {
           'Authorization': `Bearer ${token}`
