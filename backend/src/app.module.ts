@@ -20,11 +20,11 @@ import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { BulkUploadModule } from './bulk-upload/bulk-upload.module';
 import { UsageModule } from './usage/usage.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { VideosModule } from './videos/videos.module';
 import awsConfig from './config/aws.config';
 import { S3Service } from './services/s3.service';
 import { CloudFrontService } from './services/cloudfront.service';
 import { ImagesController } from './controllers/images.controller';
-import { VideosController } from './controllers/videos.controller';
 import { SubscriptionAdminController } from './controllers/subscription-admin.controller';
 import { AdminStatsController } from './controllers/admin-stats.controller';
 import { ApiStatsController } from './controllers/api-stats.controller';
@@ -71,11 +71,12 @@ import { MigrationService } from './migrations/migration.service';
     BulkUploadModule,
     UsageModule,
     NotificationsModule,
+    VideosModule,
   ],
   controllers: [
     AppController, 
     ImagesController,
-    VideosController,
+    SubscriptionAdminController,
     UserOwnedSchoolsController,
     UserAdministeredSchoolsController,
     AdminStatsController,

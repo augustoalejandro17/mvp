@@ -110,7 +110,7 @@ export class S3Service {
 
     // Limpiar la key si viene con la URL completa
     let cleanKey = key;
-    if (key.includes('amazonaws.com')) {
+    if (key && key.includes('amazonaws.com')) {
       cleanKey = this.getKeyFromUrl(key);
       
     }

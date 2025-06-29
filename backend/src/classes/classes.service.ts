@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, UnauthorizedException, InternalServerErrorException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Document } from 'mongoose';
 import { Class, ClassDocument } from './schemas/class.schema';
@@ -160,7 +160,9 @@ export class ClassesService {
               fileSizeBytes: videoFile.size,
               fileName: videoFile.originalname,
               uploadedBy: teacherId,
-              schoolId: course.school.toString(),
+              schoolId: typeof course.school === 'object' && course.school !== null && '_id' in course.school 
+                ? (course.school as any)._id.toString() 
+                : course.school.toString(),
               relatedCourse: createClassDto.courseId,
               relatedClass: savedClass._id.toString()
             });
@@ -761,6 +763,103 @@ export class ClassesService {
       this.logger.error(`Error al actualizar la clase con nuevo video: ${error.message}`, error.stack);
       throw new InternalServerErrorException(`Error al actualizar la clase: ${error.message}`);
     }
+  }
+
+  /**
+   * Create class with worker-based video processing
+   */
+  async createWithWorkerProcessing(createClassDto: CreateClassDto, teacherId: string, videoFile?: Express.Multer.File): Promise<Class> {
+    this.logger.log(`Creating class with worker processing: ${createClassDto.title}`);
+    this.logger.log(`Teacher ID: ${teacherId}`);
+    this.logger.log(`Video file: ${videoFile ? videoFile.originalname : 'None'}`);
+
+    const course = await this.coursesService.findOne(createClassDto.courseId);
+    if (!course) {
+      throw new NotFoundException(`Course not found: ${createClassDto.courseId}`);
+    }
+
+    // Verify teacher permissions (simplified version)
+    if (course.teacher && course.teacher.toString() !== teacherId) {
+      const user = await this.userModel.findById(teacherId);
+      const allowedRoles = [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE];
+      
+      if (!user || !allowedRoles.includes(user.role)) {
+        throw new ForbiddenException('You are not authorized to create a class for this course');
+      }
+    }
+
+    // Create class first without video
+    const classData: any = {
+      ...createClassDto,
+      teacher: teacherId,
+      course: createClassDto.courseId,
+      videoUrl: null,
+      tempVideoKey: null,
+      videoProcessingError: null
+    };
+
+    // Only set videoStatus if video is provided, otherwise let schema default handle it
+    if (videoFile) {
+      classData.videoStatus = VideoStatus.UPLOADING;
+    }
+
+    const newClass = new this.classModel(classData);
+
+    const savedClass = await newClass.save();
+
+    // If video file provided, upload to temp bucket for worker processing
+    if (videoFile) {
+      try {
+        const schoolId = typeof course.school === 'object' && course.school !== null && '_id' in course.school 
+          ? (course.school as any)._id.toString() 
+          : course.school.toString();
+        
+        // Generate presigned URL for temp bucket upload
+        const { uploadUrl, key } = await this.s3Service.generatePresignedUploadUrl(
+          videoFile.originalname,
+          videoFile.mimetype,
+          schoolId,
+          savedClass._id.toString()
+        );
+
+        // Upload directly to temp bucket using fetch
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'PUT',
+          body: videoFile.buffer,
+          headers: {
+            'Content-Type': videoFile.mimetype,
+          },
+        });
+        
+        if (!uploadResponse.ok) {
+          throw new Error(`Upload failed with status ${uploadResponse.status}`);
+        }
+
+        // Update class with temp key and uploading status
+        await this.updateVideoStatus(
+          savedClass._id.toString(),
+          VideoStatus.UPLOADING,
+          key
+        );
+
+        this.logger.log(`Video uploaded to temp bucket for worker processing: ${key}`);
+        
+      } catch (error) {
+        this.logger.error(`Error uploading to temp bucket: ${error.message}`, error.stack);
+        
+        // Update class with error status
+        await this.updateVideoStatus(
+          savedClass._id.toString(),
+          VideoStatus.ERROR,
+          undefined,
+          `Upload failed: ${error.message}`
+        );
+        
+        throw new InternalServerErrorException(`Error uploading video: ${error.message}`);
+      }
+    }
+
+    return savedClass;
   }
 
   /**

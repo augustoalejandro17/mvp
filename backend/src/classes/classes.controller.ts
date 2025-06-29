@@ -46,6 +46,19 @@ export class ClassesController {
         throw new NotFoundException(`Clase con ID ${id} no encontrada`);
       }
       
+      // Check video processing status
+      if (!classItem.videoUrl) {
+        const status = classItem.videoStatus || 'NONE';
+        return {
+          success: false,
+          status: status,
+          message: status === 'UPLOADING' ? 'Video siendo subido' :
+                   status === 'PROCESSING' ? 'Video siendo procesado' :
+                   'Video no disponible',
+          title: classItem.title
+        };
+      }
+      
       // Generar una URL específica para streaming (no descarga)
       const streamUrl = await this.classesService.getSignedUrlForStreaming(classItem.videoUrl);
       
@@ -74,6 +87,16 @@ export class ClassesController {
       
       if (!classItem) {
         throw new NotFoundException(`Class with ID ${id} not found`);
+      }
+      
+      // Check if video is available for download
+      if (!classItem.videoUrl) {
+        const status = classItem.videoStatus || 'NONE';
+        throw new BadRequestException(
+          status === 'UPLOADING' ? 'Video siendo subido' :
+          status === 'PROCESSING' ? 'Video siendo procesado' :
+          'Video no disponible para descarga'
+        );
       }
       
       // Generate a URL specifically for download
@@ -175,7 +198,8 @@ export class ClassesController {
     
     
     try {
-      return await this.classesService.create(createClassDto, userId, file);
+      // Use worker-based processing for better scalability
+      return await this.classesService.createWithWorkerProcessing(createClassDto, userId, file);
     } catch (error) {
       this.logger.error(`Error al crear la clase: ${error.message}`, error.stack);
       throw error;

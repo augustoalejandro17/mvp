@@ -24,6 +24,8 @@ interface Class {
   title: string;
   description: string;
   videoUrl: string;
+  videoStatus?: 'UPLOADING' | 'PROCESSING' | 'READY' | 'ERROR';
+  videoProcessingError?: string;
   thumbnailUrl?: string;
   duration?: number;
   order: number;
@@ -43,6 +45,7 @@ interface PlaylistManagerProps {
   onClassView?: (classItem: Class) => void;
   onClassEdit?: (classId: string) => void;
   onClassDelete?: (classId: string) => void;
+  refreshTrigger?: number; // Add refresh trigger prop
 }
 
 interface DragState {
@@ -55,7 +58,7 @@ interface DragState {
   element?: HTMLElement;
 }
 
-export default function PlaylistManager({ courseId, onClassSelect, selectedClass, canModify, onClassView, onClassEdit, onClassDelete }: PlaylistManagerProps) {
+export default function PlaylistManager({ courseId, onClassSelect, selectedClass, canModify, onClassView, onClassEdit, onClassDelete, refreshTrigger }: PlaylistManagerProps) {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [unorganizedClasses, setUnorganizedClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +80,34 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
     fetchPlaylists();
     fetchUnorganizedClasses();
   }, [courseId]);
+
+  // Refresh when refreshTrigger changes
+  useEffect(() => {
+    if (refreshTrigger !== undefined) {
+      fetchPlaylists();
+      fetchUnorganizedClasses();
+    }
+  }, [refreshTrigger]);
+
+  // Auto-refresh to check for video processing updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Check if there are any processing videos
+      const hasProcessingVideos = [...playlists, ...unorganizedClasses]
+        .flatMap(item => 'classes' in item ? item.classes : [item])
+        .some(classItem => 
+          classItem.videoStatus === 'UPLOADING' || 
+          classItem.videoStatus === 'PROCESSING'
+        );
+      
+      if (hasProcessingVideos) {
+        fetchPlaylists(0, true);
+        fetchUnorganizedClasses();
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [playlists, unorganizedClasses]);
 
   // Clean up touch drag state when component unmounts
   useEffect(() => {
@@ -591,9 +622,28 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
                           <FaGripVertical />
                         </div>
                       )}
-                      <FaPlay className={styles.playIcon} />
+                      {classItem.videoStatus === 'UPLOADING' ? (
+                        <span className={`${styles.playIcon} ${styles.statusIcon}`} style={{color: '#ffc107'}}>⬆️</span>
+                      ) : classItem.videoStatus === 'PROCESSING' ? (
+                        <span className={`${styles.playIcon} ${styles.statusIcon}`} style={{color: '#ffc107'}}>⚙️</span>
+                      ) : classItem.videoStatus === 'ERROR' ? (
+                        <span className={`${styles.playIcon} ${styles.statusIcon}`} style={{color: '#e53e3e'}}>❌</span>
+                      ) : (
+                        <FaPlay className={styles.playIcon} />
+                      )}
                       <div className={styles.classInfo}>
-                        <span className={styles.classTitle}>{classItem.title}</span>
+                        <span className={styles.classTitle}>
+                          {classItem.title}
+                          {classItem.videoStatus === 'UPLOADING' && (
+                            <span className={styles.statusBadge} style={{backgroundColor: '#ffc107'}}>Subiendo</span>
+                          )}
+                          {classItem.videoStatus === 'PROCESSING' && (
+                            <span className={styles.statusBadge} style={{backgroundColor: '#ffc107'}}>Procesando</span>
+                          )}
+                          {classItem.videoStatus === 'ERROR' && (
+                            <span className={styles.statusBadge} style={{backgroundColor: '#e53e3e'}}>Error</span>
+                          )}
+                        </span>
                         {classItem.duration && (
                           <span className={styles.duration}>
                             {Math.floor(classItem.duration / 60)}:{(classItem.duration % 60).toString().padStart(2, '0')}
@@ -672,9 +722,28 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
                       onClassSelect(classItem);
                     }}
                   >
-                    <FaPlay className={styles.playIcon} />
+                    {classItem.videoStatus === 'UPLOADING' ? (
+                      <span className={`${styles.playIcon} ${styles.statusIcon}`} style={{color: '#ffc107'}}>⬆️</span>
+                    ) : classItem.videoStatus === 'PROCESSING' ? (
+                      <span className={`${styles.playIcon} ${styles.statusIcon}`} style={{color: '#ffc107'}}>⚙️</span>
+                    ) : classItem.videoStatus === 'ERROR' ? (
+                      <span className={`${styles.playIcon} ${styles.statusIcon}`} style={{color: '#e53e3e'}}>❌</span>
+                    ) : (
+                      <FaPlay className={styles.playIcon} />
+                    )}
                     <div className={styles.classInfo}>
-                      <span className={styles.classTitle}>{classItem.title}</span>
+                      <span className={styles.classTitle}>
+                        {classItem.title}
+                        {classItem.videoStatus === 'UPLOADING' && (
+                          <span className={styles.statusBadge} style={{backgroundColor: '#ffc107'}}>Subiendo</span>
+                        )}
+                        {classItem.videoStatus === 'PROCESSING' && (
+                          <span className={styles.statusBadge} style={{backgroundColor: '#ffc107'}}>Procesando</span>
+                        )}
+                        {classItem.videoStatus === 'ERROR' && (
+                          <span className={styles.statusBadge} style={{backgroundColor: '#e53e3e'}}>Error</span>
+                        )}
+                      </span>
                       {classItem.duration && (
                         <span className={styles.duration}>
                           {Math.floor(classItem.duration / 60)}:{(classItem.duration % 60).toString().padStart(2, '0')}

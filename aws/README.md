@@ -52,3 +52,23 @@ $ sudo rm /usr/local/bin/aws_completer
 Note if you installed the AWS CLI v2 using the `-b` or `-i` options, you will
 need to remove the installation and the symlinks in the directories you
 specified.
+
+---
+
+## Infrastructure Services
+
+This project deploys the following AWS ECS services:
+
+- **Backend API**: ECS Fargate service running NestJS backend
+- **Frontend**: ECS Fargate service running Next.js frontend  
+- **Video Worker**: ECS Fargate service for video processing
+
+### Video Worker Setup
+
+For complete video worker deployment instructions, see [video-worker-setup.md](./video-worker-setup.md).
+
+The video worker processes uploaded videos by:
+1. Monitoring temp S3 bucket for new uploads
+2. Processing videos with FFmpeg (720p, H.264, web-optimized)
+3. Uploading processed videos to final S3 bucket
+4. Updating video status via backend API

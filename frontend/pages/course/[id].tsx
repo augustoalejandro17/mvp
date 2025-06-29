@@ -36,6 +36,8 @@ interface Class {
   title: string;
   description: string;
   videoUrl: string;
+  videoStatus?: 'UPLOADING' | 'PROCESSING' | 'READY' | 'ERROR';
+  videoProcessingError?: string;
   thumbnailUrl?: string;
   duration?: number;
   order: number;
@@ -67,6 +69,7 @@ export default function CourseDetail() {
   const { handleApiError } = useApiErrorHandler();
   const [videoStreamUrl, setVideoStreamUrl] = useState<string | null>(null);
   const [videoLoadError, setVideoLoadError] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const videoColumnRef = useRef<HTMLDivElement>(null);
 
@@ -311,6 +314,9 @@ export default function CourseDetail() {
       if (selectedClass && selectedClass._id === classId) {
         setSelectedClass(null);
       }
+      
+      // Trigger refresh of PlaylistManager
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Error al eliminar la clase:', error);
       setError(handleApiError(error));
@@ -435,6 +441,7 @@ export default function CourseDetail() {
               onClassView={handleClassView}
               onClassEdit={handleClassEdit}
               onClassDelete={handleDeleteClass}
+              refreshTrigger={refreshTrigger}
             />
             
             {canModifyThisCourse() && (
@@ -473,7 +480,56 @@ export default function CourseDetail() {
                   overflow: 'visible',
                   position: 'relative'
                 }}>
-                  {selectedClass.videoUrl ? (
+                  {selectedClass.videoStatus === 'UPLOADING' ? (
+                    <div style={{
+                      padding: "20px",
+                      textAlign: "center",
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      background: "#000",
+                      width: "100%"
+                    }}>
+                      <div style={{color: "#ffc107", fontSize: "48px", marginBottom: "20px"}}>⬆️</div>
+                      <p style={{color: "white", fontSize: "18px", marginBottom: "10px", fontWeight: "bold"}}>Subiendo video...</p>
+                      <p style={{color: "#a0aec0", fontSize: "14px"}}>Tu video se está subiendo al servidor</p>
+                    </div>
+                  ) : selectedClass.videoStatus === 'PROCESSING' ? (
+                    <div style={{
+                      padding: "20px",
+                      textAlign: "center",
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      background: "#000",
+                      width: "100%"
+                    }}>
+                      <div style={{color: "#ffc107", fontSize: "48px", marginBottom: "20px"}}>⚙️</div>
+                      <p style={{color: "white", fontSize: "18px", marginBottom: "10px", fontWeight: "bold"}}>Procesando video...</p>
+                      <p style={{color: "#a0aec0", fontSize: "14px", marginBottom: "5px"}}>Optimizando calidad y formato</p>
+                      <p style={{color: "#a0aec0", fontSize: "12px"}}>Esto puede tomar unos minutos</p>
+                    </div>
+                  ) : selectedClass.videoStatus === 'ERROR' ? (
+                    <div style={{
+                      padding: "20px",
+                      textAlign: "center",
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      background: "#000",
+                      width: "100%"
+                    }}>
+                      <div style={{color: "#e53e3e", fontSize: "48px", marginBottom: "20px"}}>❌</div>
+                      <p style={{color: "white", fontSize: "18px", marginBottom: "10px", fontWeight: "bold"}}>Error procesando video</p>
+                      <p style={{color: "#a0aec0", fontSize: "14px"}}>{selectedClass.videoProcessingError || 'Error desconocido'}</p>
+                    </div>
+                  ) : selectedClass.videoUrl && selectedClass.videoStatus === 'READY' ? (
                     videoLoadError ? (
                       <div style={{
                         padding: "20px", 

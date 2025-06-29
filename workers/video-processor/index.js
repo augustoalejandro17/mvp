@@ -172,8 +172,8 @@ class VideoProcessor {
   isRecentUpload(lastModified) {
     const now = new Date();
     const uploadTime = new Date(lastModified);
-    const diffMinutes = (now - uploadTime) / (1000 * 60);
-    return diffMinutes < 2; // Wait at least 2 minutes after upload
+    const diffSeconds = (now - uploadTime) / 1000;
+    return diffSeconds < 30; // Wait at least 30 seconds after upload (reduced for development)
   }
 
   /**
@@ -266,7 +266,6 @@ class VideoProcessor {
           '-c:v libx264',           // H.264 codec
           '-preset fast',           // Balance speed/quality
           '-crf 23',               // Quality setting
-          '-s 1280x720',           // Scale to 720p
           '-metadata:s:v rotate=0', // Reset rotation metadata
           '-acodec aac',           // AAC audio codec
           '-b:a 128k',             // Audio bitrate
