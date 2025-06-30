@@ -14,6 +14,40 @@ export enum UserRole {
   UNREGISTERED = 'unregistered'
 }
 
+// Enum for onboarding steps
+export enum OnboardingStep {
+  WELCOME = 'welcome',
+  USER_TYPE_SELECTION = 'user_type_selection',
+  PROFILE_COMPLETION = 'profile_completion',
+  SCHOOL_SETUP = 'school_setup',
+  QUICK_TOUR = 'quick_tour',
+  COMPLETED = 'completed'
+}
+
+// Schema for onboarding progress tracking
+@Schema({ _id: false })
+export class OnboardingProgress {
+  @Prop({ type: String, enum: Object.values(OnboardingStep), default: OnboardingStep.WELCOME })
+  currentStep: OnboardingStep;
+
+  @Prop({ type: [String], enum: Object.values(OnboardingStep), default: [] })
+  completedSteps: OnboardingStep[];
+
+  @Prop({ default: Date.now })
+  startedAt: Date;
+
+  @Prop({ required: false })
+  completedAt?: Date;
+
+  @Prop({ default: false })
+  isCompleted: boolean;
+
+  @Prop({ type: Map, of: mongoose.Schema.Types.Mixed, default: {} })
+  stepData: Map<string, any>; // Store step-specific data like profile completion progress
+}
+
+export const OnboardingProgressSchema = SchemaFactory.createForClass(OnboardingProgress);
+
 // Esquema para roles contextuales (por escuela)
 @Schema({ _id: false })
 export class UserSchoolRole {
@@ -45,6 +79,29 @@ export class User {
 
   @Prop()
   lastName: string;
+
+  // Onboarding fields
+  @Prop({ default: false })
+  hasOnboarded: boolean;
+
+  @Prop({ type: OnboardingProgressSchema, default: () => ({}) })
+  onboardingProgress: OnboardingProgress;
+
+  @Prop({ required: false })
+  dateOfBirth?: Date;
+
+  @Prop({ required: false })
+  phone?: string;
+
+  @Prop({ required: false })
+  profileImageUrl?: string;
+
+  @Prop({ required: false })
+  bio?: string;
+
+  // Profile completion tracking
+  @Prop({ default: 0, min: 0, max: 100 })
+  profileCompletionPercentage: number;
 
   // Rol global del usuario (su rol principal)
   @Prop({ required: true, enum: UserRole, default: UserRole.STUDENT })

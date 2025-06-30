@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import axios from 'axios';
+import Cookies from 'js-cookie';
 import styles from '../styles/Login.module.css';
 import { useApiErrorHandler } from '../utils/api-error-handler';
 
@@ -43,12 +44,22 @@ export default function Register() {
         { headers: { 'Content-Type': 'application/json' } }
       );
       
-      setSuccess(true);
-      
-      // Redirect to login after 2 seconds using window.location for full page reload
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 2000);
+      // If registration includes a token (auto-login), store it and redirect to onboarding
+      if (response.data.token) {
+        Cookies.set('token', response.data.token, { expires: 7 });
+        setSuccess(true);
+        
+        // Redirect to onboarding after showing success message
+        setTimeout(() => {
+          router.push('/onboarding');
+        }, 1500);
+      } else {
+        // Fallback: redirect to login if no token provided
+        setSuccess(true);
+        setTimeout(() => {
+          router.push('/login');
+        }, 2000);
+      }
       
     } catch (error: any) {
       console.error('Registration error:', error);
@@ -65,7 +76,7 @@ export default function Register() {
         
         {success ? (
           <div className={styles.successMessage}>
-            <p>Registration successful! Redirecting to login...</p>
+            <p>¡Registro exitoso! Te redirigiremos para configurar tu cuenta...</p>
           </div>
         ) : (
           <form className={styles.form} onSubmit={handleSubmit}>

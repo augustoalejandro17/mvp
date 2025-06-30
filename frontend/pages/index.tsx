@@ -28,13 +28,42 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [user, setUser] = useState<{id: string; email: string; name: string; role: string} | null>(null);
+  const [showOnboardingSuccess, setShowOnboardingSuccess] = useState(false);
 
   useEffect(() => {
-    const checkAuth = () => {
+    // Check for onboarding completion
+    if (router.query.onboarded === 'true') {
+      setShowOnboardingSuccess(true);
+      // Remove the query parameter from URL
+      router.replace('/', undefined, { shallow: true });
+      // Hide the success message after 5 seconds
+      setTimeout(() => setShowOnboardingSuccess(false), 5000);
+    }
+
+    const checkAuth = async () => {
       const token = Cookies.get('token');
       if (token) {
         try {
           const decoded = jwtDecode<DecodedToken>(token);
+          
+          // Check if user needs onboarding
+          try {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+            const profileResponse = await axios.get(`${apiUrl}/api/auth/profile`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            const userProfile = profileResponse.data;
+            
+            // If user hasn't completed onboarding, redirect to onboarding
+            if (!userProfile.hasOnboarded && router.pathname !== '/onboarding') {
+              router.push('/onboarding');
+              return;
+            }
+          } catch (profileError) {
+            console.error('Error checking onboarding status:', profileError);
+          }
+          
           setUser({
             id: decoded.sub,
             email: decoded.email,
@@ -76,7 +105,7 @@ export default function Home() {
 
     checkAuth();
     fetchSchools();
-  }, []);
+  }, [router]);
 
   const handleSchoolClick = (schoolId: string) => {
     router.push(`/school/${schoolId}`);
@@ -95,6 +124,11 @@ export default function Home() {
   return (
     <div className={styles.container}>
       <main className={styles.main}>
+        {showOnboardingSuccess && (
+          <div className={styles.successMessage}>
+            🎉 ¡Configuración completada! Tu cuenta está lista para usar.
+          </div>
+        )}
         <h1 className={styles.title}>
           Bienvenido{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
         </h1>

@@ -31,7 +31,25 @@ export default function Login() {
       // Set cookie to expire in 8 hours (0.33 days)
       Cookies.set('token', token, { expires: 0.33 });
       
-      window.location.href = '/';
+      // Check onboarding status
+      try {
+        const profileResponse = await axios.get(`${apiUrl}/api/auth/profile`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        const userProfile = profileResponse.data;
+        
+        // If user hasn't completed onboarding, redirect to onboarding
+        if (!userProfile.hasOnboarded) {
+          window.location.href = '/onboarding';
+        } else {
+          window.location.href = '/';
+        }
+      } catch (profileError) {
+        console.error('Error checking profile:', profileError);
+        // If profile check fails, continue to dashboard
+        window.location.href = '/';
+      }
     } catch (error: any) {
       console.error('Error de inicio de sesión:', error);
       

@@ -247,9 +247,19 @@ export class AuthService {
         id: user._id,
         email: user.email, 
         name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
         role: user.role.toString(), // Convert to string to ensure consistent format
         schoolRoles: user.schoolRoles || [],
-        schools: user.schools || []
+        schools: user.schools || [],
+        // Onboarding information
+        hasOnboarded: user.hasOnboarded || false,
+        onboardingProgress: user.onboardingProgress,
+        profileCompletionPercentage: user.profileCompletionPercentage || 0,
+        dateOfBirth: user.dateOfBirth,
+        phone: user.phone,
+        profileImageUrl: user.profileImageUrl,
+        bio: user.bio
       };
     } catch (error) {
       this.logger.error(`Error fetching user profile: ${error.message}`, error.stack);

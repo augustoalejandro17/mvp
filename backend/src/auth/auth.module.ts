@@ -6,6 +6,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthorizationService } from './services/authorization.service';
+import { OnboardingService } from './services/onboarding.service';
+import { OnboardingController } from './controllers/onboarding.controller';
 import { User, UserSchema } from './schemas/user.schema';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { School, SchoolSchema } from '../schools/schemas/school.schema';
@@ -42,8 +44,8 @@ const logger = new Logger('AuthModule');
       { name: Course.name, schema: CourseSchema },
     ]),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, AuthorizationService],
-  exports: [AuthService, AuthorizationService],
+  controllers: [AuthController, OnboardingController],
+  providers: [AuthService, JwtStrategy, AuthorizationService, OnboardingService],
+  exports: [AuthService, AuthorizationService, OnboardingService],
 })
 export class AuthModule {} 
