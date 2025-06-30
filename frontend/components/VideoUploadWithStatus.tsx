@@ -38,7 +38,7 @@ const VideoUploadWithStatus: React.FC<VideoUploadWithStatusProps> = ({
   const checkVideoStatus = useCallback(async () => {
     try {
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       
       const response = await axios.get<VideoStatusResponse>(
         `${apiUrl}/api/videos/status?classId=${classId}`,
@@ -166,7 +166,7 @@ const VideoUploadWithStatus: React.FC<VideoUploadWithStatusProps> = ({
       setStatusMessage('Obteniendo URL de subida...');
 
       const token = Cookies.get('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
       // Get presigned upload URL
       const presignedResponse = await axios.post(

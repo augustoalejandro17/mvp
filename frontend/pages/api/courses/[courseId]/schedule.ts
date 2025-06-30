@@ -5,7 +5,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { courseId } = req.query;
   
   try {
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+    const backendUrl = process.env.BACKEND_URL;
     const url = `${backendUrl}/courses/${courseId}/schedule`;
     
     const response = await fetch(url, {

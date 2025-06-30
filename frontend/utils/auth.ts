@@ -16,6 +16,18 @@ let isInterceptorAdded = false;
 const addGlobalAxiosInterceptor = () => {
   if (isInterceptorAdded) return;
   
+  // Add global request interceptor to add JWT token
+  axios.interceptors.request.use(
+    (config) => {
+      const token = Cookies.get('token');
+      if (token && !isTokenExpired(token)) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
+  
   // Add global response interceptor to handle 401 errors
   axios.interceptors.response.use(
     (response) => response,
@@ -132,11 +144,19 @@ export const clearAuth = () => {
   // Primero eliminar el token para evitar ciclos
   const hadToken = !!Cookies.get('token');
   Cookies.remove('token');
+  Cookies.remove('user');
   
   // Solo notificar si había un token
   if (hadToken) {
     notifyAuthChange();
   }
+};
+
+/**
+ * Fuerza una actualización del estado de autenticación
+ */
+export const refreshAuth = () => {
+  notifyAuthChange();
 };
 
 /**

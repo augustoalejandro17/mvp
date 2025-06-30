@@ -63,16 +63,32 @@ export class UserSchoolRole {
 
 export const UserSchoolRoleSchema = SchemaFactory.createForClass(UserSchoolRole);
 
+// OAuth provider enum
+export enum AuthProvider {
+  LOCAL = 'local',
+  GOOGLE = 'google'
+}
+
 @Schema()
 export class User {
   @Prop({ unique: true, sparse: true })
   email: string;
 
-  @Prop()
-  password: string;
+  @Prop({ required: false }) // Make password optional for OAuth users
+  password?: string;
 
   @Prop({ required: true })
   name: string;
+
+  // OAuth provider fields  
+  @Prop({ type: String, enum: Object.values(AuthProvider), default: AuthProvider.LOCAL })
+  provider: AuthProvider;
+
+  @Prop({ required: false })
+  googleId?: string;
+
+  @Prop({ required: false })
+  providerId?: string; // Generic provider ID for future providers
 
   @Prop()
   firstName: string;

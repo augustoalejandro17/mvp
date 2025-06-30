@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { AppProps } from 'next/app';
 import Head from 'next/head';
+import { SessionProvider } from 'next-auth/react';
 import '../styles/globals.css';
 import Navigation from '../components/Navigation';
 import navStyles from '../styles/Navigation.module.css';
@@ -74,7 +75,7 @@ function MyApp({ Component, pageProps }: AppProps) {
   }, []);
 
   return (
-    <>
+    <SessionProvider session={pageProps.session}>
       <Head>
         <title>Inti</title>
         <meta name="description" content="Conecta. Aprende. Crece." />
@@ -87,7 +88,7 @@ function MyApp({ Component, pageProps }: AppProps) {
       <div className="page-content">
         <Component {...pageProps} />
       </div>
-    </>
+    </SessionProvider>
   );
 }
 

@@ -8,19 +8,13 @@ import * as express from 'express';
 
 const logger = new Logger('Bootstrap');
 
-// Valores por defecto para variables de entorno críticas
-const DEFAULT_PORT = 4000;
-const DEFAULT_FRONTEND_URL = 'http://localhost:3000';
-const DEFAULT_MONGODB_URI = 'mongodb://localhost:27017/inti';
-const DEFAULT_JWT_SECRET = 'insecure-jwt-secret-please-change-in-production';
-
 async function bootstrap() {
   try {
     // Configurar valores por defecto para variables de entorno si no están definidas
-    process.env.PORT = process.env.PORT || DEFAULT_PORT.toString();
-    process.env.FRONTEND_URL = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL;
-    process.env.MONGODB_URI = process.env.MONGODB_URI || DEFAULT_MONGODB_URI;
-    process.env.JWT_SECRET = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
+    process.env.PORT = process.env.PORT;
+    process.env.FRONTEND_URL = process.env.FRONTEND_URL;
+    process.env.MONGODB_URI = process.env.MONGODB_URI;
+    process.env.JWT_SECRET = process.env.JWT_SECRET;
     
     const app = await NestFactory.create(AppModule);
     

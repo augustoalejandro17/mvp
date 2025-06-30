@@ -39,9 +39,10 @@ const nextConfig = {
           destination: `${apiUrl}/api/admin/subscriptions/:path*`,
         },
         // Rutas de API estándar (debe ir después de rutas específicas)
+        // Exclude auth routes from proxying to backend
         {
-          source: '/api/:path*',
-          destination: `${apiUrl}/api/:path*`,
+          source: '/api/((?!auth).*)',
+          destination: `${apiUrl}/api/$1`,
         },
         // Otras rutas directas
         {

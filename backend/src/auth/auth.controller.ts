@@ -1,7 +1,8 @@
-import { Controller, Post, Body, HttpStatus, HttpCode, Logger, Patch, Param, UseGuards, Req, Get } from '@nestjs/common';
+import { Controller, Post, Body, HttpStatus, HttpCode, Logger, Patch, Param, UseGuards, Req, Get, ConflictException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { GoogleLoginDto } from './dto/google-auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Permission, RequirePermissions, PermissionsGuard } from './guards/permissions.guard';
 import { UserRole } from './schemas/user.schema';
@@ -39,6 +40,50 @@ export class AuthController {
       return result;
     } catch (error) {
       this.logger.error(`Error durante el login: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Post('google/login')
+  @HttpCode(HttpStatus.OK)
+  async googleLogin(@Body() googleLoginDto: GoogleLoginDto) {
+    try {
+      const result = await this.authService.googleLogin(googleLoginDto);
+      
+      this.logger.log(`Google login successful for user: ${result.user.email}, isNewUser: ${result.isNewUser}`);
+      
+      return {
+        ...result,
+        message: result.isNewUser ? 'Account created and logged in successfully' : 'Logged in successfully'
+      };
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        // Account linking required
+        this.logger.warn(`Account linking required for: ${error.getResponse()['email']}`);
+        throw error;
+      }
+      
+      this.logger.error(`Google login failed: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Post('google/link')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async linkGoogleAccount(@Body() googleLoginDto: GoogleLoginDto, @Req() req: Request) {
+    try {
+      const userId = req.user['sub'] || req.user['_id'];
+      const result = await this.authService.linkGoogleAccount(userId, googleLoginDto);
+      
+      this.logger.log(`Google account linked successfully for user: ${result.user.email}`);
+      
+      return {
+        ...result,
+        message: 'Google account linked successfully'
+      };
+    } catch (error) {
+      this.logger.error(`Google account linking failed: ${error.message}`, error.stack);
       throw error;
     }
   }

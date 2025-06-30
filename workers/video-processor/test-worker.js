@@ -36,7 +36,7 @@ async function testWorkerConfig() {
   // Test API connectivity
   console.log('\n🌐 Testing API Connectivity:');
   try {
-    const apiUrl = process.env.API_URL || 'http://localhost:4000';
+    const apiUrl = process.env.API_URL;
     const response = await axios.get(`${apiUrl}/api/health`, { timeout: 5000 });
     console.log(`✅ API reachable at ${apiUrl}`);
   } catch (error) {

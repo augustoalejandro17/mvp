@@ -9,6 +9,43 @@ Marketplace de clases de baile desarrollado con:
 - **Video Processing**: Worker con FFmpeg
 - **Storage**: AWS S3 + CloudFront
 
+## Google OAuth Authentication
+
+The application now includes Google OAuth2 authentication that provides:
+
+### Features
+
+- **Google Sign In/Sign Up**: Users can authenticate using their Google accounts
+- **Account Linking**: Link Google accounts to existing email/password accounts  
+- **Secure Token Verification**: Backend verifies Google ID tokens using Google's public keys
+- **Onboarding Integration**: New Google users are automatically redirected to onboarding
+- **Session Management**: Seamless integration with existing JWT session system
+- **Account Security**: Prevents account takeover through proper validation
+
+### Quick Setup
+
+1. **Get Google OAuth Credentials**:
+   - Create a project in [Google Cloud Console](https://console.cloud.google.com/)
+   - Configure OAuth consent screen
+   - Create OAuth 2.0 Client ID
+
+2. **Environment Variables**:
+   ```bash
+   # Backend (.env)
+   GOOGLE_CLIENT_ID=your_google_client_id
+   GOOGLE_CLIENT_SECRET=your_google_client_secret
+
+   # Frontend (.env.local)
+   NEXTAUTH_URL=http://localhost:3000
+   NEXTAUTH_SECRET=your_nextauth_secret
+   GOOGLE_CLIENT_ID=your_google_client_id
+   GOOGLE_CLIENT_SECRET=your_google_client_secret
+   ```
+
+3. **Test**: Visit login page and click "Sign in with Google"
+
+For detailed setup instructions, see [Google OAuth Setup Guide](GOOGLE_OAUTH_SETUP.md).
+
 ## Video Processing System
 
 The application now includes a sophisticated video processing system that provides:

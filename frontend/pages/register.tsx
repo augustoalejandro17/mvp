@@ -5,6 +5,7 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import styles from '../styles/Login.module.css';
 import { useApiErrorHandler } from '../utils/api-error-handler';
+import GoogleLoginButton from '../components/GoogleLoginButton';
 
 export default function Register() {
   const router = useRouter();
@@ -79,11 +80,12 @@ export default function Register() {
             <p>¡Registro exitoso! Te redirigiremos para configurar tu cuenta...</p>
           </div>
         ) : (
-          <form className={styles.form} onSubmit={handleSubmit}>
+          <>
+            <form className={styles.form} onSubmit={handleSubmit}>
             {error && <p className={styles.error}>{error}</p>}
             
             <div className={styles.formGroup}>
-              <label htmlFor="name">Full Name</label>
+              <label htmlFor="name">Nombre y Apellido</label>
               <input
                 type="text"
                 id="name"
@@ -125,7 +127,7 @@ export default function Register() {
             </div>
             
             <div className={styles.formGroup}>
-              <label htmlFor="age">Age (Optional)</label>
+              <label htmlFor="age">Edad (Opcional)</label>
               <input
                 type="number"
                 id="age"
@@ -169,7 +171,7 @@ export default function Register() {
             </div>
             
             <div className={styles.formGroup}>
-              <label htmlFor="confirmPassword">Confirm Password</label>
+              <label htmlFor="confirmPassword">Confirmar Password</label>
               <input
                 type="password"
                 id="confirmPassword"
@@ -207,12 +209,25 @@ export default function Register() {
             </button>
             
             <div className={styles.links}>
-              <span>Already have an account?</span>
+              <span>¿Ya tienes una cuenta?</span>
               <Link href="/login">
                 Log in
               </Link>
             </div>
           </form>
+          
+          {/* Google Registration Section */}
+          <div className={styles.oauthSection}>
+            <div className={styles.divider}>
+              <span className={styles.dividerText}>o regístrate con Google</span>
+            </div>
+            
+            <GoogleLoginButton 
+              text="Registrarse con Google"
+              onError={(error) => setError('Error al registrarse con Google. Intenta de nuevo.')}
+            />
+          </div>
+          </>
         )}
       </main>
     </div>

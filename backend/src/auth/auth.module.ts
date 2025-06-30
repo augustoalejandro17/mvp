@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthorizationService } from './services/authorization.service';
 import { OnboardingService } from './services/onboarding.service';
+import { GoogleOAuthService } from './services/google-oauth.service';
 import { OnboardingController } from './controllers/onboarding.controller';
 import { User, UserSchema } from './schemas/user.schema';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -45,7 +46,7 @@ const logger = new Logger('AuthModule');
     ]),
   ],
   controllers: [AuthController, OnboardingController],
-  providers: [AuthService, JwtStrategy, AuthorizationService, OnboardingService],
-  exports: [AuthService, AuthorizationService, OnboardingService],
+  providers: [AuthService, JwtStrategy, AuthorizationService, OnboardingService, GoogleOAuthService],
+  exports: [AuthService, AuthorizationService, OnboardingService, GoogleOAuthService],
 })
 export class AuthModule {} 

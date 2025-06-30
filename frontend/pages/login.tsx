@@ -4,6 +4,7 @@ import Link from 'next/link';
 import axios from 'axios';
 import styles from '../styles/Login.module.css';
 import Cookies from 'js-cookie';
+import GoogleLoginButton from '../components/GoogleLoginButton';
 
 export default function Login() {
   const router = useRouter();
@@ -67,6 +68,7 @@ export default function Login() {
     <div className={styles.container}>
       <main className={styles.main}>
         <h1 className={styles.title}>Iniciar Sesión</h1>
+        
         <form onSubmit={handleSubmit} className={styles.form}>
           {error && <p className={styles.error}>{error}</p>}
           <div className={styles.formGroup}>
@@ -130,6 +132,19 @@ export default function Login() {
             {loading ? 'Procesando...' : 'Iniciar Sesión'}
           </button>
         </form>
+        
+        {/* Google Login Section */}
+        <div className={styles.oauthSection}>
+          <div className={styles.divider}>
+            <span className={styles.dividerText}>o continúa con Google</span>
+          </div>
+          
+          <GoogleLoginButton 
+            text="Iniciar sesión con Google"
+            onError={(error) => setError('Error al iniciar sesión con Google. Intenta de nuevo.')}
+          />
+        </div>
+        
         <p className={styles.registerLink}>
           ¿No tienes cuenta? <Link href="/register">Regístrate</Link>
         </p>

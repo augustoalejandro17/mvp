@@ -3,9 +3,11 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Document } from 'mongoose';
 import * as argon2 from 'argon2';
-import { User, UserRole } from './schemas/user.schema';
+import { User, UserRole, AuthProvider } from './schemas/user.schema';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { GoogleLoginDto } from './dto/google-auth.dto';
+import { GoogleOAuthService } from './services/google-oauth.service';
 import * as bcrypt from 'bcrypt';
 
 // Definir tipo UserDocument
@@ -18,6 +20,7 @@ export class AuthService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private jwtService: JwtService,
+    private googleOAuthService: GoogleOAuthService,
   ) {}
 
   // Método auxiliar para hacer hash de contraseñas
@@ -184,6 +187,64 @@ export class AuthService {
       }
       
       throw new InternalServerErrorException('Error al procesar la autenticación');
+    }
+  }
+
+  async googleLogin(googleLoginDto: GoogleLoginDto): Promise<{ user: any; token: string; isNewUser: boolean }> {
+    try {
+      const { user, isNewUser } = await this.googleOAuthService.googleLogin(googleLoginDto);
+      
+      this.logger.log(`Google login ${isNewUser ? 'created new user' : 'for existing user'}: ${user.email}`);
+      
+      const token = await this.generateToken(user);
+      
+      return {
+        user: {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          provider: user.provider,
+          profileImageUrl: user.profileImageUrl,
+          hasOnboarded: user.hasOnboarded,
+        },
+        token,
+        isNewUser,
+      };
+    } catch (error) {
+      this.logger.error(`Google login failed: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async linkGoogleAccount(userId: string, googleLoginDto: GoogleLoginDto): Promise<{ user: any; token: string; success: boolean }> {
+    try {
+      const user = await this.googleOAuthService.linkGoogleAccount(userId, {
+        idToken: googleLoginDto.idToken,
+        forceLink: false,
+      });
+      
+      this.logger.log(`Google account linked for user: ${user.email}`);
+      
+      // Generate JWT token for immediate login after linking
+      const token = await this.generateToken(user);
+      
+      return {
+        user: {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          provider: user.provider,
+          profileImageUrl: user.profileImageUrl,
+          hasOnboarded: user.hasOnboarded,
+        },
+        token,
+        success: true,
+      };
+    } catch (error) {
+      this.logger.error(`Google account linking failed: ${error.message}`, error.stack);
+      throw error;
     }
   }
 

@@ -26,7 +26,7 @@ class VideoProcessor {
 
     this.tempBucket = process.env.AWS_S3_TEMP_BUCKET_NAME;
     this.finalBucket = process.env.AWS_S3_BUCKET_NAME;
-    this.apiUrl = process.env.API_URL || 'http://localhost:4000';
+    this.apiUrl = process.env.API_URL;
     
     // SQS configuration (optional)
     this.sqs = new AWS.SQS({
