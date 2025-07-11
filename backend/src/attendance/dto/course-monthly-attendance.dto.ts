@@ -15,4 +15,4 @@ export class CourseMonthlyAttendanceDto {
   @IsOptional()
   @IsDateString()
   referenceDate?: string;
-} 
+}

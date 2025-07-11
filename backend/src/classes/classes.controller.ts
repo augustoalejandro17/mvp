@@ -1,4 +1,24 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Req, Logger, Query, UseInterceptors, UploadedFile, BadRequestException, NotFoundException, InternalServerErrorException, UnauthorizedException, Patch, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  Req,
+  Logger,
+  Query,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+  NotFoundException,
+  InternalServerErrorException,
+  UnauthorizedException,
+  Patch,
+  Res,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ClassesService } from './classes.service';
 import { CreateClassDto } from './dto/create-class.dto';
@@ -12,6 +32,7 @@ import { RequirePermissions } from '../auth/decorators/require-permissions.decor
 import { RecordAttendanceDto } from './dto/record-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 
 @Controller('classes')
 export class ClassesController {
@@ -20,60 +41,163 @@ export class ClassesController {
   constructor(private readonly classesService: ClassesService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(OptionalJwtAuthGuard)
   async findAll(@Req() req, @Query('courseId') courseId?: string) {
-    
     const user = req.user as any;
-    const userId = user._id || user.sub;
-    return this.classesService.findAll(userId, user.role, courseId);
+    const userId = user?._id || user?.sub;
+    return this.classesService.findAll(userId, user?.role, courseId);
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
-  async findOne(@Param('id') id: string) {
-    
-    return this.classesService.findOne(id);
+  @UseGuards(OptionalJwtAuthGuard)
+  async findOne(@Param('id') id: string, @Req() req) {
+    const user = req.user as any;
+    const userId = user?._id || user?.sub;
+    const userRole = user?.role;
+    return this.classesService.findOne(id, userId, userRole);
   }
 
   @Get(':id/stream-url')
-  @UseGuards(JwtAuthGuard)
-  async getStreamingUrl(@Param('id') id: string) {
+  @UseGuards(OptionalJwtAuthGuard)
+  async getStreamingUrl(@Param('id') id: string, @Req() req) {
     try {
-      // Buscar la clase
-      const classItem = await this.classesService.findOne(id);
-      
+      const user = req.user as any;
+      const userId = user?._id || user?.sub;
+      const userRole = user?.role;
+
+      // First check if user has access to this class
+      const classItem = await this.classesService.findOne(id, userId, userRole);
+
       if (!classItem) {
         throw new NotFoundException(`Clase con ID ${id} no encontrada`);
       }
-      
+
       // Check video processing status
       if (!classItem.videoUrl) {
         const status = classItem.videoStatus || 'NONE';
         return {
           success: false,
           status: status,
-          message: status === 'UPLOADING' ? 'Video siendo subido' :
-                   status === 'PROCESSING' ? 'Video siendo procesado' :
-                   'Video no disponible',
-          title: classItem.title
+          message:
+            status === 'UPLOADING'
+              ? 'Video siendo subido'
+              : status === 'PROCESSING'
+                ? 'Video siendo procesado'
+                : 'Video no disponible',
+          title: classItem.title,
         };
       }
-      
-      // Generar una URL específica para streaming (no descarga)
-      const streamUrl = await this.classesService.getSignedUrlForStreaming(classItem.videoUrl);
+
+      // Return proxy URL instead of direct S3 URL
+      // Get the request protocol and host to construct the full URL
+      const protocol = req.protocol;
+      const host = req.get('host');
+      const baseUrl = `${protocol}://${host}`;
       
       return {
         success: true,
-        url: streamUrl,
+        url: `${baseUrl}/api/classes/${id}/video-proxy`,
         title: classItem.title,
         metadata: classItem.videoMetadata || {},
-        isCloudFront: streamUrl?.includes('cloudfront.net') || false
+        isCloudFront: false, // This is now proxied through our backend
       };
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof NotFoundException || error instanceof UnauthorizedException) {
         throw error;
       }
-      throw new InternalServerErrorException(`Error al obtener URL de streaming: ${error.message}`);
+      throw new InternalServerErrorException(
+        `Error al obtener URL de streaming: ${error.message}`,
+      );
+    }
+  }
+
+  @Get(':id/video-proxy')
+  @UseGuards(OptionalJwtAuthGuard)
+  async streamVideo(@Param('id') id: string, @Req() req, @Res() res: Response) {
+    try {
+      const user = req.user as any;
+      const userId = user?._id || user?.sub;
+      const userRole = user?.role;
+
+      // Check if user has access to this class
+      const classItem = await this.classesService.findOne(id, userId, userRole);
+
+      if (!classItem) {
+        throw new NotFoundException(`Clase con ID ${id} no encontrada`);
+      }
+
+      if (!classItem.videoUrl) {
+        throw new NotFoundException(`Video no disponible para esta clase`);
+      }
+
+      // Get the actual S3 signed URL (this handles authentication internally)
+      const signedUrl = await this.classesService.getSignedUrlForStreaming(classItem.videoUrl);
+
+      // Use built-in Node.js https module to stream the video through the backend
+      const https = require('https');
+      const http = require('http');
+      const { URL } = require('url');
+      
+      const parsedUrl = new URL(signedUrl);
+      const isHttps = parsedUrl.protocol === 'https:';
+      const client = isHttps ? https : http;
+      
+      const requestOptions = {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || (isHttps ? 443 : 80),
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: 'GET',
+        headers: {},
+      };
+
+      // Add range header if present for video seeking
+      if (req.headers.range) {
+        requestOptions.headers['Range'] = req.headers.range;
+      }
+      
+      // Add user agent if present
+      if (req.headers['user-agent']) {
+        requestOptions.headers['User-Agent'] = req.headers['user-agent'];
+      }
+
+      const proxyReq = client.request(requestOptions, (proxyRes) => {
+        // Set appropriate response headers
+        res.set('Content-Type', proxyRes.headers['content-type'] || 'video/mp4');
+        res.set('Accept-Ranges', 'bytes');
+        
+        if (proxyRes.headers['content-length']) {
+          res.set('Content-Length', proxyRes.headers['content-length']);
+        }
+        
+        if (proxyRes.headers['content-range']) {
+          res.set('Content-Range', proxyRes.headers['content-range']);
+          res.status(206); // Partial content
+        }
+        
+        // Set the status code from the proxy response
+        res.status(proxyRes.statusCode || 200);
+
+        // Pipe the stream to the response
+        proxyRes.pipe(res);
+      });
+
+      proxyReq.on('error', (error) => {
+        throw new Error(`Failed to fetch video: ${error.message}`);
+      });
+
+      proxyReq.end();
+    } catch (error) {
+      this.logger.error(
+        `Error streaming video: ${error.message}`,
+        error.stack,
+      );
+      
+      if (error instanceof NotFoundException || error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        `Error al transmitir video: ${error.message}`,
+      );
     }
   }
 
@@ -84,210 +208,236 @@ export class ClassesController {
     try {
       // Find the class
       const classItem = await this.classesService.findOne(id);
-      
+
       if (!classItem) {
         throw new NotFoundException(`Class with ID ${id} not found`);
       }
-      
+
       // Check if video is available for download
       if (!classItem.videoUrl) {
         const status = classItem.videoStatus || 'NONE';
         throw new BadRequestException(
-          status === 'UPLOADING' ? 'Video siendo subido' :
-          status === 'PROCESSING' ? 'Video siendo procesado' :
-          'Video no disponible para descarga'
+          status === 'UPLOADING'
+            ? 'Video siendo subido'
+            : status === 'PROCESSING'
+              ? 'Video siendo procesado'
+              : 'Video no disponible para descarga',
         );
       }
-      
+
       // Generate a URL specifically for download
       // We'll reuse the streaming URL method but will later modify it to support downloads
-      const downloadUrl = await this.classesService.getSignedUrlForStreaming(classItem.videoUrl);
-      
-      
-      
+      const downloadUrl = await this.classesService.getSignedUrlForStreaming(
+        classItem.videoUrl,
+      );
+
       return {
         success: true,
         url: downloadUrl,
         title: classItem.title,
         filename: `${classItem.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp4`,
-        contentType: 'video/mp4'
+        contentType: 'video/mp4',
       };
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      this.logger.error(`Error generating download URL: ${error.message}`, error.stack);
-      throw new InternalServerErrorException(`Error generating download URL: ${error.message}`);
+      this.logger.error(
+        `Error generating download URL: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Error generating download URL: ${error.message}`,
+      );
     }
   }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  @UseInterceptors(FileInterceptor('video', {
-    limits: {
-      fileSize: 200 * 1024 * 1024, // 200MB para soportar videos más grandes
-    },
-    fileFilter: (req, file, callback) => {
-      // Durante pruebas, aceptar cualquier archivo
-      if (process.env.NODE_ENV === 'development') {
-        // Forzar el mimetype a video/mp4 para todos los tipos
-        file.mimetype = 'video/mp4';
-        
-        // Cambiar la extensión a .mp4 en el nombre del archivo
-        const nameParts = file.originalname.split('.');
-        if (nameParts.length > 1) {
-          nameParts.pop(); // Eliminar la extensión existente
+  @UseInterceptors(
+    FileInterceptor('video', {
+      limits: {
+        fileSize: 200 * 1024 * 1024, // 200MB para soportar videos más grandes
+      },
+      fileFilter: (req, file, callback) => {
+        // Durante pruebas, aceptar cualquier archivo
+        if (process.env.NODE_ENV === 'development') {
+          // Forzar el mimetype a video/mp4 para todos los tipos
+          file.mimetype = 'video/mp4';
+
+          // Cambiar la extensión a .mp4 en el nombre del archivo
+          const nameParts = file.originalname.split('.');
+          if (nameParts.length > 1) {
+            nameParts.pop(); // Eliminar la extensión existente
+          }
+          file.originalname = `${nameParts.join('.')}.mp4`;
+
+          callback(null, true);
+          return;
         }
-        file.originalname = `${nameParts.join('.')}.mp4`;
-        
-        callback(null, true);
-        return;
-      }
-      
-      // En producción, continuar con la validación normal
-      const allowedMimeTypes = [
-        'video/mp4',
-        'video/webm',
-        'video/quicktime', // .mov
-        'video/x-msvideo', // .avi
-        'video/mpeg',      // .mpeg, .mpg
-        'video/x-matroska', // .mkv
-        'video/3gpp',      // .3gp
-        'video/ogg'        // .ogv
-      ];
-      
-      // Renombrar el mimetype para que todos sean tratados como mp4
-      if (allowedMimeTypes.includes(file.mimetype)) {
-        // Forzar el mimetype a video/mp4 para todos los tipos de video
-        file.mimetype = 'video/mp4';
-        
-        // Cambiar la extensión a .mp4 en el nombre del archivo
-        const nameParts = file.originalname.split('.');
-        if (nameParts.length > 1) {
-          nameParts.pop(); // Eliminar la extensión existente
+
+        // En producción, continuar con la validación normal
+        const allowedMimeTypes = [
+          'video/mp4',
+          'video/webm',
+          'video/quicktime', // .mov
+          'video/x-msvideo', // .avi
+          'video/mpeg', // .mpeg, .mpg
+          'video/x-matroska', // .mkv
+          'video/3gpp', // .3gp
+          'video/ogg', // .ogv
+        ];
+
+        // Renombrar el mimetype para que todos sean tratados como mp4
+        if (allowedMimeTypes.includes(file.mimetype)) {
+          // Forzar el mimetype a video/mp4 para todos los tipos de video
+          file.mimetype = 'video/mp4';
+
+          // Cambiar la extensión a .mp4 en el nombre del archivo
+          const nameParts = file.originalname.split('.');
+          if (nameParts.length > 1) {
+            nameParts.pop(); // Eliminar la extensión existente
+          }
+          file.originalname = `${nameParts.join('.')}.mp4`;
+
+          callback(null, true);
+          return;
         }
-        file.originalname = `${nameParts.join('.')}.mp4`;
-        
-        callback(null, true);
-        return;
-      }
-      
-      callback(
-        new BadRequestException(
-          `Formato de archivo no soportado: ${file.mimetype}. Se admiten solamente archivos de video.`
-        ), 
-        false
-      );
-    }
-  }))
+
+        callback(
+          new BadRequestException(
+            `Formato de archivo no soportado: ${file.mimetype}. Se admiten solamente archivos de video.`,
+          ),
+          false,
+        );
+      },
+    }),
+  )
   async create(
     @UploadedFile() file: Express.Multer.File,
     @Body() createClassDto: CreateClassDto,
-    @Req() req
+    @Req() req,
   ) {
     const userId = req.user.sub || req.user._id?.toString();
     const userRole = req.user.role;
-    
-    
-    
+
     if (!file) {
-      throw new BadRequestException('No se ha proporcionado ningún archivo de video');
+      throw new BadRequestException(
+        'No se ha proporcionado ningún archivo de video',
+      );
     }
-    
-    
-    
+
     try {
       // Use worker-based processing for better scalability
-      return await this.classesService.createWithWorkerProcessing(createClassDto, userId, file);
+      return await this.classesService.createWithWorkerProcessing(
+        createClassDto,
+        userId,
+        file,
+      );
     } catch (error) {
-      this.logger.error(`Error al crear la clase: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error al crear la clase: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
 
   @Put(':id')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('video', {
-    limits: {
-      fileSize: 200 * 1024 * 1024, // 200MB para soportar videos más grandes
-    },
-    fileFilter: (req, file, callback) => {
-      // Durante pruebas, aceptar cualquier archivo
-      if (process.env.NODE_ENV === 'development') {
-        // Forzar el mimetype a video/mp4 para todos los tipos
-        file.mimetype = 'video/mp4';
-        
-        // Cambiar la extensión a .mp4 en el nombre del archivo
-        const nameParts = file.originalname.split('.');
-        if (nameParts.length > 1) {
-          nameParts.pop(); // Eliminar la extensión existente
+  @UseInterceptors(
+    FileInterceptor('video', {
+      limits: {
+        fileSize: 200 * 1024 * 1024, // 200MB para soportar videos más grandes
+      },
+      fileFilter: (req, file, callback) => {
+        // Durante pruebas, aceptar cualquier archivo
+        if (process.env.NODE_ENV === 'development') {
+          // Forzar el mimetype a video/mp4 para todos los tipos
+          file.mimetype = 'video/mp4';
+
+          // Cambiar la extensión a .mp4 en el nombre del archivo
+          const nameParts = file.originalname.split('.');
+          if (nameParts.length > 1) {
+            nameParts.pop(); // Eliminar la extensión existente
+          }
+          file.originalname = `${nameParts.join('.')}.mp4`;
+
+          callback(null, true);
+          return;
         }
-        file.originalname = `${nameParts.join('.')}.mp4`;
-        
-        callback(null, true);
-        return;
-      }
-      
-      // En producción, continuar con la validación normal
-      const allowedMimeTypes = [
-        'video/mp4',
-        'video/webm',
-        'video/quicktime', // .mov
-        'video/x-msvideo', // .avi
-        'video/mpeg',      // .mpeg, .mpg
-        'video/x-matroska', // .mkv
-        'video/3gpp',      // .3gp
-        'video/ogg'        // .ogv
-      ];
-      
-      // Renombrar el mimetype para que todos sean tratados como mp4
-      if (allowedMimeTypes.includes(file.mimetype)) {
-        // Forzar el mimetype a video/mp4 para todos los tipos de video
-        file.mimetype = 'video/mp4';
-        
-        // Cambiar la extensión a .mp4 en el nombre del archivo
-        const nameParts = file.originalname.split('.');
-        if (nameParts.length > 1) {
-          nameParts.pop(); // Eliminar la extensión existente
+
+        // En producción, continuar con la validación normal
+        const allowedMimeTypes = [
+          'video/mp4',
+          'video/webm',
+          'video/quicktime', // .mov
+          'video/x-msvideo', // .avi
+          'video/mpeg', // .mpeg, .mpg
+          'video/x-matroska', // .mkv
+          'video/3gpp', // .3gp
+          'video/ogg', // .ogv
+        ];
+
+        // Renombrar el mimetype para que todos sean tratados como mp4
+        if (allowedMimeTypes.includes(file.mimetype)) {
+          // Forzar el mimetype a video/mp4 para todos los tipos de video
+          file.mimetype = 'video/mp4';
+
+          // Cambiar la extensión a .mp4 en el nombre del archivo
+          const nameParts = file.originalname.split('.');
+          if (nameParts.length > 1) {
+            nameParts.pop(); // Eliminar la extensión existente
+          }
+          file.originalname = `${nameParts.join('.')}.mp4`;
+
+          callback(null, true);
+          return;
         }
-        file.originalname = `${nameParts.join('.')}.mp4`;
-        
-        callback(null, true);
-        return;
-      }
-      
-      callback(
-        new BadRequestException(
-          `Formato de archivo no soportado: ${file.mimetype}. Se admiten solamente archivos de video.`
-        ), 
-        false
-      );
-    }
-  }))
+
+        callback(
+          new BadRequestException(
+            `Formato de archivo no soportado: ${file.mimetype}. Se admiten solamente archivos de video.`,
+          ),
+          false,
+        );
+      },
+    }),
+  )
   async update(
-    @Param('id') id: string, 
-    @Body() updateClassDto: UpdateClassDto, 
+    @Param('id') id: string,
+    @Body() updateClassDto: UpdateClassDto,
     @Req() req: Request,
-    @UploadedFile() file?: Express.Multer.File
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    
     const user = req.user as any;
     const userId = user._id || user.sub;
-    
+
     try {
       // Si hay un nuevo video, actualizar con el archivo
       if (file) {
-        
-        return await this.classesService.updateWithVideo(id, updateClassDto, userId, file);
+        return await this.classesService.updateWithVideo(
+          id,
+          updateClassDto,
+          userId,
+          file,
+        );
       } else {
         // Si no hay nuevo video, actualizar solo los datos
-        const result = await this.classesService.update(id, updateClassDto, userId);
-        
+        const result = await this.classesService.update(
+          id,
+          updateClassDto,
+          userId,
+        );
+
         return result;
       }
     } catch (error) {
-      this.logger.error(`Error al actualizar clase: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error al actualizar clase: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -297,31 +447,36 @@ export class ClassesController {
   async remove(@Param('id') id: string, @Req() req: Request) {
     const user = req.user as any;
     const userId = user._id || user.sub;
-    
+
     try {
       const result = await this.classesService.remove(id, userId);
-      
+
       return {
         ...result,
         status: 'success',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      this.logger.error(`Error al eliminar clase: ${error.message}`, error.stack);
-      
+      this.logger.error(
+        `Error al eliminar clase: ${error.message}`,
+        error.stack,
+      );
+
       // Si es un error de permisos de AWS, dar un mensaje más amigable
       if (
-        error.message?.includes('not authorized to perform: s3:DeleteObject') || 
+        error.message?.includes('not authorized to perform: s3:DeleteObject') ||
         error.message?.includes('identity-based policy') ||
         error.code === 'AccessDenied'
       ) {
         throw new InternalServerErrorException({
-          message: 'La clase se eliminó de la base de datos, pero el video podría permanecer en el servidor debido a permisos insuficientes. Esto no afecta el funcionamiento del sistema.',
+          message:
+            'La clase se eliminó de la base de datos, pero el video podría permanecer en el servidor debido a permisos insuficientes. Esto no afecta el funcionamiento del sistema.',
           status: 'partial_success',
-          details: 'Contacta al administrador si necesitas eliminar también el archivo de video.'
+          details:
+            'Contacta al administrador si necesitas eliminar también el archivo de video.',
         });
       }
-      
+
       throw error;
     }
   }
@@ -335,7 +490,11 @@ export class ClassesController {
     @Req() req,
   ) {
     const userId = req.user.sub;
-    return this.classesService.recordAttendance(classId, recordAttendanceDto, userId);
+    return this.classesService.recordAttendance(
+      classId,
+      recordAttendanceDto,
+      userId,
+    );
   }
 
   @Get(':id/attendance')
@@ -359,9 +518,11 @@ export class ClassesController {
   ) {
     // Students can only view their own attendance
     if (req.user.role === UserRole.STUDENT && req.user.sub !== studentId) {
-      throw new UnauthorizedException('You can only view your own attendance records');
+      throw new UnauthorizedException(
+        'You can only view your own attendance records',
+      );
     }
-    
+
     return this.classesService.getStudentAttendance(classId, studentId);
   }
 
@@ -375,7 +536,12 @@ export class ClassesController {
     @Req() req,
   ) {
     const userId = req.user.sub;
-    return this.classesService.updateAttendance(classId, attendanceId, updateAttendanceDto, userId);
+    return this.classesService.updateAttendance(
+      classId,
+      attendanceId,
+      updateAttendanceDto,
+      userId,
+    );
   }
 
   @Delete(':id/attendance/:attendanceId')
@@ -387,4 +553,4 @@ export class ClassesController {
   ) {
     return this.classesService.deleteAttendance(classId, attendanceId);
   }
-} 
+}

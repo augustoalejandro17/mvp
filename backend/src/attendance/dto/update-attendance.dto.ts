@@ -18,4 +18,4 @@ export class UpdateAttendanceDto {
   @IsString()
   @IsOptional()
   courseId?: string;
-} 
+}

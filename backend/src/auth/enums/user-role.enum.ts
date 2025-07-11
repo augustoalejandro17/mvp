@@ -5,5 +5,5 @@ export enum UserRole {
   STUDENT = 'student',
   ADMINISTRATIVE = 'administrative',
   ADMIN = 'admin',
-  UNREGISTERED = 'unregistered'
-} 
+  UNREGISTERED = 'unregistered',
+}

@@ -1,4 +1,15 @@
-import { IsString, IsOptional, IsEmail, IsDateString, IsEnum, IsObject, IsBoolean, IsNumber, Min, Max } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsEnum,
+  IsDateString,
+  IsUrl,
+  ValidateNested,
+  IsArray,
+  IsBoolean,
+  IsObject,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { OnboardingStep, UserRole } from '../schemas/user.schema';
 
 export class UpdateOnboardingStepDto {
@@ -89,4 +100,4 @@ export class SchoolSetupDto {
   @IsOptional()
   @IsString()
   website?: string;
-} 
+}

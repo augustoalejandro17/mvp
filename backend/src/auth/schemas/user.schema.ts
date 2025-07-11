@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document } from 'mongoose';
 import * as mongoose from 'mongoose';
 
 export type UserDocument = User & Document;
@@ -11,7 +11,7 @@ export enum UserRole {
   TEACHER = 'teacher',
   STUDENT = 'student',
   ADMINISTRATIVE = 'administrative',
-  UNREGISTERED = 'unregistered'
+  UNREGISTERED = 'unregistered',
 }
 
 // Enum for onboarding steps
@@ -21,13 +21,17 @@ export enum OnboardingStep {
   PROFILE_COMPLETION = 'profile_completion',
   SCHOOL_SETUP = 'school_setup',
   QUICK_TOUR = 'quick_tour',
-  COMPLETED = 'completed'
+  COMPLETED = 'completed',
 }
 
 // Schema for onboarding progress tracking
 @Schema({ _id: false })
 export class OnboardingProgress {
-  @Prop({ type: String, enum: Object.values(OnboardingStep), default: OnboardingStep.WELCOME })
+  @Prop({
+    type: String,
+    enum: Object.values(OnboardingStep),
+    default: OnboardingStep.WELCOME,
+  })
   currentStep: OnboardingStep;
 
   @Prop({ type: [String], enum: Object.values(OnboardingStep), default: [] })
@@ -46,7 +50,8 @@ export class OnboardingProgress {
   stepData: Map<string, any>; // Store step-specific data like profile completion progress
 }
 
-export const OnboardingProgressSchema = SchemaFactory.createForClass(OnboardingProgress);
+export const OnboardingProgressSchema =
+  SchemaFactory.createForClass(OnboardingProgress);
 
 // Esquema para roles contextuales (por escuela)
 @Schema({ _id: false })
@@ -61,12 +66,13 @@ export class UserSchoolRole {
   sede?: string;
 }
 
-export const UserSchoolRoleSchema = SchemaFactory.createForClass(UserSchoolRole);
+export const UserSchoolRoleSchema =
+  SchemaFactory.createForClass(UserSchoolRole);
 
 // OAuth provider enum
 export enum AuthProvider {
   LOCAL = 'local',
-  GOOGLE = 'google'
+  GOOGLE = 'google',
 }
 
 @Schema()
@@ -80,8 +86,12 @@ export class User {
   @Prop({ required: true })
   name: string;
 
-  // OAuth provider fields  
-  @Prop({ type: String, enum: Object.values(AuthProvider), default: AuthProvider.LOCAL })
+  // OAuth provider fields
+  @Prop({
+    type: String,
+    enum: Object.values(AuthProvider),
+    default: AuthProvider.LOCAL,
+  })
   provider: AuthProvider;
 
   @Prop({ required: false })
@@ -127,19 +137,34 @@ export class User {
   @Prop({ type: [UserSchoolRoleSchema], default: [] })
   schoolRoles: UserSchoolRole[];
 
-  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }], default: [] })
+  @Prop({
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
+    default: [],
+  })
   enrolledCourses: mongoose.Types.ObjectId[];
 
-  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'School' }], default: [] })
+  @Prop({
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'School' }],
+    default: [],
+  })
   schools: mongoose.Types.ObjectId[];
 
-  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'School' }], default: [] })
+  @Prop({
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'School' }],
+    default: [],
+  })
   ownedSchools: mongoose.Types.ObjectId[];
 
-  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'School' }], default: [] })
+  @Prop({
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'School' }],
+    default: [],
+  })
   administratedSchools: mongoose.Types.ObjectId[];
 
-  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }], default: [] })
+  @Prop({
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
+    default: [],
+  })
   teachingCourses: mongoose.Types.ObjectId[];
 
   @Prop({ default: Date.now })
@@ -162,4 +187,4 @@ export class User {
   sessionExpiredAt?: Date;
 }
 
-export const UserSchema = SchemaFactory.createForClass(User); 
+export const UserSchema = SchemaFactory.createForClass(User);

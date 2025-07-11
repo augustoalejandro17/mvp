@@ -1,4 +1,13 @@
-import { IsArray, IsBoolean, IsDateString, IsMongoId, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsMongoId,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 class AttendanceItemDto {
@@ -31,4 +40,4 @@ export class BulkAttendanceDto {
   @ValidateNested({ each: true })
   @Type(() => AttendanceItemDto)
   attendances: AttendanceItemDto[];
-} 
+}

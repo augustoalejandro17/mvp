@@ -28,10 +28,25 @@ export class CategoriesSeedService {
         icon: '💃',
         sortOrder: 1,
         subcategories: [
-          { name: 'Urban', description: 'Danza urbana y hip-hop', color: '#4ECDC4', sortOrder: 1 },
-          { name: 'Heels', description: 'Danza en tacones', color: '#45B7D1', sortOrder: 2 },
-          { name: 'Ballet', description: 'Ballet clásico', color: '#F7DC6F', sortOrder: 3 },
-        ]
+          {
+            name: 'Urban',
+            description: 'Danza urbana y hip-hop',
+            color: '#4ECDC4',
+            sortOrder: 1,
+          },
+          {
+            name: 'Heels',
+            description: 'Danza en tacones',
+            color: '#45B7D1',
+            sortOrder: 2,
+          },
+          {
+            name: 'Ballet',
+            description: 'Ballet clásico',
+            color: '#F7DC6F',
+            sortOrder: 3,
+          },
+        ],
       },
       {
         name: 'Música',
@@ -40,10 +55,25 @@ export class CategoriesSeedService {
         icon: '🎵',
         sortOrder: 2,
         subcategories: [
-          { name: 'Clásico', description: 'Música clásica', color: '#D5A6BD', sortOrder: 1 },
-          { name: 'Rock', description: 'Música rock', color: '#5D6D7E', sortOrder: 2 },
-          { name: 'Pop', description: 'Música pop', color: '#F1948A', sortOrder: 3 },
-        ]
+          {
+            name: 'Clásico',
+            description: 'Música clásica',
+            color: '#D5A6BD',
+            sortOrder: 1,
+          },
+          {
+            name: 'Rock',
+            description: 'Música rock',
+            color: '#5D6D7E',
+            sortOrder: 2,
+          },
+          {
+            name: 'Pop',
+            description: 'Música pop',
+            color: '#F1948A',
+            sortOrder: 3,
+          },
+        ],
       },
       {
         name: 'Arte',
@@ -52,10 +82,20 @@ export class CategoriesSeedService {
         icon: '🎨',
         sortOrder: 3,
         subcategories: [
-          { name: 'Pintura', description: 'Técnicas de pintura', color: '#F39C12', sortOrder: 1 },
-          { name: 'Escultura', description: 'Arte escultórico', color: '#D68910', sortOrder: 2 },
-        ]
-      }
+          {
+            name: 'Pintura',
+            description: 'Técnicas de pintura',
+            color: '#F39C12',
+            sortOrder: 1,
+          },
+          {
+            name: 'Escultura',
+            description: 'Arte escultórico',
+            color: '#D68910',
+            sortOrder: 2,
+          },
+        ],
+      },
     ];
 
     for (const categoryGroup of categoryData) {
@@ -85,10 +125,13 @@ export class CategoriesSeedService {
           this.logger.log(`Created subcategory: ${savedSub.name}`);
         }
       } catch (error) {
-        this.logger.error(`Error creating category ${categoryGroup.name}:`, error);
+        this.logger.error(
+          `Error creating category ${categoryGroup.name}:`,
+          error,
+        );
       }
     }
 
     this.logger.log('Categories seeding completed');
   }
-} 
+}

@@ -1,4 +1,12 @@
-import { IsString, IsOptional, IsBoolean, IsNumber, IsMongoId, MinLength, Min } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsNumber,
+  IsMongoId,
+  MinLength,
+  Min,
+} from 'class-validator';
 
 export class CreateCategoryDto {
   @IsString()
@@ -29,4 +37,4 @@ export class CreateCategoryDto {
   @IsOptional()
   @IsString()
   icon?: string;
-} 
+}

@@ -34,9 +34,14 @@ import { School, SchoolSchema } from './schools/schemas/school.schema';
 import { Course, CourseSchema } from './courses/schemas/course.schema';
 import { Class, ClassSchema } from './classes/schemas/class.schema';
 import { Plan, PlanSchema } from './plans/schemas/plan.schema';
-import { Subscription, SubscriptionSchema } from './plans/schemas/subscription.schema';
-import { Attendance, AttendanceSchema } from './attendance/schemas/attendance.schema';
-import { UserOwnedSchoolsController, UserAdministeredSchoolsController } from './schools/schools.controller';
+import {
+  Subscription,
+  SubscriptionSchema,
+} from './plans/schemas/subscription.schema';
+import {
+  UserOwnedSchoolsController,
+  UserAdministeredSchoolsController,
+} from './schools/schools.controller';
 import { MigrationService } from './migrations/migration.service';
 
 @Module({
@@ -74,14 +79,14 @@ import { MigrationService } from './migrations/migration.service';
     VideosModule,
   ],
   controllers: [
-    AppController, 
+    AppController,
     ImagesController,
     SubscriptionAdminController,
     UserOwnedSchoolsController,
     UserAdministeredSchoolsController,
     AdminStatsController,
-    ApiStatsController
+    ApiStatsController,
   ],
   providers: [AppService, S3Service, CloudFrontService, MigrationService],
 })
-export class AppModule {} 
+export class AppModule {}

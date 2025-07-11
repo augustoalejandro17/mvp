@@ -1,4 +1,12 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsNumber, Min, Max } from 'class-validator';
+import {
+  IsEmail,
+  IsString,
+  MinLength,
+  IsOptional,
+  IsNumber,
+  Min,
+  Max,
+} from 'class-validator';
 
 export class RegisterDto {
   @IsEmail()
@@ -16,4 +24,4 @@ export class RegisterDto {
   @Min(1, { message: 'Age must be at least 1' })
   @Max(120, { message: 'Age must be less than 120' })
   age?: number;
-} 
+}

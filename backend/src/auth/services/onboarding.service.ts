@@ -1,15 +1,20 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, OnboardingStep, UserRole } from '../schemas/user.schema';
 import { School } from '../../schools/schemas/school.schema';
-import { 
-  UpdateOnboardingStepDto, 
-  CompleteOnboardingStepDto, 
-  UpdateProfileDto, 
+import {
+  UpdateOnboardingStepDto,
+  CompleteOnboardingStepDto,
+  UpdateProfileDto,
   SelectUserRoleDto,
   OnboardingAnalyticsDto,
-  SchoolSetupDto
+  SchoolSetupDto,
 } from '../dto/onboarding.dto';
 
 @Injectable()
@@ -22,8 +27,12 @@ export class OnboardingService {
   ) {}
 
   async getOnboardingStatus(userId: string) {
-    const user = await this.userModel.findById(userId).select('hasOnboarded onboardingProgress role profileCompletionPercentage');
-    
+    const user = await this.userModel
+      .findById(userId)
+      .select(
+        'hasOnboarded onboardingProgress role profileCompletionPercentage',
+      );
+
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -33,13 +42,13 @@ export class OnboardingService {
       onboardingProgress: user.onboardingProgress,
       profileCompletion: user.profileCompletionPercentage,
       userRole: user.role,
-      needsOnboarding: !user.hasOnboarded
+      needsOnboarding: !user.hasOnboarded,
     };
   }
 
   async initializeOnboarding(userId: string) {
     const user = await this.userModel.findById(userId);
-    
+
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -51,9 +60,9 @@ export class OnboardingService {
         completedSteps: [],
         startedAt: new Date(),
         isCompleted: false,
-        stepData: new Map()
+        stepData: new Map(),
       };
-      
+
       await user.save();
       this.logger.log(`Onboarding initialized for user ${userId}`);
     }
@@ -61,9 +70,12 @@ export class OnboardingService {
     return user.onboardingProgress;
   }
 
-  async updateOnboardingStep(userId: string, updateStepDto: UpdateOnboardingStepDto) {
+  async updateOnboardingStep(
+    userId: string,
+    updateStepDto: UpdateOnboardingStepDto,
+  ) {
     const user = await this.userModel.findById(userId);
-    
+
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -74,20 +86,27 @@ export class OnboardingService {
     }
 
     user.onboardingProgress.currentStep = updateStepDto.currentStep;
-    
+
     if (updateStepDto.stepData) {
-      user.onboardingProgress.stepData = new Map(Object.entries(updateStepDto.stepData));
+      user.onboardingProgress.stepData = new Map(
+        Object.entries(updateStepDto.stepData),
+      );
     }
 
     await user.save();
-    
-    this.logger.log(`Onboarding step updated for user ${userId}: ${updateStepDto.currentStep}`);
+
+    this.logger.log(
+      `Onboarding step updated for user ${userId}: ${updateStepDto.currentStep}`,
+    );
     return user.onboardingProgress;
   }
 
-  async completeOnboardingStep(userId: string, completeStepDto: CompleteOnboardingStepDto) {
+  async completeOnboardingStep(
+    userId: string,
+    completeStepDto: CompleteOnboardingStepDto,
+  ) {
     const user = await this.userModel.findById(userId);
-    
+
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -97,13 +116,17 @@ export class OnboardingService {
     }
 
     // Add step to completed steps if not already completed
-    if (!user.onboardingProgress.completedSteps.includes(completeStepDto.step)) {
+    if (
+      !user.onboardingProgress.completedSteps.includes(completeStepDto.step)
+    ) {
       user.onboardingProgress.completedSteps.push(completeStepDto.step);
     }
 
     // Store step data if provided
     if (completeStepDto.stepData) {
-      const stepDataObj = Object.fromEntries(user.onboardingProgress.stepData || []);
+      const stepDataObj = Object.fromEntries(
+        user.onboardingProgress.stepData || [],
+      );
       Object.assign(stepDataObj, completeStepDto.stepData);
       user.onboardingProgress.stepData = new Map(Object.entries(stepDataObj));
     }
@@ -124,14 +147,16 @@ export class OnboardingService {
     user.profileCompletionPercentage = this.calculateProfileCompletion(user);
 
     await user.save();
-    
-    this.logger.log(`Onboarding step completed for user ${userId}: ${completeStepDto.step}`);
+
+    this.logger.log(
+      `Onboarding step completed for user ${userId}: ${completeStepDto.step}`,
+    );
     return user.onboardingProgress;
   }
 
   async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {
     const user = await this.userModel.findById(userId);
-    
+
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -139,10 +164,12 @@ export class OnboardingService {
     // Update profile fields
     if (updateProfileDto.firstName) user.firstName = updateProfileDto.firstName;
     if (updateProfileDto.lastName) user.lastName = updateProfileDto.lastName;
-    if (updateProfileDto.dateOfBirth) user.dateOfBirth = new Date(updateProfileDto.dateOfBirth);
+    if (updateProfileDto.dateOfBirth)
+      user.dateOfBirth = new Date(updateProfileDto.dateOfBirth);
     if (updateProfileDto.phone) user.phone = updateProfileDto.phone;
     if (updateProfileDto.bio) user.bio = updateProfileDto.bio;
-    if (updateProfileDto.profileImageUrl) user.profileImageUrl = updateProfileDto.profileImageUrl;
+    if (updateProfileDto.profileImageUrl)
+      user.profileImageUrl = updateProfileDto.profileImageUrl;
 
     // Update full name if first or last name changed
     if (updateProfileDto.firstName || updateProfileDto.lastName) {
@@ -153,28 +180,30 @@ export class OnboardingService {
     user.profileCompletionPercentage = this.calculateProfileCompletion(user);
 
     await user.save();
-    
+
     this.logger.log(`Profile updated for user ${userId}`);
     return user;
   }
 
   async selectUserRole(userId: string, selectRoleDto: SelectUserRoleDto) {
     const user = await this.userModel.findById(userId);
-    
+
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
     user.role = selectRoleDto.role;
     await user.save();
-    
-    this.logger.log(`User role selected for user ${userId}: ${selectRoleDto.role}`);
+
+    this.logger.log(
+      `User role selected for user ${userId}: ${selectRoleDto.role}`,
+    );
     return user;
   }
 
   async setupSchool(userId: string, schoolSetupDto: SchoolSetupDto) {
     const user = await this.userModel.findById(userId);
-    
+
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -193,7 +222,7 @@ export class OnboardingService {
       phone: schoolSetupDto.phone,
       website: schoolSetupDto.website,
       admin: user._id,
-      createdAt: new Date()
+      createdAt: new Date(),
     });
 
     const savedSchool = await school.save();
@@ -201,35 +230,43 @@ export class OnboardingService {
     // Add school to user's owned schools
     user.ownedSchools.push(savedSchool._id);
     user.schools.push(savedSchool._id);
-    
+
     // Add school role
     user.schoolRoles.push({
       schoolId: savedSchool._id,
       role: UserRole.SCHOOL_OWNER,
-      sede: undefined
+      sede: undefined,
     });
 
     await user.save();
-    
-    this.logger.log(`School setup completed for user ${userId}: ${savedSchool.name}`);
+
+    this.logger.log(
+      `School setup completed for user ${userId}: ${savedSchool.name}`,
+    );
     return savedSchool;
   }
 
-  async logAnalyticsEvent(userId: string, analyticsDto: OnboardingAnalyticsDto) {
+  async logAnalyticsEvent(
+    userId: string,
+    analyticsDto: OnboardingAnalyticsDto,
+  ) {
     // This could be extended to integrate with analytics services like Google Analytics, Mixpanel, etc.
-    this.logger.log(`Onboarding Analytics - User: ${userId}, Event: ${analyticsDto.event}, Step: ${analyticsDto.step}`, analyticsDto.metadata);
-    
+    this.logger.log(
+      `Onboarding Analytics - User: ${userId}, Event: ${analyticsDto.event}, Step: ${analyticsDto.step}`,
+      analyticsDto.metadata,
+    );
+
     // For now, we'll just log it. In production, you might want to:
     // - Send to analytics service
     // - Store in analytics database
     // - Trigger notifications or webhooks
-    
+
     return { success: true, event: analyticsDto.event, timestamp: new Date() };
   }
 
   async skipOnboarding(userId: string, reason?: string) {
     const user = await this.userModel.findById(userId);
-    
+
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -241,22 +278,32 @@ export class OnboardingService {
       startedAt: user.onboardingProgress?.startedAt || new Date(),
       completedAt: new Date(),
       isCompleted: true,
-      stepData: new Map(Object.entries({ skipped: true, skipReason: reason || 'User chose to skip' }))
+      stepData: new Map(
+        Object.entries({
+          skipped: true,
+          skipReason: reason || 'User chose to skip',
+        }),
+      ),
     };
 
     await user.save();
-    
-    this.logger.log(`Onboarding skipped for user ${userId}. Reason: ${reason || 'No reason provided'}`);
+
+    this.logger.log(
+      `Onboarding skipped for user ${userId}. Reason: ${reason || 'No reason provided'}`,
+    );
     return { success: true, message: 'Onboarding skipped successfully' };
   }
 
-  private getNextStep(currentStep: OnboardingStep, userRole: UserRole): OnboardingStep | null {
+  private getNextStep(
+    currentStep: OnboardingStep,
+    userRole: UserRole,
+  ): OnboardingStep | null {
     const stepFlow = {
       [OnboardingStep.WELCOME]: OnboardingStep.USER_TYPE_SELECTION,
       [OnboardingStep.USER_TYPE_SELECTION]: OnboardingStep.PROFILE_COMPLETION,
       [OnboardingStep.PROFILE_COMPLETION]: null, // Complete onboarding after profile completion
       [OnboardingStep.SCHOOL_SETUP]: OnboardingStep.QUICK_TOUR, // Keep for backward compatibility
-      [OnboardingStep.QUICK_TOUR]: null // Completed
+      [OnboardingStep.QUICK_TOUR]: null, // Completed
     };
 
     return stepFlow[currentStep] || null;
@@ -271,7 +318,7 @@ export class OnboardingService {
       { field: 'dateOfBirth', weight: 10 }, // Optional for all users
       { field: 'phone', weight: 10 },
       { field: 'profileImageUrl', weight: 5 },
-      { field: 'bio', weight: 5 }
+      { field: 'bio', weight: 5 },
     ];
 
     let totalWeight = 0;
@@ -279,14 +326,14 @@ export class OnboardingService {
 
     for (const fieldConfig of fields) {
       const { field, weight, roles } = fieldConfig as any;
-      
+
       // Skip role-specific fields if not applicable
       if (roles && !roles.includes(user.role)) {
         continue;
       }
 
       totalWeight += weight;
-      
+
       if (user[field] && user[field].toString().trim() !== '') {
         completedWeight += weight;
       }
@@ -294,4 +341,4 @@ export class OnboardingService {
 
     return Math.round((completedWeight / totalWeight) * 100);
   }
-} 
+}

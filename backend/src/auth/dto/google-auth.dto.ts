@@ -28,4 +28,4 @@ export class LinkGoogleAccountDto {
   @IsOptional()
   @IsBoolean()
   forceLink?: boolean; // Force link even if email already exists
-} 
+}

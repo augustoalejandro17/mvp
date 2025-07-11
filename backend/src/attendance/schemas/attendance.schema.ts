@@ -8,12 +8,12 @@ export class Attendance {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Course', required: true })
   course: MongooseSchema.Types.ObjectId;
 
-  @Prop({ 
-    type: MongooseSchema.Types.Mixed, 
+  @Prop({
+    type: MongooseSchema.Types.Mixed,
     required: true,
     // Puede ser un ObjectId (usuario registrado) o un string (no registrado)
     ref: 'User',
-    refPath: 'studentModel'
+    refPath: 'studentModel',
   })
   student: MongooseSchema.Types.ObjectId | string;
 
@@ -48,4 +48,4 @@ export class Attendance {
   totalStudents: number;
 }
 
-export const AttendanceSchema = SchemaFactory.createForClass(Attendance); 
+export const AttendanceSchema = SchemaFactory.createForClass(Attendance);

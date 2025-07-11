@@ -6,14 +6,20 @@ import { PlaylistsController } from './playlists.controller';
 import { PlaylistsService } from './playlists.service';
 import { Class, ClassSchema } from './schemas/class.schema';
 import { Playlist, PlaylistSchema } from './schemas/playlist.schema';
-import { Attendance, AttendanceSchema } from '../attendance/schemas/attendance.schema';
+import {
+  Attendance,
+  AttendanceSchema,
+} from '../attendance/schemas/attendance.schema';
 import { AuthModule } from '../auth/auth.module';
 import { CoursesModule } from '../courses/courses.module';
 import { UsersModule } from '../users/users.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
 import { ServicesModule } from '../services/services.module';
-import { Enrollment, EnrollmentSchema } from '../courses/schemas/enrollment.schema';
+import {
+  Enrollment,
+  EnrollmentSchema,
+} from '../courses/schemas/enrollment.schema';
 import { UsageModule } from '../usage/usage.module';
 
 @Module({
@@ -36,4 +42,4 @@ import { UsageModule } from '../usage/usage.module';
   providers: [ClassesService, PlaylistsService],
   exports: [ClassesService, PlaylistsService],
 })
-export class ClassesModule {} 
+export class ClassesModule {}

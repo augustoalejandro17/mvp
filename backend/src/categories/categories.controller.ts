@@ -1,14 +1,14 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Body, 
-  Patch, 
-  Param, 
-  Delete, 
-  UseGuards, 
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
   Query,
-  Logger 
+  Logger,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -26,7 +26,12 @@ export class CategoriesController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.SCHOOL_OWNER,
+    UserRole.ADMINISTRATIVE,
+  )
   async create(@Body() createCategoryDto: CreateCategoryDto) {
     this.logger.log(`Creating category: ${createCategoryDto.name}`);
     return this.categoriesService.create(createCategoryDto);
@@ -38,7 +43,7 @@ export class CategoriesController {
       this.logger.log('Fetching categories in hierarchical structure');
       return this.categoriesService.findAllHierarchical();
     }
-    
+
     this.logger.log('Fetching all categories');
     return this.categoriesService.findAll();
   }
@@ -63,8 +68,16 @@ export class CategoriesController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE)
-  async update(@Param('id') id: string, @Body() updateCategoryDto: UpdateCategoryDto) {
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.SCHOOL_OWNER,
+    UserRole.ADMINISTRATIVE,
+  )
+  async update(
+    @Param('id') id: string,
+    @Body() updateCategoryDto: UpdateCategoryDto,
+  ) {
     this.logger.log(`Updating category: ${id}`);
     return this.categoriesService.update(id, updateCategoryDto);
   }
@@ -84,4 +97,4 @@ export class CategoriesController {
     this.logger.log(`Hard deleting category: ${id}`);
     return this.categoriesService.hardDelete(id);
   }
-} 
+}

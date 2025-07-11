@@ -15,16 +15,16 @@ async function bootstrap() {
     process.env.FRONTEND_URL = process.env.FRONTEND_URL;
     process.env.MONGODB_URI = process.env.MONGODB_URI;
     process.env.JWT_SECRET = process.env.JWT_SECRET;
-    
+
     const app = await NestFactory.create(AppModule);
-    
+
     // Habilitar CORS
     const allowedOrigins = [
-      process.env.FRONTEND_URL, 
+      process.env.FRONTEND_URL,
       'http://inti-front-431558574.us-east-1.elb.amazonaws.com',
-      'https://intihubs.com'
+      'https://intihubs.com',
     ];
-    
+
     app.enableCors({
       origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps, curl requests)
@@ -44,11 +44,13 @@ async function bootstrap() {
     app.setGlobalPrefix('api');
 
     // Configurar validación de DTO
-    app.useGlobalPipes(new ValidationPipe({
-      whitelist: true, // Elimina propiedades que no están en el DTO
-      forbidNonWhitelisted: true, // Arroja error si se envían propiedades no definidas
-      transform: true, // Transforma los datos a las clases DTO
-    }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true, // Elimina propiedades que no están en el DTO
+        forbidNonWhitelisted: true, // Arroja error si se envían propiedades no definidas
+        transform: true, // Transforma los datos a las clases DTO
+      }),
+    );
 
     // Aumentar el límite de tamaño para subir archivos
     app.use(express.json({ limit: '50mb' }));
@@ -57,26 +59,28 @@ async function bootstrap() {
     // Log all registered routes
     const server = app.getHttpServer();
     const router = server._events.request._router;
-    
+
     const availableRoutes = router.stack
-      .filter(layer => layer.route)
-      .map(layer => {
+      .filter((layer) => layer.route)
+      .map((layer) => {
         const route = layer.route;
         const path = route.path;
         const method = Object.keys(route.methods)[0].toUpperCase();
         return `${method} ${path}`;
       });
-    
+
     logger.log('Registered routes:');
-    availableRoutes.forEach(route => logger.log(route));
+    availableRoutes.forEach((route) => logger.log(route));
 
     // Obtener el puerto desde las variables de entorno
     const port = process.env.PORT;
-    
+
     logger.log(`Iniciando aplicación en modo de depuración completa`);
     logger.log(`Usando FRONTEND_URL: ${process.env.FRONTEND_URL}`);
-    logger.log(`Usando MONGODB_URI: ${process.env.MONGODB_URI.substring(0, 10)}...`);
-    
+    logger.log(
+      `Usando MONGODB_URI: ${process.env.MONGODB_URI.substring(0, 10)}...`,
+    );
+
     await app.listen(port);
     logger.log(`Aplicación iniciada correctamente en puerto ${port}`);
   } catch (error) {
@@ -84,7 +88,9 @@ async function bootstrap() {
     logger.error(error.stack);
     // En caso de error de puerto ocupado, intentar con otro
     if (error.code === 'EADDRINUSE') {
-      logger.warn(`Puerto ${process.env.PORT} en uso, intentando con puerto alternativo 4004`);
+      logger.warn(
+        `Puerto ${process.env.PORT} en uso, intentando con puerto alternativo 4004`,
+      );
       const app = await NestFactory.create(AppModule);
       app.enableCors({
         origin: process.env.FRONTEND_URL,
@@ -92,18 +98,20 @@ async function bootstrap() {
         credentials: true,
       });
       app.setGlobalPrefix('api');
-      app.useGlobalPipes(new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }));
+      app.useGlobalPipes(
+        new ValidationPipe({
+          whitelist: true,
+          forbidNonWhitelisted: true,
+          transform: true,
+        }),
+      );
       app.use(express.json({ limit: '50mb' }));
       app.use(express.urlencoded({ limit: '50mb', extended: true }));
-      
+
       await app.listen(4004);
       logger.log(`Aplicación iniciada en puerto alternativo 4004`);
     }
   }
 }
 
-bootstrap(); 
+bootstrap();

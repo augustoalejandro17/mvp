@@ -23,4 +23,4 @@ import { CoursesModule } from '../courses/courses.module';
   providers: [AttendanceService, RemoveClassFieldMigration],
   exports: [AttendanceService, RemoveClassFieldMigration],
 })
-export class AttendanceModule {} 
+export class AttendanceModule {}

@@ -1,10 +1,22 @@
-import { Injectable, UnauthorizedException, BadRequestException, Logger, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  Logger,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
-import { Model, Document } from 'mongoose';
+import { Model } from 'mongoose';
 import { OAuth2Client } from 'google-auth-library';
-import { User, UserDocument, UserRole, AuthProvider } from '../schemas/user.schema';
+import {
+  User,
+  UserDocument,
+  UserRole,
+  AuthProvider,
+} from '../schemas/user.schema';
 import { GoogleLoginDto, LinkGoogleAccountDto } from '../dto/google-auth.dto';
+import { School } from '../../schools/schemas/school.schema';
 
 interface GoogleUserInfo {
   sub: string;
@@ -27,7 +39,9 @@ export class GoogleOAuthService {
   ) {
     const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
     if (!clientId) {
-      this.logger.warn('GOOGLE_CLIENT_ID not configured - Google OAuth will not work');
+      this.logger.warn(
+        'GOOGLE_CLIENT_ID not configured - Google OAuth will not work',
+      );
     }
     this.googleClient = new OAuth2Client(clientId);
   }
@@ -51,7 +65,9 @@ export class GoogleOAuthService {
       return {
         sub: payload.sub,
         email: payload.email,
-        name: payload.name || `${payload.given_name || ''} ${payload.family_name || ''}`.trim(),
+        name:
+          payload.name ||
+          `${payload.given_name || ''} ${payload.family_name || ''}`.trim(),
         given_name: payload.given_name,
         family_name: payload.family_name,
         picture: payload.picture,
@@ -63,12 +79,14 @@ export class GoogleOAuthService {
     }
   }
 
-  async googleLogin(googleLoginDto: GoogleLoginDto): Promise<{ user: any; isNewUser: boolean }> {
+  async googleLogin(
+    googleLoginDto: GoogleLoginDto,
+  ): Promise<{ user: any; isNewUser: boolean }> {
     const googleUser = await this.verifyGoogleToken(googleLoginDto.idToken);
-    
+
     // Check if user exists by Google ID first
     let user = await this.userModel.findOne({ googleId: googleUser.sub });
-    
+
     if (user) {
       // User exists with Google ID - normal login
       this.logger.log(`Google login for existing user: ${googleUser.email}`);
@@ -77,16 +95,17 @@ export class GoogleOAuthService {
 
     // Check if user exists by email
     user = await this.userModel.findOne({ email: googleUser.email });
-    
+
     if (user) {
       // User exists with same email but different provider
       if (user.provider === AuthProvider.LOCAL && !user.googleId) {
         // Local user wants to login with Google - need to link accounts
         throw new ConflictException({
           code: 'ACCOUNT_LINKING_REQUIRED',
-          message: 'An account with this email already exists. Please link your Google account.',
+          message:
+            'An account with this email already exists. Please link your Google account.',
           email: googleUser.email,
-          existingProvider: user.provider
+          existingProvider: user.provider,
         });
       } else {
         // Update Google ID if missing
@@ -103,9 +122,12 @@ export class GoogleOAuthService {
     return { user, isNewUser: true };
   }
 
-  async linkGoogleAccount(userId: string, linkDto: LinkGoogleAccountDto): Promise<any> {
+  async linkGoogleAccount(
+    userId: string,
+    linkDto: LinkGoogleAccountDto,
+  ): Promise<any> {
     const googleUser = await this.verifyGoogleToken(linkDto.idToken);
-    
+
     // Get the user who wants to link their account
     const user = await this.userModel.findById(userId);
     if (!user) {
@@ -114,17 +136,21 @@ export class GoogleOAuthService {
 
     // Check if email matches
     if (user.email !== googleUser.email) {
-      throw new BadRequestException('Google account email does not match your account email');
+      throw new BadRequestException(
+        'Google account email does not match your account email',
+      );
     }
 
     // Check if this Google account is already linked to another user
-    const existingGoogleUser = await this.userModel.findOne({ 
+    const existingGoogleUser = await this.userModel.findOne({
       googleId: googleUser.sub,
-      _id: { $ne: userId }
+      _id: { $ne: userId },
     });
 
     if (existingGoogleUser) {
-      throw new ConflictException('This Google account is already linked to another user');
+      throw new ConflictException(
+        'This Google account is already linked to another user',
+      );
     }
 
     // Link the account
@@ -164,7 +190,9 @@ export class GoogleOAuthService {
     }
 
     if (user.provider === AuthProvider.GOOGLE && !user.password) {
-      throw new BadRequestException('Cannot unlink Google account without setting a password first');
+      throw new BadRequestException(
+        'Cannot unlink Google account without setting a password first',
+      );
     }
 
     user.googleId = undefined;
@@ -177,4 +205,4 @@ export class GoogleOAuthService {
     this.logger.log(`Unlinked Google account for user: ${user.email}`);
     return user;
   }
-} 
+}

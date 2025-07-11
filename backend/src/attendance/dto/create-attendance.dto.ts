@@ -1,4 +1,11 @@
-import { IsMongoId, IsNotEmpty, IsString, IsBoolean, IsOptional, IsDateString } from 'class-validator';
+import {
+  IsMongoId,
+  IsNotEmpty,
+  IsString,
+  IsBoolean,
+  IsOptional,
+  IsDateString,
+} from 'class-validator';
 
 export class CreateAttendanceDto {
   @IsNotEmpty()
@@ -25,4 +32,4 @@ export class CreateAttendanceDto {
   // @IsOptional()
   // @IsBoolean()
   // isRegistered?: boolean;
-} 
+}

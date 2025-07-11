@@ -6,4 +6,5 @@ import { UserRole } from '../schemas/user.schema';
  * This metadata is used by the RolesGuard to check if user has necessary roles.
  * @param roles Array of roles required to access the route
  */
-export const Roles = (...roles: (UserRole | string)[]) => SetMetadata('roles', roles); 
+export const Roles = (...roles: (UserRole | string)[]) =>
+  SetMetadata('roles', roles);

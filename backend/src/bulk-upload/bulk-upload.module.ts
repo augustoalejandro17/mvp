@@ -22,4 +22,4 @@ import { CoursesModule } from '../courses/courses.module';
   providers: [BulkUploadService],
   exports: [BulkUploadService],
 })
-export class BulkUploadModule {} 
+export class BulkUploadModule {}

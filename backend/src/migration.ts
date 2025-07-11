@@ -6,10 +6,10 @@ import { Logger } from '@nestjs/common';
 async function bootstrap() {
   const logger = new Logger('Migration');
   logger.log('Starting migration process...');
-  
+
   const app = await NestFactory.create(AppModule);
   const migration = app.get(RemoveClassFieldMigration);
-  
+
   try {
     await migration.migrate();
     logger.log('Migration completed successfully');
@@ -20,4 +20,4 @@ async function bootstrap() {
   }
 }
 
-bootstrap(); 
+bootstrap();

@@ -6,4 +6,5 @@ import { Permission } from '../guards/permissions.guard';
  * This metadata is used by the PermissionsGuard to check if user has necessary permissions.
  * @param permissions Array of permissions required to access the route
  */
-export const RequirePermissions = (...permissions: Permission[]) => SetMetadata('permissions', permissions); 
+export const RequirePermissions = (...permissions: Permission[]) =>
+  SetMetadata('permissions', permissions);

@@ -27,4 +27,4 @@ export class Category {
   icon?: string; // Optional icon for UI display
 }
 
-export const CategorySchema = SchemaFactory.createForClass(Category); 
+export const CategorySchema = SchemaFactory.createForClass(Category);

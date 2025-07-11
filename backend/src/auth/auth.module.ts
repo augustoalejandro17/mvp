@@ -25,19 +25,21 @@ const logger = new Logger('AuthModule');
       useFactory: (configService: ConfigService) => {
         const secret = configService.get<string>('JWT_SECRET');
         const expiresIn = configService.get<string>('JWT_EXPIRATION') || '8h';
-        
+
         if (!secret) {
-          logger.error('JWT_SECRET no está definido en las variables de entorno');
+          logger.error(
+            'JWT_SECRET no está definido en las variables de entorno',
+          );
           throw new Error('JWT_SECRET no está definido');
         }
-        
+
         logger.log(`JWT configurado con expiración: ${expiresIn}`);
-        
+
         return {
           secret,
           signOptions: { expiresIn },
         };
-      }
+      },
     }),
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
@@ -46,7 +48,18 @@ const logger = new Logger('AuthModule');
     ]),
   ],
   controllers: [AuthController, OnboardingController],
-  providers: [AuthService, JwtStrategy, AuthorizationService, OnboardingService, GoogleOAuthService],
-  exports: [AuthService, AuthorizationService, OnboardingService, GoogleOAuthService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    AuthorizationService,
+    OnboardingService,
+    GoogleOAuthService,
+  ],
+  exports: [
+    AuthService,
+    AuthorizationService,
+    OnboardingService,
+    GoogleOAuthService,
+  ],
 })
-export class AuthModule {} 
+export class AuthModule {}
