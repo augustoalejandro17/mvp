@@ -6,8 +6,8 @@ export type OverageDocument = Overage & Document;
 
 export enum OverageType {
   STUDENT = 'student',
-  STORAGE = 'storage', 
-  STREAMING = 'streaming'
+  STORAGE = 'storage',
+  STREAMING = 'streaming',
 }
 
 @Schema()
@@ -52,4 +52,4 @@ export class Overage {
   createdAt: Date;
 }
 
-export const OverageSchema = SchemaFactory.createForClass(Overage); 
+export const OverageSchema = SchemaFactory.createForClass(Overage);

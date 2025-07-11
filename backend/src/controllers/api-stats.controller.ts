@@ -49,7 +49,8 @@ export class ApiStatsController {
     @InjectModel(School.name) private schoolModel: Model<School>,
     @InjectModel(Course.name) private courseModel: Model<Course>,
     @InjectModel(Class.name) private classModel: Model<Class>,
-    @InjectModel(Subscription.name) private subscriptionModel: Model<Subscription>,
+    @InjectModel(Subscription.name)
+    private subscriptionModel: Model<Subscription>,
     // @InjectModel(Attendance.name) private attendanceModel: Model<Attendance>,
   ) {}
 
@@ -58,27 +59,33 @@ export class ApiStatsController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('academyId') academyId?: string,
-    @Request() req?: any
+    @Request() req?: any,
   ): Promise<OverviewStats> {
     try {
-      const fromDate = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const fromDate = from
+        ? new Date(from)
+        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const toDate = to ? new Date(to) : new Date();
 
       // Get basic counts
       const totalUsers = await this.userModel.countDocuments();
       const totalSchools = await this.schoolModel.countDocuments();
       const totalCourses = await this.courseModel.countDocuments();
-      
+
       // Mock attendance data for now - in a real app, you'd query attendance records
       const mockAttendanceData = {
         totalPresent: 850,
         totalAbsent: 150,
         totalActive: 950,
-        totalDropped: 50
+        totalDropped: 50,
       };
 
-      const attendanceRate = mockAttendanceData.totalPresent / (mockAttendanceData.totalPresent + mockAttendanceData.totalAbsent);
-      const churnRate = mockAttendanceData.totalDropped / (mockAttendanceData.totalActive + mockAttendanceData.totalDropped);
+      const attendanceRate =
+        mockAttendanceData.totalPresent /
+        (mockAttendanceData.totalPresent + mockAttendanceData.totalAbsent);
+      const churnRate =
+        mockAttendanceData.totalDropped /
+        (mockAttendanceData.totalActive + mockAttendanceData.totalDropped);
 
       return {
         dateRange: { from: fromDate.toISOString(), to: toDate.toISOString() },
@@ -91,13 +98,16 @@ export class ApiStatsController {
         avgRetentionDays: 120,
         totalActive: mockAttendanceData.totalActive,
         totalDropped: mockAttendanceData.totalDropped,
-        churnRate
+        churnRate,
       };
     } catch (error) {
       console.error('Error getting overview stats:', error);
       // Return default stats on error
       return {
-        dateRange: { from: new Date().toISOString(), to: new Date().toISOString() },
+        dateRange: {
+          from: new Date().toISOString(),
+          to: new Date().toISOString(),
+        },
         totalRevenueCents: 0,
         totalPresent: 0,
         totalAbsent: 0,
@@ -107,7 +117,7 @@ export class ApiStatsController {
         avgRetentionDays: 0,
         totalActive: 0,
         totalDropped: 0,
-        churnRate: 0
+        churnRate: 0,
       };
     }
   }
@@ -117,13 +127,16 @@ export class ApiStatsController {
     @Query('metric') metric: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
-    @Query('academyId') academyId?: string
+    @Query('academyId') academyId?: string,
   ): Promise<DimensionMetric[]> {
     try {
       // Get all teachers/professors
-      const teachers = await this.userModel.find({ 
-        role: { $in: [UserRole.TEACHER, UserRole.ADMIN] } 
-      }).select('firstName lastName').lean();
+      const teachers = await this.userModel
+        .find({
+          role: { $in: [UserRole.TEACHER, UserRole.ADMIN] },
+        })
+        .select('firstName lastName')
+        .lean();
 
       // Mock data - in real app, calculate actual metrics
       return teachers.map((teacher, index) => ({
@@ -133,8 +146,8 @@ export class ApiStatsController {
         context: {
           present: 85 + (index % 10),
           absent: 15 - (index % 5),
-          revenueCents: (5000 + index * 500) * 100
-        }
+          revenueCents: (5000 + index * 500) * 100,
+        },
       }));
     } catch (error) {
       console.error('Error getting professor metrics:', error);
@@ -147,7 +160,7 @@ export class ApiStatsController {
     @Query('metric') metric: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
-    @Query('academyId') academyId?: string
+    @Query('academyId') academyId?: string,
   ): Promise<DimensionMetric[]> {
     try {
       const courses = await this.courseModel.find().select('title').lean();
@@ -160,8 +173,8 @@ export class ApiStatsController {
           present: 45 + (index % 15),
           absent: 5 + (index % 3),
           maxSeats: 50,
-          revenueCents: (2000 + index * 300) * 100
-        }
+          revenueCents: (2000 + index * 300) * 100,
+        },
       }));
     } catch (error) {
       console.error('Error getting course metrics:', error);
@@ -174,7 +187,7 @@ export class ApiStatsController {
     @Query('metric') metric: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
-    @Query('academyId') academyId?: string
+    @Query('academyId') academyId?: string,
   ): Promise<DimensionMetric[]> {
     // Mock categories data
     const categories = [
@@ -184,7 +197,7 @@ export class ApiStatsController {
       'Jazz',
       'Tap',
       'Salsa',
-      'Ballroom'
+      'Ballroom',
     ];
 
     return categories.map((category, index) => ({
@@ -194,8 +207,8 @@ export class ApiStatsController {
       context: {
         present: 30 + (index % 12),
         absent: 5 + (index % 4),
-        revenueCents: (1500 + index * 200) * 100
-      }
+        revenueCents: (1500 + index * 200) * 100,
+      },
     }));
   }
 
@@ -204,7 +217,7 @@ export class ApiStatsController {
     @Query('metric') metric: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
-    @Query('academyId') academyId?: string
+    @Query('academyId') academyId?: string,
   ): Promise<DimensionMetric[]> {
     // Mock age ranges data
     const ageRanges = [
@@ -214,7 +227,7 @@ export class ApiStatsController {
       '18-25 years',
       '26-35 years',
       '36-50 years',
-      '50+ years'
+      '50+ years',
     ];
 
     return ageRanges.map((range, index) => ({
@@ -225,8 +238,8 @@ export class ApiStatsController {
         present: 25 + (index % 20),
         absent: 3 + (index % 2),
         active: 28 + (index % 18),
-        dropped: 2 + (index % 3)
-      }
+        dropped: 2 + (index % 3),
+      },
     }));
   }
 
@@ -246,4 +259,4 @@ export class ApiStatsController {
         return index % 10;
     }
   }
-} 
+}

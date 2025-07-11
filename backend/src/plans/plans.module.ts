@@ -7,12 +7,18 @@ import { SubscriptionsController as UserSubscriptionsController } from './subscr
 import { SubscriptionsController } from './controllers/subscriptions.controller';
 import { AdminPlanController } from './controllers/admin-plan.controller';
 import { Plan, PlanSchema } from './schemas/plan.schema';
-import { Subscription, SubscriptionSchema } from './schemas/subscription.schema';
+import {
+  Subscription,
+  SubscriptionSchema,
+} from './schemas/subscription.schema';
 import { Overage, OverageSchema } from './schemas/overage.schema';
 import { School, SchoolSchema } from '../schools/schemas/school.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
-import { UsageTracking, UsageTrackingSchema } from '../usage/schemas/usage-tracking.schema';
+import {
+  UsageTracking,
+  UsageTrackingSchema,
+} from '../usage/schemas/usage-tracking.schema';
 
 @Module({
   imports: [
@@ -23,11 +29,16 @@ import { UsageTracking, UsageTrackingSchema } from '../usage/schemas/usage-track
       { name: School.name, schema: SchoolSchema },
       { name: User.name, schema: UserSchema },
       { name: Course.name, schema: CourseSchema },
-      { name: UsageTracking.name, schema: UsageTrackingSchema }
-    ])
+      { name: UsageTracking.name, schema: UsageTrackingSchema },
+    ]),
   ],
-  controllers: [PlansController, UserSubscriptionsController, SubscriptionsController, AdminPlanController],
+  controllers: [
+    PlansController,
+    UserSubscriptionsController,
+    SubscriptionsController,
+    AdminPlanController,
+  ],
   providers: [PlansService, SubscriptionsService],
-  exports: [PlansService, SubscriptionsService]
+  exports: [PlansService, SubscriptionsService],
 })
-export class PlansModule {} 
+export class PlansModule {}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import { FaPlus, FaEdit, FaTrash, FaList, FaPlay, FaGripVertical, FaTrashAlt, FaMinus, FaChevronDown, FaChevronRight } from 'react-icons/fa';
@@ -76,56 +76,19 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
   const dragGhostRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetchPlaylists();
-    fetchUnorganizedClasses();
-  }, [courseId]);
-
-  // Refresh when refreshTrigger changes
-  useEffect(() => {
-    if (refreshTrigger !== undefined) {
-      fetchPlaylists();
-      fetchUnorganizedClasses();
-    }
-  }, [refreshTrigger]);
-
-  // Auto-refresh to check for video processing updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Check if there are any processing videos
-      const hasProcessingVideos = [...playlists, ...unorganizedClasses]
-        .flatMap(item => 'classes' in item ? item.classes : [item])
-        .some(classItem => 
-          classItem.videoStatus === 'UPLOADING' || 
-          classItem.videoStatus === 'PROCESSING'
-        );
-      
-      if (hasProcessingVideos) {
-        fetchPlaylists(0, true);
-        fetchUnorganizedClasses();
-      }
-    }, 5000); // Check every 5 seconds
-
-    return () => clearInterval(interval);
-  }, [playlists, unorganizedClasses]);
-
-  // Clean up touch drag state when component unmounts
-  useEffect(() => {
-    return () => {
-      if (touchDragState?.element) {
-        touchDragState.element.style.transform = '';
-        touchDragState.element.style.zIndex = '';
-        touchDragState.element.style.pointerEvents = '';
-      }
-    };
-  }, []);
-
-  const fetchPlaylists = async (retryCount = 0, preserveExpandedState = false) => {
+  const fetchPlaylists = useCallback(async (retryCount = 0, preserveExpandedState = false) => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
+      
+      // Prepare headers - include authorization if token exists
+      const headers: any = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
       const response = await axios.get(`${apiUrl}/api/playlists?courseId=${courseId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers
       });
       setPlaylists(response.data);
       
@@ -149,14 +112,21 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
         console.error('Failed to fetch playlists after 2 retries');
       }
     }
-  };
+  }, [courseId]);
 
-  const fetchUnorganizedClasses = async () => {
+  const fetchUnorganizedClasses = useCallback(async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
+      
+      // Prepare headers - include authorization if token exists
+      const headers: any = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
       const response = await axios.get(`${apiUrl}/api/playlists/unorganized?courseId=${courseId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers
       });
       setUnorganizedClasses(response.data);
     } catch (error) {
@@ -164,7 +134,51 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
     } finally {
       setLoading(false);
     }
-  };
+  }, [courseId]);
+
+  useEffect(() => {
+    fetchPlaylists();
+    fetchUnorganizedClasses();
+  }, [fetchPlaylists, fetchUnorganizedClasses]);
+
+  // Refresh when refreshTrigger changes
+  useEffect(() => {
+    if (refreshTrigger !== undefined) {
+      fetchPlaylists();
+      fetchUnorganizedClasses();
+    }
+  }, [refreshTrigger, fetchPlaylists, fetchUnorganizedClasses]);
+
+  // Auto-refresh to check for video processing updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Check if there are any processing videos
+      const hasProcessingVideos = [...playlists, ...unorganizedClasses]
+        .flatMap(item => 'classes' in item ? item.classes : [item])
+        .some(classItem => 
+          classItem.videoStatus === 'UPLOADING' || 
+          classItem.videoStatus === 'PROCESSING'
+        );
+      
+      if (hasProcessingVideos) {
+        fetchPlaylists(0, true);
+        fetchUnorganizedClasses();
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [playlists, unorganizedClasses, fetchPlaylists, fetchUnorganizedClasses]);
+
+  // Clean up touch drag state when component unmounts
+  useEffect(() => {
+    return () => {
+      if (touchDragState?.element) {
+        touchDragState.element.style.transform = '';
+        touchDragState.element.style.zIndex = '';
+        touchDragState.element.style.pointerEvents = '';
+      }
+    };
+  }, [touchDragState?.element]);
 
   const createPlaylist = async () => {
     if (!newPlaylistName.trim()) return;
@@ -476,6 +490,9 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
     return <div className={styles.loading}>Cargando listas de reproducción...</div>;
   }
 
+  const token = Cookies.get('token');
+  const isAuthenticated = !!token;
+
   return (
     <div className={styles.playlistManager} ref={containerRef}>
       <div className={styles.header}>
@@ -490,8 +507,8 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
         )}
       </div>
 
-      {/* Create/Edit Form */}
-      {(showCreateForm || editingPlaylist) && (
+      {/* Create/Edit Form - Only show for authenticated users who can modify */}
+      {canModify && (showCreateForm || editingPlaylist) && (
         <div className={styles.form}>
           <input
             type="text"

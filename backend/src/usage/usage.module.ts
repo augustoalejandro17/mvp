@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { UsageTracking, UsageTrackingSchema } from './schemas/usage-tracking.schema';
+import {
+  UsageTracking,
+  UsageTrackingSchema,
+} from './schemas/usage-tracking.schema';
 import { UsageTrackingService } from './usage-tracking.service';
 import { UsageTrackingController } from './usage-tracking.controller';
 import { StorageIntegrationService } from './integration/storage-integration.service';
@@ -14,7 +17,10 @@ import { School, SchoolSchema } from '../schools/schemas/school.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
 import { Class, ClassSchema } from '../classes/schemas/class.schema';
 import { Plan, PlanSchema } from '../plans/schemas/plan.schema';
-import { Subscription, SubscriptionSchema } from '../plans/schemas/subscription.schema';
+import {
+  Subscription,
+  SubscriptionSchema,
+} from '../plans/schemas/subscription.schema';
 
 @Module({
   imports: [
@@ -43,4 +49,4 @@ import { Subscription, SubscriptionSchema } from '../plans/schemas/subscription.
     UsageHooksService,
   ],
 })
-export class UsageModule {} 
+export class UsageModule {}

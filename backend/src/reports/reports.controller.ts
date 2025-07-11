@@ -1,9 +1,22 @@
-import { Controller, Get, Query, UseGuards, Req, Res, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  UseGuards,
+  Req,
+  Res,
+  Logger,
+  BadRequestException,
+} from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard, Permission } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
-import { MonthlyAttendanceReport, ExportResult, MonthlyPaymentReport } from './types/report.types';
+import {
+  MonthlyAttendanceReport,
+  ExportResult,
+  MonthlyPaymentReport,
+} from './types/report.types';
 
 @Controller('reports')
 export class ReportsController {
@@ -19,13 +32,15 @@ export class ReportsController {
     @Query('month') month?: string,
     @Query('year') year?: string,
     @Query('courseId') courseId?: string,
-    @Req() req?: any
+    @Req() req?: any,
   ): Promise<MonthlyAttendanceReport> {
     try {
       const userId = req.user.sub || req.user._id;
       const userRole = req.user.role;
 
-      this.logger.log(`Monthly attendance report requested by user ${userId} (${userRole})`);
+      this.logger.log(
+        `Monthly attendance report requested by user ${userId} (${userRole})`,
+      );
 
       // Validate month and year
       const reportMonth = month ? parseInt(month) : new Date().getMonth() + 1;
@@ -45,11 +60,13 @@ export class ReportsController {
         schoolId,
         month: reportMonth,
         year: reportYear,
-        courseId
+        courseId,
       });
-
     } catch (error) {
-      this.logger.error(`Error generating monthly attendance report: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error generating monthly attendance report: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -64,13 +81,15 @@ export class ReportsController {
     @Query('courseId') courseId?: string,
     @Query('format') format: 'csv' | 'excel' = 'csv',
     @Req() req?: any,
-    @Res() res?: any
+    @Res() res?: any,
   ): Promise<void> {
     try {
       const userId = req.user.sub || req.user._id;
       const userRole = req.user.role;
 
-      this.logger.log(`Attendance export requested by user ${userId} in ${format} format`);
+      this.logger.log(
+        `Attendance export requested by user ${userId} in ${format} format`,
+      );
 
       const reportMonth = month ? parseInt(month) : new Date().getMonth() + 1;
       const reportYear = year ? parseInt(year) : new Date().getFullYear();
@@ -82,21 +101,26 @@ export class ReportsController {
         month: reportMonth,
         year: reportYear,
         courseId,
-        format
+        format,
       });
 
       // Set proper headers for file download
       res.setHeader('Content-Type', result.contentType);
-      res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
-      
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${result.filename}"`,
+      );
+
       if (format === 'excel') {
         res.send(result.data);
       } else {
         res.send(result.data);
       }
-
     } catch (error) {
-      this.logger.error(`Error exporting attendance report: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error exporting attendance report: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -109,13 +133,15 @@ export class ReportsController {
     @Query('month') month?: string,
     @Query('year') year?: string,
     @Query('courseId') courseId?: string,
-    @Req() req?: any
+    @Req() req?: any,
   ): Promise<MonthlyPaymentReport> {
     try {
       const userId = req.user.sub || req.user._id;
       const userRole = req.user.role;
 
-      this.logger.log(`Monthly payment report requested by user ${userId} (${userRole})`);
+      this.logger.log(
+        `Monthly payment report requested by user ${userId} (${userRole})`,
+      );
 
       // Validate month and year
       const reportMonth = month ? parseInt(month) : new Date().getMonth() + 1;
@@ -135,11 +161,13 @@ export class ReportsController {
         schoolId,
         month: reportMonth,
         year: reportYear,
-        courseId
+        courseId,
       });
-
     } catch (error) {
-      this.logger.error(`Error generating monthly payment report: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error generating monthly payment report: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -154,13 +182,15 @@ export class ReportsController {
     @Query('courseId') courseId?: string,
     @Query('format') format: 'csv' | 'excel' = 'csv',
     @Req() req?: any,
-    @Res() res?: any
+    @Res() res?: any,
   ): Promise<void> {
     try {
       const userId = req.user.sub || req.user._id;
       const userRole = req.user.role;
 
-      this.logger.log(`Payment export requested by user ${userId} in ${format} format`);
+      this.logger.log(
+        `Payment export requested by user ${userId} in ${format} format`,
+      );
 
       const reportMonth = month ? parseInt(month) : new Date().getMonth() + 1;
       const reportYear = year ? parseInt(year) : new Date().getFullYear();
@@ -172,22 +202,27 @@ export class ReportsController {
         month: reportMonth,
         year: reportYear,
         courseId,
-        format
+        format,
       });
 
       // Set proper headers for file download
       res.setHeader('Content-Type', result.contentType);
-      res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
-      
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${result.filename}"`,
+      );
+
       if (format === 'excel') {
         res.send(result.data);
       } else {
         res.send(result.data);
       }
-
     } catch (error) {
-      this.logger.error(`Error exporting payment report: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error exporting payment report: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
-} 
+}

@@ -11,7 +11,7 @@ export enum DayOfWeek {
   THURSDAY = 'thursday',
   FRIDAY = 'friday',
   SATURDAY = 'saturday',
-  SUNDAY = 'sunday'
+  SUNDAY = 'sunday',
 }
 
 @Schema()
@@ -33,7 +33,12 @@ export const ScheduleTimeSchema = SchemaFactory.createForClass(ScheduleTime);
 
 @Schema({ timestamps: true })
 export class CourseSchedule {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Course', required: true, unique: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Course',
+    required: true,
+    unique: true,
+  })
   course: Course;
 
   @Prop({ type: [ScheduleTimeSchema], default: [] })
@@ -49,4 +54,5 @@ export class CourseSchedule {
   isActive: boolean;
 }
 
-export const CourseScheduleSchema = SchemaFactory.createForClass(CourseSchedule); 
+export const CourseScheduleSchema =
+  SchemaFactory.createForClass(CourseSchedule);

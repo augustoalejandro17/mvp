@@ -3,9 +3,9 @@ import { Document, Types } from 'mongoose';
 
 export enum EnrollmentStatus {
   ACTIVE = 'active',
-  INACTIVE = 'inactive', 
+  INACTIVE = 'inactive',
   COMPLETED = 'completed',
-  DROPPED = 'dropped'
+  DROPPED = 'dropped',
 }
 
 @Schema({ timestamps: true })
@@ -13,11 +13,47 @@ export class Enrollment extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  student: Types.ObjectId;
+
   @Prop({ type: Types.ObjectId, ref: 'Course', required: true })
   courseId: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: 'Course', required: true })
+  course: Types.ObjectId;
+
   @Prop({ default: EnrollmentStatus.ACTIVE, enum: EnrollmentStatus })
   status: EnrollmentStatus;
+
+  @Prop({ default: true })
+  isActive: boolean;
+
+  @Prop({ default: false })
+  paymentStatus: boolean;
+
+  @Prop()
+  lastPaymentDate?: Date;
+
+  @Prop()
+  paymentNotes?: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  updatedBy?: Types.ObjectId;
+
+  @Prop([
+    {
+      amount: { type: Number, required: true },
+      date: { type: Date, default: Date.now },
+      notes: { type: String },
+      month: { type: String },
+    },
+  ])
+  paymentHistory?: Array<{
+    amount: number;
+    date: Date;
+    notes?: string;
+    month?: string;
+  }>;
 
   @Prop({ default: Date.now })
   enrolledAt: Date;
@@ -25,12 +61,14 @@ export class Enrollment extends Document {
   @Prop()
   completedAt?: Date;
 
-  @Prop([{
-    status: { type: String, enum: EnrollmentStatus },
-    changedAt: { type: Date, default: Date.now },
-    changedBy: { type: String }, // User ID who made the change
-    reason: { type: String }
-  }])
+  @Prop([
+    {
+      status: { type: String, enum: EnrollmentStatus },
+      changedAt: { type: Date, default: Date.now },
+      changedBy: { type: String }, // User ID who made the change
+      reason: { type: String },
+    },
+  ])
   statusHistory?: Array<{
     status: EnrollmentStatus;
     changedAt: Date;
@@ -42,4 +80,5 @@ export class Enrollment extends Document {
 export const EnrollmentSchema = SchemaFactory.createForClass(Enrollment);
 
 // Create compound index for userId + courseId to ensure uniqueness
-EnrollmentSchema.index({ userId: 1, courseId: 1 }, { unique: true }); 
+EnrollmentSchema.index({ userId: 1, courseId: 1 }, { unique: true });
+EnrollmentSchema.index({ student: 1, course: 1 }, { unique: true });

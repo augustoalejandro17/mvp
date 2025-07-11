@@ -10,14 +10,14 @@ export enum NotificationType {
   ENROLLMENT = 'enrollment',
   PAYMENT_DUE = 'payment_due',
   GENERAL = 'general',
-  SYSTEM = 'system'
+  SYSTEM = 'system',
 }
 
 export enum NotificationPriority {
   LOW = 'low',
   MEDIUM = 'medium',
   HIGH = 'high',
-  URGENT = 'urgent'
+  URGENT = 'urgent',
 }
 
 @Schema({ timestamps: true })
@@ -31,7 +31,11 @@ export class Notification {
   @Prop({ type: String, enum: NotificationType, required: true })
   type: NotificationType;
 
-  @Prop({ type: String, enum: NotificationPriority, default: NotificationPriority.MEDIUM })
+  @Prop({
+    type: String,
+    enum: NotificationPriority,
+    default: NotificationPriority.MEDIUM,
+  })
   priority: NotificationPriority;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
@@ -70,4 +74,4 @@ export class Notification {
   };
 }
 
-export const NotificationSchema = SchemaFactory.createForClass(Notification); 
+export const NotificationSchema = SchemaFactory.createForClass(Notification);

@@ -62,7 +62,8 @@ export interface MonthlyAttendanceReport {
   detailedCourseData?: DetailedCourseAttendanceData[];
 }
 
-export interface DetailedMonthlyAttendanceReport extends MonthlyAttendanceReport {
+export interface DetailedMonthlyAttendanceReport
+  extends MonthlyAttendanceReport {
   detailedCourseData: DetailedCourseAttendanceData[];
 }
 
@@ -123,4 +124,4 @@ export interface MonthlyPaymentReport {
 
 export interface DetailedMonthlyPaymentReport extends MonthlyPaymentReport {
   detailedCourseData: DetailedCoursePaymentData[];
-} 
+}

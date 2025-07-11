@@ -1,5 +1,16 @@
-import { IsString, IsNotEmpty, IsEnum, IsOptional, IsMongoId, IsDateString, IsObject } from 'class-validator';
-import { NotificationType, NotificationPriority } from '../schemas/notification.schema';
+import {
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsOptional,
+  IsMongoId,
+  IsDateString,
+  IsObject,
+} from 'class-validator';
+import {
+  NotificationType,
+  NotificationPriority,
+} from '../schemas/notification.schema';
 
 export class CreateNotificationDto {
   @IsString()
@@ -41,4 +52,4 @@ export class CreateNotificationDto {
     actionUrl?: string;
     [key: string]: any;
   };
-} 
+}

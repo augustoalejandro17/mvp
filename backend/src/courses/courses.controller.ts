@@ -1,4 +1,19 @@
-import { Controller, Get, Post, Put, Body, Param, UseGuards, Req, Logger, Query, Delete, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Body,
+  Param,
+  UseGuards,
+  Req,
+  Logger,
+  Query,
+  Delete,
+  NotFoundException,
+  BadRequestException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { CoursesService } from './courses.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -6,8 +21,15 @@ import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../auth/enums/user-role.enum';
-import { Permission, RequirePermissions, PermissionsGuard } from '../auth/guards/permissions.guard';
-import { getUserIdFromRequest, getUserRoleFromRequest } from '../utils/token-handler';
+import {
+  Permission,
+  RequirePermissions,
+  PermissionsGuard,
+} from '../auth/guards/permissions.guard';
+import {
+  getUserIdFromRequest,
+  getUserRoleFromRequest,
+} from '../utils/token-handler';
 import { PaymentDto } from './dto/payment.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 
@@ -24,13 +46,13 @@ export class CoursesController {
   async findAll(@Req() req, @Query('schoolId') schoolId?: string) {
     let userId = null;
     let userRole = null;
-    
+
     // Si hay token, obtener información del usuario
     if (req.user) {
       userId = getUserIdFromRequest(req);
       userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
     }
-    
+
     return this.coursesService.findAll(userId, userRole, schoolId);
   }
 
@@ -40,7 +62,7 @@ export class CoursesController {
   async getTeachingCourses(@Req() req) {
     const userId = getUserIdFromRequest(req);
     const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
-    
+
     return this.coursesService.getTeachingCourses(userId, userRole);
   }
 
@@ -49,40 +71,54 @@ export class CoursesController {
   async getEnrolledCourses(@Req() req, @Query('userId') targetUserId?: string) {
     const userId = getUserIdFromRequest(req);
     const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
-    
+
     // Si se especifica un usuario objetivo y es diferente del usuario actual
     if (targetUserId && targetUserId !== userId) {
       // Verificar si el usuario tiene permiso para ver los cursos de otros (solo admin, school_owner, teacher)
-      const isAllowed = 
-        userRole === UserRole.SUPER_ADMIN || 
-        userRole === UserRole.ADMIN || 
-        userRole === UserRole.SCHOOL_OWNER || 
+      const isAllowed =
+        userRole === UserRole.SUPER_ADMIN ||
+        userRole === UserRole.ADMIN ||
+        userRole === UserRole.SCHOOL_OWNER ||
         userRole === UserRole.TEACHER;
-        
+
       if (!isAllowed) {
-        throw new UnauthorizedException('No tienes permiso para ver los cursos de otros usuarios');
+        throw new UnauthorizedException(
+          'No tienes permiso para ver los cursos de otros usuarios',
+        );
       }
-      
+
       return this.coursesService.getEnrolledCourses(targetUserId);
     }
-    
+
     // Si no se especifica usuario o es el mismo que el autenticado
     return this.coursesService.getEnrolledCourses(userId);
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
-  async findOne(@Param('id') id: string, @Req() req, @Query('includeSchedule') includeSchedule?: string) {
+  @UseGuards(OptionalJwtAuthGuard)
+  async findOne(
+    @Param('id') id: string,
+    @Req() req,
+    @Query('includeSchedule') includeSchedule?: string,
+  ) {
     try {
       // Get user information from token if available
       const userId = req.user?.sub;
       const userRole = req.user?.role;
       const shouldIncludeSchedule = includeSchedule === 'true';
-    
-      const result = await this.coursesService.getCourseForUser(id, userId, userRole, shouldIncludeSchedule);
+
+      const result = await this.coursesService.getCourseForUser(
+        id,
+        userId,
+        userRole,
+        shouldIncludeSchedule,
+      );
       return result;
     } catch (error) {
-      this.logger.error(`Error al obtener curso ${id}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error al obtener curso ${id}: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -92,13 +128,13 @@ export class CoursesController {
   @Roles(UserRole.TEACHER, UserRole.SCHOOL_OWNER, UserRole.SUPER_ADMIN)
   async create(@Body() createCourseDto: CreateCourseDto, @Req() req) {
     const userId = getUserIdFromRequest(req);
-    
+
     try {
       // If no teacher is specified, use the current user as the teacher
       if (!createCourseDto.teacher) {
         createCourseDto.teacher = userId;
       }
-      
+
       const result = await this.coursesService.create(createCourseDto, userId);
       return result;
     } catch (error) {
@@ -109,11 +145,19 @@ export class CoursesController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard)
-  async update(@Param('id') id: string, @Body() updateCourseDto: UpdateCourseDto, @Req() req) {
+  async update(
+    @Param('id') id: string,
+    @Body() updateCourseDto: UpdateCourseDto,
+    @Req() req,
+  ) {
     const userId = getUserIdFromRequest(req);
-    
+
     try {
-      const result = await this.coursesService.update(id, updateCourseDto, userId);
+      const result = await this.coursesService.update(
+        id,
+        updateCourseDto,
+        userId,
+      );
       return result;
     } catch (error) {
       this.logger.error(`Error updating course: ${error.message}`, error.stack);
@@ -123,11 +167,19 @@ export class CoursesController {
 
   @Post(':id/students/:studentId')
   @UseGuards(JwtAuthGuard)
-  async addStudent(@Param('id') id: string, @Param('studentId') studentId: string, @Req() req) {
+  async addStudent(
+    @Param('id') id: string,
+    @Param('studentId') studentId: string,
+    @Req() req,
+  ) {
     const userId = getUserIdFromRequest(req);
-    
+
     try {
-      const result = await this.coursesService.addStudent(id, studentId, userId);
+      const result = await this.coursesService.addStudent(
+        id,
+        studentId,
+        userId,
+      );
       return result;
     } catch (error) {
       this.logger.error(`Error adding student: ${error.message}`, error.stack);
@@ -137,14 +189,25 @@ export class CoursesController {
 
   @Post(':id/students/:studentId/remove')
   @UseGuards(JwtAuthGuard)
-  async removeStudent(@Param('id') id: string, @Param('studentId') studentId: string, @Req() req) {
+  async removeStudent(
+    @Param('id') id: string,
+    @Param('studentId') studentId: string,
+    @Req() req,
+  ) {
     const userId = getUserIdFromRequest(req);
-    
+
     try {
-      const result = await this.coursesService.removeStudent(id, studentId, userId);
+      const result = await this.coursesService.removeStudent(
+        id,
+        studentId,
+        userId,
+      );
       return result;
     } catch (error) {
-      this.logger.error(`Error removing student: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error removing student: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -154,7 +217,7 @@ export class CoursesController {
   async remove(@Param('id') id: string, @Req() req) {
     const userId = getUserIdFromRequest(req);
     const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
-    
+
     try {
       const result = await this.coursesService.remove(id, userId, userRole);
       return result;
@@ -204,20 +267,18 @@ export class CoursesController {
     // Students can only view their own enrollments
     const userId = getUserIdFromRequest(req);
     const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
-    
+
     if (userRole === UserRole.STUDENT && userId !== studentId) {
       throw new UnauthorizedException('You can only view your own enrollments');
     }
-    
+
     return this.coursesService.getEnrollmentsByStudent(studentId);
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(Permission.VIEW_COURSE)
   @Get(':id/enrollments')
-  async getCourseEnrollments(
-    @Param('id') courseId: string,
-  ) {
+  async getCourseEnrollments(@Param('id') courseId: string) {
     return this.coursesService.getEnrollmentsByCourse(courseId);
   }
 
@@ -230,7 +291,7 @@ export class CoursesController {
     @Req() req,
   ) {
     const userId = getUserIdFromRequest(req);
-    
+
     await this.coursesService.unenrollStudent(courseId, studentId, userId);
     return { message: 'Student unenrolled successfully' };
   }
@@ -245,33 +306,41 @@ export class CoursesController {
     @Req() req,
   ) {
     const userId = getUserIdFromRequest(req);
-    
+
     // Primero buscar el enrollment
-    const enrollments = await this.coursesService.getEnrollmentsByCourse(courseId);
-    let enrollment = enrollments.find(e => 
-      (e.student as any)._id.toString() === studentId || e.student.toString() === studentId
+    const enrollments =
+      await this.coursesService.getEnrollmentsByCourse(courseId);
+    let enrollment = enrollments.find(
+      (e) =>
+        (e.student as any)._id.toString() === studentId ||
+        e.student.toString() === studentId,
     );
-    
+
     // Si no existe enrollment, verificar si es un estudiante válido del curso y crear enrollment
     if (!enrollment) {
-      const enrollmentResult = await this.coursesService.createEnrollmentForPayment(courseId, studentId, userId);
+      const enrollmentResult =
+        await this.coursesService.createEnrollmentForPayment(
+          courseId,
+          studentId,
+          userId,
+        );
       if (!enrollmentResult) {
         throw new NotFoundException('Student not found in this course');
       }
       enrollment = enrollmentResult;
     }
-    
+
     // Acceder al ID de forma segura
     const enrollmentId = enrollment['_id'] ? enrollment['_id'].toString() : '';
-    
+
     if (!enrollmentId) {
       throw new BadRequestException('Invalid enrollment ID');
     }
-    
+
     return this.coursesService.addPaymentToEnrollment(
       enrollmentId,
       paymentData,
-      userId
+      userId,
     );
   }
 
@@ -285,7 +354,12 @@ export class CoursesController {
     @Req() req,
   ) {
     const userId = getUserIdFromRequest(req);
-    return this.coursesService.getPaymentHistoryForMonth(courseId, studentId, month, userId);
+    return this.coursesService.getPaymentHistoryForMonth(
+      courseId,
+      studentId,
+      month,
+      userId,
+    );
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -299,7 +373,13 @@ export class CoursesController {
     @Req() req,
   ) {
     const userId = getUserIdFromRequest(req);
-    return this.coursesService.updatePayment(courseId, studentId, paymentId, updateData, userId);
+    return this.coursesService.updatePayment(
+      courseId,
+      studentId,
+      paymentId,
+      updateData,
+      userId,
+    );
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -312,7 +392,12 @@ export class CoursesController {
     @Req() req,
   ) {
     const userId = getUserIdFromRequest(req);
-    return this.coursesService.deletePayment(courseId, studentId, paymentId, userId);
+    return this.coursesService.deletePayment(
+      courseId,
+      studentId,
+      paymentId,
+      userId,
+    );
   }
 
   @Get(':id/unpaid-students')
@@ -326,13 +411,19 @@ export class CoursesController {
   ) {
     const userId = getUserIdFromRequest(req);
     const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
-    
+
     try {
       // Use current month/year if not provided
       const targetMonth = month ? parseInt(month) : new Date().getMonth() + 1;
       const targetYear = year ? parseInt(year) : new Date().getFullYear();
-      
-      const unpaidStudents = await this.coursesService.getUnpaidStudents(courseId, targetMonth, targetYear, userId, userRole);
+
+      const unpaidStudents = await this.coursesService.getUnpaidStudents(
+        courseId,
+        targetMonth,
+        targetYear,
+        userId,
+        userRole,
+      );
       return unpaidStudents;
     } catch (error) {
       this.logger.error(`Error fetching unpaid students: ${error.message}`);
@@ -344,7 +435,9 @@ export class CoursesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
   async migratePromoFields() {
-    this.logger.log('Migración de campos de promoción solicitada por un super admin');
+    this.logger.log(
+      'Migración de campos de promoción solicitada por un super admin',
+    );
     return this.coursesService.migrateExistingCourses();
   }
-} 
+}

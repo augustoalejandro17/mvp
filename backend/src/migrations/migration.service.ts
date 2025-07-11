@@ -7,9 +7,7 @@ import { School } from '../schools/schemas/school.schema';
 export class MigrationService implements OnModuleInit {
   private readonly logger = new Logger(MigrationService.name);
 
-  constructor(
-    @InjectModel(School.name) private schoolModel: Model<School>,
-  ) {}
+  constructor(@InjectModel(School.name) private schoolModel: Model<School>) {}
 
   async onModuleInit() {
     await this.runMigrations();
@@ -27,7 +25,7 @@ export class MigrationService implements OnModuleInit {
     try {
       // Check if any schools are missing the timezone field
       const schoolsWithoutTimezone = await this.schoolModel.countDocuments({
-        timezone: { $exists: false }
+        timezone: { $exists: false },
       });
 
       if (schoolsWithoutTimezone === 0) {
@@ -38,20 +36,23 @@ export class MigrationService implements OnModuleInit {
       // Add timezone field to schools that don't have it
       const result = await this.schoolModel.updateMany(
         { timezone: { $exists: false } },
-        { $set: { timezone: 'America/Bogota' } }
+        { $set: { timezone: 'America/Bogota' } },
       );
 
-      this.logger.log(`Migration: Added timezone field to ${result.modifiedCount} schools`);
+      this.logger.log(
+        `Migration: Added timezone field to ${result.modifiedCount} schools`,
+      );
 
       // Verify the update
       const totalSchoolsWithTimezone = await this.schoolModel.countDocuments({
-        timezone: { $exists: true }
+        timezone: { $exists: true },
       });
-      
-      this.logger.log(`Total schools with timezone field: ${totalSchoolsWithTimezone}`);
-      
+
+      this.logger.log(
+        `Total schools with timezone field: ${totalSchoolsWithTimezone}`,
+      );
     } catch (error) {
       this.logger.error('Error in addTimezoneToSchools migration:', error);
     }
   }
-} 
+}

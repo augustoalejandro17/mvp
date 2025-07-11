@@ -1,4 +1,14 @@
-import { Controller, Post, Body, UseGuards, Logger, Get, Query, BadRequestException, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Logger,
+  Get,
+  Query,
+  BadRequestException,
+  Req,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { S3Service } from '../services/s3.service';
 import { ClassesService } from '../classes/classes.service';
@@ -23,7 +33,7 @@ export class VideosController {
 
   constructor(
     private readonly s3Service: S3Service,
-    private readonly classesService: ClassesService
+    private readonly classesService: ClassesService,
   ) {}
 
   /**
@@ -35,11 +45,13 @@ export class VideosController {
     try {
       // Validate MongoDB ObjectId format
       if (!Types.ObjectId.isValid(request.classId)) {
-        throw new BadRequestException(`Invalid class ID format: ${request.classId}. Please use a valid MongoDB ObjectId.`);
+        throw new BadRequestException(
+          `Invalid class ID format: ${request.classId}. Please use a valid MongoDB ObjectId.`,
+        );
       }
 
       this.logger.log(`Generating presigned URL for class ${request.classId}`);
-      
+
       // Check if class exists
       const classExists = await this.classesService.findOne(request.classId);
       if (!classExists) {
@@ -50,20 +62,20 @@ export class VideosController {
         request.fileName,
         request.fileType,
         request.schoolId,
-        request.classId
+        request.classId,
       );
 
       // Update class status to UPLOADING and store temp key
       await this.classesService.updateVideoStatus(
         request.classId,
         VideoStatus.UPLOADING,
-        result.key
+        result.key,
       );
 
       return {
         uploadUrl: result.uploadUrl,
         key: result.key,
-        message: 'Presigned URL generated successfully'
+        message: 'Presigned URL generated successfully',
       };
     } catch (error) {
       this.logger.error('Error generating presigned URL:', error);
@@ -79,15 +91,17 @@ export class VideosController {
     try {
       // Validate MongoDB ObjectId format
       if (!Types.ObjectId.isValid(request.classId)) {
-        throw new BadRequestException(`Invalid class ID format: ${request.classId}`);
+        throw new BadRequestException(
+          `Invalid class ID format: ${request.classId}`,
+        );
       }
 
       this.logger.log(`Marking video ready for class ${request.classId}`);
-      
+
       await this.classesService.updateVideoUrlAndStatus(
         request.classId,
         request.videoUrl,
-        VideoStatus.READY
+        VideoStatus.READY,
       );
 
       // Optional: Send notification to teachers/admins
@@ -95,7 +109,7 @@ export class VideosController {
 
       return {
         success: true,
-        message: 'Video marked as ready successfully'
+        message: 'Video marked as ready successfully',
       };
     } catch (error) {
       this.logger.error('Error marking video as ready:', error);
@@ -111,21 +125,25 @@ export class VideosController {
     try {
       // Validate MongoDB ObjectId format
       if (!Types.ObjectId.isValid(body.classId)) {
-        throw new BadRequestException(`Invalid class ID format: ${body.classId}`);
+        throw new BadRequestException(
+          `Invalid class ID format: ${body.classId}`,
+        );
       }
 
-      this.logger.log(`Marking video error for class ${body.classId}: ${body.error}`);
-      
+      this.logger.log(
+        `Marking video error for class ${body.classId}: ${body.error}`,
+      );
+
       await this.classesService.updateVideoStatus(
         body.classId,
         VideoStatus.ERROR,
         null,
-        body.error
+        body.error,
       );
 
       return {
         success: true,
-        message: 'Video error status updated'
+        message: 'Video error status updated',
       };
     } catch (error) {
       this.logger.error('Error marking video error:', error);
@@ -141,11 +159,15 @@ export class VideosController {
     try {
       // Validate MongoDB ObjectId format
       if (!Types.ObjectId.isValid(body.classId)) {
-        throw new BadRequestException(`Invalid class ID format: ${body.classId}`);
+        throw new BadRequestException(
+          `Invalid class ID format: ${body.classId}`,
+        );
       }
 
-      this.logger.log(`Marking video as processing for class ${body.classId}: ${body.status}`);
-      
+      this.logger.log(
+        `Marking video as processing for class ${body.classId}: ${body.status}`,
+      );
+
       let videoStatus: VideoStatus;
       switch (body.status) {
         case 'PROCESSING':
@@ -158,14 +180,11 @@ export class VideosController {
           videoStatus = VideoStatus.PROCESSING;
       }
 
-      await this.classesService.updateVideoStatus(
-        body.classId,
-        videoStatus
-      );
+      await this.classesService.updateVideoStatus(body.classId, videoStatus);
 
       return {
         success: true,
-        message: 'Video processing status updated'
+        message: 'Video processing status updated',
       };
     } catch (error) {
       this.logger.error('Error marking video as processing:', error);
@@ -186,7 +205,7 @@ export class VideosController {
       }
 
       const classData = await this.classesService.findOne(classId);
-      
+
       if (!classData) {
         throw new BadRequestException(`Class not found: ${classId}`);
       }
@@ -196,7 +215,7 @@ export class VideosController {
         videoStatus: classData.videoStatus,
         videoUrl: classData.videoUrl,
         videoProcessingError: classData.videoProcessingError,
-        tempVideoKey: classData.tempVideoKey
+        tempVideoKey: classData.tempVideoKey,
       };
     } catch (error) {
       this.logger.error('Error getting video status:', error);
@@ -209,15 +228,20 @@ export class VideosController {
    */
   @Post('create-test-class')
   @UseGuards(JwtAuthGuard)
-  async createTestClass(@Body() body: { schoolId?: string; teacherId?: string }, @Req() req) {
+  async createTestClass(
+    @Body() body: { schoolId?: string; teacherId?: string },
+    @Req() req,
+  ) {
     try {
       if (process.env.NODE_ENV === 'production') {
-        throw new BadRequestException('Test endpoints not available in production');
+        throw new BadRequestException(
+          'Test endpoints not available in production',
+        );
       }
 
       // Get user info from JWT token
       const userId = req.user.userId;
-      
+
       // Generate IDs if not provided
       const schoolId = body.schoolId || new Types.ObjectId().toString();
       const teacherId = body.teacherId || userId;
@@ -235,11 +259,12 @@ export class VideosController {
         tempVideoKey: null,
         videoProcessingError: null,
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
 
       // Create the class using the service's model
-      const testClass = await this.classesService.createTestClass(testClassData);
+      const testClass =
+        await this.classesService.createTestClass(testClassData);
 
       this.logger.log(`Test class created: ${testClass._id}`);
 
@@ -248,11 +273,11 @@ export class VideosController {
         classId: testClass._id.toString(),
         schoolId: schoolId,
         courseId: courseId,
-        message: 'Test class created successfully'
+        message: 'Test class created successfully',
       };
     } catch (error) {
       this.logger.error('Error creating test class:', error);
       throw error;
     }
   }
-} 
+}

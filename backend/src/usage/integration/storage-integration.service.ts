@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { UsageTrackingService, StorageTrackingOptions } from '../usage-tracking.service';
+import {
+  UsageTrackingService,
+  StorageTrackingOptions,
+} from '../usage-tracking.service';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -19,7 +22,7 @@ export class StorageIntegrationService {
     uploadedBy: string,
     schoolId: string,
     relatedCourse?: string,
-    relatedClass?: string
+    relatedClass?: string,
   ): Promise<void> {
     try {
       const trackingOptions: StorageTrackingOptions = {
@@ -30,13 +33,18 @@ export class StorageIntegrationService {
         uploadedBy,
         schoolId,
         relatedCourse,
-        relatedClass
+        relatedClass,
       };
 
       await this.usageTrackingService.trackStorageUsage(trackingOptions);
-      this.logger.log(`Video upload tracked: ${fileName} (${fileSizeBytes} bytes) for school ${schoolId}`);
+      this.logger.log(
+        `Video upload tracked: ${fileName} (${fileSizeBytes} bytes) for school ${schoolId}`,
+      );
     } catch (error) {
-      this.logger.error(`Error tracking video upload: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error tracking video upload: ${error.message}`,
+        error.stack,
+      );
       // Don't throw error to avoid breaking the main upload flow
     }
   }
@@ -52,7 +60,7 @@ export class StorageIntegrationService {
     uploadedBy: string,
     schoolId: string,
     relatedCourse?: string,
-    relatedClass?: string
+    relatedClass?: string,
   ): Promise<void> {
     try {
       const trackingOptions: StorageTrackingOptions = {
@@ -63,13 +71,18 @@ export class StorageIntegrationService {
         uploadedBy,
         schoolId,
         relatedCourse,
-        relatedClass
+        relatedClass,
       };
 
       await this.usageTrackingService.trackStorageUsage(trackingOptions);
-      this.logger.log(`Image upload tracked: ${fileName} (${fileSizeBytes} bytes) for school ${schoolId}`);
+      this.logger.log(
+        `Image upload tracked: ${fileName} (${fileSizeBytes} bytes) for school ${schoolId}`,
+      );
     } catch (error) {
-      this.logger.error(`Error tracking image upload: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error tracking image upload: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
@@ -83,7 +96,7 @@ export class StorageIntegrationService {
     uploadedBy: string,
     schoolId: string,
     relatedCourse?: string,
-    relatedClass?: string
+    relatedClass?: string,
   ): Promise<void> {
     try {
       const trackingOptions: StorageTrackingOptions = {
@@ -94,13 +107,18 @@ export class StorageIntegrationService {
         uploadedBy,
         schoolId,
         relatedCourse,
-        relatedClass
+        relatedClass,
       };
 
       await this.usageTrackingService.trackStorageUsage(trackingOptions);
-      this.logger.log(`Document upload tracked: ${fileName} (${fileSizeBytes} bytes) for school ${schoolId}`);
+      this.logger.log(
+        `Document upload tracked: ${fileName} (${fileSizeBytes} bytes) for school ${schoolId}`,
+      );
     } catch (error) {
-      this.logger.error(`Error tracking document upload: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error tracking document upload: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
@@ -113,7 +131,10 @@ export class StorageIntegrationService {
       await this.usageTrackingService.removeStorageUsage(schoolId, s3Key);
       this.logger.log(`File deletion tracked: ${s3Key} for school ${schoolId}`);
     } catch (error) {
-      this.logger.error(`Error tracking file deletion: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error tracking file deletion: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
@@ -125,7 +146,7 @@ export class StorageIntegrationService {
     uploadedBy: string,
     relatedCourse?: string,
     relatedClass?: string,
-    explicitSchoolId?: string
+    explicitSchoolId?: string,
   ): Promise<string> {
     if (explicitSchoolId) {
       return explicitSchoolId;
@@ -145,7 +166,9 @@ export class StorageIntegrationService {
 
     // Fallback: use user's first school
     // return await this.getUserFirstSchool(uploadedBy);
-    
-    throw new Error('Could not determine school for attribution. Please provide explicit schoolId.');
+
+    throw new Error(
+      'Could not determine school for attribution. Please provide explicit schoolId.',
+    );
   }
-} 
+}

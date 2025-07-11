@@ -30,4 +30,4 @@ export class UpdateSubscriptionDto extends PartialType(CreateSubscriptionDto) {
   @ValidateNested()
   @Type(() => ExtraResourcesDto)
   approvedExtraResources?: ExtraResourcesDto;
-} 
+}

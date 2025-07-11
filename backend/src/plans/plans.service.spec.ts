@@ -23,7 +23,7 @@ describe('PlansService', () => {
     monthlyPriceCents: 10000,
     overageStudentCents: 300,
     overageStorageCentsPerGB: 20,
-    overageStreamingCentsPerHour: 6
+    overageStreamingCentsPerHour: 6,
   };
 
   const mockSchool = {
@@ -35,7 +35,7 @@ describe('PlansService', () => {
     extraStreamingHours: 0,
     currentSeats: 15,
     usedStorageGB: 10,
-    usedStreamingHours: 5
+    usedStreamingHours: 5,
   };
 
   beforeEach(async () => {
@@ -50,25 +50,25 @@ describe('PlansService', () => {
             countDocuments: jest.fn(),
             insertMany: jest.fn(),
             findById: jest.fn(),
-            findByIdAndUpdate: jest.fn()
-          }
+            findByIdAndUpdate: jest.fn(),
+          },
         },
         {
           provide: getModelToken(School.name),
           useValue: {
             findById: jest.fn(),
             findByIdAndUpdate: jest.fn(),
-            updateMany: jest.fn()
-          }
+            updateMany: jest.fn(),
+          },
         },
         {
           provide: getModelToken(Overage.name),
           useValue: {
             create: jest.fn(),
-            find: jest.fn()
-          }
-        }
-      ]
+            find: jest.fn(),
+          },
+        },
+      ],
     }).compile();
 
     service = module.get<PlansService>(PlansService);
@@ -85,8 +85,8 @@ describe('PlansService', () => {
     it('should allow user creation when within limits', async () => {
       schoolModel.findById.mockReturnValue({
         populate: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue(mockSchool)
-        })
+          exec: jest.fn().mockResolvedValue(mockSchool),
+        }),
       });
 
       const result = await service.validateUserCreation('school123');
@@ -98,13 +98,13 @@ describe('PlansService', () => {
     it('should prevent user creation when exceeding limits', async () => {
       const overLimitSchool = {
         ...mockSchool,
-        currentSeats: 20 // At limit
+        currentSeats: 20, // At limit
       };
 
       schoolModel.findById.mockReturnValue({
         populate: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue(overLimitSchool)
-        })
+          exec: jest.fn().mockResolvedValue(overLimitSchool),
+        }),
       });
 
       overageModel.create.mockResolvedValue({});
@@ -121,8 +121,8 @@ describe('PlansService', () => {
     it('should allow file upload when within storage limits', async () => {
       schoolModel.findById.mockReturnValue({
         populate: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue(mockSchool)
-        })
+          exec: jest.fn().mockResolvedValue(mockSchool),
+        }),
       });
 
       const result = await service.validateFileUpload('school123', 5); // 5GB file
@@ -134,8 +134,8 @@ describe('PlansService', () => {
     it('should prevent file upload when exceeding storage limits', async () => {
       schoolModel.findById.mockReturnValue({
         populate: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue(mockSchool)
-        })
+          exec: jest.fn().mockResolvedValue(mockSchool),
+        }),
       });
 
       overageModel.create.mockResolvedValue({});
@@ -151,52 +151,57 @@ describe('PlansService', () => {
   describe('assignPlanToAcademy', () => {
     it('should successfully assign a plan to an academy', async () => {
       planModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(mockPlan)
+        exec: jest.fn().mockResolvedValue(mockPlan),
       });
 
       schoolModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(mockSchool)
+        exec: jest.fn().mockResolvedValue(mockSchool),
       });
 
       schoolModel.findByIdAndUpdate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({})
+        exec: jest.fn().mockResolvedValue({}),
       });
 
-      const result = await service.assignPlanToAcademy('school123', PlanType.BASIC);
+      const result = await service.assignPlanToAcademy(
+        'school123',
+        PlanType.BASIC,
+      );
 
       expect(result.success).toBe(true);
       expect(result.message).toContain('Plan Basic assigned');
-      expect(schoolModel.findByIdAndUpdate).toHaveBeenCalledWith(
-        'school123',
-        { planId: mockPlan._id }
-      );
+      expect(schoolModel.findByIdAndUpdate).toHaveBeenCalledWith('school123', {
+        planId: mockPlan._id,
+      });
     });
   });
 
   describe('grantExtraResources', () => {
     it('should grant extra resources to an academy', async () => {
       schoolModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(mockSchool)
+        exec: jest.fn().mockResolvedValue(mockSchool),
       });
 
       schoolModel.findByIdAndUpdate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({})
+        exec: jest.fn().mockResolvedValue({}),
       });
 
       const extraResources = {
         extraSeats: 5,
         extraStorageGB: 10,
-        extraStreamingHours: 5
+        extraStreamingHours: 5,
       };
 
-      const result = await service.grantExtraResources('school123', extraResources);
+      const result = await service.grantExtraResources(
+        'school123',
+        extraResources,
+      );
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('Extra resources granted successfully');
       expect(schoolModel.findByIdAndUpdate).toHaveBeenCalledWith(
         'school123',
-        extraResources
+        extraResources,
       );
     });
   });
-}); 
+});

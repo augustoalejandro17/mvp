@@ -113,55 +113,80 @@ export class MockDataService {
   generateMockRevenueData() {
     const today = new Date();
     const revenueByDate = [];
-    
+
     // Generar ingresos diarios para los últimos 30 días
     for (let i = 30; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      
+
       revenueByDate.push({
         date: date.toISOString().split('T')[0],
-        amount: Math.floor(Math.random() * 5000) + 3000
+        amount: Math.floor(Math.random() * 5000) + 3000,
       });
     }
-    
+
     // Datos mensuales para un año
-    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const months = [
+      'Ene',
+      'Feb',
+      'Mar',
+      'Abr',
+      'May',
+      'Jun',
+      'Jul',
+      'Ago',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dic',
+    ];
     const currentMonth = today.getMonth();
     const monthlyRevenue = [];
-    
+
     for (let i = 0; i < 12; i++) {
       let monthIndex = (currentMonth - 11 + i) % 12;
       if (monthIndex < 0) monthIndex += 12;
-      
+
       const revenue = Math.floor(Math.random() * 50000) + 80000;
-      const projection = i > 9 ? Math.floor(revenue * (1 + (Math.random() * 0.2) - 0.05)) : null;
-      
+      const projection =
+        i > 9 ? Math.floor(revenue * (1 + Math.random() * 0.2 - 0.05)) : null;
+
       monthlyRevenue.push({
         month: months[monthIndex],
         revenue,
-        projection
+        projection,
       });
     }
-    
+
     // Ingresos por curso
-    const courseNames = ['Programación Java', 'Marketing Digital', 'Diseño UX/UI', 'Desarrollo Web', 'Data Science'];
+    const courseNames = [
+      'Programación Java',
+      'Marketing Digital',
+      'Diseño UX/UI',
+      'Desarrollo Web',
+      'Data Science',
+    ];
     const revenueByCourse = courseNames.map((name, idx) => ({
       courseId: (idx + 1).toString(),
       courseName: name,
       revenue: Math.floor(Math.random() * 30000) + 20000,
       studentsCount: Math.floor(Math.random() * 30) + 15,
-      averageRevenuePerStudent: Math.floor(Math.random() * 500) + 800
+      averageRevenuePerStudent: Math.floor(Math.random() * 500) + 800,
     }));
-    
+
     return {
       byDate: revenueByDate,
       totalRevenue: revenueByDate.reduce((sum, item) => sum + item.amount, 0),
-      avgDailyRevenue: Math.floor(revenueByDate.reduce((sum, item) => sum + item.amount, 0) / revenueByDate.length),
-      nextMonthProjection: Math.floor(revenueByDate.reduce((sum, item) => sum + item.amount, 0) * 1.1),
+      avgDailyRevenue: Math.floor(
+        revenueByDate.reduce((sum, item) => sum + item.amount, 0) /
+          revenueByDate.length,
+      ),
+      nextMonthProjection: Math.floor(
+        revenueByDate.reduce((sum, item) => sum + item.amount, 0) * 1.1,
+      ),
       revenueByCourse,
       monthlyRevenue,
-      projectionAccuracy: 92
+      projectionAccuracy: 92,
     };
   }
 
@@ -176,8 +201,8 @@ export class MockDataService {
         criticalPoints: [
           { timePoint: 7, dropoutCount: 3 },
           { timePoint: 14, dropoutCount: 5 },
-          { timePoint: 21, dropoutCount: 2 }
-        ]
+          { timePoint: 21, dropoutCount: 2 },
+        ],
       },
       {
         courseId: '2',
@@ -188,8 +213,8 @@ export class MockDataService {
         criticalPoints: [
           { timePoint: 5, dropoutCount: 2 },
           { timePoint: 12, dropoutCount: 4 },
-          { timePoint: 19, dropoutCount: 2 }
-        ]
+          { timePoint: 19, dropoutCount: 2 },
+        ],
       },
       {
         courseId: '3',
@@ -200,8 +225,8 @@ export class MockDataService {
         criticalPoints: [
           { timePoint: 3, dropoutCount: 1 },
           { timePoint: 10, dropoutCount: 3 },
-          { timePoint: 15, dropoutCount: 1 }
-        ]
+          { timePoint: 15, dropoutCount: 1 },
+        ],
       },
       {
         courseId: '4',
@@ -212,8 +237,8 @@ export class MockDataService {
         criticalPoints: [
           { timePoint: 2, dropoutCount: 2 },
           { timePoint: 9, dropoutCount: 7 },
-          { timePoint: 16, dropoutCount: 3 }
-        ]
+          { timePoint: 16, dropoutCount: 3 },
+        ],
       },
       {
         courseId: '5',
@@ -224,38 +249,45 @@ export class MockDataService {
         criticalPoints: [
           { timePoint: 4, dropoutCount: 2 },
           { timePoint: 11, dropoutCount: 4 },
-          { timePoint: 18, dropoutCount: 1 }
-        ]
-      }
+          { timePoint: 18, dropoutCount: 1 },
+        ],
+      },
     ];
-    
+
     const dropoutReasons = [
       { reason: 'Problemas económicos', count: 15, percentage: 35 },
       { reason: 'Falta de tiempo', count: 12, percentage: 28 },
       { reason: 'Insatisfacción con el curso', count: 8, percentage: 19 },
       { reason: 'Cambio de intereses', count: 5, percentage: 12 },
-      { reason: 'Problemas de salud', count: 2, percentage: 6 }
+      { reason: 'Problemas de salud', count: 2, percentage: 6 },
     ];
-    
+
     const periods = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'];
-    const dropoutTrend = periods.map(period => ({
+    const dropoutTrend = periods.map((period) => ({
       period,
-      rate: Math.floor(Math.random() * 10) + 15
+      rate: Math.floor(Math.random() * 10) + 15,
     }));
-    
-    const courseNames = ['Programación Java', 'Marketing Digital', 'Diseño UX/UI', 'Desarrollo Web', 'Data Science'];
+
+    const courseNames = [
+      'Programación Java',
+      'Marketing Digital',
+      'Diseño UX/UI',
+      'Desarrollo Web',
+      'Data Science',
+    ];
     const courseComparisonData = courseNames.map((course, index) => ({
       course,
-      initialRate: dropoutRates[index].dropoutRate + Math.floor(Math.random() * 8),
-      currentRate: dropoutRates[index].dropoutRate
+      initialRate:
+        dropoutRates[index].dropoutRate + Math.floor(Math.random() * 8),
+      currentRate: dropoutRates[index].dropoutRate,
     }));
-    
+
     return {
       dropoutRates,
       overallDropoutRate: 19,
       dropoutReasons,
       dropoutTrend,
-      courseComparisonData
+      courseComparisonData,
     };
   }
 
@@ -266,11 +298,17 @@ export class MockDataService {
       age18to25: 120,
       age26to35: 85,
       over36: 40,
-      unknown: 10
+      unknown: 10,
     };
-    
+
     // Distribución por edades por curso
-    const courseNames = ['Programación Java', 'Marketing Digital', 'Diseño UX/UI', 'Desarrollo Web', 'Data Science'];
+    const courseNames = [
+      'Programación Java',
+      'Marketing Digital',
+      'Diseño UX/UI',
+      'Desarrollo Web',
+      'Data Science',
+    ];
     const ageDistributionByCourse = courseNames.map((name, idx) => {
       const totalStudents = Math.floor(Math.random() * 30) + 25;
       const under18 = Math.floor(totalStudents * (Math.random() * 0.2));
@@ -278,7 +316,7 @@ export class MockDataService {
       const age26to35 = Math.floor(totalStudents * (0.2 + Math.random() * 0.2));
       const over36 = Math.floor(totalStudents * (Math.random() * 0.3));
       const unknown = totalStudents - under18 - age18to25 - age26to35 - over36;
-      
+
       return {
         courseId: (idx + 1).toString(),
         courseName: name,
@@ -287,10 +325,10 @@ export class MockDataService {
         age26to35,
         over36,
         unknown: unknown >= 0 ? unknown : 0,
-        totalStudents
+        totalStudents,
       };
     });
-    
+
     return {
       ageDistribution,
       ageDistributionByCourse,
@@ -300,12 +338,21 @@ export class MockDataService {
   }
 
   // Utility para generar tendencias mensuales
-  private generateMonthlyTrend(minRetention, maxRetention, minAttendance, maxAttendance) {
+  private generateMonthlyTrend(
+    minRetention,
+    maxRetention,
+    minAttendance,
+    maxAttendance,
+  ) {
     const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'];
-    return months.map(month => ({
+    return months.map((month) => ({
       month,
-      retention: Math.floor(Math.random() * (maxRetention - minRetention + 1)) + minRetention,
-      attendance: Math.floor(Math.random() * (maxAttendance - minAttendance + 1)) + minAttendance
+      retention:
+        Math.floor(Math.random() * (maxRetention - minRetention + 1)) +
+        minRetention,
+      attendance:
+        Math.floor(Math.random() * (maxAttendance - minAttendance + 1)) +
+        minAttendance,
     }));
   }
-} 
+}

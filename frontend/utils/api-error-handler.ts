@@ -23,12 +23,38 @@ export const useApiErrorHandler = () => {
         errorMessage = err.response.data.error;
       } else if (err.response?.status === 401) {
         errorMessage = 'No autorizado. Por favor, inicia sesión nuevamente.';
-        // Redirigir al home si es necesario
-        if (typeof window !== 'undefined') {
-          
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 2000);
+        
+        // Check if this is a public course/video call before redirecting
+        const requestUrl = err.config?.url || '';
+        
+        // More precise URL matching to handle query parameters
+        const isPublicCourseCall = (
+          requestUrl.includes('/api/courses/') || 
+          requestUrl.includes('/courses/') ||
+          (requestUrl.includes('/api/courses') && !requestUrl.includes('/enrollment') && !requestUrl.includes('/payments'))
+        ) && !requestUrl.includes('/enrollment') && !requestUrl.includes('/payments');
+        
+        const isVideoStreamCall = (
+          requestUrl.includes('/stream-url') || 
+          requestUrl.includes('/video-proxy') ||
+          (requestUrl.includes('/api/classes/') && !requestUrl.includes('/enrollment') && !requestUrl.includes('/payments')) ||
+          (requestUrl.includes('/classes/') && !requestUrl.includes('/enrollment') && !requestUrl.includes('/payments')) ||
+          requestUrl.includes('/playlists') ||
+          requestUrl.includes('/api/playlists') ||
+          requestUrl.includes('/api/usage/')
+        );
+        
+        // Only redirect if this is not a public course/video call
+        if (!isPublicCourseCall && !isVideoStreamCall) {
+          // Redirigir al home si es necesario
+          if (typeof window !== 'undefined') {
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 2000);
+          }
+        } else {
+          // For public course/video calls, adjust the error message
+          errorMessage = 'Este contenido requiere autenticación para acceder a todas las funcionalidades.';
         }
       } else if (err.response?.status === 403) {
         errorMessage = 'No tienes permisos para realizar esta acción.';

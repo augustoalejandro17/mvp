@@ -1,4 +1,10 @@
-import { IsBoolean, IsMongoId, IsString, IsOptional, IsDate } from 'class-validator';
+import {
+  IsBoolean,
+  IsMongoId,
+  IsString,
+  IsOptional,
+  IsDate,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateEnrollmentDto {
@@ -18,4 +24,4 @@ export class UpdateEnrollmentDto {
   @IsMongoId()
   @IsOptional()
   updatedBy?: string;
-} 
+}

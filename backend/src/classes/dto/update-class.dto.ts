@@ -1,4 +1,11 @@
-import { IsOptional, IsString, IsBoolean, IsInt, IsMongoId, Min } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsBoolean,
+  IsInt,
+  IsMongoId,
+  Min,
+} from 'class-validator';
 
 export class UpdateClassDto {
   @IsOptional()
@@ -21,4 +28,4 @@ export class UpdateClassDto {
   @IsOptional()
   @IsBoolean()
   isPublic?: boolean;
-} 
+}

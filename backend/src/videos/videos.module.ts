@@ -7,4 +7,4 @@ import { ServicesModule } from '../services/services.module';
   imports: [ClassesModule, ServicesModule],
   controllers: [VideosController],
 })
-export class VideosModule {} 
+export class VideosModule {}

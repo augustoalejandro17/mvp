@@ -1,7 +1,12 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { UsageTracking, UsageTrackingDocument, AssetUsage, StreamingSession } from './schemas/usage-tracking.schema';
+import {
+  UsageTracking,
+  UsageTrackingDocument,
+  AssetUsage,
+  StreamingSession,
+} from './schemas/usage-tracking.schema';
 import { User } from '../auth/schemas/user.schema';
 import { School } from '../schools/schemas/school.schema';
 import { Course } from '../courses/schemas/course.schema';
@@ -54,13 +59,15 @@ export class UsageTrackingService {
   private readonly bucketName: string;
 
   constructor(
-    @InjectModel(UsageTracking.name) private usageModel: Model<UsageTrackingDocument>,
+    @InjectModel(UsageTracking.name)
+    private usageModel: Model<UsageTrackingDocument>,
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(School.name) private schoolModel: Model<School>,
     @InjectModel(Course.name) private courseModel: Model<Course>,
     @InjectModel(Class.name) private classModel: Model<Class>,
     @InjectModel(Plan.name) private planModel: Model<Plan>,
-    @InjectModel(Subscription.name) private subscriptionModel: Model<Subscription>,
+    @InjectModel(Subscription.name)
+    private subscriptionModel: Model<Subscription>,
     private configService: ConfigService,
   ) {
     this.s3 = new S3({
@@ -85,14 +92,20 @@ export class UsageTrackingService {
       const year = currentDate.getFullYear();
 
       // Get or create usage document for this school/month
-      let usageDoc = await this.usageModel.findOne({
-        school: new Types.ObjectId(options.schoolId),
-        month,
-        year
-      }).exec();
+      let usageDoc = await this.usageModel
+        .findOne({
+          school: new Types.ObjectId(options.schoolId),
+          month,
+          year,
+        })
+        .exec();
 
       if (!usageDoc) {
-        usageDoc = await this.createNewUsageDocument(options.schoolId, month, year) as any;
+        usageDoc = (await this.createNewUsageDocument(
+          options.schoolId,
+          month,
+          year,
+        )) as any;
       }
 
       // Create asset usage record
@@ -103,9 +116,13 @@ export class UsageTrackingService {
         fileName: options.fileName,
         uploadedBy: new Types.ObjectId(options.uploadedBy),
         uploadedAt: currentDate,
-        relatedCourse: options.relatedCourse ? new Types.ObjectId(options.relatedCourse) : undefined,
-        relatedClass: options.relatedClass ? new Types.ObjectId(options.relatedClass) : undefined,
-        isActive: true
+        relatedCourse: options.relatedCourse
+          ? new Types.ObjectId(options.relatedCourse)
+          : undefined,
+        relatedClass: options.relatedClass
+          ? new Types.ObjectId(options.relatedClass)
+          : undefined,
+        isActive: true,
       };
 
       // Add to assets array
@@ -113,7 +130,8 @@ export class UsageTrackingService {
 
       // Update totals
       usageDoc.totalStorageBytes += options.fileSizeBytes;
-      usageDoc.totalStorageGB = usageDoc.totalStorageBytes / (1024 * 1024 * 1024);
+      usageDoc.totalStorageGB =
+        usageDoc.totalStorageBytes / (1024 * 1024 * 1024);
 
       // Update breakdown by type
       switch (options.assetType) {
@@ -131,8 +149,12 @@ export class UsageTrackingService {
       }
 
       // Update user attribution
-      const currentUserUsage = usageDoc.storageByUser.get(options.uploadedBy) || 0;
-      usageDoc.storageByUser.set(options.uploadedBy, currentUserUsage + options.fileSizeBytes);
+      const currentUserUsage =
+        usageDoc.storageByUser.get(options.uploadedBy) || 0;
+      usageDoc.storageByUser.set(
+        options.uploadedBy,
+        currentUserUsage + options.fileSizeBytes,
+      );
 
       // Calculate overages
       await this.calculateStorageOverage(usageDoc);
@@ -140,9 +162,14 @@ export class UsageTrackingService {
       usageDoc.lastUpdated = currentDate;
       await usageDoc.save();
 
-      this.logger.log(`Storage usage tracked: ${options.fileName} (${options.fileSizeBytes} bytes) for school ${options.schoolId}`);
+      this.logger.log(
+        `Storage usage tracked: ${options.fileName} (${options.fileSizeBytes} bytes) for school ${options.schoolId}`,
+      );
     } catch (error) {
-      this.logger.error(`Error tracking storage usage: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error tracking storage usage: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -156,52 +183,78 @@ export class UsageTrackingService {
       const month = currentDate.getMonth() + 1;
       const year = currentDate.getFullYear();
 
-      const usageDoc = await this.usageModel.findOne({
-        school: new Types.ObjectId(schoolId),
-        month,
-        year
-      }).exec();
+      const usageDoc = await this.usageModel
+        .findOne({
+          school: new Types.ObjectId(schoolId),
+          month,
+          year,
+        })
+        .exec();
 
       if (!usageDoc) {
-        this.logger.warn(`No usage document found for school ${schoolId} in ${month}/${year}`);
+        this.logger.warn(
+          `No usage document found for school ${schoolId} in ${month}/${year}`,
+        );
         return;
       }
 
       // Find and remove the asset
-      const assetIndex = usageDoc.assets.findIndex(asset => asset.assetId === assetId && asset.isActive);
+      const assetIndex = usageDoc.assets.findIndex(
+        (asset) => asset.assetId === assetId && asset.isActive,
+      );
       if (assetIndex === -1) {
-        this.logger.warn(`Asset ${assetId} not found in usage tracking for school ${schoolId}`);
+        this.logger.warn(
+          `Asset ${assetId} not found in usage tracking for school ${schoolId}`,
+        );
         return;
       }
 
       const asset = usageDoc.assets[assetIndex];
-      
+
       // Mark as inactive (soft delete for audit trail)
       asset.isActive = false;
 
       // Update totals
       usageDoc.totalStorageBytes -= asset.fileSizeBytes;
-      usageDoc.totalStorageGB = Math.max(0, usageDoc.totalStorageBytes / (1024 * 1024 * 1024));
+      usageDoc.totalStorageGB = Math.max(
+        0,
+        usageDoc.totalStorageBytes / (1024 * 1024 * 1024),
+      );
 
       // Update breakdown by type
       switch (asset.assetType) {
         case 'video':
-          usageDoc.videoStorageBytes = Math.max(0, usageDoc.videoStorageBytes - asset.fileSizeBytes);
+          usageDoc.videoStorageBytes = Math.max(
+            0,
+            usageDoc.videoStorageBytes - asset.fileSizeBytes,
+          );
           break;
         case 'image':
-          usageDoc.imageStorageBytes = Math.max(0, usageDoc.imageStorageBytes - asset.fileSizeBytes);
+          usageDoc.imageStorageBytes = Math.max(
+            0,
+            usageDoc.imageStorageBytes - asset.fileSizeBytes,
+          );
           break;
         case 'document':
-          usageDoc.documentStorageBytes = Math.max(0, usageDoc.documentStorageBytes - asset.fileSizeBytes);
+          usageDoc.documentStorageBytes = Math.max(
+            0,
+            usageDoc.documentStorageBytes - asset.fileSizeBytes,
+          );
           break;
         default:
-          usageDoc.otherStorageBytes = Math.max(0, usageDoc.otherStorageBytes - asset.fileSizeBytes);
+          usageDoc.otherStorageBytes = Math.max(
+            0,
+            usageDoc.otherStorageBytes - asset.fileSizeBytes,
+          );
       }
 
       // Update user attribution
       const userId = asset.uploadedBy.toString();
       const currentUserUsage = usageDoc.storageByUser.get(userId) || 0;
-      usageDoc.storageByUser.set(userId, Math.max(0, currentUserUsage - asset.fileSizeBytes));
+      usageDoc.storageByUser.set(
+        userId,
+        Math.max(0, currentUserUsage - asset.fileSizeBytes),
+      );
 
       // Recalculate overages
       await this.calculateStorageOverage(usageDoc);
@@ -209,9 +262,14 @@ export class UsageTrackingService {
       usageDoc.lastUpdated = currentDate;
       await usageDoc.save();
 
-      this.logger.log(`Storage usage removed: ${assetId} for school ${schoolId}`);
+      this.logger.log(
+        `Storage usage removed: ${assetId} for school ${schoolId}`,
+      );
     } catch (error) {
-      this.logger.error(`Error removing storage usage: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error removing storage usage: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -223,21 +281,29 @@ export class UsageTrackingService {
   /**
    * Start tracking a streaming session
    */
-  async startStreamingSession(options: StreamingTrackingOptions): Promise<void> {
+  async startStreamingSession(
+    options: StreamingTrackingOptions,
+  ): Promise<void> {
     try {
       const currentDate = new Date();
       const month = currentDate.getMonth() + 1;
       const year = currentDate.getFullYear();
 
       // Get or create usage document
-      let usageDoc = await this.usageModel.findOne({
-        school: new Types.ObjectId(options.schoolId),
-        month,
-        year
-      }).exec();
+      let usageDoc = await this.usageModel
+        .findOne({
+          school: new Types.ObjectId(options.schoolId),
+          month,
+          year,
+        })
+        .exec();
 
       if (!usageDoc) {
-        usageDoc = await this.createNewUsageDocument(options.schoolId, month, year) as any;
+        usageDoc = (await this.createNewUsageDocument(
+          options.schoolId,
+          month,
+          year,
+        )) as any;
       }
 
       // Create streaming session record
@@ -248,19 +314,28 @@ export class UsageTrackingService {
         startTime: currentDate,
         durationMinutes: 0,
         bytesTransferred: 0,
-        relatedCourse: options.relatedCourse ? new Types.ObjectId(options.relatedCourse) : undefined,
-        relatedClass: options.relatedClass ? new Types.ObjectId(options.relatedClass) : undefined,
+        relatedCourse: options.relatedCourse
+          ? new Types.ObjectId(options.relatedCourse)
+          : undefined,
+        relatedClass: options.relatedClass
+          ? new Types.ObjectId(options.relatedClass)
+          : undefined,
         quality: options.quality || 'unknown',
-        deviceType: options.deviceType || 'unknown'
+        deviceType: options.deviceType || 'unknown',
       };
 
       usageDoc.streamingSessions.push(streamingSession);
       usageDoc.lastUpdated = currentDate;
       await usageDoc.save();
 
-      this.logger.log(`Streaming session started: ${options.sessionId} for user ${options.userId}`);
+      this.logger.log(
+        `Streaming session started: ${options.sessionId} for user ${options.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Error starting streaming session: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error starting streaming session: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -271,62 +346,84 @@ export class UsageTrackingService {
   async endStreamingSession(
     schoolId: string,
     sessionId: string,
-    bytesTransferred?: number
+    bytesTransferred?: number,
   ): Promise<void> {
     try {
       const currentDate = new Date();
       const month = currentDate.getMonth() + 1;
       const year = currentDate.getFullYear();
 
-      const usageDoc = await this.usageModel.findOne({
-        school: new Types.ObjectId(schoolId),
-        month,
-        year
-      }).exec();
+      const usageDoc = await this.usageModel
+        .findOne({
+          school: new Types.ObjectId(schoolId),
+          month,
+          year,
+        })
+        .exec();
 
       if (!usageDoc) {
-        this.logger.warn(`No usage document found for school ${schoolId} when ending session ${sessionId}`);
+        this.logger.warn(
+          `No usage document found for school ${schoolId} when ending session ${sessionId}`,
+        );
         return;
       }
 
       // Find the streaming session
-      const session = usageDoc.streamingSessions.find(s => s.sessionId === sessionId && !s.endTime);
+      const session = usageDoc.streamingSessions.find(
+        (s) => s.sessionId === sessionId && !s.endTime,
+      );
       if (!session) {
-        this.logger.warn(`Active streaming session ${sessionId} not found for school ${schoolId}`);
+        this.logger.warn(
+          `Active streaming session ${sessionId} not found for school ${schoolId}`,
+        );
         return;
       }
 
       // Calculate duration (store as fractional minutes for accuracy)
       session.endTime = currentDate;
-      const sessionDurationMs = currentDate.getTime() - session.startTime.getTime();
+      const sessionDurationMs =
+        currentDate.getTime() - session.startTime.getTime();
       session.durationMinutes = sessionDurationMs / 60000; // Don't round - keep fractional minutes
       session.bytesTransferred = bytesTransferred || 0;
-      
-      this.logger.log(`Session ${sessionId} duration: ${sessionDurationMs}ms = ${session.durationMinutes.toFixed(2)} minutes, bytes: ${session.bytesTransferred}`);
+
+      this.logger.log(
+        `Session ${sessionId} duration: ${sessionDurationMs}ms = ${session.durationMinutes.toFixed(2)} minutes, bytes: ${session.bytesTransferred}`,
+      );
 
       // Update totals (round to 2 decimal places for storage)
-      usageDoc.totalStreamingMinutes += Math.round(session.durationMinutes * 100) / 100;
+      usageDoc.totalStreamingMinutes +=
+        Math.round(session.durationMinutes * 100) / 100;
       usageDoc.totalBandwidthBytes += session.bytesTransferred;
       usageDoc.totalSessions += 1;
 
       // Update user attribution
       const userId = session.userId.toString();
       const currentUserUsage = usageDoc.streamingByUser.get(userId) || 0;
-      usageDoc.streamingByUser.set(userId, Math.round((currentUserUsage + session.durationMinutes) * 100) / 100);
+      usageDoc.streamingByUser.set(
+        userId,
+        Math.round((currentUserUsage + session.durationMinutes) * 100) / 100,
+      );
 
       // Update unique viewers count
       const uniqueUserIds = new Set(
         usageDoc.streamingSessions
-          .filter(s => s.endTime) // Only completed sessions
-          .map(s => s.userId.toString())
+          .filter((s) => s.endTime) // Only completed sessions
+          .map((s) => s.userId.toString()),
       );
       usageDoc.uniqueViewers = uniqueUserIds.size;
 
       // Calculate average session duration
-      const completedSessions = usageDoc.streamingSessions.filter(s => s.endTime);
-      const totalMinutes = completedSessions.reduce((sum, s) => sum + s.durationMinutes, 0);
-      usageDoc.averageSessionMinutes = completedSessions.length > 0 ? 
-        Math.round((totalMinutes / completedSessions.length) * 100) / 100 : 0;
+      const completedSessions = usageDoc.streamingSessions.filter(
+        (s) => s.endTime,
+      );
+      const totalMinutes = completedSessions.reduce(
+        (sum, s) => sum + s.durationMinutes,
+        0,
+      );
+      usageDoc.averageSessionMinutes =
+        completedSessions.length > 0
+          ? Math.round((totalMinutes / completedSessions.length) * 100) / 100
+          : 0;
 
       // Calculate streaming overages
       await this.calculateStreamingOverage(usageDoc);
@@ -334,9 +431,14 @@ export class UsageTrackingService {
       usageDoc.lastUpdated = currentDate;
       await usageDoc.save();
 
-      this.logger.log(`Streaming session ended: ${sessionId} (${session.durationMinutes} minutes)`);
+      this.logger.log(
+        `Streaming session ended: ${sessionId} (${session.durationMinutes} minutes)`,
+      );
     } catch (error) {
-      this.logger.error(`Error ending streaming session: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error ending streaming session: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -345,7 +447,9 @@ export class UsageTrackingService {
   // BILLING AND OVERAGE CALCULATIONS
   // ========================================
 
-  private async calculateStorageOverage(usageDoc: UsageTrackingDocument): Promise<void> {
+  private async calculateStorageOverage(
+    usageDoc: UsageTrackingDocument,
+  ): Promise<void> {
     try {
       const subscription = await this.subscriptionModel
         .findOne({ school: usageDoc.school })
@@ -359,21 +463,30 @@ export class UsageTrackingService {
 
       const plan = subscription.plan as any;
       const planStorageGB = plan.storageGB || plan.maxStorageGb || 0;
-      const extraStorageGB = subscription.approvedExtraResources?.extraStorageGb || 0;
+      const extraStorageGB =
+        subscription.approvedExtraResources?.extraStorageGb || 0;
       const totalAllowedGB = planStorageGB + extraStorageGB;
 
       usageDoc.planStorageGB = totalAllowedGB;
-      usageDoc.overageStorageGB = Math.max(0, usageDoc.totalStorageGB - totalAllowedGB);
+      usageDoc.overageStorageGB = Math.max(
+        0,
+        usageDoc.totalStorageGB - totalAllowedGB,
+      );
 
       // Calculate overage cost
-      const overageRate = plan.overageStorageCentsPerGB || plan.extraStorageGbPrice * 100 || 20; // Default $0.20/GB
-      usageDoc.overageStorageCost = Math.round(usageDoc.overageStorageGB * overageRate);
+      const overageRate =
+        plan.overageStorageCentsPerGB || plan.extraStorageGbPrice * 100 || 20; // Default $0.20/GB
+      usageDoc.overageStorageCost = Math.round(
+        usageDoc.overageStorageGB * overageRate,
+      );
     } catch (error) {
       this.logger.error('Error calculating storage overage:', error);
     }
   }
 
-  private async calculateStreamingOverage(usageDoc: UsageTrackingDocument): Promise<void> {
+  private async calculateStreamingOverage(
+    usageDoc: UsageTrackingDocument,
+  ): Promise<void> {
     try {
       const subscription = await this.subscriptionModel
         .findOne({ school: usageDoc.school })
@@ -386,17 +499,26 @@ export class UsageTrackingService {
       }
 
       const plan = subscription.plan as any;
-      const planStreamingMinutes = (plan.streamingHoursPerMonth || 0) * 60 || plan.maxStreamingMinutesPerMonth || 0;
-      const extraStreamingMinutes = subscription.approvedExtraResources?.extraStreamingMinutes || 0;
+      const planStreamingMinutes =
+        (plan.streamingHoursPerMonth || 0) * 60 ||
+        plan.maxStreamingMinutesPerMonth ||
+        0;
+      const extraStreamingMinutes =
+        subscription.approvedExtraResources?.extraStreamingMinutes || 0;
       const totalAllowedMinutes = planStreamingMinutes + extraStreamingMinutes;
 
       usageDoc.planStreamingMinutes = totalAllowedMinutes;
-      usageDoc.overageStreamingMinutes = Math.max(0, usageDoc.totalStreamingMinutes - totalAllowedMinutes);
+      usageDoc.overageStreamingMinutes = Math.max(
+        0,
+        usageDoc.totalStreamingMinutes - totalAllowedMinutes,
+      );
 
       // Calculate overage cost (convert hour rate to minute rate)
       const overageRatePerHour = plan.overageStreamingCentsPerHour || 6; // Default $0.06/hour
       const overageRatePerMinute = overageRatePerHour / 60;
-      usageDoc.overageStreamingCost = Math.round(usageDoc.overageStreamingMinutes * overageRatePerMinute);
+      usageDoc.overageStreamingCost = Math.round(
+        usageDoc.overageStreamingMinutes * overageRatePerMinute,
+      );
     } catch (error) {
       this.logger.error('Error calculating streaming overage:', error);
     }
@@ -409,7 +531,7 @@ export class UsageTrackingService {
   private async createNewUsageDocument(
     schoolId: string,
     month: number,
-    year: number
+    year: number,
   ): Promise<UsageTrackingDocument & { _id: any }> {
     const newUsageDoc = new this.usageModel({
       school: new Types.ObjectId(schoolId),
@@ -420,7 +542,7 @@ export class UsageTrackingService {
       assets: [],
       streamingSessions: [],
       storageByUser: new Map(),
-      streamingByUser: new Map()
+      streamingByUser: new Map(),
     });
 
     const savedDoc = await newUsageDoc.save();
@@ -430,16 +552,22 @@ export class UsageTrackingService {
   /**
    * Get usage summary for a school in a specific month
    */
-  async getUsageSummary(schoolId: string, month?: number, year?: number): Promise<any> {
+  async getUsageSummary(
+    schoolId: string,
+    month?: number,
+    year?: number,
+  ): Promise<any> {
     const currentDate = new Date();
     const targetMonth = month || currentDate.getMonth() + 1;
     const targetYear = year || currentDate.getFullYear();
 
-    const usageDoc = await this.usageModel.findOne({
-      school: new Types.ObjectId(schoolId),
-      month: targetMonth,
-      year: targetYear
-    }).exec();
+    const usageDoc = await this.usageModel
+      .findOne({
+        school: new Types.ObjectId(schoolId),
+        month: targetMonth,
+        year: targetYear,
+      })
+      .exec();
 
     if (!usageDoc) {
       // Return empty usage if no document exists
@@ -450,7 +578,10 @@ export class UsageTrackingService {
 
       const plan = subscription?.plan as any;
       const planStorageGB = plan?.storageGB || plan?.maxStorageGb || 0;
-      const planStreamingMinutes = ((plan?.streamingHoursPerMonth || 0) * 60) || plan?.maxStreamingMinutesPerMonth || 0;
+      const planStreamingMinutes =
+        (plan?.streamingHoursPerMonth || 0) * 60 ||
+        plan?.maxStreamingMinutesPerMonth ||
+        0;
 
       return {
         period: `${targetMonth}/${targetYear}`,
@@ -485,10 +616,10 @@ export class UsageTrackingService {
 
     // Get top streaming sessions (last 10 completed sessions)
     const topStreamingSessions = usageDoc.streamingSessions
-      .filter(session => session.endTime)
+      .filter((session) => session.endTime)
       .sort((a, b) => b.endTime!.getTime() - a.endTime!.getTime())
       .slice(0, 10)
-      .map(session => ({
+      .map((session) => ({
         assetId: session.assetId,
         duration: Math.round(session.durationMinutes * 60 * 100) / 100, // Convert minutes to seconds with precision
         bytesTransferred: session.bytesTransferred,
@@ -497,7 +628,8 @@ export class UsageTrackingService {
       }));
 
     // Calculate total streaming usage in GB (from bytes transferred)
-    const totalStreamingGB = (usageDoc.totalBandwidthBytes || 0) / (1024 * 1024 * 1024);
+    const totalStreamingGB =
+      (usageDoc.totalBandwidthBytes || 0) / (1024 * 1024 * 1024);
 
     return {
       period: `${targetMonth}/${targetYear}`,
@@ -509,7 +641,8 @@ export class UsageTrackingService {
       streamingOverage: usageDoc.overageStreamingMinutes,
       storageCost: usageDoc.overageStorageCost / 100, // Convert cents to dollars
       streamingCost: usageDoc.overageStreamingCost / 100, // Convert cents to dollars
-      totalCost: (usageDoc.overageStorageCost + usageDoc.overageStreamingCost) / 100,
+      totalCost:
+        (usageDoc.overageStorageCost + usageDoc.overageStreamingCost) / 100,
       storageByType,
       topStreamingSessions,
     };
@@ -522,11 +655,11 @@ export class UsageTrackingService {
     schoolId: string,
     startDate?: string,
     endDate?: string,
-    limit: number = 50
+    limit: number = 50,
   ): Promise<any[]> {
     try {
       const dateFilter: any = {};
-      
+
       if (startDate || endDate) {
         if (startDate) {
           dateFilter.$gte = new Date(startDate);
@@ -548,18 +681,19 @@ export class UsageTrackingService {
 
       // Collect all streaming sessions from all months
       const allSessions: any[] = [];
-      
+
       for (const doc of usageDocs) {
         const sessions = doc.streamingSessions
-          .filter(session => session.endTime) // Only completed sessions
-          .filter(session => {
+          .filter((session) => session.endTime) // Only completed sessions
+          .filter((session) => {
             if (!startDate && !endDate) return true;
             const sessionDate = session.startTime;
             if (startDate && sessionDate < new Date(startDate)) return false;
-            if (endDate && sessionDate > new Date(endDate + 'T23:59:59.999Z')) return false;
+            if (endDate && sessionDate > new Date(endDate + 'T23:59:59.999Z'))
+              return false;
             return true;
           })
-          .map(session => ({
+          .map((session) => ({
             sessionId: session.sessionId,
             assetId: session.assetId,
             schoolId,
@@ -570,19 +704,24 @@ export class UsageTrackingService {
             deviceType: session.deviceType,
             startTime: session.startTime.toISOString(),
             endTime: session.endTime?.toISOString(),
-            isActive: false
+            isActive: false,
           }));
-        
+
         allSessions.push(...sessions);
       }
 
       // Sort by start time (newest first) and limit
       return allSessions
-        .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+        .sort(
+          (a, b) =>
+            new Date(b.startTime).getTime() - new Date(a.startTime).getTime(),
+        )
         .slice(0, limit);
-
     } catch (error) {
-      this.logger.error(`Error getting streaming history: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error getting streaming history: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -594,13 +733,15 @@ export class UsageTrackingService {
     try {
       const params = {
         Bucket: this.bucketName,
-        Key: s3Key
+        Key: s3Key,
       };
 
       const headResult = await this.s3.headObject(params).promise();
       return headResult.ContentLength || 0;
     } catch (error) {
-      this.logger.warn(`Error getting S3 file size for ${s3Key}: ${error.message}`);
+      this.logger.warn(
+        `Error getting S3 file size for ${s3Key}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -610,25 +751,32 @@ export class UsageTrackingService {
    */
   async finalizeMonthlyUsage(month: number, year: number): Promise<void> {
     try {
-      const usageDocs = await this.usageModel.find({
-        month,
-        year,
-        isFinalized: false
-      }).exec();
+      const usageDocs = await this.usageModel
+        .find({
+          month,
+          year,
+          isFinalized: false,
+        })
+        .exec();
 
       for (const doc of usageDocs) {
         // Recalculate all overages one final time
         await this.calculateStorageOverage(doc);
         await this.calculateStreamingOverage(doc);
-        
+
         doc.isFinalized = true;
         doc.lastUpdated = new Date();
         await doc.save();
       }
 
-      this.logger.log(`Finalized ${usageDocs.length} usage documents for ${month}/${year}`);
+      this.logger.log(
+        `Finalized ${usageDocs.length} usage documents for ${month}/${year}`,
+      );
     } catch (error) {
-      this.logger.error(`Error finalizing monthly usage for ${month}/${year}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error finalizing monthly usage for ${month}/${year}: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -637,27 +785,33 @@ export class UsageTrackingService {
    * Backfill storage usage with REAL file sizes from S3
    * This gets actual file sizes instead of estimates
    */
-  async backfillStorageUsageWithRealSizes(): Promise<{ processed: number; errors: number }> {
+  async backfillStorageUsageWithRealSizes(): Promise<{
+    processed: number;
+    errors: number;
+  }> {
     try {
-      this.logger.log('Starting backfill of storage usage for existing videos...');
-      
+      this.logger.log(
+        'Starting backfill of storage usage for existing videos...',
+      );
+
       let processed = 0;
       let errors = 0;
 
       // Get all classes with videos
-      const classes = await this.classModel.find({ 
-        videoUrl: { $exists: true, $ne: null }
-      })
-      .populate({
-        path: 'course',
-        select: 'school',
-        populate: {
-          path: 'school',
-          select: '_id name'
-        }
-      })
-      .populate('teacher', '_id')
-      .exec();
+      const classes = await this.classModel
+        .find({
+          videoUrl: { $exists: true, $ne: null },
+        })
+        .populate({
+          path: 'course',
+          select: 'school',
+          populate: {
+            path: 'school',
+            select: '_id name',
+          },
+        })
+        .populate('teacher', '_id')
+        .exec();
 
       this.logger.log(`Found ${classes.length} classes with videos to process`);
 
@@ -666,14 +820,22 @@ export class UsageTrackingService {
           // Extract school ID from course
           const course = classItem.course as any;
           if (!course || !course.school) {
-            this.logger.warn(`Class ${classItem._id} has no valid course/school, skipping`);
+            this.logger.warn(
+              `Class ${classItem._id} has no valid course/school, skipping`,
+            );
             errors++;
             continue;
           }
 
           // Handle populated school object or just ID
-          const schoolId = typeof course.school === 'string' ? course.school : course.school._id.toString();
-          const teacherId = (classItem.teacher as any)?._id?.toString() || classItem.teacher?.toString() || 'unknown';
+          const schoolId =
+            typeof course.school === 'string'
+              ? course.school
+              : course.school._id.toString();
+          const teacherId =
+            (classItem.teacher as any)?._id?.toString() ||
+            classItem.teacher?.toString() ||
+            'unknown';
           const uploadDate = classItem.createdAt || new Date();
           const month = uploadDate.getMonth() + 1;
           const year = uploadDate.getFullYear();
@@ -682,7 +844,10 @@ export class UsageTrackingService {
           let assetId;
           try {
             // Handle CloudFront URLs like: https://diqggv7d0nfl3.cloudfront.net/videos/67b84a4c-081a-4534-b2a6-5d7ba77d87bd.mp4
-            if (classItem.videoUrl.includes('cloudfront.net/videos/') || classItem.videoUrl.includes('amazonaws.com/')) {
+            if (
+              classItem.videoUrl.includes('cloudfront.net/videos/') ||
+              classItem.videoUrl.includes('amazonaws.com/')
+            ) {
               const urlParts = classItem.videoUrl.split('?')[0]; // Remove query params
               const pathMatch = urlParts.match(/videos\/([^\/]+\.mp4)$/);
               if (pathMatch) {
@@ -694,32 +859,40 @@ export class UsageTrackingService {
               assetId = `${classItem._id}.mp4`; // Fallback key
             }
           } catch (error) {
-            this.logger.warn(`Error parsing video URL for class ${classItem._id}: ${error.message}`);
+            this.logger.warn(
+              `Error parsing video URL for class ${classItem._id}: ${error.message}`,
+            );
             assetId = `${classItem._id}.mp4`; // Fallback key
           }
 
           // Get REAL file size from S3
           let actualSize = 0;
           const fileName = `${classItem.title || 'video'}_${classItem._id}.mp4`;
-          
+
           try {
             // The correct S3 key includes the videos/ prefix
             const s3Key = `videos/${assetId}`;
             actualSize = await this.getS3FileSize(s3Key);
-            this.logger.log(`Got real file size for ${s3Key}: ${actualSize} bytes (${(actualSize/1024/1024).toFixed(2)} MB)`);
+            this.logger.log(
+              `Got real file size for ${s3Key}: ${actualSize} bytes (${(actualSize / 1024 / 1024).toFixed(2)} MB)`,
+            );
           } catch (sizeError) {
-            this.logger.warn(`Could not get real file size for videos/${assetId}, skipping this video: ${sizeError.message}`);
+            this.logger.warn(
+              `Could not get real file size for videos/${assetId}, skipping this video: ${sizeError.message}`,
+            );
             errors++;
             continue; // Skip videos that don't exist in S3 instead of using estimates
           }
 
           // Check if usage is already tracked for this asset
-          const existingUsage = await this.usageModel.findOne({
-            school: new Types.ObjectId(schoolId),
-            month,
-            year,
-            'assets.assetId': assetId
-          }).exec();
+          const existingUsage = await this.usageModel
+            .findOne({
+              school: new Types.ObjectId(schoolId),
+              month,
+              year,
+              'assets.assetId': assetId,
+            })
+            .exec();
 
           if (existingUsage) {
             continue;
@@ -734,20 +907,22 @@ export class UsageTrackingService {
             uploadedBy: teacherId,
             schoolId,
             relatedCourse: course._id.toString(),
-            relatedClass: classItem._id.toString()
+            relatedClass: classItem._id.toString(),
           });
 
           processed++;
-
         } catch (error) {
           errors++;
-          this.logger.error(`Error processing class ${classItem._id}: ${error.message}`);
+          this.logger.error(
+            `Error processing class ${classItem._id}: ${error.message}`,
+          );
         }
       }
 
-      this.logger.log(`Backfill completed. Processed: ${processed}, Errors: ${errors}`);
+      this.logger.log(
+        `Backfill completed. Processed: ${processed}, Errors: ${errors}`,
+      );
       return { processed, errors };
-
     } catch (error) {
       this.logger.error(`Error during backfill: ${error.message}`, error.stack);
       throw error;
@@ -761,12 +936,12 @@ export class UsageTrackingService {
   async resetStorageTracking(): Promise<{ processed: number }> {
     try {
       this.logger.log('Resetting storage tracking with corrected sizes...');
-      
+
       // Clear all existing storage tracking for the affected school
       await this.usageModel.updateMany(
         { school: new Types.ObjectId('68044f6422ec1bd6922709f4') },
-        { 
-          $set: { 
+        {
+          $set: {
             assets: [],
             totalStorageBytes: 0,
             videoStorageBytes: 0,
@@ -776,21 +951,25 @@ export class UsageTrackingService {
             totalStorageGB: 0,
             storageByUser: new Map(),
             overageStorageGB: 0,
-            overageStorageCost: 0
-          }
-        }
+            overageStorageCost: 0,
+          },
+        },
       );
 
-      this.logger.log('Cleared existing storage tracking, running new backfill...');
-      
+      this.logger.log(
+        'Cleared existing storage tracking, running new backfill...',
+      );
+
       // Run backfill with REAL file sizes from S3
       const result = await this.backfillStorageUsageWithRealSizes();
-      
+
       this.logger.log(`Reset completed. Processed: ${result.processed} videos`);
       return { processed: result.processed };
-
     } catch (error) {
-      this.logger.error(`Error during storage reset: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error during storage reset: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -798,22 +977,31 @@ export class UsageTrackingService {
   /**
    * Manually fix storage total for a school with the correct values
    */
-  async fixStorageTotal(schoolId: string, totalBytes: number, totalGB: number): Promise<void> {
+  async fixStorageTotal(
+    schoolId: string,
+    totalBytes: number,
+    totalGB: number,
+  ): Promise<void> {
     try {
       await this.usageModel.updateMany(
         { school: new Types.ObjectId(schoolId) },
-        { 
-          $set: { 
+        {
+          $set: {
             totalStorageBytes: totalBytes,
             videoStorageBytes: totalBytes, // Assuming all storage is video
-            totalStorageGB: totalGB
-          }
-        }
+            totalStorageGB: totalGB,
+          },
+        },
       );
-      
-      this.logger.log(`Updated storage total for school ${schoolId} to ${totalGB.toFixed(3)} GB`);
+
+      this.logger.log(
+        `Updated storage total for school ${schoolId} to ${totalGB.toFixed(3)} GB`,
+      );
     } catch (error) {
-      this.logger.error(`Error fixing storage total: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error fixing storage total: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -826,13 +1014,16 @@ export class UsageTrackingService {
     const targetMonth = month || currentDate.getMonth() + 1;
     const targetYear = year || currentDate.getFullYear();
 
-    return await this.usageModel.find({
-      month: targetMonth,
-      year: targetYear,
-      $or: [
-        { overageStorageGB: { $gt: 0 } },
-        { overageStreamingMinutes: { $gt: 0 } }
-      ]
-    }).populate('school', 'name').exec();
+    return await this.usageModel
+      .find({
+        month: targetMonth,
+        year: targetYear,
+        $or: [
+          { overageStorageGB: { $gt: 0 } },
+          { overageStreamingMinutes: { $gt: 0 } },
+        ],
+      })
+      .populate('school', 'name')
+      .exec();
   }
-} 
+}

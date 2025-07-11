@@ -1,4 +1,12 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsString, IsBoolean, Min, IsArray } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsString,
+  IsBoolean,
+  Min,
+  IsArray,
+} from 'class-validator';
 import { PlanType } from '../schemas/plan.schema';
 
 export class CreatePlanDto {
@@ -69,4 +77,4 @@ export class CreatePlanDto {
   @IsArray()
   @IsString({ each: true })
   features: string[];
-} 
+}

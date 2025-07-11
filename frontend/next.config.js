@@ -41,8 +41,24 @@ const nextConfig = {
         // Rutas de API estándar (debe ir después de rutas específicas)
         // Exclude auth routes from proxying to backend
         {
-          source: '/api/((?!auth).*)',
-          destination: `${apiUrl}/api/$1`,
+          source: '/api/courses/:path*',
+          destination: `${apiUrl}/api/courses/:path*`,
+        },
+        {
+          source: '/api/playlists/:path*',
+          destination: `${apiUrl}/api/playlists/:path*`,
+        },
+        {
+          source: '/api/playlists',
+          destination: `${apiUrl}/api/playlists`,
+        },
+        {
+          source: '/api/classes/:path*',
+          destination: `${apiUrl}/api/classes/:path*`,
+        },
+        {
+          source: '/api/usage/:path*',
+          destination: `${apiUrl}/api/usage/:path*`,
         },
         // Otras rutas directas
         {

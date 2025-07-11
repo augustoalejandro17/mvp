@@ -107,22 +107,25 @@ export default function CourseDetail() {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL;
         const token = Cookies.get('token');
         
-        if (!token) {
-          setError('Debes iniciar sesión para ver este curso');
-          setLoading(false);
-          return;
-        }
-        
-        const headers = { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+        // Prepare headers - include authorization if token exists
+        const headers: any = { 
+          'Content-Type': 'application/json'
         };
+        
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
         
         const courseResponse = await axios.get(`${apiUrl}/api/courses/${id}`, { headers });
         setCourse(courseResponse.data);
       } catch (error) {
         console.error('Error al obtener datos:', error);
-        setError(handleApiError(error));
+        // Check if the error is due to authentication requirement
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+          setError('Debes iniciar sesión para ver este curso');
+        } else {
+          setError(handleApiError(error));
+        }
       } finally {
         setLoading(false);
       }
@@ -335,28 +338,46 @@ export default function CourseDetail() {
   const getVideoStreamUrl = async (classId: string, retryCount = 0) => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const token = Cookies.get('token');
       
-      const headers = { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      };
-      
-      console.log(`Attempting to get stream URL for class ${classId} (attempt ${retryCount + 1})`);
-      const response = await axios.get(`${apiUrl}/api/classes/${classId}/stream-url`, { headers });
-      if (response.data && response.data.url) {
-        console.log(`Successfully got stream URL for class ${classId}`);
-        setVideoStreamUrl(response.data.url);
-        setVideoLoadError(false); // Reset error state on success
-      } else {
-        console.error('No se pudo obtener URL de streaming válida');
-        // Don't clear the URL immediately, try retry first
-        if (retryCount < 2) {
-          console.log(`Retrying stream URL fetch for class ${classId} (attempt ${retryCount + 2})`);
-          setTimeout(() => getVideoStreamUrl(classId, retryCount + 1), 1000 * (retryCount + 1));
-        } else {
-          setVideoStreamUrl(null);
+      // First try without authentication for public classes
+      try {
+        console.log(`Attempting to get stream URL for class ${classId} without auth (attempt ${retryCount + 1})`);
+        const response = await axios.get(`${apiUrl}/api/classes/${classId}/stream-url`);
+        if (response.data && response.data.url) {
+          console.log(`Successfully got stream URL for class ${classId} without auth`);
+          setVideoStreamUrl(response.data.url);
+          setVideoLoadError(false); // Reset error state on success
+          return;
         }
+      } catch (unauthError) {
+        console.log(`Unauthenticated request failed for class ${classId}, trying with auth:`, unauthError);
+      }
+
+      // If unauthenticated request failed, try with authentication
+      const token = Cookies.get('token');
+      if (token) {
+        const headers = { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        };
+        
+        console.log(`Attempting to get stream URL for class ${classId} with auth (attempt ${retryCount + 1})`);
+        const response = await axios.get(`${apiUrl}/api/classes/${classId}/stream-url`, { headers });
+        if (response.data && response.data.url) {
+          console.log(`Successfully got stream URL for class ${classId} with auth`);
+          setVideoStreamUrl(response.data.url);
+          setVideoLoadError(false); // Reset error state on success
+          return;
+        }
+      }
+
+      console.error('No se pudo obtener URL de streaming válida');
+      // Don't clear the URL immediately, try retry first
+      if (retryCount < 2) {
+        console.log(`Retrying stream URL fetch for class ${classId} (attempt ${retryCount + 2})`);
+        setTimeout(() => getVideoStreamUrl(classId, retryCount + 1), 1000 * (retryCount + 1));
+      } else {
+        setVideoStreamUrl(null);
       }
     } catch (error) {
       console.error('Error al obtener URL de streaming:', error);

@@ -1,7 +1,12 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Notification, NotificationDocument, NotificationType, NotificationPriority } from './schemas/notification.schema';
+import {
+  Notification,
+  NotificationDocument,
+  NotificationType,
+  NotificationPriority,
+} from './schemas/notification.schema';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 
 @Injectable()
@@ -9,22 +14,25 @@ export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
   constructor(
-    @InjectModel(Notification.name) private notificationModel: Model<NotificationDocument>,
+    @InjectModel(Notification.name)
+    private notificationModel: Model<NotificationDocument>,
   ) {}
 
-  async create(createNotificationDto: CreateNotificationDto): Promise<Notification> {
+  async create(
+    createNotificationDto: CreateNotificationDto,
+  ): Promise<Notification> {
     const notification = new this.notificationModel(createNotificationDto);
     return notification.save();
   }
 
   async createClassReminder(
-    recipientId: string, 
-    courseId: string, 
+    recipientId: string,
+    courseId: string,
     classStartTime: Date,
-    notificationMinutes: number = 10
+    notificationMinutes: number = 10,
   ): Promise<Notification> {
     const minutesText = notificationMinutes === 1 ? 'minuto' : 'minutos';
-    
+
     const notification = new this.notificationModel({
       title: 'Recordatorio de Clase',
       message: `Tu clase comenzará en ${notificationMinutes} ${minutesText}`,
@@ -36,18 +44,18 @@ export class NotificationsService {
         classStartTime,
         courseId,
         notificationMinutes,
-        actionUrl: `/course/${courseId}`
-      }
+        actionUrl: `/course/${courseId}`,
+      },
     });
 
     return notification.save();
   }
 
   async findUserNotifications(
-    userId: string, 
-    page: number = 1, 
+    userId: string,
+    page: number = 1,
     limit: number = 20,
-    unreadOnly: boolean = false
+    unreadOnly: boolean = false,
   ): Promise<{
     notifications: Notification[];
     total: number;
@@ -57,7 +65,7 @@ export class NotificationsService {
     const filter: any = {
       recipient: userId,
       isDeleted: false,
-      isActive: true
+      isActive: true,
     };
 
     if (unreadOnly) {
@@ -78,26 +86,31 @@ export class NotificationsService {
         recipient: userId,
         isRead: false,
         isDeleted: false,
-        isActive: true
-      })
+        isActive: true,
+      }),
     ]);
 
     return { notifications, total, unreadCount };
   }
 
-  async markAsRead(notificationId: string, userId: string): Promise<Notification> {
-    const notification = await this.notificationModel.findOneAndUpdate(
-      { 
-        _id: notificationId, 
-        recipient: userId,
-        isDeleted: false 
-      },
-      { 
-        isRead: true, 
-        readAt: new Date() 
-      },
-      { new: true }
-    ).exec();
+  async markAsRead(
+    notificationId: string,
+    userId: string,
+  ): Promise<Notification> {
+    const notification = await this.notificationModel
+      .findOneAndUpdate(
+        {
+          _id: notificationId,
+          recipient: userId,
+          isDeleted: false,
+        },
+        {
+          isRead: true,
+          readAt: new Date(),
+        },
+        { new: true },
+      )
+      .exec();
 
     if (!notification) {
       throw new NotFoundException('Notificación no encontrada');
@@ -107,30 +120,37 @@ export class NotificationsService {
   }
 
   async markAllAsRead(userId: string): Promise<void> {
-    await this.notificationModel.updateMany(
-      { 
-        recipient: userId, 
-        isRead: false,
-        isDeleted: false 
-      },
-      { 
-        isRead: true, 
-        readAt: new Date() 
-      }
-    ).exec();
+    await this.notificationModel
+      .updateMany(
+        {
+          recipient: userId,
+          isRead: false,
+          isDeleted: false,
+        },
+        {
+          isRead: true,
+          readAt: new Date(),
+        },
+      )
+      .exec();
   }
 
-  async deleteNotification(notificationId: string, userId: string): Promise<void> {
-    const result = await this.notificationModel.updateOne(
-      { 
-        _id: notificationId, 
-        recipient: userId 
-      },
-      { 
-        isDeleted: true, 
-        deletedAt: new Date() 
-      }
-    ).exec();
+  async deleteNotification(
+    notificationId: string,
+    userId: string,
+  ): Promise<void> {
+    const result = await this.notificationModel
+      .updateOne(
+        {
+          _id: notificationId,
+          recipient: userId,
+        },
+        {
+          isDeleted: true,
+          deletedAt: new Date(),
+        },
+      )
+      .exec();
 
     if (result.matchedCount === 0) {
       throw new NotFoundException('Notificación no encontrada');
@@ -138,12 +158,14 @@ export class NotificationsService {
   }
 
   async getUnreadCount(userId: string): Promise<number> {
-    return this.notificationModel.countDocuments({
-      recipient: userId,
-      isRead: false,
-      isDeleted: false,
-      isActive: true
-    }).exec();
+    return this.notificationModel
+      .countDocuments({
+        recipient: userId,
+        isRead: false,
+        isDeleted: false,
+        isActive: true,
+      })
+      .exec();
   }
 
   // Method to send bulk notifications
@@ -156,10 +178,12 @@ export class NotificationsService {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysOld);
 
-    await this.notificationModel.deleteMany({
-      createdAt: { $lt: cutoffDate },
-      isDeleted: true
-    }).exec();
+    await this.notificationModel
+      .deleteMany({
+        createdAt: { $lt: cutoffDate },
+        isDeleted: true,
+      })
+      .exec();
 
     this.logger.log(`Cleaned up notifications older than ${daysOld} days`);
   }
@@ -170,10 +194,12 @@ export class NotificationsService {
   }
 
   async countUnread(): Promise<number> {
-    return this.notificationModel.countDocuments({
-      isRead: false,
-      isDeleted: false,
-      isActive: true
-    }).exec();
+    return this.notificationModel
+      .countDocuments({
+        isRead: false,
+        isDeleted: false,
+        isActive: true,
+      })
+      .exec();
   }
-} 
+}

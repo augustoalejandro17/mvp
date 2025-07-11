@@ -8,7 +8,7 @@ export class ImagesController {
 
   constructor(
     private readonly s3Service: S3Service,
-    private readonly cloudFrontService: CloudFrontService
+    private readonly cloudFrontService: CloudFrontService,
   ) {}
 
   /**
@@ -18,34 +18,34 @@ export class ImagesController {
    */
   @Get('refresh-url')
   async refreshImageUrl(@Query('key') key: string): Promise<{ url: string }> {
-    
-    
     if (!key) {
-      
       throw new Error('Se requiere el parámetro "key"');
     }
-    
+
     try {
       // Priorizar CloudFront si está disponible (igual que para videos)
       if (this.cloudFrontService) {
         try {
           // Generar URL firmada de CloudFront con expiración de 24 horas
-          const cloudFrontUrl = await this.cloudFrontService.getSignedUrl(key, 86400);
-          
+          const cloudFrontUrl = await this.cloudFrontService.getSignedUrl(
+            key,
+            86400,
+          );
+
           return { url: cloudFrontUrl };
-        } catch (cloudFrontError) {
-          
-        }
+        } catch (cloudFrontError) {}
       }
-      
+
       // Fallback a S3 si CloudFront no está disponible
       const signedUrl = await this.s3Service.getSignedUrl(key, 86400);
-      
-      
+
       return { url: signedUrl };
     } catch (error) {
-      this.logger.error(`Error al refrescar URL de imagen: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error al refrescar URL de imagen: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
-} 
+}

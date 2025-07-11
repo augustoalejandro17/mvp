@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { UsageTrackingService, StreamingTrackingOptions } from '../usage-tracking.service';
+import {
+  UsageTrackingService,
+  StreamingTrackingOptions,
+} from '../usage-tracking.service';
 import { v4 as uuidv4 } from 'uuid';
 
 interface ActiveSession {
@@ -28,7 +31,7 @@ export class StreamingIntegrationService {
     relatedCourse?: string,
     relatedClass?: string,
     quality: 'low' | 'medium' | 'high' = 'medium',
-    deviceType: 'mobile' | 'desktop' | 'tablet' = 'desktop'
+    deviceType: 'mobile' | 'desktop' | 'tablet' = 'desktop',
   ): Promise<string> {
     try {
       const sessionId = uuidv4();
@@ -40,7 +43,7 @@ export class StreamingIntegrationService {
         schoolId,
         startTime,
         userId,
-        assetId
+        assetId,
       });
 
       const trackingOptions: StreamingTrackingOptions = {
@@ -51,15 +54,20 @@ export class StreamingIntegrationService {
         relatedCourse,
         relatedClass,
         quality,
-        deviceType
+        deviceType,
       };
 
       await this.usageTrackingService.startStreamingSession(trackingOptions);
-      
-      this.logger.log(`Streaming session started: ${sessionId} for user ${userId}, asset ${assetId}`);
+
+      this.logger.log(
+        `Streaming session started: ${sessionId} for user ${userId}, asset ${assetId}`,
+      );
       return sessionId;
     } catch (error) {
-      this.logger.error(`Error starting streaming session: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error starting streaming session: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -70,27 +78,32 @@ export class StreamingIntegrationService {
    */
   async endVideoStreaming(
     sessionId: string,
-    bytesTransferred?: number
+    bytesTransferred?: number,
   ): Promise<void> {
     try {
       const session = this.activeSessions.get(sessionId);
       if (!session) {
-        this.logger.warn(`Attempted to end unknown streaming session: ${sessionId}`);
+        this.logger.warn(
+          `Attempted to end unknown streaming session: ${sessionId}`,
+        );
         return;
       }
 
       await this.usageTrackingService.endStreamingSession(
         session.schoolId,
         sessionId,
-        bytesTransferred
+        bytesTransferred,
       );
 
       // Remove from active sessions
       this.activeSessions.delete(sessionId);
-      
+
       this.logger.log(`Streaming session ended: ${sessionId}`);
     } catch (error) {
-      this.logger.error(`Error ending streaming session: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error ending streaming session: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -101,19 +114,24 @@ export class StreamingIntegrationService {
    */
   async updateStreamingBandwidth(
     sessionId: string,
-    additionalBytes: number
+    additionalBytes: number,
   ): Promise<void> {
     try {
       const session = this.activeSessions.get(sessionId);
       if (!session) {
-        this.logger.warn(`Attempted to update bandwidth for unknown session: ${sessionId}`);
+        this.logger.warn(
+          `Attempted to update bandwidth for unknown session: ${sessionId}`,
+        );
         return;
       }
 
       // For now, we'll just log this. In a full implementation, you might want to
       // track incremental bandwidth usage or buffer it until session end
     } catch (error) {
-      this.logger.error(`Error updating streaming bandwidth: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error updating streaming bandwidth: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
@@ -127,7 +145,8 @@ export class StreamingIntegrationService {
       const staleSessionIds: string[] = [];
 
       for (const [sessionId, session] of this.activeSessions.entries()) {
-        const ageMinutes = (now.getTime() - session.startTime.getTime()) / 60000;
+        const ageMinutes =
+          (now.getTime() - session.startTime.getTime()) / 60000;
         if (ageMinutes > maxAgeMinutes) {
           staleSessionIds.push(sessionId);
         }
@@ -139,10 +158,15 @@ export class StreamingIntegrationService {
       }
 
       if (staleSessionIds.length > 0) {
-        this.logger.log(`Cleaned up ${staleSessionIds.length} stale streaming sessions`);
+        this.logger.log(
+          `Cleaned up ${staleSessionIds.length} stale streaming sessions`,
+        );
       }
     } catch (error) {
-      this.logger.error(`Error cleaning up stale sessions: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error cleaning up stale sessions: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
@@ -158,7 +182,7 @@ export class StreamingIntegrationService {
    */
   getActiveSessionsForSchool(schoolId: string): ActiveSession[] {
     return Array.from(this.activeSessions.values()).filter(
-      session => session.schoolId === schoolId
+      (session) => session.schoolId === schoolId,
     );
   }
 
@@ -168,7 +192,7 @@ export class StreamingIntegrationService {
   async endAllSessionsForUser(userId: string): Promise<void> {
     try {
       const userSessions = Array.from(this.activeSessions.values()).filter(
-        session => session.userId === userId
+        (session) => session.userId === userId,
       );
 
       for (const session of userSessions) {
@@ -176,10 +200,15 @@ export class StreamingIntegrationService {
       }
 
       if (userSessions.length > 0) {
-        this.logger.log(`Ended ${userSessions.length} sessions for user logout: ${userId}`);
+        this.logger.log(
+          `Ended ${userSessions.length} sessions for user logout: ${userId}`,
+        );
       }
     } catch (error) {
-      this.logger.error(`Error ending user sessions: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error ending user sessions: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
@@ -191,7 +220,7 @@ export class StreamingIntegrationService {
     assetId: string,
     relatedCourse?: string,
     relatedClass?: string,
-    explicitSchoolId?: string
+    explicitSchoolId?: string,
   ): Promise<string> {
     if (explicitSchoolId) {
       return explicitSchoolId;
@@ -204,6 +233,8 @@ export class StreamingIntegrationService {
     // 4. Use user's primary/first school
 
     // For now, throw error to force explicit school attribution
-    throw new Error('School attribution required for streaming tracking. Please provide explicit schoolId.');
+    throw new Error(
+      'School attribution required for streaming tracking. Please provide explicit schoolId.',
+    );
   }
-} 
+}

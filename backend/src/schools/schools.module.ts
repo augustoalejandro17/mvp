@@ -13,11 +13,11 @@ import { PlanLimitsMiddleware } from './middleware/plan-limits.middleware';
   imports: [
     MongooseModule.forFeature([
       { name: School.name, schema: SchoolSchema },
-      { name: User.name, schema: UserSchema }
+      { name: User.name, schema: UserSchema },
     ]),
     AuthModule,
     UsersModule,
-    PlansModule
+    PlansModule,
   ],
   controllers: [SchoolsController],
   providers: [SchoolsService],
@@ -31,7 +31,7 @@ export class SchoolsModule {
         { path: 'schools/:id/students', method: RequestMethod.POST },
         { path: 'schools/:id/teachers', method: RequestMethod.POST },
         { path: 'schools/:id/administratives', method: RequestMethod.POST },
-        { path: 'courses/:id/enroll', method: RequestMethod.POST }
+        { path: 'courses/:id/enroll', method: RequestMethod.POST },
       );
   }
-} 
+}

@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString, Min, Matches } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+  Matches,
+} from 'class-validator';
 
 export class PaymentDto {
   @IsNumber()
@@ -9,9 +16,9 @@ export class PaymentDto {
   @IsString()
   @IsOptional()
   notes?: string;
-  
+
   @IsString()
   @IsOptional()
   @Matches(/^\d{4}-\d{2}$/, { message: 'Month should be in format YYYY-MM' })
   month?: string;
-} 
+}

@@ -22,7 +22,8 @@ export class MonthlyPayment {
   registeredBy: MongooseSchema.Types.ObjectId;
 }
 
-export const MonthlyPaymentSchema = SchemaFactory.createForClass(MonthlyPayment);
+export const MonthlyPaymentSchema =
+  SchemaFactory.createForClass(MonthlyPayment);
 
 @Schema({ timestamps: true })
 export class Enrollment {
@@ -51,4 +52,4 @@ export class Enrollment {
   updatedBy: MongooseSchema.Types.ObjectId;
 }
 
-export const EnrollmentSchema = SchemaFactory.createForClass(Enrollment); 
+export const EnrollmentSchema = SchemaFactory.createForClass(Enrollment);

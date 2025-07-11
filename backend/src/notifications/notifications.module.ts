@@ -3,7 +3,10 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { NotificationSchedulerService } from './notification-scheduler.service';
-import { Notification, NotificationSchema } from './schemas/notification.schema';
+import {
+  Notification,
+  NotificationSchema,
+} from './schemas/notification.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { AuthModule } from '../auth/auth.module';
@@ -23,4 +26,4 @@ import { CoursesModule } from '../courses/courses.module';
   providers: [NotificationsService, NotificationSchedulerService],
   exports: [NotificationsService, NotificationSchedulerService],
 })
-export class NotificationsModule {} 
+export class NotificationsModule {}

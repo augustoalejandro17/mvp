@@ -1,16 +1,16 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Patch, 
-  Delete, 
-  Body, 
-  Param, 
-  UseGuards, 
-  Req, 
-  Logger, 
-  BadRequestException, 
-  NotFoundException
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  Req,
+  Logger,
+  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -30,7 +30,6 @@ export class EnrollmentsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SCHOOL_OWNER, UserRole.SUPER_ADMIN)
   async findAll(@Req() req) {
-    
     const userId = req.user.sub;
     return this.coursesService.getAllEnrollments(userId);
   }
@@ -38,36 +37,42 @@ export class EnrollmentsController {
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string, @Req() req) {
-    
     const userId = req.user.sub;
     const userRole = req.user.role;
-    
+
     return this.coursesService.getEnrollmentById(id, userId, userRole);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SCHOOL_OWNER, UserRole.TEACHER, UserRole.SUPER_ADMIN)
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.SCHOOL_OWNER,
+    UserRole.TEACHER,
+    UserRole.SUPER_ADMIN,
+  )
   async update(
     @Param('id') id: string,
     @Body() updateEnrollmentDto: UpdateEnrollmentDto,
-    @Req() req
+    @Req() req,
   ) {
-    
-    
     const userId = req.user.sub;
     updateEnrollmentDto.updatedBy = userId;
-    
-    return this.coursesService.updateEnrollment(id, updateEnrollmentDto, userId, req.user.role);
+
+    return this.coursesService.updateEnrollment(
+      id,
+      updateEnrollmentDto,
+      userId,
+      req.user.role,
+    );
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SCHOOL_OWNER, UserRole.SUPER_ADMIN)
   async remove(@Param('id') id: string, @Req() req) {
-    
     const userId = req.user.sub;
-    
+
     return this.coursesService.removeEnrollment(id, userId);
   }
-} 
+}

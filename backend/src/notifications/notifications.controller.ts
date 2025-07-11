@@ -1,14 +1,14 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Put, 
-  Delete, 
-  Body, 
-  Param, 
-  Query, 
-  UseGuards, 
-  Request
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Request,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { NotificationsService } from './notifications.service';
@@ -16,9 +16,7 @@ import { CreateNotificationDto } from './dto/create-notification.dto';
 
 @Controller('notifications')
 export class NotificationsController {
-  constructor(
-    private readonly notificationsService: NotificationsService,
-  ) {}
+  constructor(private readonly notificationsService: NotificationsService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -32,23 +30,23 @@ export class NotificationsController {
     @Request() req,
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '20',
-    @Query('unreadOnly') unreadOnly: string = 'false'
+    @Query('unreadOnly') unreadOnly: string = 'false',
   ) {
     const userId = req.user._id || req.user.sub;
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
-    
+
     const result = await this.notificationsService.findUserNotifications(
       userId,
       pageNum,
       limitNum,
-      unreadOnly === 'true'
+      unreadOnly === 'true',
     );
 
     return {
       ...result,
       currentPage: pageNum,
-      totalPages: Math.ceil(result.total / limitNum)
+      totalPages: Math.ceil(result.total / limitNum),
     };
   }
 
@@ -83,9 +81,9 @@ export class NotificationsController {
   }
 
   @Get('debug/count')
-  async getDebugCount(): Promise<{ total: number, unread: number }> {
+  async getDebugCount(): Promise<{ total: number; unread: number }> {
     const total = await this.notificationsService.countAll();
     const unread = await this.notificationsService.countUnread();
     return { total, unread };
   }
-} 
+}

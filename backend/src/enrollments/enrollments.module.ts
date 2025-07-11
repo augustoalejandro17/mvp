@@ -7,11 +7,11 @@ import { Enrollment, EnrollmentSchema } from './schemas/enrollment.schema';
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: Enrollment.name, schema: EnrollmentSchema }
-    ])
+      { name: Enrollment.name, schema: EnrollmentSchema },
+    ]),
   ],
   controllers: [EnrollmentsController],
   providers: [EnrollmentsService],
-  exports: [EnrollmentsService]
+  exports: [EnrollmentsService],
 })
-export class EnrollmentsModule {} 
+export class EnrollmentsModule {}

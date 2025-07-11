@@ -5,4 +5,4 @@ export class ChangeRoleDto {
   @IsNotEmpty()
   @IsEnum(UserRole)
   role: UserRole;
-} 
+}

@@ -1,4 +1,12 @@
-import { IsString, IsOptional, IsNotEmpty, IsMongoId, IsArray, IsBoolean, IsNumber } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNotEmpty,
+  IsMongoId,
+  IsArray,
+  IsBoolean,
+  IsNumber,
+} from 'class-validator';
 
 export class CreatePlaylistDto {
   @IsString()
@@ -65,4 +73,4 @@ export class AddClassToPlaylistDto {
 export class RemoveClassFromPlaylistDto {
   @IsMongoId({ message: 'El ID de la clase debe ser válido' })
   classId: string;
-} 
+}

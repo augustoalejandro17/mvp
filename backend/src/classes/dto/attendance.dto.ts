@@ -1,4 +1,13 @@
-import { IsArray, IsBoolean, IsDateString, IsMongoId, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsMongoId,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 class StudentAttendance {
@@ -40,4 +49,4 @@ export class UpdateAttendanceDto {
 
   studentsPresent?: number;
   totalStudents?: number;
-} 
+}

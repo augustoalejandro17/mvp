@@ -22,25 +22,27 @@ export class DropoutService {
 
     for (const course of courses) {
       const courseId = course._id;
-      
+
       // Obtener todas las inscripciones para este curso
-      const enrollments = await this.enrollmentModel.find({ 
-        course: courseId 
-      }).exec();
-      
+      const enrollments = await this.enrollmentModel
+        .find({
+          course: courseId,
+        })
+        .exec();
+
       const totalEnrollments = enrollments.length;
-      
+
       if (totalEnrollments === 0) {
         continue; // Saltar cursos sin inscripciones
       }
-      
+
       // Inscripciones inactivas (abandonos)
-      const dropoutEnrollments = enrollments.filter(e => !e.isActive);
+      const dropoutEnrollments = enrollments.filter((e) => !e.isActive);
       const dropoutCount = dropoutEnrollments.length;
-      
+
       // Tasa de abandono
       const dropoutRate = Math.round((dropoutCount / totalEnrollments) * 100);
-      
+
       // Analizar puntos cru00edticos de abandono
       // Para esto necesitaru00edamos conocer cuu00e1ndo se marcu00f3 como inactivo (droppedAt)
       // Como no tenemos ese campo explu00edcito, podru00edamos inferirlo de la fecha de u00faltima actualizaciu00f3n
@@ -53,7 +55,7 @@ export class DropoutService {
         { timePoint: 30, dropoutCount: Math.round(dropoutCount * 0.5) }, // 1 mes
         { timePoint: 60, dropoutCount: Math.round(dropoutCount * 0.3) }, // 2 meses
       ];
-      
+
       dropoutRates.push({
         courseId: courseId.toString(),
         courseName: course.title,
@@ -75,14 +77,14 @@ export class DropoutService {
     // Obtener todas las inscripciones
     const allEnrollments = await this.enrollmentModel.find().exec();
     const totalEnrollments = allEnrollments.length;
-    
+
     if (totalEnrollments === 0) {
       return 0;
     }
-    
+
     // Contar abandonos (inscripciones inactivas)
-    const dropouts = allEnrollments.filter(e => !e.isActive).length;
-    
+    const dropouts = allEnrollments.filter((e) => !e.isActive).length;
+
     // Calcular tasa global de abandono
     return Math.round((dropouts / totalEnrollments) * 100);
   }
@@ -94,18 +96,20 @@ export class DropoutService {
    */
   async getCourseDropoutDetails(courseId: string): Promise<DropoutRateDto> {
     const course = await this.courseModel.findById(courseId).exec();
-    
+
     if (!course) {
       throw new Error(`Course with ID ${courseId} not found`);
     }
-    
+
     // Obtener todas las inscripciones para este curso
-    const enrollments = await this.enrollmentModel.find({ 
-      course: courseId 
-    }).exec();
-    
+    const enrollments = await this.enrollmentModel
+      .find({
+        course: courseId,
+      })
+      .exec();
+
     const totalEnrollments = enrollments.length;
-    
+
     if (totalEnrollments === 0) {
       return {
         courseId: courseId.toString(),
@@ -115,14 +119,14 @@ export class DropoutService {
         criticalPoints: [],
       };
     }
-    
+
     // Inscripciones inactivas (abandonos)
-    const dropoutEnrollments = enrollments.filter(e => !e.isActive);
+    const dropoutEnrollments = enrollments.filter((e) => !e.isActive);
     const dropoutCount = dropoutEnrollments.length;
-    
+
     // Tasa de abandono
     const dropoutRate = Math.round((dropoutCount / totalEnrollments) * 100);
-    
+
     // Anu00e1lisis de puntos cru00edticos (simulados)
     // En una implementaciu00f3n real, se analizaru00eda droppedAt
     const criticalPoints = [
@@ -130,7 +134,7 @@ export class DropoutService {
       { timePoint: 30, dropoutCount: Math.round(dropoutCount * 0.5) },
       { timePoint: 60, dropoutCount: Math.round(dropoutCount * 0.3) },
     ];
-    
+
     return {
       courseId: courseId.toString(),
       courseName: course.title,
@@ -139,4 +143,4 @@ export class DropoutService {
       criticalPoints,
     };
   }
-} 
+}

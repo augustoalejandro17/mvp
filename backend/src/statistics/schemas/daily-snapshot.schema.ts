@@ -86,4 +86,4 @@ export const DailySnapshotSchema = SchemaFactory.createForClass(DailySnapshot);
 // Create compound index for efficient queries
 DailySnapshotSchema.index({ academyId: 1, date: 1 }, { unique: true });
 DailySnapshotSchema.index({ date: 1 });
-DailySnapshotSchema.index({ academyId: 1 }); 
+DailySnapshotSchema.index({ academyId: 1 });

@@ -4,13 +4,25 @@ import { StatisticsController } from './statistics.controller';
 
 import { StatisticsService } from './services/statistics.service';
 import { SnapshotService } from './services/snapshot.service';
-import { DailySnapshot, DailySnapshotSchema } from './schemas/daily-snapshot.schema';
+import {
+  DailySnapshot,
+  DailySnapshotSchema,
+} from './schemas/daily-snapshot.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { School, SchoolSchema } from '../schools/schemas/school.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
-import { Category, CategorySchema } from '../categories/schemas/category.schema';
-import { Attendance, AttendanceSchema } from '../attendance/schemas/attendance.schema';
-import { Enrollment, EnrollmentSchema } from '../enrollments/schemas/enrollment.schema';
+import {
+  Category,
+  CategorySchema,
+} from '../categories/schemas/category.schema';
+import {
+  Attendance,
+  AttendanceSchema,
+} from '../attendance/schemas/attendance.schema';
+import {
+  Enrollment,
+  EnrollmentSchema,
+} from '../enrollments/schemas/enrollment.schema';
 
 @Module({
   imports: [
@@ -28,4 +40,4 @@ import { Enrollment, EnrollmentSchema } from '../enrollments/schemas/enrollment.
   providers: [StatisticsService, SnapshotService],
   exports: [StatisticsService, SnapshotService],
 })
-export class StatisticsModule {} 
+export class StatisticsModule {}

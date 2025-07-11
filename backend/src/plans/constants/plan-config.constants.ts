@@ -6,22 +6,22 @@
 
 export enum PlanType {
   BASIC = 'basic',
-  INTERMEDIATE = 'intermediate', 
+  INTERMEDIATE = 'intermediate',
   ADVANCED = 'advanced',
-  PREMIUM = 'premium'
+  PREMIUM = 'premium',
 }
 
 export interface PlanConfig {
   readonly type: PlanType;
   readonly name: string;
-  readonly monthlyPriceCents: number;  // Price in cents
-  readonly studentSeats: number;       // Any user attached to academy
+  readonly monthlyPriceCents: number; // Price in cents
+  readonly studentSeats: number; // Any user attached to academy
   readonly teachers: number;
   readonly maxConcurrentCoursesPerStudent: number;
   readonly storageGB: number;
   readonly streamingHoursPerMonth: number;
   readonly overUsageUnitPrices: {
-    readonly studentCents: number;     // Per additional student
+    readonly studentCents: number; // Per additional student
     readonly storageCentsPerGB: number; // Per additional GB
     readonly streamingCentsPerHour: number; // Per additional hour
   };
@@ -39,21 +39,21 @@ export const PLAN_CONFIGS: Record<PlanType, PlanConfig> = {
     storageGB: 20,
     streamingHoursPerMonth: 20,
     overUsageUnitPrices: {
-      studentCents: 300,      // $3.00 per student
-      storageCentsPerGB: 20,  // $0.20 per GB
+      studentCents: 300, // $3.00 per student
+      storageCentsPerGB: 20, // $0.20 per GB
       streamingCentsPerHour: 6, // $0.06 per hour
     },
     features: [
       'Basic platform access',
       'Standard support',
       'Basic analytics',
-      'Mobile app access'
-    ] as const
+      'Mobile app access',
+    ] as const,
   },
-  
+
   [PlanType.INTERMEDIATE]: {
     type: PlanType.INTERMEDIATE,
-    name: 'Intermediate', 
+    name: 'Intermediate',
     monthlyPriceCents: 30000, // $300.00
     studentSeats: 60,
     teachers: 5,
@@ -61,8 +61,8 @@ export const PLAN_CONFIGS: Record<PlanType, PlanConfig> = {
     storageGB: 60,
     streamingHoursPerMonth: 60,
     overUsageUnitPrices: {
-      studentCents: 250,      // $2.50 per student
-      storageCentsPerGB: 20,  // $0.20 per GB (same as Basic)
+      studentCents: 250, // $2.50 per student
+      storageCentsPerGB: 20, // $0.20 per GB (same as Basic)
       streamingCentsPerHour: 6, // $0.06 per hour (same as Basic)
     },
     features: [
@@ -71,10 +71,10 @@ export const PLAN_CONFIGS: Record<PlanType, PlanConfig> = {
       'Advanced analytics',
       'Custom branding',
       'API access',
-      'Bulk user management'
-    ] as const
+      'Bulk user management',
+    ] as const,
   },
-  
+
   [PlanType.ADVANCED]: {
     type: PlanType.ADVANCED,
     name: 'Advanced',
@@ -85,8 +85,8 @@ export const PLAN_CONFIGS: Record<PlanType, PlanConfig> = {
     storageGB: 120,
     streamingHoursPerMonth: 120,
     overUsageUnitPrices: {
-      studentCents: 200,      // $2.00 per student
-      storageCentsPerGB: 20,  // $0.20 per GB (same)
+      studentCents: 200, // $2.00 per student
+      storageCentsPerGB: 20, // $0.20 per GB (same)
       streamingCentsPerHour: 6, // $0.06 per hour (same)
     },
     features: [
@@ -97,10 +97,10 @@ export const PLAN_CONFIGS: Record<PlanType, PlanConfig> = {
       'Advanced API access',
       'Multi-location support',
       'Custom integrations',
-      'Advanced reporting'
-    ] as const
+      'Advanced reporting',
+    ] as const,
   },
-  
+
   [PlanType.PREMIUM]: {
     type: PlanType.PREMIUM,
     name: 'Premium',
@@ -111,8 +111,8 @@ export const PLAN_CONFIGS: Record<PlanType, PlanConfig> = {
     storageGB: 250,
     streamingHoursPerMonth: 250,
     overUsageUnitPrices: {
-      studentCents: 150,      // $1.50 per student (in blocks of 50, avg $1-1.5)
-      storageCentsPerGB: 20,  // $0.20 per GB (same)
+      studentCents: 150, // $1.50 per student (in blocks of 50, avg $1-1.5)
+      storageCentsPerGB: 20, // $0.20 per GB (same)
       streamingCentsPerHour: 6, // $0.06 per hour (same)
     },
     features: [
@@ -125,9 +125,9 @@ export const PLAN_CONFIGS: Record<PlanType, PlanConfig> = {
       'Custom development',
       'Dedicated account manager',
       'SLA guarantee',
-      'Priority feature requests'
-    ] as const
-  }
+      'Priority feature requests',
+    ] as const,
+  },
 } as const;
 
 // Helper functions
@@ -155,10 +155,10 @@ export const isValidPlanType = (type: string): type is PlanType => {
 export const calculateOveragePrice = (
   planType: PlanType,
   resourceType: 'student' | 'storage' | 'streaming',
-  overageAmount: number
+  overageAmount: number,
 ): number => {
   const config = getPlanConfig(planType);
-  
+
   switch (resourceType) {
     case 'student':
       return config.overUsageUnitPrices.studentCents * overageAmount;
@@ -169,4 +169,4 @@ export const calculateOveragePrice = (
     default:
       throw new Error(`Invalid resource type: ${resourceType}`);
   }
-}; 
+};

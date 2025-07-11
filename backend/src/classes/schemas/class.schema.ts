@@ -9,7 +9,7 @@ export enum VideoStatus {
   UPLOADING = 'UPLOADING',
   PROCESSING = 'PROCESSING',
   READY = 'READY',
-  ERROR = 'ERROR'
+  ERROR = 'ERROR',
 }
 
 @Schema()
@@ -65,4 +65,4 @@ export class Class {
   isActive: boolean;
 }
 
-export const ClassSchema = SchemaFactory.createForClass(Class); 
+export const ClassSchema = SchemaFactory.createForClass(Class);

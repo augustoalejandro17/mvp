@@ -1,5 +1,19 @@
-import { IsString, MinLength, IsNotEmpty, IsMongoId, IsOptional, IsNumber, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  MinLength,
+  IsNotEmpty,
+  IsMongoId,
+  IsOptional,
+  IsNumber,
+  IsBoolean,
+  IsUrl,
+  IsArray,
+  IsObject,
+  ValidateNested,
+  IsEnum,
+} from 'class-validator';
 import { Type, Transform } from 'class-transformer';
+import { VideoStatus } from '../schemas/class.schema';
 
 export class CreateClassDto {
   @IsString()
@@ -9,7 +23,9 @@ export class CreateClassDto {
 
   @IsString()
   @IsNotEmpty({ message: 'La descripción es obligatoria' })
-  @MinLength(10, { message: 'La descripción debe tener al menos 10 caracteres' })
+  @MinLength(10, {
+    message: 'La descripción debe tener al menos 10 caracteres',
+  })
   description: string;
 
   @IsMongoId({ message: 'El ID del curso debe ser un ID válido' })
@@ -29,4 +45,4 @@ export class CreateClassDto {
     return value;
   })
   isPublic?: boolean;
-} 
+}

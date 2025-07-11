@@ -36,9 +36,17 @@ const refreshImageUrl = async (key: string): Promise<string | null> => {
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = getToken(); // Usar getToken que verifica expiración
-    if (token && config.headers) {
+    
+    // Only add token if it exists, is valid, AND the request doesn't explicitly exclude it
+    if (token && config.headers && !config.headers['Skip-Auth']) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
+    
+    // Clean up the Skip-Auth header if it exists
+    if (config.headers) {
+      delete config.headers['Skip-Auth'];
+    }
+    
     return config;
   },
   (error: unknown) => {
@@ -57,14 +65,36 @@ api.interceptors.response.use(
       // The request was made and the server responded with a status code
       // that falls out of the range of 2xx
       if (error.response.status === 401) {
-        // Unauthorized - Clear token and redirect to home
-        clearAuth(); // Usar clearAuth para notificar a los componentes
+        // Get the request URL to check if it's a public resource
+        const requestUrl = error.config?.url || '';
         
-        // Solo redirigir si no estamos ya en la página de login o home
-        const currentPath = window.location.pathname;
-        if (!currentPath.includes('/login') && currentPath !== '/') {
-          // Redirect to home instead of login with redirect path
-          window.location.href = '/';
+        // Skip auto-redirect for public course API calls and video streaming
+        // More precise URL matching to handle query parameters
+        const isPublicCourseCall = (
+          requestUrl.includes('/api/courses/') || 
+          requestUrl.includes('/courses/') ||
+          (requestUrl.includes('/api/courses') && !requestUrl.includes('/enrollment') && !requestUrl.includes('/payments'))
+        ) && !requestUrl.includes('/enrollment') && !requestUrl.includes('/payments');
+        
+        const isVideoStreamCall = (
+          requestUrl.includes('/stream-url') || 
+          requestUrl.includes('/video-proxy') ||
+          (requestUrl.includes('/api/classes/') && !requestUrl.includes('/enrollment') && !requestUrl.includes('/payments')) ||
+          (requestUrl.includes('/classes/') && !requestUrl.includes('/enrollment') && !requestUrl.includes('/payments')) ||
+          requestUrl.includes('/playlists') ||
+          requestUrl.includes('/api/playlists') ||
+          requestUrl.includes('/api/usage/')
+        );
+        
+        if (!isPublicCourseCall && !isVideoStreamCall) {
+          // Unauthorized - Clear token and redirect to home
+          clearAuth();
+          
+          // Solo redirigir si no estamos ya en la página de login o home
+          const currentPath = window.location.pathname;
+          if (!currentPath.includes('/login') && currentPath !== '/') {
+            window.location.href = '/';
+          }
         }
       }
     }

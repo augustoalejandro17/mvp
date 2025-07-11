@@ -20,9 +20,15 @@ const addGlobalAxiosInterceptor = () => {
   axios.interceptors.request.use(
     (config) => {
       const token = Cookies.get('token');
-      if (token && !isTokenExpired(token)) {
+      
+      // Only add token if it exists, is valid, AND the request doesn't explicitly exclude it
+      if (token && !isTokenExpired(token) && !config.headers['Skip-Auth']) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+      
+      // Clean up the Skip-Auth header if it exists
+      delete config.headers['Skip-Auth'];
+      
       return config;
     },
     (error) => Promise.reject(error)
@@ -33,14 +39,36 @@ const addGlobalAxiosInterceptor = () => {
     (response) => response,
     (error) => {
       if (error.response?.status === 401) {
-        console.log('Global interceptor: 401 error detected, clearing auth and redirecting to home');
-        clearAuth();
+        // Get the request URL to check if it's a public resource
+        const requestUrl = error.config?.url || '';
         
-        // Only redirect if we're not already on home or login
-        if (typeof window !== 'undefined') {
-          const currentPath = window.location.pathname;
-          if (currentPath !== '/' && !currentPath.includes('/login')) {
-            window.location.href = '/';
+        // Skip auto-redirect for public course API calls and video streaming
+        // More precise URL matching to handle query parameters
+        const isPublicCourseCall = (
+          requestUrl.includes('/api/courses/') || 
+          requestUrl.includes('/courses/') ||
+          (requestUrl.includes('/api/courses') && !requestUrl.includes('/enrollment') && !requestUrl.includes('/payments'))
+        ) && !requestUrl.includes('/enrollment') && !requestUrl.includes('/payments');
+        
+        const isVideoStreamCall = (
+          requestUrl.includes('/stream-url') || 
+          requestUrl.includes('/video-proxy') ||
+          (requestUrl.includes('/api/classes/') && !requestUrl.includes('/enrollment') && !requestUrl.includes('/payments')) ||
+          (requestUrl.includes('/classes/') && !requestUrl.includes('/enrollment') && !requestUrl.includes('/payments')) ||
+          requestUrl.includes('/playlists') ||
+          requestUrl.includes('/api/playlists') ||
+          requestUrl.includes('/api/usage/')
+        );
+        
+        if (!isPublicCourseCall && !isVideoStreamCall) {
+          clearAuth();
+          
+          // Only redirect if we're not already on home or login
+          if (typeof window !== 'undefined') {
+            const currentPath = window.location.pathname;
+            if (currentPath !== '/' && !currentPath.includes('/login')) {
+              window.location.href = '/';
+            }
           }
         }
       }
@@ -138,18 +166,23 @@ export const getToken = () => {
 };
 
 /**
- * Limpia la autenticación (elimina el token y notifica a los listeners)
+ * Limpiar la autenticación almacenada
  */
 export const clearAuth = () => {
-  // Primero eliminar el token para evitar ciclos
-  const hadToken = !!Cookies.get('token');
+  // Clear the JWT token cookie
   Cookies.remove('token');
+  
+  // Clear user data cookie
   Cookies.remove('user');
   
-  // Solo notificar si había un token
-  if (hadToken) {
-    notifyAuthChange();
-  }
+  // Notify all listeners about the auth change
+  authListeners.forEach(listener => {
+    try {
+      listener();
+    } catch (error) {
+      console.error('Error notifying auth listener:', error);
+    }
+  });
 };
 
 /**

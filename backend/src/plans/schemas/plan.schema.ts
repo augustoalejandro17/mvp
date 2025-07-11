@@ -7,7 +7,7 @@ export enum PlanType {
   BASIC = 'basic',
   INTERMEDIATE = 'intermediate',
   ADVANCED = 'advanced',
-  PREMIUM = 'premium'
+  PREMIUM = 'premium',
 }
 
 @Schema()
@@ -40,7 +40,7 @@ export class Plan {
   // Pricing (all in cents to avoid float math)
   @Prop({ required: true })
   monthlyPriceCents: number;
-  
+
   // Over-usage unit prices (in cents)
   @Prop({ required: true })
   overageStudentCents: number;
@@ -69,22 +69,22 @@ export class Plan {
 
   @Prop({ required: true })
   maxCoursesPerUser: number;
-  
+
   @Prop({ required: true })
   monthlyPrice: number;
-  
+
   @Prop({ default: false })
   isDefault: boolean;
-  
+
   @Prop({ required: true })
   extraUserPrice: number;
-  
+
   @Prop({ required: true })
   extraStorageGbPrice: number;
-  
+
   @Prop({ required: true })
   extraStreamingMinutesPrice: number;
-  
+
   @Prop({ required: true })
   extraCoursePerUserPrice: number;
 
@@ -95,4 +95,4 @@ export class Plan {
   features: string[];
 }
 
-export const PlanSchema = SchemaFactory.createForClass(Plan); 
+export const PlanSchema = SchemaFactory.createForClass(Plan);

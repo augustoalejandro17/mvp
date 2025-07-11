@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { User } from '../../auth/schemas/user.schema';
 import { Course } from '../../courses/schemas/course.schema';
 import { Class } from './class.schema';
@@ -20,7 +20,10 @@ export class Playlist {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   createdBy: User;
 
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Class' }], default: [] })
+  @Prop({
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Class' }],
+    default: [],
+  })
   classes: MongooseSchema.Types.ObjectId[];
 
   @Prop({ default: 0 })
@@ -42,4 +45,4 @@ export class Playlist {
   isActive: boolean;
 }
 
-export const PlaylistSchema = SchemaFactory.createForClass(Playlist); 
+export const PlaylistSchema = SchemaFactory.createForClass(Playlist);

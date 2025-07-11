@@ -1,4 +1,10 @@
-import { IsOptional, IsString, IsDateString, IsEnum, IsMongoId } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsDateString,
+  IsEnum,
+  IsMongoId,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 
@@ -7,29 +13,29 @@ export enum MetricType {
   OCCUPANCY = 'occupancy',
   REVENUE = 'revenue',
   NO_SHOW = 'no-show',
-  RETENTION = 'retention'
+  RETENTION = 'retention',
 }
 
 export class StatisticsQueryDto {
-  @ApiPropertyOptional({ 
-    description: 'Start date (YYYY-MM-DD)', 
-    example: '2024-01-01' 
+  @ApiPropertyOptional({
+    description: 'Start date (YYYY-MM-DD)',
+    example: '2024-01-01',
   })
   @IsOptional()
   @IsDateString()
   from?: string;
 
-  @ApiPropertyOptional({ 
-    description: 'End date (YYYY-MM-DD)', 
-    example: '2024-01-31' 
+  @ApiPropertyOptional({
+    description: 'End date (YYYY-MM-DD)',
+    example: '2024-01-31',
   })
   @IsOptional()
   @IsDateString()
   to?: string;
 
-  @ApiPropertyOptional({ 
-    description: 'Academy/School ID (for super admins)', 
-    example: '507f1f77bcf86cd799439011' 
+  @ApiPropertyOptional({
+    description: 'Academy/School ID (for super admins)',
+    example: '507f1f77bcf86cd799439011',
   })
   @IsOptional()
   @IsMongoId()
@@ -37,19 +43,19 @@ export class StatisticsQueryDto {
 }
 
 export class MetricQueryDto extends StatisticsQueryDto {
-  @ApiProperty({ 
-    enum: MetricType, 
+  @ApiProperty({
+    enum: MetricType,
     description: 'Type of metric to retrieve',
-    example: MetricType.ATTENDANCE 
+    example: MetricType.ATTENDANCE,
   })
   @IsEnum(MetricType)
   metric: MetricType;
 }
 
 export class CourseMetricQueryDto extends MetricQueryDto {
-  @ApiPropertyOptional({ 
-    description: 'Specific course ID to filter by', 
-    example: '507f1f77bcf86cd799439012' 
+  @ApiPropertyOptional({
+    description: 'Specific course ID to filter by',
+    example: '507f1f77bcf86cd799439012',
   })
   @IsOptional()
   @IsMongoId()
@@ -96,7 +102,9 @@ export class OverviewStatsResponseDto {
 }
 
 export class DimensionMetricResponseDto {
-  @ApiProperty({ description: 'Dimension ID (professor, course, category, or age range)' })
+  @ApiProperty({
+    description: 'Dimension ID (professor, course, category, or age range)',
+  })
   id: string;
 
   @ApiProperty({ description: 'Display name for the dimension' })
@@ -144,7 +152,10 @@ export class TimeSeriesResponseDto {
     to: string;
   };
 
-  @ApiProperty({ description: 'Time series data points', type: [TimeSeriesDataPointDto] })
+  @ApiProperty({
+    description: 'Time series data points',
+    type: [TimeSeriesDataPointDto],
+  })
   data: TimeSeriesDataPointDto[];
 }
 
@@ -246,4 +257,4 @@ export class StatisticsResponseDto {
   overallDropoutRate: number;
 
   ageDistribution: AgeDistributionDto;
-} 
+}

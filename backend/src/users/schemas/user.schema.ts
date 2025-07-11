@@ -4,13 +4,13 @@ import { Document } from 'mongoose';
 export enum UserRole {
   ADMIN = 'admin',
   TEACHER = 'teacher',
-  STUDENT = 'student'
+  STUDENT = 'student',
 }
 
 export enum UserStatus {
   ACTIVE = 'active',
   INACTIVE = 'inactive',
-  SUSPENDED = 'suspended'
+  SUSPENDED = 'suspended',
 }
 
 @Schema({ timestamps: true })
@@ -33,12 +33,14 @@ export class User extends Document {
   @Prop({ required: false })
   age?: number;
 
-  @Prop([{
-    status: { type: String, enum: UserStatus },
-    changedAt: { type: Date, default: Date.now },
-    changedBy: { type: String }, // User ID who made the change
-    reason: { type: String }
-  }])
+  @Prop([
+    {
+      status: { type: String, enum: UserStatus },
+      changedAt: { type: Date, default: Date.now },
+      changedBy: { type: String }, // User ID who made the change
+      reason: { type: String },
+    },
+  ])
   statusHistory?: Array<{
     status: UserStatus;
     changedAt: Date;
@@ -47,4 +49,4 @@ export class User extends Document {
   }>;
 }
 
-export const UserSchema = SchemaFactory.createForClass(User); 
+export const UserSchema = SchemaFactory.createForClass(User);

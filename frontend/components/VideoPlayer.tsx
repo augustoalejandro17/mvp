@@ -54,13 +54,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, classId, allowDow
       setError(null);
       
       // Intentar usar el endpoint de streaming en primer lugar
+      // First try without authentication for public classes
       try {
-        const token = Cookies.get('token');
-        const response = await fetch(`/api/classes/${classId}/stream-url`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const response = await fetch(`/api/classes/${classId}/stream-url`);
         
         if (response.ok) {
           const data = await response.json();
@@ -72,24 +68,64 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, classId, allowDow
           }
         }
       } catch (streamError) {
-        console.warn('Error con endpoint de streaming, usando alternativa', streamError);
+        console.warn('Error con endpoint de streaming sin auth, intentando con auth', streamError);
+      }
+
+      // If unauthenticated request failed, try with authentication
+      try {
+        const token = Cookies.get('token');
+        if (token) {
+          const response = await fetch(`/api/classes/${classId}/stream-url`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data && data.url) {
+              setStreamUrl(data.url);
+              setError(null);
+              setIsLoading(false);
+              return;
+            }
+          }
+        }
+      } catch (authStreamError) {
+        console.warn('Error con endpoint de streaming con auth, usando alternativa', authStreamError);
       }
       
       // Si llegamos aquí, es porque el primer intento falló
       // Intentemos usar alternativas
       
-      // Opción 1: Intentar con el endpoint directo
+      // Opción 1: Intentar con el endpoint directo sin auth
       try {
-        const response = await api.get(`/classes/${classId}`);
+        const response = await api.get(`/classes/${classId}`, {
+          headers: { 'Skip-Auth': 'true' }
+        });
         if (response.data && response.data.videoUrl) {
-          console.log('Usando URL directa de video de la clase');
+          console.log('Usando URL directa de video de la clase (sin auth)');
           setStreamUrl(response.data.videoUrl);
           setError(null);
           setIsLoading(false);
           return;
         }
       } catch (directError) {
-        console.warn('Error con URL directa, intentando última alternativa', directError);
+        console.warn('Error con URL directa sin auth, intentando con auth', directError);
+      }
+
+      // Opción 2: Intentar con el endpoint directo con auth
+      try {
+        const response = await api.get(`/classes/${classId}`);
+        if (response.data && response.data.videoUrl) {
+          console.log('Usando URL directa de video de la clase (con auth)');
+          setStreamUrl(response.data.videoUrl);
+          setError(null);
+          setIsLoading(false);
+          return;
+        }
+      } catch (directError) {
+        console.warn('Error con URL directa con auth, intentando última alternativa', directError);
       }
 
       // Si llegamos aquí, todos los intentos han fallado

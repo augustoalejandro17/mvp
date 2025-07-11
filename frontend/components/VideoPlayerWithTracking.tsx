@@ -276,13 +276,9 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
       setIsLoading(true);
       setError(null);
       
+      // First try without authentication for public classes
       try {
-        const token = Cookies.get('token');
-        const response = await fetch(`/api/classes/${classId}/stream-url`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const response = await fetch(`/api/classes/${classId}/stream-url`);
         
         if (response.ok) {
           const data = await response.json();
@@ -295,17 +291,46 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
             return;
           }
         }
+      } catch (streamError) {
+        console.log('Streaming endpoint failed without auth, trying with auth:', streamError);
+      }
+
+      // If unauthenticated request failed, try with authentication
+      try {
+        const token = Cookies.get('token');
+        if (token) {
+          const response = await fetch(`/api/classes/${classId}/stream-url`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data && data.url) {
+              setStreamUrl(data.url);
+              setError(null);
+              setIsLoading(false);
+              // Get actual video file size
+              getActualVideoSize(data.url);
+              return;
+            }
+          }
+        }
         
         // If response is not ok but no exception, continue to fallback
         console.log('Streaming endpoint returned non-ok status, trying fallback');
-      } catch (streamError) {
-        console.log('Streaming endpoint failed, trying fallback:', streamError);
+      } catch (authStreamError) {
+        console.log('Streaming endpoint failed with auth, trying fallback:', authStreamError);
       }
       
+      // Try direct class endpoint without auth
       try {
-        const response = await api.get(`/classes/${classId}`);
+        const response = await api.get(`/classes/${classId}`, {
+          headers: { 'Skip-Auth': 'true' }
+        });
         if (response.data && response.data.videoUrl && response.data.videoUrl.trim()) {
-          console.log('Successfully got stream URL for class', classId);
+          console.log('Successfully got stream URL for class', classId, '(without auth)');
           setStreamUrl(response.data.videoUrl);
           setError(null);
           setIsLoading(false);
@@ -314,7 +339,23 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
           return;
         }
       } catch (directError) {
-        console.log('Error with direct URL fallback:', directError);
+        console.log('Error with direct URL without auth, trying with auth:', directError);
+      }
+
+      // Try direct class endpoint with auth
+      try {
+        const response = await api.get(`/classes/${classId}`);
+        if (response.data && response.data.videoUrl && response.data.videoUrl.trim()) {
+          console.log('Successfully got stream URL for class', classId, '(with auth)');
+          setStreamUrl(response.data.videoUrl);
+          setError(null);
+          setIsLoading(false);
+          // Get actual video file size
+          getActualVideoSize(response.data.videoUrl);
+          return;
+        }
+      } catch (directError) {
+        console.log('Error with direct URL with auth:', directError);
       }
 
       setError("No se pudo obtener la URL del video. Intente de nuevo más tarde.");

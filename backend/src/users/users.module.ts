@@ -6,8 +6,14 @@ import { User, UserSchema } from '../auth/schemas/user.schema';
 import { School, SchoolSchema } from '../schools/schemas/school.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
 import { AuthorizationService } from '../auth/services/authorization.service';
-import { Attendance as CourseAttendance, AttendanceSchema as CourseAttendanceSchema } from '../attendance/schemas/attendance.schema';
-import { Attendance as ClassAttendance, AttendanceSchema as ClassAttendanceSchema } from '../attendance/schemas/attendance.schema';
+import {
+  Attendance as CourseAttendance,
+  AttendanceSchema as CourseAttendanceSchema,
+} from '../attendance/schemas/attendance.schema';
+import {
+  Attendance as ClassAttendance,
+  AttendanceSchema as ClassAttendanceSchema,
+} from '../attendance/schemas/attendance.schema';
 
 @Module({
   imports: [
@@ -23,4 +29,4 @@ import { Attendance as ClassAttendance, AttendanceSchema as ClassAttendanceSchem
   providers: [UsersService, AuthorizationService],
   exports: [UsersService],
 })
-export class UsersModule {} 
+export class UsersModule {}

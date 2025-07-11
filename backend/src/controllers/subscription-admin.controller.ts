@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Query,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -56,29 +66,32 @@ export class SubscriptionAdminController {
 
       // Obtener suscripciones con datos de plan y escuela
       const subscriptions = await this.subscriptionsService.findAll();
-      
+
       // Formatear los datos para el frontend
-      const formattedSubscriptions = await Promise.all(subscriptions.map(async (sub: any) => {
-        const school = sub.school ? sub.school : 
-                     await this.subscriptionsService.findSchoolBySubscription(sub._id);
-        
-        return {
-          id: sub._id,
-          schoolName: school ? school.name : 'Escuela desconocida',
-          schoolId: school ? school._id : null,
-          planName: sub.plan ? sub.plan.name : 'Plan desconocido',
-          planType: sub.plan ? sub.plan.type : 'unknown',
-          status: sub.status,
-          startDate: sub.startDate,
-          endDate: sub.endDate,
-          currentStorageGb: sub.currentStorageGb || 0,
-          currentStreamingMinutes: sub.currentStreamingMinutes || 0
-        };
-      }));
+      const formattedSubscriptions = await Promise.all(
+        subscriptions.map(async (sub: any) => {
+          const school = sub.school
+            ? sub.school
+            : await this.subscriptionsService.findSchoolBySubscription(sub._id);
+
+          return {
+            id: sub._id,
+            schoolName: school ? school.name : 'Escuela desconocida',
+            schoolId: school ? school._id : null,
+            planName: sub.plan ? sub.plan.name : 'Plan desconocido',
+            planType: sub.plan ? sub.plan.type : 'unknown',
+            status: sub.status,
+            startDate: sub.startDate,
+            endDate: sub.endDate,
+            currentStorageGb: sub.currentStorageGb || 0,
+            currentStreamingMinutes: sub.currentStreamingMinutes || 0,
+          };
+        }),
+      );
 
       return {
         subscriptions: formattedSubscriptions,
-        totalCount: formattedSubscriptions.length
+        totalCount: formattedSubscriptions.length,
       };
     } catch (error) {
       console.error('Error obteniendo suscripciones:', error);
@@ -86,7 +99,7 @@ export class SubscriptionAdminController {
         error: 'Error obteniendo suscripciones',
         message: error.message,
         subscriptions: [],
-        totalCount: 0
+        totalCount: 0,
       };
     }
   }
@@ -103,8 +116,8 @@ export class SubscriptionAdminController {
 
   @Patch(':id')
   updateSubscription(
-    @Param('id') id: string, 
-    @Body() updateSubscriptionDto: UpdateSubscriptionDto
+    @Param('id') id: string,
+    @Body() updateSubscriptionDto: UpdateSubscriptionDto,
   ) {
     return this.subscriptionsService.update(id, updateSubscriptionDto);
   }
@@ -112,18 +125,19 @@ export class SubscriptionAdminController {
   @Patch(':id/add-extra-resources')
   addExtraResources(
     @Param('id') id: string,
-    @Body() extraResources: {
+    @Body()
+    extraResources: {
       extraUsers?: number;
       extraStorageGb?: number;
       extraStreamingMinutes?: number;
       extraCoursesPerUser?: number;
-    }
+    },
   ) {
     // Este endpoint está optimizado para la gestión de recursos adicionales
     const updateDto: UpdateSubscriptionDto = {
-      approvedExtraResources: extraResources
+      approvedExtraResources: extraResources,
     };
-    
+
     return this.subscriptionsService.update(id, updateDto);
   }
 
@@ -131,4 +145,4 @@ export class SubscriptionAdminController {
   cancelSubscription(@Param('id') id: string) {
     return this.subscriptionsService.remove(id);
   }
-} 
+}

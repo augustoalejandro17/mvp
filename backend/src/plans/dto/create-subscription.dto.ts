@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsMongoId, IsOptional, IsEnum, IsBoolean, IsDate } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsMongoId,
+  IsOptional,
+  IsEnum,
+  IsBoolean,
+  IsDate,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { SubscriptionStatus } from '../schemas/subscription.schema';
 
@@ -28,4 +35,4 @@ export class CreateSubscriptionDto {
   @IsOptional()
   @IsBoolean()
   autoRenew?: boolean;
-} 
+}

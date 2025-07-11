@@ -1,4 +1,13 @@
-import { IsArray, IsBoolean, IsDateString, IsMongoId, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsMongoId,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 class StudentAttendance {
@@ -24,4 +33,4 @@ export class RecordAttendanceDto {
   @ValidateNested({ each: true })
   @Type(() => StudentAttendance)
   attendanceRecords: StudentAttendance[];
-} 
+}

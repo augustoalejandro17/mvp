@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Query,
+  Request,
+} from '@nestjs/common';
 import { SubscriptionsService } from './subscriptions.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
@@ -40,7 +51,10 @@ export class SubscriptionsController {
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
-  update(@Param('id') id: string, @Body() updateSubscriptionDto: UpdateSubscriptionDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateSubscriptionDto: UpdateSubscriptionDto,
+  ) {
     return this.subscriptionsService.update(id, updateSubscriptionDto);
   }
 
@@ -61,7 +75,7 @@ export class SubscriptionsController {
   @UseGuards(JwtAuthGuard)
   validateEnrollment(
     @Query('userId') userId: string,
-    @Query('courseId') courseId: string
+    @Query('courseId') courseId: string,
   ) {
     return this.subscriptionsService.canEnrollUserToCourse(userId, courseId);
   }
@@ -70,8 +84,8 @@ export class SubscriptionsController {
   @UseGuards(JwtAuthGuard)
   validateStorage(
     @Query('schoolId') schoolId: string,
-    @Query('requiredGb') requiredGb: number
+    @Query('requiredGb') requiredGb: number,
   ) {
     return this.subscriptionsService.hasAvailableStorage(schoolId, requiredGb);
   }
-} 
+}

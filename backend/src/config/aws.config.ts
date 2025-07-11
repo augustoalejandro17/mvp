@@ -13,4 +13,4 @@ export default registerAs('aws', () => ({
   cloudFrontKeyPairId: process.env.AWS_CLOUDFRONT_KEY_PAIR_ID,
   cloudFrontPrivateKeyPath: process.env.AWS_CLOUDFRONT_PRIVATE_KEY_PATH,
   cloudFrontPrivateKeyBase64: process.env.AWS_CLOUDFRONT_PRIVATE_KEY_BASE64,
-})); 
+}));

@@ -1,9 +1,12 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CoursesController } from './courses.controller';
 import { CoursesService } from './courses.service';
 import { Course, CourseSchema } from './schemas/course.schema';
-import { CourseSchedule, CourseScheduleSchema } from './schemas/course-schedule.schema';
+import {
+  CourseSchedule,
+  CourseScheduleSchema,
+} from './schemas/course-schedule.schema';
 import { CourseScheduleService } from './course-schedule.service';
 import { CourseScheduleController } from './course-schedule.controller';
 import { AuthModule } from '../auth/auth.module';
@@ -25,10 +28,14 @@ import { EnrollmentsController } from './enrollments.controller';
     ]),
     AuthModule,
     SchoolsModule,
-    UsersModule
+    UsersModule,
   ],
-  controllers: [CoursesController, EnrollmentsController, CourseScheduleController],
+  controllers: [
+    CoursesController,
+    EnrollmentsController,
+    CourseScheduleController,
+  ],
   providers: [CoursesService, CourseScheduleService],
   exports: [CoursesService, CourseScheduleService],
 })
-export class CoursesModule {} 
+export class CoursesModule {}

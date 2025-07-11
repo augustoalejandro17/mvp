@@ -21,4 +21,4 @@ export class GrantExtraResourcesDto {
   @IsNumber()
   @Min(0)
   extraStreamingHours?: number;
-} 
+}

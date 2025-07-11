@@ -291,4 +291,6 @@ class UsageTrackingService {
   }
 }
 
-export default new UsageTrackingService(); 
+// Create and export singleton instance
+const usageTrackingService = new UsageTrackingService();
+export default usageTrackingService; 

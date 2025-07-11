@@ -28,16 +28,28 @@ export class School {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: false })
   admin: User;
 
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], default: [] })
+  @Prop({
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }],
+    default: [],
+  })
   teachers: MongooseSchema.Types.ObjectId[];
 
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], default: [] })
+  @Prop({
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }],
+    default: [],
+  })
   administratives: MongooseSchema.Types.ObjectId[];
 
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], default: [] })
+  @Prop({
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }],
+    default: [],
+  })
   students: MongooseSchema.Types.ObjectId[];
 
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Course' }], default: [] })
+  @Prop({
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Course' }],
+    default: [],
+  })
   courses: MongooseSchema.Types.ObjectId[];
 
   // Plan and subscription tracking
@@ -90,4 +102,4 @@ export class School {
   timezone: string;
 }
 
-export const SchoolSchema = SchemaFactory.createForClass(School); 
+export const SchoolSchema = SchemaFactory.createForClass(School);

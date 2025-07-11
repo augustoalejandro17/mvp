@@ -21,4 +21,4 @@ export class UpdateEnrollmentDto {
   @IsString()
   @IsOptional()
   paymentNotes?: string;
-} 
+}

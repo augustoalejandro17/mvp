@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Param, Body, Query, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -16,14 +25,14 @@ import { Class } from '../../classes/schemas/class.schema';
 import { School } from '../../schools/schemas/school.schema';
 import { Subscription } from '../../plans/schemas/subscription.schema';
 import { Plan } from '../../plans/schemas/plan.schema';
-import { 
-  DateRangeDto, 
-  RetentionRateDto, 
-  TeacherPerformanceDto, 
-  RevenueDto, 
-  DropoutRateDto, 
-  AgeDistributionDto, 
-  StatisticsResponseDto 
+import {
+  DateRangeDto,
+  RetentionRateDto,
+  TeacherPerformanceDto,
+  RevenueDto,
+  DropoutRateDto,
+  AgeDistributionDto,
+  StatisticsResponseDto,
 } from '../dto/statistics.dto';
 
 @Controller('admin/stats')
@@ -38,13 +47,19 @@ export class StatisticsController {
     @InjectModel(Course.name) private courseModel: Model<Course>,
     @InjectModel(Class.name) private classModel: Model<Class>,
     @InjectModel(School.name) private schoolModel: Model<School>,
-    @InjectModel(Subscription.name) private subscriptionModel: Model<Subscription>,
+    @InjectModel(Subscription.name)
+    private subscriptionModel: Model<Subscription>,
     @InjectModel(Plan.name) private planModel: Model<Plan>,
   ) {}
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMIN, UserRole.ADMINISTRATIVE)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.SCHOOL_OWNER,
+    UserRole.ADMIN,
+    UserRole.ADMINISTRATIVE,
+  )
   async getStats(@Query('schoolId') schoolId: string, @Request() req) {
     try {
       const user = req.user;
@@ -52,14 +67,14 @@ export class StatisticsController {
       if (!userId) {
         throw new Error('ID de usuario no disponible');
       }
-      
+
       const stats: any = {};
-      
+
       if (schoolId && schoolId !== 'all') {
         // Asegurarse de que checkSchoolAccess existe o moverlo aquí
-        const hasAccess = await this.checkSchoolAccess(user, schoolId); 
+        const hasAccess = await this.checkSchoolAccess(user, schoolId);
         if (!hasAccess) {
-           throw new Error('Acceso denegado a la escuela');
+          throw new Error('Acceso denegado a la escuela');
         }
         stats.users = await this.getUserCountForSchool(schoolId);
         stats.schools = 1;
@@ -73,7 +88,7 @@ export class StatisticsController {
           stats.classes = await this.classModel.countDocuments();
         } else if (user.role === UserRole.SCHOOL_OWNER) {
           const ownedSchools = await this.schoolModel.find({ admin: userId });
-          const schoolIds = ownedSchools.map(school => school._id);
+          const schoolIds = ownedSchools.map((school) => school._id);
           stats.users = await this.getUserCountForSchools(schoolIds);
           stats.schools = schoolIds.length;
           stats.courses = await this.getCourseCountForSchools(schoolIds);
@@ -81,10 +96,10 @@ export class StatisticsController {
         } else if (user.role === UserRole.ADMIN) {
           // Para 'admin', asumimos que son administradores de escuelas específicas (ej. teachers con rol admin)
           // Esta lógica puede necesitar ajustarse según tu definición exacta de 'ADMIN'
-          const adminSchools = await this.schoolModel.find({ 
-            $or: [{ admin: userId }, { teachers: userId }] 
+          const adminSchools = await this.schoolModel.find({
+            $or: [{ admin: userId }, { teachers: userId }],
           });
-          const schoolIds = adminSchools.map(school => school._id);
+          const schoolIds = adminSchools.map((school) => school._id);
           stats.users = await this.getUserCountForSchools(schoolIds);
           stats.schools = schoolIds.length;
           stats.courses = await this.getCourseCountForSchools(schoolIds);
@@ -93,15 +108,15 @@ export class StatisticsController {
           // Para 'administrative', buscar en ambos enfoques: school.administratives y user.administratedSchools
           const userDoc = await this.userModel.findById(userId);
           const userAdministratedSchools = userDoc?.administratedSchools || [];
-          
-          const administrativeSchools = await this.schoolModel.find({ 
+
+          const administrativeSchools = await this.schoolModel.find({
             $or: [
-              { administratives: userId }, 
+              { administratives: userId },
               { teachers: userId },
-              { _id: { $in: userAdministratedSchools } }
-            ] 
+              { _id: { $in: userAdministratedSchools } },
+            ],
           });
-          const schoolIds = administrativeSchools.map(school => school._id);
+          const schoolIds = administrativeSchools.map((school) => school._id);
           stats.users = await this.getUserCountForSchools(schoolIds);
           stats.schools = schoolIds.length;
           stats.courses = await this.getCourseCountForSchools(schoolIds);
@@ -116,7 +131,7 @@ export class StatisticsController {
         schools: 0,
         courses: 0,
         classes: 0,
-        error: 'Error al obtener estadísticas generales: ' + error.message
+        error: 'Error al obtener estadísticas generales: ' + error.message,
       };
     }
   }
@@ -127,8 +142,10 @@ export class StatisticsController {
   async getSubscriptionsStats() {
     try {
       const totalSubscriptions = await this.subscriptionModel.countDocuments();
-      const activePlans = await this.planModel.countDocuments({ isActive: true });
-      
+      const activePlans = await this.planModel.countDocuments({
+        isActive: true,
+      });
+
       // Get count by plan type
       const subscriptionsByPlan = await this.subscriptionModel.aggregate([
         {
@@ -136,8 +153,8 @@ export class StatisticsController {
             from: 'plans',
             localField: 'plan',
             foreignField: '_id',
-            as: 'planInfo'
-          }
+            as: 'planInfo',
+          },
         },
         { $unwind: '$planInfo' },
         {
@@ -145,39 +162,39 @@ export class StatisticsController {
             _id: '$planInfo.type',
             count: { $sum: 1 },
             avgStorageUsed: { $avg: '$currentStorageGb' },
-            avgStreamingMinutes: { $avg: '$currentStreamingMinutes' }
-          }
-        }
+            avgStreamingMinutes: { $avg: '$currentStreamingMinutes' },
+          },
+        },
       ]);
-      
+
       // Get count by status
       const subscriptionsByStatus = await this.subscriptionModel.aggregate([
         {
           $group: {
             _id: '$status',
-            count: { $sum: 1 }
-          }
-        }
+            count: { $sum: 1 },
+          },
+        },
       ]);
-      
+
       // Top schools by resource usage
       const topSchoolsByStorage = await this.schoolModel
         .find({ activeSubscription: { $exists: true } })
         .sort({ storageUsedGb: -1 })
         .limit(5)
         .select('name storageUsedGb');
-      
+
       return {
         totalSubscriptions,
         activePlans,
         subscriptionsByPlan,
         subscriptionsByStatus,
-        topSchoolsByStorage
+        topSchoolsByStorage,
       };
     } catch (error) {
       console.error('Error getting subscription stats:', error);
       return {
-        error: 'Error al obtener estadísticas de suscripciones'
+        error: 'Error al obtener estadísticas de suscripciones',
       };
     }
   }
@@ -185,10 +202,13 @@ export class StatisticsController {
   @Get('subscriptions/:schoolId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER)
-  async getSchoolSubscriptionDetails(@Param('schoolId') schoolId: string, @Request() req) {
+  async getSchoolSubscriptionDetails(
+    @Param('schoolId') schoolId: string,
+    @Request() req,
+  ) {
     try {
       const user = req.user;
-      
+
       // Verify access for non-super-admin users
       if (user.role !== UserRole.SUPER_ADMIN) {
         const hasAccess = await this.checkSchoolAccess(user, schoolId);
@@ -196,48 +216,60 @@ export class StatisticsController {
           return { error: 'No tienes acceso a esta escuela' };
         }
       }
-      
+
       const school = await this.schoolModel.findById(schoolId);
       if (!school) {
         return { error: 'Escuela no encontrada' };
       }
-      
+
       if (!school.activeSubscription) {
         return { error: 'Esta escuela no tiene una suscripción activa' };
       }
-      
+
       // Get subscription details with plan info
       const subscription = await this.subscriptionModel
         .findById(school.activeSubscription)
         .populate('plan');
-      
+
       if (!subscription) {
         return { error: 'Suscripción no encontrada' };
       }
-      
+
       // Calculate usage percentages
       const plan = subscription.plan as any;
-      const storageLimit = plan.maxStorageGb + (subscription.approvedExtraResources?.extraStorageGb || 0);
-      const storagePercentage = Math.min(100, (school.storageUsedGb / storageLimit) * 100);
-      
-      const streamingLimit = plan.maxStreamingMinutesPerMonth + 
+      const storageLimit =
+        plan.maxStorageGb +
+        (subscription.approvedExtraResources?.extraStorageGb || 0);
+      const storagePercentage = Math.min(
+        100,
+        (school.storageUsedGb / storageLimit) * 100,
+      );
+
+      const streamingLimit =
+        plan.maxStreamingMinutesPerMonth +
         (subscription.approvedExtraResources?.extraStreamingMinutes || 0);
-      const streamingPercentage = Math.min(100, 
-        (subscription.currentStreamingMinutes / streamingLimit) * 100);
-      
+      const streamingPercentage = Math.min(
+        100,
+        (subscription.currentStreamingMinutes / streamingLimit) * 100,
+      );
+
       // Get user count
-      const userCount = await this.userModel.countDocuments({ schools: schoolId });
-      const userLimit = plan.maxUsers + (subscription.approvedExtraResources?.extraUsers || 0);
+      const userCount = await this.userModel.countDocuments({
+        schools: schoolId,
+      });
+      const userLimit =
+        plan.maxUsers + (subscription.approvedExtraResources?.extraUsers || 0);
       const userPercentage = Math.min(100, (userCount / userLimit) * 100);
-      
+
       // Get courses per user (average)
       const courses = await this.courseModel.find({ school: schoolId });
-      const coursePerUserLimit = plan.maxCoursesPerUser + 
+      const coursePerUserLimit =
+        plan.maxCoursesPerUser +
         (subscription.approvedExtraResources?.extraCoursesPerUser || 0);
-      
+
       // Monthly usage history
       const monthlyUsage = subscription.usageHistory || [];
-      
+
       return {
         schoolId,
         schoolName: school.name,
@@ -246,36 +278,36 @@ export class StatisticsController {
         status: subscription.status,
         startDate: subscription.startDate,
         endDate: subscription.endDate,
-        
+
         storage: {
           used: school.storageUsedGb,
           limit: storageLimit,
-          percentage: storagePercentage
+          percentage: storagePercentage,
         },
-        
+
         streaming: {
           used: subscription.currentStreamingMinutes,
           limit: streamingLimit,
-          percentage: streamingPercentage
+          percentage: streamingPercentage,
         },
-        
+
         users: {
           count: userCount,
           limit: userLimit,
-          percentage: userPercentage
+          percentage: userPercentage,
         },
-        
+
         coursesPerUser: {
-          limit: coursePerUserLimit
+          limit: coursePerUserLimit,
         },
-        
+
         extraResourcesApproved: subscription.approvedExtraResources,
-        monthlyUsage
+        monthlyUsage,
       };
     } catch (error) {
       console.error('Error getting school subscription details:', error);
       return {
-        error: 'Error al obtener detalles de suscripción de la escuela'
+        error: 'Error al obtener detalles de suscripción de la escuela',
       };
     }
   }
@@ -286,7 +318,7 @@ export class StatisticsController {
       // Obtener información básica para el dashboard
       const dateRange = {
         startDate: new Date(new Date().setMonth(new Date().getMonth() - 1)),
-        endDate: new Date()
+        endDate: new Date(),
       };
 
       // Obtener todas las métricas básicas en paralelo
@@ -297,18 +329,27 @@ export class StatisticsController {
       ]);
 
       // Calcular resumen de estadísticas generales
-      const totalStudents = retentionRates.reduce((sum, course) => sum + course.initialEnrollment, 0);
-      const activeStudents = retentionRates.reduce((sum, course) => sum + course.currentEnrollment, 0);
+      const totalStudents = retentionRates.reduce(
+        (sum, course) => sum + course.initialEnrollment,
+        0,
+      );
+      const activeStudents = retentionRates.reduce(
+        (sum, course) => sum + course.currentEnrollment,
+        0,
+      );
       const totalCourses = retentionRates.length;
       const totalTeachers = teacherPerformance.length;
-      
+
       return {
         usersCount: activeStudents,
         coursesCount: totalCourses,
         teachersCount: totalTeachers,
         totalRevenue: revenue.totalRevenue,
-        retentionRate: activeStudents > 0 ? Math.round((activeStudents / totalStudents) * 100) : 0,
-        timestamp: new Date().toISOString()
+        retentionRate:
+          activeStudents > 0
+            ? Math.round((activeStudents / totalStudents) * 100)
+            : 0,
+        timestamp: new Date().toISOString(),
       };
     } catch (error) {
       console.error('Error getting overview stats:', error);
@@ -318,7 +359,7 @@ export class StatisticsController {
         teachersCount: 0,
         totalRevenue: 0,
         retentionRate: 0,
-        error: 'Error al obtener estadísticas de vista general'
+        error: 'Error al obtener estadísticas de vista general',
       };
     }
   }
@@ -326,19 +367,21 @@ export class StatisticsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SCHOOL_OWNER, UserRole.SUPER_ADMIN)
   @Get('all')
-  async getAllStatistics(@Query() dateRange: DateRangeDto): Promise<StatisticsResponseDto> {
+  async getAllStatistics(
+    @Query() dateRange: DateRangeDto,
+  ): Promise<StatisticsResponseDto> {
     // Establecer fechas por defecto si no se proporcionan
     if (!dateRange.startDate || !dateRange.endDate) {
       const endDate = new Date();
       const startDate = new Date();
       startDate.setMonth(endDate.getMonth() - 1); // Último mes por defecto
-      
+
       dateRange = {
         startDate,
-        endDate
+        endDate,
       };
     }
-    
+
     // Obtener todas las métricas en paralelo
     const [
       retentionRates,
@@ -346,7 +389,7 @@ export class StatisticsController {
       revenue,
       dropoutRates,
       overallDropoutRate,
-      ageDistribution
+      ageDistribution,
     ] = await Promise.all([
       this.retentionService.getRetentionRatesByCourse(),
       this.performanceService.getTeachersPerformance(),
@@ -355,7 +398,7 @@ export class StatisticsController {
       this.dropoutService.getOverallDropoutRate(),
       this.demographicsService.getAgeDistribution(),
     ]);
-    
+
     return {
       retentionRates,
       teacherPerformance,
@@ -372,7 +415,9 @@ export class StatisticsController {
   }
 
   @Get('retention/:courseId')
-  async getRetentionRateForCourse(@Param('courseId') courseId: string): Promise<RetentionRateDto> {
+  async getRetentionRateForCourse(
+    @Param('courseId') courseId: string,
+  ): Promise<RetentionRateDto> {
     return this.retentionService.getRetentionRateForCourse(courseId);
   }
 
@@ -382,12 +427,16 @@ export class StatisticsController {
   }
 
   @Get('performance/:teacherId')
-  async getTeacherPerformance(@Param('teacherId') teacherId: string): Promise<TeacherPerformanceDto> {
+  async getTeacherPerformance(
+    @Param('teacherId') teacherId: string,
+  ): Promise<TeacherPerformanceDto> {
     return this.performanceService.getTeacherPerformance(teacherId);
   }
 
   @Post('revenue')
-  async getRevenueMetrics(@Body() dateRange: DateRangeDto): Promise<RevenueDto> {
+  async getRevenueMetrics(
+    @Body() dateRange: DateRangeDto,
+  ): Promise<RevenueDto> {
     return this.revenueService.getRevenueMetrics(dateRange);
   }
 
@@ -412,7 +461,9 @@ export class StatisticsController {
   }
 
   @Get('dropout/:courseId')
-  async getCourseDropoutDetails(@Param('courseId') courseId: string): Promise<DropoutRateDto> {
+  async getCourseDropoutDetails(
+    @Param('courseId') courseId: string,
+  ): Promise<DropoutRateDto> {
     return this.dropoutService.getCourseDropoutDetails(courseId);
   }
 
@@ -426,7 +477,10 @@ export class StatisticsController {
     return this.demographicsService.getAgeDistributionByCourse();
   }
 
-  private async checkSchoolAccess(user: any, schoolId: string): Promise<boolean> {
+  private async checkSchoolAccess(
+    user: any,
+    schoolId: string,
+  ): Promise<boolean> {
     const userId = user.sub || (user._id ? user._id.toString() : null);
     if (!userId) {
       return false;
@@ -439,9 +493,17 @@ export class StatisticsController {
       return false;
     }
     const isAdmin = school.admin && school.admin.toString() === userId;
-    const isTeacher = Array.isArray(school.teachers) && school.teachers.some(teacherId => teacherId && teacherId.toString() === userId);
+    const isTeacher =
+      Array.isArray(school.teachers) &&
+      school.teachers.some(
+        (teacherId) => teacherId && teacherId.toString() === userId,
+      );
     // Permitir administrativos si están en school.administratives
-    const isAdministrative = Array.isArray(school.administratives) && school.administratives.some(adminId => adminId && adminId.toString() === userId);
+    const isAdministrative =
+      Array.isArray(school.administratives) &&
+      school.administratives.some(
+        (adminId) => adminId && adminId.toString() === userId,
+      );
     if (user.role === UserRole.SCHOOL_OWNER) return isAdmin;
     if (user.role === UserRole.ADMIN) return isAdmin || isTeacher;
     if (user.role === UserRole.ADMINISTRATIVE) return isAdministrative;
@@ -468,17 +530,23 @@ export class StatisticsController {
 
   private async getClassCountForSchool(schoolId: string): Promise<number> {
     // Suponiendo que las clases están vinculadas a cursos que pertenecen a una escuela
-    const coursesInSchool = await this.courseModel.find({ school: schoolId }).select('_id').lean();
-    const courseIds = coursesInSchool.map(c => c._id);
+    const coursesInSchool = await this.courseModel
+      .find({ school: schoolId })
+      .select('_id')
+      .lean();
+    const courseIds = coursesInSchool.map((c) => c._id);
     if (courseIds.length === 0) return 0;
     return this.classModel.countDocuments({ course: { $in: courseIds } });
   }
 
   private async getClassCountForSchools(schoolIds: any[]): Promise<number> {
     if (!schoolIds || schoolIds.length === 0) return 0;
-    const coursesInSchools = await this.courseModel.find({ school: { $in: schoolIds } }).select('_id').lean();
-    const courseIds = coursesInSchools.map(c => c._id);
+    const coursesInSchools = await this.courseModel
+      .find({ school: { $in: schoolIds } })
+      .select('_id')
+      .lean();
+    const courseIds = coursesInSchools.map((c) => c._id);
     if (courseIds.length === 0) return 0;
     return this.classModel.countDocuments({ course: { $in: courseIds } });
   }
-} 
+}

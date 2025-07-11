@@ -25,16 +25,28 @@ export class Course {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   teacher: User;
 
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], default: [] })
+  @Prop({
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }],
+    default: [],
+  })
   teachers: MongooseSchema.Types.ObjectId[];
 
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Category' }], default: [] })
+  @Prop({
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Category' }],
+    default: [],
+  })
   categories: MongooseSchema.Types.ObjectId[];
 
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Class' }], default: [] })
+  @Prop({
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Class' }],
+    default: [],
+  })
   classes: MongooseSchema.Types.ObjectId[];
 
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], default: [] })
+  @Prop({
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }],
+    default: [],
+  })
   students: MongooseSchema.Types.ObjectId[];
 
   @Prop({ default: false })
@@ -56,4 +68,4 @@ export class Course {
   isActive: boolean;
 }
 
-export const CourseSchema = SchemaFactory.createForClass(Course); 
+export const CourseSchema = SchemaFactory.createForClass(Course);
