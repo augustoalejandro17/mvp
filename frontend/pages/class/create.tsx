@@ -28,6 +28,7 @@ export default function CreateClass() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [courseId, setCourseId] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -136,6 +137,7 @@ export default function CreateClass() {
       formData.append('title', title);
       formData.append('description', description);
       formData.append('courseId', courseId);
+      formData.append('isPublic', isPublic.toString());
       formData.append('video', selectedVideo);
       
       await axios.post(
@@ -281,6 +283,23 @@ export default function CreateClass() {
                 disabled={loading}
               />
               <small className={styles.inputHelp}>Formatos permitidos: MP4, WebM, MOV, AVI. Tamaño máximo: 100MB</small>
+            </div>
+            
+            {/* Public checkbox */}
+            <div className={styles.formGroup}>
+              <label className={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  id="isPublic"
+                  checked={isPublic}
+                  onChange={(e) => setIsPublic(e.target.checked)}
+                  disabled={loading}
+                />
+                Clase pública (visible para todos)
+              </label>
+              <p className={styles.inputHelp}>
+                Si está marcado, la clase será visible para todos los usuarios. De lo contrario, solo será visible para los miembros del curso.
+              </p>
             </div>
             
             <div className={styles.buttonGroup}>

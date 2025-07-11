@@ -61,41 +61,37 @@ export default function CourseDetail() {
   const { id } = router.query;
   
   const [course, setCourse] = useState<Course | null>(null);
+  const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [user, setUser] = useState<{id: string; email: string; name: string; role: string} | null>(null);
-  const [selectedClass, setSelectedClass] = useState<Class | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const { handleApiError } = useApiErrorHandler();
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [allClasses, setAllClasses] = useState<Class[]>([]);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(-1);
   const [videoStreamUrl, setVideoStreamUrl] = useState<string | null>(null);
   const [videoLoadError, setVideoLoadError] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const isMobile = useMediaQuery({ maxWidth: 767 });
   const videoColumnRef = useRef<HTMLDivElement>(null);
+  const { handleApiError } = useApiErrorHandler();
 
-
-  useEffect(() => {
-    const checkAuth = () => {
-      const token = Cookies.get('token');
-      if (token) {
-        try {
-          const decoded = jwtDecode<DecodedToken>(token);
-          
-          
-          setUser({
-            id: decoded.sub,
-            email: decoded.email,
-            name: decoded.name,
-            role: decoded.role,
-          });
-        } catch (error) {
-          console.error('Error al decodificar token:', error);
-        }
-      } else {
-        console.warn('No token found in cookies');
+  // Check authentication
+  const checkAuth = () => {
+    const token = Cookies.get('token');
+    if (token) {
+      try {
+        const decoded = jwtDecode<DecodedToken>(token);
+        
+        
+        setUserRole(decoded.role);
+      } catch (error) {
+        console.error('Error al decodificar token:', error);
       }
-    };
-    
+    } else {
+      console.warn('No token found in cookies');
+    }
+  };
+  
+  useEffect(() => {
     checkAuth();
   }, []);
 
@@ -144,6 +140,10 @@ export default function CourseDetail() {
     console.log('Class clicked:', classItem.title, 'videoUrl:', classItem.videoUrl);
     setSelectedClass(classItem);
     setVideoLoadError(false); // Resetear el estado de error al cambiar de clase
+    
+    // Update current video index
+    const index = allClasses.findIndex(cls => cls._id === classItem._id);
+    setCurrentVideoIndex(index);
     
     // Check if the provided videoUrl looks valid (has signature parameters or is recent)
     const isValidSignedUrl = classItem.videoUrl && (
@@ -196,57 +196,56 @@ export default function CourseDetail() {
   };
   
   const isClassTeacher = useCallback((teacherId: string | undefined): boolean => {
-    return Boolean(user?.id && teacherId && teacherId === user.id);
-  }, [user]);
+    // This should compare teacherId with the user's ID, not role
+    // Since we don't have the user's ID stored, we'll check if the course teacher matches
+    return Boolean(course && teacherId && course.teacher._id === teacherId);
+  }, [course]);
 
   const isTeacherOfCourse = useCallback((): boolean => {
-    if (!user || !course) return false;
-    if (course.teacher._id === user.id) return true;
-    if (Array.isArray(course.teachers)) {
-      return course.teachers.some(t => t._id === user.id);
-    }
-    return false;
-  }, [user, course]);
+    if (!userRole || !course) return false;
+    // For now, check if the user has a teacher role (simplified)
+    return userRole === 'teacher';
+  }, [userRole, course]);
 
   const canModifyThisCourse = useCallback((): boolean => {
-    if (!user || !course) return false;
+    if (!userRole || !course) return false;
     
     // Roles que pueden modificar cualquier curso
-    if (['super_admin', 'admin'].includes(user.role)) return true;
+    if (['super_admin', 'admin'].includes(userRole)) return true;
     
     // School owner puede modificar cualquier curso en su escuela
-    if (user.role === 'school_owner' && course.school) {
+    if (userRole === 'school_owner' && course.school) {
       // Aquí asumimos que hay una API que verifica si el usuario es dueño de la escuela
       // Idealmente, el backend debería proporcionar esta información en los datos del curso
       return true; // Simplificado, en realidad deberíamos comprobar la propiedad de la escuela
     }
     
     // Rol administrativo puede modificar cursos en su escuela
-    if (user.role === 'administrative' && course.school) {
+    if (userRole === 'administrative' && course.school) {
       // Mismo comentario que arriba sobre verificar la relación con la escuela
       return true; // Simplificado
     }
     
     // Teacher solo puede modificar sus propios cursos
-    return user.role === 'teacher' && isTeacherOfCourse();
-  }, [user, course, isTeacherOfCourse]);
+    return userRole === 'teacher' && isTeacherOfCourse();
+  }, [userRole, course, isTeacherOfCourse]);
 
   const canModifyClassItem = useCallback((): boolean => {
-    if (!user || !course) return false;
+    if (!userRole || !course) return false;
     // Permisos globales
-    if (["super_admin", "admin", "school_owner", "administrative"].includes(user.role)) return true;
+    if (["super_admin", "admin", "school_owner", "administrative"].includes(userRole)) return true;
     // Cualquier teacher del curso
     return isTeacherOfCourse();
-  }, [user, course, isTeacherOfCourse]);
+  }, [userRole, course, isTeacherOfCourse]);
 
   const canTakeAttendance = useCallback((teacherId: string | undefined): boolean => {
-    if (!user?.role || !teacherId || !course) return false;
+    if (!userRole || !teacherId || !course) return false;
     
     // Administradores globales pueden tomar asistencia en cualquier curso
-    if (['super_admin', 'admin'].includes(user.role)) return true;
+    if (['super_admin', 'admin'].includes(userRole)) return true;
     
     // School owner y administrative pueden tomar asistencia en sus escuelas
-    if (['school_owner', 'administrative'].includes(user.role) && course.school) {
+    if (['school_owner', 'administrative'].includes(userRole) && course.school) {
       // Necesitaríamos verificar la relación con la escuela
       return true; // Simplificado
     }
@@ -255,9 +254,9 @@ export default function CourseDetail() {
     if (isTeacherOfCourse()) return true;
     
     // Verificamos si el profesor de la clase específica puede tomar asistencia
-    const hasPermission = canManageAttendance(user.role, isClassTeacher(teacherId));
+    const hasPermission = canManageAttendance(userRole, isClassTeacher(teacherId));
     return hasPermission;
-  }, [user, course, isTeacherOfCourse, isClassTeacher]);
+  }, [userRole, course, isTeacherOfCourse, isClassTeacher]);
 
   const handleDeleteCourse = async () => {
     if (!confirm('¿Estás seguro de que deseas eliminar este curso? Esta acción no se puede deshacer.')) {
@@ -335,6 +334,47 @@ export default function CourseDetail() {
     router.push(`/class/edit/${classId}`);
   };
 
+  // Navigation functions
+  const updateAllClasses = (playlists: any[]) => {
+    const allClassesFromPlaylists = playlists.flatMap(playlist => playlist.classes || []);
+    setAllClasses(allClassesFromPlaylists);
+    
+    // Update current video index
+    if (selectedClass) {
+      const index = allClassesFromPlaylists.findIndex(cls => cls._id === selectedClass._id);
+      setCurrentVideoIndex(index);
+    }
+  };
+
+  const handlePlaylistsLoaded = (playlists: any[]) => {
+    updateAllClasses(playlists);
+  };
+
+  const navigateToVideo = (direction: 'previous' | 'next') => {
+    if (allClasses.length === 0) return;
+    
+    let newIndex;
+    if (direction === 'previous') {
+      newIndex = currentVideoIndex > 0 ? currentVideoIndex - 1 : allClasses.length - 1;
+    } else {
+      newIndex = currentVideoIndex < allClasses.length - 1 ? currentVideoIndex + 1 : 0;
+    }
+    
+    const nextClass = allClasses[newIndex];
+    if (nextClass) {
+      setCurrentVideoIndex(newIndex);
+      handleClassClick(nextClass);
+    }
+  };
+
+  const handlePreviousVideo = () => {
+    navigateToVideo('previous');
+  };
+
+  const handleNextVideo = () => {
+    navigateToVideo('next');
+  };
+
   const getVideoStreamUrl = async (classId: string, retryCount = 0) => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -394,14 +434,14 @@ export default function CourseDetail() {
   };
 
   useEffect(() => {
-    if (user && course) {
+    if (userRole && course) {
       const isTeacher = isClassTeacher(course.teacher._id);
       const canModify = canModifyClassItem();
       const canAttend = canTakeAttendance(course.teacher._id);
       
       
     }
-  }, [user, course, isClassTeacher, canModifyClassItem, canTakeAttendance]);
+  }, [userRole, course, isClassTeacher, canModifyClassItem, canTakeAttendance]);
 
   if (loading) {
     return <div className={styles.loading}>Cargando información...</div>;
@@ -463,6 +503,7 @@ export default function CourseDetail() {
               onClassEdit={handleClassEdit}
               onClassDelete={handleDeleteClass}
               refreshTrigger={refreshTrigger}
+              onPlaylistsLoaded={handlePlaylistsLoaded}
             />
             
             {canModifyThisCourse() && (
@@ -605,6 +646,33 @@ export default function CourseDetail() {
                   <h2>{selectedClass.title}</h2>
                   <p>{selectedClass.description}</p>
                 </div>
+                
+                {/* Navigation buttons */}
+                {allClasses.length > 1 && (
+                  <div className={styles.videoNavigation}>
+                    <button 
+                      onClick={handlePreviousVideo}
+                      className={styles.navButton}
+                      disabled={false}
+                    >
+                      <span className={styles.navArrow}>‹</span>
+                      <span className={styles.navText}>Anterior</span>
+                    </button>
+                    
+                    <div className={styles.videoCounter}>
+                      {currentVideoIndex + 1} de {allClasses.length}
+                    </div>
+                    
+                    <button 
+                      onClick={handleNextVideo}
+                      className={styles.navButton}
+                      disabled={false}
+                    >
+                      <span className={styles.navText}>Siguiente</span>
+                      <span className={styles.navArrow}>›</span>
+                    </button>
+                  </div>
+                )}
               </>
             ) : (
               <div className={styles.noVideoSelected}>

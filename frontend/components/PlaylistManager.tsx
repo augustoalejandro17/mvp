@@ -46,6 +46,7 @@ interface PlaylistManagerProps {
   onClassEdit?: (classId: string) => void;
   onClassDelete?: (classId: string) => void;
   refreshTrigger?: number; // Add refresh trigger prop
+  onPlaylistsLoaded?: (playlists: Playlist[]) => void; // Add callback for when playlists are loaded
 }
 
 interface DragState {
@@ -58,7 +59,7 @@ interface DragState {
   element?: HTMLElement;
 }
 
-export default function PlaylistManager({ courseId, onClassSelect, selectedClass, canModify, onClassView, onClassEdit, onClassDelete, refreshTrigger }: PlaylistManagerProps) {
+export default function PlaylistManager({ courseId, onClassSelect, selectedClass, canModify, onClassView, onClassEdit, onClassDelete, refreshTrigger, onPlaylistsLoaded }: PlaylistManagerProps) {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [unorganizedClasses, setUnorganizedClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,6 +92,11 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
         headers
       });
       setPlaylists(response.data);
+      
+      // Call the callback with the loaded playlists
+      if (onPlaylistsLoaded) {
+        onPlaylistsLoaded(response.data);
+      }
       
       // Only reset expanded state on initial load, not on refresh
       if (!preserveExpandedState) {
@@ -567,11 +573,13 @@ export default function PlaylistManager({ courseId, onClassSelect, selectedClass
                   <FaChevronRight className={styles.expandIcon} />
                 }
                 <FaGripVertical className={styles.dragHandle} />
-                <span className={styles.playlistName}>
-                  {playlist.name}
-                  {playlist.isDefault && <span className={styles.defaultBadge}>Por defecto</span>}
-                  {!playlist.isPublic && <span className={styles.privateBadge}>Privada</span>}
-                </span>
+                <div className={styles.playlistNameContainer}>
+                  <span className={styles.playlistName}>{playlist.name}</span>
+                  <div className={styles.playlistBadges}>
+                    {playlist.isDefault && <span className={styles.defaultBadge}>Por defecto</span>}
+                    {!playlist.isPublic && <span className={styles.privateBadge}>Privada</span>}
+                  </div>
+                </div>
                 <span className={styles.classCount}>({playlist.classes.length})</span>
               </div>
               {canModify && !playlist.isDefault && (

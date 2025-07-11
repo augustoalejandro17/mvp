@@ -180,6 +180,27 @@
   min-width: 0; /* Allow text truncation */
 }
 
+.playlistNameContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex-grow: 1;
+  min-width: 0; /* Allow text truncation */
+}
+
+.playlistName {
+  font-weight: 600;
+  color: #2d3748;
+  font-size: 1rem;
+}
+
+.playlistBadges {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .expandIcon {
   color: #4a5568;
   font-size: 1rem;
@@ -213,22 +234,7 @@
   color: #4a5568;
 }
 
-.playlistName {
-  font-weight: 600;
-  color: #2d3748;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-grow: 1;
-  min-width: 0; /* Allow text truncation */
-  font-size: 1rem;
-}
 
-.playlistName > span:first-child {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 .defaultBadge {
   background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e0 100%);
