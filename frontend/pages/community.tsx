@@ -106,12 +106,13 @@ const getRealCourseProgress = async (course: any, userId: string): Promise<numbe
       }
     }
     
-    // Fallback to simulated progress if API fails
-    return calculateCourseProgressWithPlaylists(course);
+    // If API fails, return 0% instead of simulated progress
+    console.log('Progress API failed for course:', course._id, 'user:', userId);
+    return 0;
   } catch (error) {
     console.error('Error fetching real course progress:', error);
-    // Fallback to simulated progress
-    return calculateCourseProgressWithPlaylists(course);
+    // Return 0% instead of simulated progress
+    return 0;
   }
 };
 

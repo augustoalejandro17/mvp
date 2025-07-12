@@ -4,7 +4,6 @@ import { UserProgressService, CourseProgressSummary } from './services/user-prog
 import { UserClassProgressDocument } from './schemas/user-class-progress.schema';
 
 @Controller('progress')
-@UseGuards(JwtAuthGuard)
 export class ProgressController {
   private readonly logger = new Logger(ProgressController.name);
 
@@ -14,6 +13,7 @@ export class ProgressController {
    * Get user's progress for a specific course
    */
   @Get('course/:courseId/user/:userId')
+  @UseGuards(JwtAuthGuard)
   async getUserCourseProgress(
     @Param('courseId') courseId: string,
     @Param('userId') userId: string,
@@ -30,6 +30,7 @@ export class ProgressController {
    * Get user's progress for all courses
    */
   @Get('user/:userId/courses')
+  @UseGuards(JwtAuthGuard)
   async getUserCoursesProgress(
     @Param('userId') userId: string,
     @Query('schoolId') schoolId?: string,
@@ -46,6 +47,7 @@ export class ProgressController {
    * Get detailed class progress for a user in a course
    */
   @Get('course/:courseId/user/:userId/classes')
+  @UseGuards(JwtAuthGuard)
   async getUserClassProgressInCourse(
     @Param('courseId') courseId: string,
     @Param('userId') userId: string,

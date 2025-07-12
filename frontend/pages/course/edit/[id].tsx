@@ -73,6 +73,10 @@ export default function EditCourse() {
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0, scale: 1 });
   
+  // Category selection state
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedSubcategory, setSelectedSubcategory] = useState('');
+  
   // Schedule state
   const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([]);
   const [enableNotifications, setEnableNotifications] = useState(true);
@@ -137,17 +141,21 @@ export default function EditCourse() {
       
       setIsPublic(courseData.isPublic || false);
       
-      // Set categories
+      // Set categories - handle both new format (main + subcategory) and legacy format
       if (courseData.categories && Array.isArray(courseData.categories)) {
         const categoryIds = courseData.categories.map((cat: any) => 
           typeof cat === 'object' && cat._id ? cat._id : String(cat)
         );
+        
+        // We'll need to determine which is parent and which is child when categories are loaded
+        // For now, store them and we'll resolve them in useEffect when categories are loaded
         setSelectedCategories(categoryIds);
       } else if (courseData.category) {
         // Handle legacy single category
         const categoryId = typeof courseData.category === 'object' && courseData.category._id 
           ? courseData.category._id 
           : String(courseData.category);
+        setSelectedCategory(categoryId);
         setSelectedCategories([categoryId]);
       }
 
@@ -241,6 +249,45 @@ export default function EditCourse() {
       fetchTeachersBySchool(schoolId);
     }
   }, [schoolId, fetchTeachersBySchool]);
+
+  // Resolve parent/child categories when categories are loaded
+  useEffect(() => {
+    if (categories.length > 0 && selectedCategories.length > 0) {
+      // Find parent and child categories
+      const parentCategory = categories.find(cat => 
+        !cat.parentCategory && selectedCategories.includes(cat._id)
+      );
+      
+      if (parentCategory) {
+        setSelectedCategory(parentCategory._id);
+        
+        // Find child category
+        const childCategory = parentCategory.children?.find((child: any) => 
+          selectedCategories.includes(child._id)
+        );
+        
+        if (childCategory) {
+          setSelectedSubcategory(childCategory._id);
+        }
+      } else {
+        // If no parent found, check if we have a child category
+        const childCategory = categories
+          .flatMap(cat => cat.children || [])
+          .find((child: any) => selectedCategories.includes(child._id));
+        
+        if (childCategory) {
+          setSelectedSubcategory(childCategory._id);
+          // Find and set the parent
+          const parent = categories.find(cat => 
+            cat.children?.some((child: any) => child._id === childCategory._id)
+          );
+          if (parent) {
+            setSelectedCategory(parent._id);
+          }
+        }
+      }
+    }
+  }, [categories, selectedCategories]);
 
   const fetchSchools = async (token: string) => {
     try {
@@ -349,6 +396,15 @@ export default function EditCourse() {
         isActive: time.isActive
       }));
       
+      // Build categories array based on selections
+      const categories = [];
+      if (selectedCategory) {
+        categories.push(selectedCategory);
+      }
+      if (selectedSubcategory) {
+        categories.push(selectedSubcategory);
+      }
+
       const courseData = {
         title,
         description,
@@ -357,7 +413,7 @@ export default function EditCourse() {
         isPublic,
         teacher: teacherId,
         teachers: allTeachers,
-        categories: selectedCategories.length > 0 ? selectedCategories : undefined,
+        categories: categories.length > 0 ? categories : undefined,
         // Schedule data
         scheduleTimes: cleanedScheduleTimes,
         enableNotifications,
@@ -477,88 +533,52 @@ export default function EditCourse() {
 
           {/* Categories Selection */}
           <div className={styles.formGroup}>
-            <label htmlFor="categories">Categories (máximo 5)</label>
+            <label htmlFor="category">Categoría Principal (opcional)</label>
             {loadingCategories ? (
               <p className={styles.loadingText}>Loading categories...</p>
             ) : (
-              <>
-                <div className={styles.categoriesContainer}>
-                  {categories.map((category) => (
-                    <div key={category._id} className={styles.categoryGroup}>
-                      <div className={styles.categorySection}>
-                        <label className={styles.checkboxLabel}>
-                          <input
-                            type="checkbox"
-                            checked={selectedCategories.includes(category._id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                if (selectedCategories.length < 5) {
-                                  setSelectedCategories([...selectedCategories, category._id]);
-                                }
-                              } else {
-                                setSelectedCategories(selectedCategories.filter(id => id !== category._id));
-                              }
-                            }}
-                            disabled={!selectedCategories.includes(category._id) && selectedCategories.length >= 5}
-                          />
-                          <strong>{category.name}</strong>
-                        </label>
-                      </div>
-                      {category.children && category.children.length > 0 && (
-                        <div className={styles.subcategoriesContainer}>
-                          {category.children.map((subcategory: any) => (
-                            <label key={subcategory._id} className={styles.checkboxLabel} style={{ marginLeft: '20px' }}>
-                              <input
-                                type="checkbox"
-                                checked={selectedCategories.includes(subcategory._id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    if (selectedCategories.length < 5) {
-                                      setSelectedCategories([...selectedCategories, subcategory._id]);
-                                    }
-                                  } else {
-                                    setSelectedCategories(selectedCategories.filter(id => id !== subcategory._id));
-                                  }
-                                }}
-                                disabled={!selectedCategories.includes(subcategory._id) && selectedCategories.length >= 5}
-                              />
-                              {subcategory.name}
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                
-                {selectedCategories.length > 0 && (
-                  <div className={styles.selectedCategoriesPreview}>
-                    <p><strong>Categorías seleccionadas ({selectedCategories.length}/5):</strong></p>
-                    <div className={styles.selectedCategoriesList}>
-                      {selectedCategories.map(categoryId => {
-                        const category = categories.find(c => c._id === categoryId) || 
-                                       categories.flatMap(c => c.children || []).find((sub: any) => sub._id === categoryId);
-                        return (
-                          <span key={categoryId} className={styles.categoryTag}>
-                            {category?.name || categoryId}
-                            <button 
-                              type="button" 
-                              onClick={() => setSelectedCategories(selectedCategories.filter(id => id !== categoryId))}
-                              className={styles.removeCategory}
-                            >
-                              ×
-                            </button>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                
-                <small className={styles.inputHelp}>
-                  Select up to 5 categories to classify your course (optional)
-                </small>
-              </>
+              <select
+                id="category"
+                value={selectedCategory}
+                onChange={(e) => {
+                  setSelectedCategory(e.target.value);
+                  setSelectedSubcategory(''); // Reset subcategory when main category changes
+                }}
+                className={styles.select}
+              >
+                <option value="">Seleccionar una categoría principal</option>
+                                 {categories
+                   .filter(cat => !cat.parentCategory) // Solo categorías principales
+                   .map((category) => (
+                     <option key={category._id} value={category._id}>
+                       {category.name}
+                     </option>
+                   ))}
+              </select>
+            )}
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="subcategory">Subcategoría (opcional)</label>
+            {loadingCategories ? (
+              <p className={styles.loadingText}>Loading subcategories...</p>
+            ) : (
+              <select
+                id="subcategory"
+                value={selectedSubcategory}
+                onChange={(e) => setSelectedSubcategory(e.target.value)}
+                className={styles.select}
+                disabled={!selectedCategory}
+              >
+                <option value="">Seleccionar una subcategoría</option>
+                                 {selectedCategory && categories
+                   .find(cat => cat._id === selectedCategory)?.children
+                   ?.map((subcategory: any) => (
+                     <option key={subcategory._id} value={subcategory._id}>
+                       {subcategory.name}
+                     </option>
+                   ))}
+              </select>
             )}
           </div>
           

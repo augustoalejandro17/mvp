@@ -77,6 +77,10 @@ export default function CreateCourse() {
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0, scale: 1 });
   
+  // Category selection state
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedSubcategory, setSelectedSubcategory] = useState('');
+  
   // Schedule state
   const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([]);
   const [enableNotifications, setEnableNotifications] = useState(true);
@@ -413,6 +417,15 @@ export default function CreateCourse() {
         isActive: time.isActive
       }));
       
+      // Build categories array based on selections
+      const categories = [];
+      if (selectedCategory) {
+        categories.push(selectedCategory);
+      }
+      if (selectedSubcategory) {
+        categories.push(selectedSubcategory);
+      }
+
       // Datos para enviar
       const courseData = {
         title: name, 
@@ -422,7 +435,7 @@ export default function CreateCourse() {
         schoolId,
         teacher: selectedTeacherId,
         teachers: additionalTeachers.length > 0 ? [...additionalTeachers] : undefined,
-        categories: selectedCategories.length > 0 ? selectedCategories : undefined,
+        categories: categories.length > 0 ? categories : undefined,
         // Schedule data
         scheduleTimes: cleanedScheduleTimes,
         enableNotifications,
@@ -632,91 +645,51 @@ export default function CreateCourse() {
 
             {/* Selección de Categorías */}
             <div className={styles.formGroup}>
-              <label htmlFor="categories">Categorías (máximo 5)</label>
+              <label htmlFor="category">Categoría Principal (opcional)</label>
               {loadingCategories ? (
                 <p className={styles.loadingText}>Cargando categorías...</p>
               ) : (
-                <>
-                  <div className={styles.categoriesContainer}>
-                    {categories.map((category) => (
-                      <div key={category._id} className={styles.categoryGroup}>
-                        <div className={styles.categorySection}>
-                          <label className={styles.checkboxLabel}>
-                            <input
-                              type="checkbox"
-                              checked={selectedCategories.includes(category._id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  if (selectedCategories.length < 5) {
-                                    setSelectedCategories([...selectedCategories, category._id]);
-                                  }
-                                } else {
-                                  setSelectedCategories(selectedCategories.filter(id => id !== category._id));
-                                }
-                              }}
-                              disabled={!selectedCategories.includes(category._id) && selectedCategories.length >= 5}
-                            />
-                            <strong>{category.name}</strong>
-                          </label>
-                        </div>
-                        {category.children && category.children.length > 0 && (
-                          <div className={styles.subcategoriesContainer}>
-                            {category.children.map((subcategory: any) => (
-                              <label key={subcategory._id} className={styles.checkboxLabel} style={{ marginLeft: '20px' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={selectedCategories.includes(subcategory._id)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      if (selectedCategories.length < 5) {
-                                        setSelectedCategories([...selectedCategories, subcategory._id]);
-                                      }
-                                    } else {
-                                      setSelectedCategories(selectedCategories.filter(id => id !== subcategory._id));
-                                    }
-                                  }}
-                                  disabled={!selectedCategories.includes(subcategory._id) && selectedCategories.length >= 5}
-                                />
-                                {subcategory.name}
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {selectedCategories.length > 0 && (
-                    <div className={styles.selectedCategoriesPreview}>
-                      <p><strong>Categorías seleccionadas ({selectedCategories.length}/5):</strong></p>
-                      <div className={styles.selectedCategoriesList}>
-                        {selectedCategories.map(categoryId => {
-                          const category = categories.find(c => c._id === categoryId) || 
-                                         categories.flatMap(c => c.children || []).find((sub: any) => sub._id === categoryId);
-                          return (
-                            <span key={categoryId} className={styles.categoryTag}>
-                              {category?.name || categoryId}
-                              <button 
-                                type="button" 
-                                onClick={() => setSelectedCategories(selectedCategories.filter(id => id !== categoryId))}
-                                className={styles.removeCategory}
-                              >
-                                ×
-                              </button>
-                            </span>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  
-                  <p className={styles.inputHelp}>
-                    Selecciona hasta 5 categorías para clasificar tu curso (opcional)
-                  </p>
-                </>
+                <select
+                  id="category"
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className={styles.select}
+                >
+                  <option value="">Seleccionar una categoría principal</option>
+                                   {categories
+                   .filter(cat => !cat.parentCategory) // Solo categorías principales
+                   .map((category) => (
+                     <option key={category._id} value={category._id}>
+                       {category.name}
+                     </option>
+                   ))}
+                </select>
               )}
             </div>
-            
+
+            <div className={styles.formGroup}>
+              <label htmlFor="subcategory">Subcategoría (opcional)</label>
+              {loadingCategories ? (
+                <p className={styles.loadingText}>Cargando subcategorías...</p>
+              ) : (
+                <select
+                  id="subcategory"
+                  value={selectedSubcategory}
+                  onChange={(e) => setSelectedSubcategory(e.target.value)}
+                  className={styles.select}
+                >
+                  <option value="">Seleccionar una subcategoría</option>
+                                     {selectedCategory && categories
+                     .find(cat => cat._id === selectedCategory)?.children
+                     ?.map((subcategory: any) => (
+                       <option key={subcategory._id} value={subcategory._id}>
+                         {subcategory.name}
+                       </option>
+                     ))}
+                </select>
+              )}
+            </div>
+
             {/* Selección de Profesor Principal */}
             <div className={styles.formGroup}>
               <label htmlFor="teacherId">Profesor Principal*</label>
