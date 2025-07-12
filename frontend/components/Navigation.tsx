@@ -233,9 +233,12 @@ const Navigation: React.FC = () => {
                 <Link href="/" className={`${styles.navLink} ${isActive('/')}`}>
                   Inicio
                 </Link>
+                <Link href="/community?tab=courses" className={`${styles.navLink} ${isActive('/community')}`}>
+                  Mis Cursos
+                </Link>
                 {userRole === 'TEACHER' && (
                   <Link href="/courses/my-courses" className={`${styles.navLink} ${isActive('/courses/my-courses')}`}>
-                    Mis Cursos
+                    Gestionar Cursos
                   </Link>
                 )}
                 {(userRole === 'admin' || userRole === 'ADMIN') && (
@@ -255,9 +258,6 @@ const Navigation: React.FC = () => {
                   <div className={styles.dropdownContent}>
                     <Link href="/profile" className={styles.dropdownItem} onClick={() => setIsDropdownOpen(false)}>
                       Perfil
-                    </Link>
-                    <Link href="/community" className={styles.dropdownItem} onClick={() => setIsDropdownOpen(false)}>
-                      Comunidad
                     </Link>
                     {(() => {
                       // Debugging roles directly from the token

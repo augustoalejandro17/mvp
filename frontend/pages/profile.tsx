@@ -100,7 +100,7 @@ export default function Profile() {
   };
 
   const navigateToLeaderboard = () => {
-    router.push('/gamification-demo');
+    router.push('/community?tab=leaderboard');
   };
 
   useEffect(() => {

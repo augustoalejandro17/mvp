@@ -176,7 +176,7 @@ const calculateCourseProgressWithPlaylists = async (course: any): Promise<number
 export default function Community() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState('leaderboard');
+  const [activeTab, setActiveTab] = useState('courses'); // Default to courses instead of leaderboard
   const [loading, setLoading] = useState(true);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myCourses, setMyCourses] = useState<Course[]>([]);
@@ -205,6 +205,22 @@ export default function Community() {
       router.push('/login');
     }
   }, [router]);
+
+  // Handle URL parameters for tab selection
+  useEffect(() => {
+    if (router.query.tab) {
+      const tab = router.query.tab as string;
+      if (tab === 'leaderboard' || tab === 'courses') {
+        setActiveTab(tab);
+      }
+    }
+  }, [router.query]);
+
+  const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab);
+    // Update URL without triggering a full page reload
+    router.push(`/community?tab=${newTab}`, undefined, { shallow: true });
+  };
 
   const loadData = async (userId: string) => {
     setLoading(true);
@@ -393,7 +409,7 @@ export default function Community() {
     </div>
   );
 
-  if (loading) {
+  if (loading && !user) {
     return (
       <Layout title="Comunidad">
         <div className={styles.container}>
@@ -415,13 +431,13 @@ export default function Community() {
         <div className={styles.tabSelector}>
           <button
             className={`${styles.tab} ${activeTab === 'leaderboard' ? styles.activeTab : ''}`}
-            onClick={() => setActiveTab('leaderboard')}
+            onClick={() => handleTabChange('leaderboard')}
           >
             Clasificación
           </button>
           <button
             className={`${styles.tab} ${activeTab === 'courses' ? styles.activeTab : ''}`}
-            onClick={() => setActiveTab('courses')}
+            onClick={() => handleTabChange('courses')}
           >
             Mis Cursos
           </button>
