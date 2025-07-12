@@ -153,6 +153,64 @@ export class UsageTrackingController {
     }
   }
 
+  @Post('streaming/end/:sessionId/completion')
+  async endStreamingSessionWithCompletion(
+    @Param('sessionId') sessionId: string,
+    @Body() body: {
+      watchedPercentage: number;
+      videoDuration: number;
+      videoTitle: string;
+      bytesTransferred?: number;
+    },
+    @Req() req: any,
+  ): Promise<{ success: boolean }> {
+    try {
+      await this.streamingIntegrationService.endVideoStreamingWithCompletion(
+        sessionId,
+        body,
+      );
+
+      return { success: true };
+    } catch (error) {
+      this.logger.error(
+        `Error ending streaming session with completion: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  @Post('streaming/track-video-streak')
+  async trackVideoCompletionStreak(
+    @Body() body: {
+      schoolId: string;
+      courseId: string;
+      classId: string;
+      consecutiveVideosCompleted: number;
+    },
+    @Req() req: any,
+  ): Promise<{ success: boolean }> {
+    try {
+      const userId = req.user.sub || req.user._id;
+
+      await this.streamingIntegrationService.trackVideoCompletionStreak(
+        userId,
+        body.schoolId,
+        body.courseId,
+        body.classId,
+        body.consecutiveVideosCompleted,
+      );
+
+      return { success: true };
+    } catch (error) {
+      this.logger.error(
+        `Error tracking video completion streak: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
   @Post('streaming/end-user-sessions')
   async endAllUserSessions(
     @Req() req: any,

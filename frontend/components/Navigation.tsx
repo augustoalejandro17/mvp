@@ -256,6 +256,9 @@ const Navigation: React.FC = () => {
                     <Link href="/profile" className={styles.dropdownItem} onClick={() => setIsDropdownOpen(false)}>
                       Perfil
                     </Link>
+                    <Link href="/community" className={styles.dropdownItem} onClick={() => setIsDropdownOpen(false)}>
+                      Comunidad
+                    </Link>
                     {(() => {
                       // Debugging roles directly from the token
                       const hasAccess = hasAdminAccess();

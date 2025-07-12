@@ -201,6 +201,129 @@
   color: #1a202c;
 }
 
+/* New Profile Display Styles */
+.profileDisplay {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.profileHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1rem;
+  padding: 2rem;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+.avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background-color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+.avatarText {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #4a5568;
+}
+
+.userName {
+  font-size: 2rem;
+  font-weight: 600;
+  color: #1a202c;
+  margin: 0;
+}
+
+.pointsBadge {
+  background-color: white;
+  border: 2px solid #4a90e2;
+  border-radius: 25px;
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 600;
+  color: #4a90e2;
+}
+
+.pointsBadge:hover {
+  background-color: #4a90e2;
+  color: white;
+}
+
+.pointsIcon {
+  font-size: 1.2rem;
+}
+
+.pointsText {
+  font-size: 1rem;
+}
+
+.editProfileButton {
+  background-color: #4a90e2;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 0.5rem;
+}
+
+.editProfileButton:hover {
+  background-color: #3a7bc8;
+}
+
+.additionalInfo {
+  background-color: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.infoItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.infoItem:last-child {
+  border-bottom: none;
+}
+
+.infoLabel {
+  font-weight: 600;
+  color: #4a5568;
+  font-size: 0.9rem;
+}
+
+.infoValue {
+  font-weight: 500;
+  color: #1a202c;
+  font-size: 1rem;
+}
+
 @media (max-width: 768px) {
   .container {
     padding: 1rem;
@@ -212,5 +335,40 @@
   
   .buttonGroup {
     flex-direction: column;
+  }
+  
+  .profileHeader {
+    padding: 1.5rem;
+  }
+  
+  .avatar {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .avatarText {
+    font-size: 2rem;
+  }
+  
+  .userName {
+    font-size: 1.5rem;
+  }
+  
+  .additionalInfo {
+    padding: 1.25rem;
+  }
+  
+  .infoItem {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+  
+  .infoLabel {
+    font-size: 0.8rem;
+  }
+  
+  .infoValue {
+    font-size: 0.9rem;
   }
 } 

@@ -94,6 +94,40 @@ export class CoursesController {
     return this.coursesService.getEnrolledCourses(userId);
   }
 
+  @Get('public/enrolled/:userId')
+  async getPublicEnrolledCourses(@Param('userId') userId: string) {
+    try {
+      const courses = await this.coursesService.getEnrolledCourses(userId);
+      return courses;
+    } catch (error) {
+      this.logger.error(`Error getting enrolled courses: ${error.message}`);
+      return [];
+    }
+  }
+
+  @Get('public/teaching/:userId')
+  async getPublicTeachingCourses(@Param('userId') userId: string) {
+    try {
+      // Simple version - get courses where user is teacher
+      const courses = await this.coursesService.findAll(userId, 'teacher');
+      return courses.filter(course => {
+        // Check if user is the main teacher
+        const isMainTeacher = course.teacher && 
+          ((course.teacher as any)._id ? (course.teacher as any)._id.toString() === userId : course.teacher.toString() === userId);
+        
+        // Check if user is in the teachers array
+        const isInTeachers = course.teachers && course.teachers.some(t => 
+          (t as any)._id ? (t as any)._id.toString() === userId : t.toString() === userId
+        );
+        
+        return isMainTeacher || isInTeachers;
+      });
+    } catch (error) {
+      this.logger.error(`Error getting teaching courses: ${error.message}`);
+      return [];
+    }
+  }
+
   @Get(':id')
   @UseGuards(OptionalJwtAuthGuard)
   async findOne(
@@ -222,222 +256,8 @@ export class CoursesController {
       const result = await this.coursesService.remove(id, userId, userRole);
       return result;
     } catch (error) {
-      this.logger.error(`Error deleting course: ${error.message}`, error.stack);
+      this.logger.error(`Error removing course: ${error.message}`, error.stack);
       throw error;
     }
-  }
-
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions(Permission.CREATE_COURSE, Permission.UPDATE_COURSE)
-  @Post(':id/enroll/:studentId')
-  async enrollStudent(
-    @Param('id') courseId: string,
-    @Param('studentId') studentId: string,
-    @Req() req,
-  ) {
-    const userId = getUserIdFromRequest(req);
-    return this.coursesService.enrollStudent(courseId, studentId, userId);
-  }
-
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions(Permission.CREATE_COURSE, Permission.UPDATE_COURSE)
-  @Put(':id/enrollment/:studentId')
-  async updateEnrollmentStatus(
-    @Param('id') courseId: string,
-    @Param('studentId') studentId: string,
-    @Body() updateData: { paymentStatus: boolean; paymentNotes?: string },
-    @Req() req,
-  ) {
-    const userId = getUserIdFromRequest(req);
-    return this.coursesService.updateEnrollmentPaymentStatus(
-      courseId,
-      studentId,
-      updateData.paymentStatus,
-      updateData.paymentNotes,
-      userId,
-    );
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Get('student/:studentId/enrollments')
-  async getStudentEnrollments(
-    @Param('studentId') studentId: string,
-    @Req() req,
-  ) {
-    // Students can only view their own enrollments
-    const userId = getUserIdFromRequest(req);
-    const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
-
-    if (userRole === UserRole.STUDENT && userId !== studentId) {
-      throw new UnauthorizedException('You can only view your own enrollments');
-    }
-
-    return this.coursesService.getEnrollmentsByStudent(studentId);
-  }
-
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions(Permission.VIEW_COURSE)
-  @Get(':id/enrollments')
-  async getCourseEnrollments(@Param('id') courseId: string) {
-    return this.coursesService.getEnrollmentsByCourse(courseId);
-  }
-
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions(Permission.DELETE_COURSE)
-  @Delete(':id/enroll/:studentId')
-  async unenrollStudent(
-    @Param('id') courseId: string,
-    @Param('studentId') studentId: string,
-    @Req() req,
-  ) {
-    const userId = getUserIdFromRequest(req);
-
-    await this.coursesService.unenrollStudent(courseId, studentId, userId);
-    return { message: 'Student unenrolled successfully' };
-  }
-
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions(Permission.CREATE_COURSE, Permission.UPDATE_COURSE)
-  @Post(':id/enrollment/:studentId/payment')
-  async addPaymentToEnrollment(
-    @Param('id') courseId: string,
-    @Param('studentId') studentId: string,
-    @Body() paymentData: PaymentDto,
-    @Req() req,
-  ) {
-    const userId = getUserIdFromRequest(req);
-
-    // Primero buscar el enrollment
-    const enrollments =
-      await this.coursesService.getEnrollmentsByCourse(courseId);
-    let enrollment = enrollments.find(
-      (e) =>
-        (e.student as any)._id.toString() === studentId ||
-        e.student.toString() === studentId,
-    );
-
-    // Si no existe enrollment, verificar si es un estudiante válido del curso y crear enrollment
-    if (!enrollment) {
-      const enrollmentResult =
-        await this.coursesService.createEnrollmentForPayment(
-          courseId,
-          studentId,
-          userId,
-        );
-      if (!enrollmentResult) {
-        throw new NotFoundException('Student not found in this course');
-      }
-      enrollment = enrollmentResult;
-    }
-
-    // Acceder al ID de forma segura
-    const enrollmentId = enrollment['_id'] ? enrollment['_id'].toString() : '';
-
-    if (!enrollmentId) {
-      throw new BadRequestException('Invalid enrollment ID');
-    }
-
-    return this.coursesService.addPaymentToEnrollment(
-      enrollmentId,
-      paymentData,
-      userId,
-    );
-  }
-
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions(Permission.CREATE_COURSE, Permission.UPDATE_COURSE)
-  @Get(':id/enrollment/:studentId/payments/:month')
-  async getPaymentHistory(
-    @Param('id') courseId: string,
-    @Param('studentId') studentId: string,
-    @Param('month') month: string,
-    @Req() req,
-  ) {
-    const userId = getUserIdFromRequest(req);
-    return this.coursesService.getPaymentHistoryForMonth(
-      courseId,
-      studentId,
-      month,
-      userId,
-    );
-  }
-
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions(Permission.CREATE_COURSE, Permission.UPDATE_COURSE)
-  @Put(':id/enrollment/:studentId/payments/:paymentId')
-  async updatePayment(
-    @Param('id') courseId: string,
-    @Param('studentId') studentId: string,
-    @Param('paymentId') paymentId: string,
-    @Body() updateData: { amount: number; notes?: string },
-    @Req() req,
-  ) {
-    const userId = getUserIdFromRequest(req);
-    return this.coursesService.updatePayment(
-      courseId,
-      studentId,
-      paymentId,
-      updateData,
-      userId,
-    );
-  }
-
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions(Permission.CREATE_COURSE, Permission.UPDATE_COURSE)
-  @Delete(':id/enrollment/:studentId/payments/:paymentId')
-  async deletePayment(
-    @Param('id') courseId: string,
-    @Param('studentId') studentId: string,
-    @Param('paymentId') paymentId: string,
-    @Req() req,
-  ) {
-    const userId = getUserIdFromRequest(req);
-    return this.coursesService.deletePayment(
-      courseId,
-      studentId,
-      paymentId,
-      userId,
-    );
-  }
-
-  @Get(':id/unpaid-students')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions(Permission.VIEW_COURSE)
-  async getUnpaidStudents(
-    @Param('id') courseId: string,
-    @Req() req,
-    @Query('month') month?: string,
-    @Query('year') year?: string,
-  ) {
-    const userId = getUserIdFromRequest(req);
-    const userRole = getUserRoleFromRequest(req) as unknown as ServiceUserRole;
-
-    try {
-      // Use current month/year if not provided
-      const targetMonth = month ? parseInt(month) : new Date().getMonth() + 1;
-      const targetYear = year ? parseInt(year) : new Date().getFullYear();
-
-      const unpaidStudents = await this.coursesService.getUnpaidStudents(
-        courseId,
-        targetMonth,
-        targetYear,
-        userId,
-        userRole,
-      );
-      return unpaidStudents;
-    } catch (error) {
-      this.logger.error(`Error fetching unpaid students: ${error.message}`);
-      throw error;
-    }
-  }
-
-  @Get('migration/promo-fields')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
-  async migratePromoFields() {
-    this.logger.log(
-      'Migración de campos de promoción solicitada por un super admin',
-    );
-    return this.coursesService.migrateExistingCourses();
   }
 }

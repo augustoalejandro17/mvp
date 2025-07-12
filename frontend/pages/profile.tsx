@@ -6,12 +6,21 @@ import { jwtDecode } from 'jwt-decode';
 import styles from '../styles/Profile.module.css';
 import { useApiErrorHandler } from '../utils/api-error-handler';
 import Layout from '../components/Layout';
+import { pointsApi, badgeApi, leaderboardApi } from '../utils/gamification-api';
 
 interface DecodedToken {
   sub: string;
   email: string;
   name: string;
   role: string;
+}
+
+interface GamificationData {
+  points: number;
+  level: string;
+  streak: number;
+  rank: number;
+  badges: any[];
 }
 
 export default function Profile() {
@@ -30,7 +39,69 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [gamificationData, setGamificationData] = useState<GamificationData | null>(null);
+  const [loadingGamification, setLoadingGamification] = useState(false);
   const { handleApiError } = useApiErrorHandler();
+
+  const fetchGamificationData = async (userId: string) => {
+    if (!userId) return;
+    
+    setLoadingGamification(true);
+    try {
+      // Use the new public endpoint that auto-detects school ID
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const fullUrl = `${apiUrl}/api/gamification/points/public/user/${userId}`;
+      console.log('Calling API URL:', fullUrl);
+      
+      const pointsResponse = await fetch(fullUrl);
+      
+      if (pointsResponse.ok) {
+        const pointsData = await pointsResponse.json();
+        console.log('Received points data:', pointsData);
+        setGamificationData({
+          points: pointsData.points || 0,
+          level: pointsData.levelName || 'Beginner',
+          streak: pointsData.streak || 0,
+          rank: pointsData.rank || 0,
+          badges: [], // We'll add badges later when needed
+        });
+        console.log('Set gamification data:', {
+          points: pointsData.points || 0,
+          level: pointsData.levelName || 'Beginner',
+          streak: pointsData.streak || 0,
+          rank: pointsData.rank || 0,
+        });
+      } else {
+        console.error('API call failed with status:', pointsResponse.status);
+        const errorText = await pointsResponse.text();
+        console.error('Error response:', errorText);
+        // Fallback to empty data if API fails
+        setGamificationData({
+          points: 0,
+          level: 'Beginner',
+          streak: 0,
+          rank: 0,
+          badges: [],
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching gamification data:', error);
+      // Set empty data on error instead of demo data
+      setGamificationData({
+        points: 0,
+        level: 'Beginner',
+        streak: 0,
+        rank: 0,
+        badges: [],
+      });
+    } finally {
+      setLoadingGamification(false);
+    }
+  };
+
+  const navigateToLeaderboard = () => {
+    router.push('/gamification-demo');
+  };
 
   useEffect(() => {
     const token = Cookies.get('token');
@@ -41,14 +112,21 @@ export default function Profile() {
 
     try {
       const decoded = jwtDecode<DecodedToken>(token);
-      setUser({
+      console.log('Decoded token:', decoded);
+      const userData = {
         id: decoded.sub,
         name: decoded.name,
         email: decoded.email,
         role: decoded.role
-      });
+      };
+      console.log('User data:', userData);
+      setUser(userData);
       setName(decoded.name);
       setLoading(false);
+      
+      // Fetch gamification data
+      console.log('Fetching gamification data for user ID:', userData.id);
+      fetchGamificationData(userData.id);
     } catch (error) {
       console.error('Error decoding token:', error);
       setError('Authentication error. Please login again.');
@@ -329,43 +407,48 @@ export default function Profile() {
                 </div>
               </form>
             ) : (
-              <div className={styles.profileInfo}>
-                <div className={styles.profileSection}>
-                  <h2>Name</h2>
-                  <p>{user?.name}</p>
-                </div>
-                
-                <div className={styles.profileSection}>
-                  <h2>Email</h2>
-                  <p>{user?.email}</p>
-                </div>
-                
-                <div className={styles.profileSection}>
-                  <h2>Role</h2>
-                  <p>{user?.role}</p>
-                </div>
-                
-                <div className={styles.actionButtons}>
+              <div className={styles.profileDisplay}>
+                {/* Profile Header */}
+                <div className={styles.profileHeader}>
+                  <div className={styles.avatar}>
+                    <span className={styles.avatarText}>
+                      {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                    </span>
+                  </div>
+                  <h1 className={styles.userName}>{user?.name}</h1>
+                  
+                  {/* Points Badge */}
+                  {gamificationData && (
+                    <div className={styles.pointsBadge} onClick={navigateToLeaderboard}>
+                      <span className={styles.pointsIcon}>🏆</span>
+                                          <span className={styles.pointsText}>
+                      {gamificationData ? gamificationData.points.toLocaleString() : 0} Points
+                    </span>
+                    </div>
+                  )}
+                  
+                  {/* Edit Profile Button */}
                   <button
-                    className={styles.editButton}
-                    onClick={() => {
-                      setIsEditing(true);
-                      setIsChangingPassword(false);
-                    }}
+                    className={styles.editProfileButton}
+                    onClick={() => router.push('/profile/edit')}
                   >
                     Edit Profile
                   </button>
-                  
-                  <button
-                    className={styles.passwordButton}
-                    onClick={() => {
-                      setIsChangingPassword(true);
-                      setIsEditing(false);
-                    }}
-                  >
-                    Change Password
-                  </button>
                 </div>
+                
+                {/* Additional Info */}
+                {gamificationData && (
+                  <div className={styles.additionalInfo}>
+                    <div className={styles.infoItem}>
+                      <span className={styles.infoLabel}>Streak:</span>
+                      <span className={styles.infoValue}>{gamificationData ? gamificationData.streak : 0} days</span>
+                    </div>
+                    <div className={styles.infoItem}>
+                      <span className={styles.infoLabel}>Rank:</span>
+                      <span className={styles.infoValue}>#{gamificationData ? gamificationData.rank : 0}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -16,6 +16,7 @@ import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { BulkAttendanceDto } from './dto/bulk-attendance.dto';
 import { toDate } from 'date-fns-tz';
 import { CoursesService } from '../courses/courses.service';
+import { GamificationIntegrationService } from '../gamification/services/gamification-integration.service';
 
 @Injectable()
 export class AttendanceService {
@@ -28,6 +29,7 @@ export class AttendanceService {
     @InjectModel(Course.name) private courseModel: Model<Course>,
     @Inject(forwardRef(() => CoursesService))
     private coursesService: CoursesService,
+    private readonly gamificationIntegrationService: GamificationIntegrationService,
   ) {}
 
   // Registrar asistencia individual
@@ -138,6 +140,31 @@ export class AttendanceService {
     });
 
     const savedAttendance = await attendance.save();
+    
+    // Award gamification points for attendance
+    if (present) {
+      try {
+        // Get course and school information
+        const courseDoc = await this.courseModel.findById(courseId).populate('school');
+        if (courseDoc && courseDoc.school) {
+          await this.gamificationIntegrationService.handleClassAttendance(
+            studentId,
+            (courseDoc.school as any)._id.toString(),
+            courseId,
+            null, // classId - we don't have specific class here
+            {
+              attendanceType: 'present',
+              duration: 0, // Could be enhanced to track actual class duration
+              participationScore: undefined,
+            },
+          );
+        }
+      } catch (error) {
+        this.logger.error(`Error awarding gamification points for attendance: ${error.message}`);
+        // Don't throw error to avoid breaking attendance recording
+      }
+    }
+    
     return savedAttendance;
   }
 
@@ -234,7 +261,28 @@ export class AttendanceService {
           markedBy: teacherId, // Mongoose maneja la conversión
           recordedBy: teacherId, // Mongoose maneja la conversión
         });
-        results.push(await newAttendance.save());
+        const savedAttendance = await newAttendance.save();
+        results.push(savedAttendance);
+        
+        // Award gamification points for attendance
+        if (currentPresent) {
+          try {
+            await this.gamificationIntegrationService.handleClassAttendance(
+              currentStudentId,
+              (course.school as any)._id.toString(),
+              courseId,
+              null, // classId - we don't have specific class here
+              {
+                attendanceType: 'present',
+                duration: 0, // Could be enhanced to track actual class duration
+                participationScore: undefined,
+              },
+            );
+          } catch (error) {
+            this.logger.error(`Error awarding gamification points for bulk attendance: ${error.message}`);
+            // Don't throw error to avoid breaking attendance recording
+          }
+        }
       }
     }
     return results;

@@ -21,6 +21,8 @@ import { BulkUploadModule } from './bulk-upload/bulk-upload.module';
 import { UsageModule } from './usage/usage.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { VideosModule } from './videos/videos.module';
+import { GamificationModule } from './gamification/gamification.module';
+import { ProgressModule } from './progress/progress.module';
 import awsConfig from './config/aws.config';
 import { S3Service } from './services/s3.service';
 import { CloudFrontService } from './services/cloudfront.service';
@@ -51,7 +53,27 @@ import { MigrationService } from './migrations/migration.service';
       load: [awsConfig],
     }),
     ScheduleModule.forRoot(),
-    MongooseModule.forRoot(process.env.MONGODB_URI),
+    MongooseModule.forRoot(process.env.MONGODB_URI, {
+      // Connection pool settings
+      maxPoolSize: 10,
+      minPoolSize: 5,
+      maxIdleTimeMS: 30000,
+      
+      // Connection timeout settings
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 10000,
+      
+      // Retry settings
+      retryWrites: true,
+      retryReads: true,
+      
+      // Heartbeat settings
+      heartbeatFrequencyMS: 10000,
+      
+      // Connection monitoring
+      monitorCommands: true,
+    }),
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: School.name, schema: SchoolSchema },
@@ -77,6 +99,8 @@ import { MigrationService } from './migrations/migration.service';
     UsageModule,
     NotificationsModule,
     VideosModule,
+    GamificationModule,
+    ProgressModule,
   ],
   controllers: [
     AppController,

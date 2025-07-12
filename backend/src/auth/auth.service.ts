@@ -15,6 +15,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { GoogleLoginDto } from './dto/google-auth.dto';
 import { GoogleOAuthService } from './services/google-oauth.service';
+import { GamificationIntegrationService } from '../gamification/services/gamification-integration.service';
 import * as bcrypt from 'bcrypt';
 
 // Definir tipo UserDocument
@@ -28,6 +29,7 @@ export class AuthService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private jwtService: JwtService,
     private googleOAuthService: GoogleOAuthService,
+    private gamificationIntegrationService: GamificationIntegrationService,
   ) {}
 
   // Método auxiliar para hacer hash de contraseñas
@@ -198,6 +200,9 @@ export class AuthService {
       this.logger.log(`Inicio de sesión exitoso para: ${email}`);
       const token = await this.generateToken(user);
 
+      // Award daily login points
+      await this.awardDailyLoginPoints(user);
+
       return {
         user: {
           id: user._id,
@@ -236,6 +241,9 @@ export class AuthService {
       );
 
       const token = await this.generateToken(user);
+
+      // Award daily login points
+      await this.awardDailyLoginPoints(user);
 
       return {
         user: {
@@ -401,6 +409,31 @@ export class AuthService {
         error.stack,
       );
       throw error;
+    }
+  }
+
+  /**
+   * Award daily login points and update login streak
+   */
+  private async awardDailyLoginPoints(user: UserDocument): Promise<void> {
+    try {
+      // Get user's schools for gamification
+      const userWithSchools = await this.userModel.findById(user._id).populate('schools');
+      if (!userWithSchools || !userWithSchools.schools.length) {
+        this.logger.warn(`User ${user._id} has no schools associated, skipping daily login points`);
+        return;
+      }
+
+      // Award points for each school the user belongs to
+      for (const school of userWithSchools.schools) {
+        await this.gamificationIntegrationService.handleDailyLogin(
+          user._id.toString(),
+          (school as any)._id.toString(),
+        );
+      }
+    } catch (error) {
+      this.logger.error(`Error awarding daily login points: ${error.message}`);
+      // Don't throw error to avoid breaking login flow
     }
   }
 }

@@ -11,6 +11,9 @@ export enum NotificationType {
   PAYMENT_DUE = 'payment_due',
   GENERAL = 'general',
   SYSTEM = 'system',
+  POINTS_EARNED = 'points_earned',
+  LEVEL_UP = 'level_up',
+  BADGE_EARNED = 'badge_earned',
 }
 
 export enum NotificationPriority {

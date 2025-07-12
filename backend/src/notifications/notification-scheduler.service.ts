@@ -6,6 +6,8 @@ import { CourseScheduleService } from '../courses/course-schedule.service';
 @Injectable()
 export class NotificationSchedulerService {
   private readonly logger = new Logger(NotificationSchedulerService.name);
+  private readonly maxRetries = 3;
+  private readonly retryDelay = 5000; // 5 seconds
 
   constructor(
     private readonly notificationsService: NotificationsService,
@@ -14,7 +16,7 @@ export class NotificationSchedulerService {
 
   @Cron('* * * * *') // Run every minute
   async checkForUpcomingClasses() {
-    try {
+    await this.executeWithRetry(async () => {
       const now = new Date();
 
       // Look for classes that need notifications in the next 30 minutes
@@ -31,9 +33,7 @@ export class NotificationSchedulerService {
       if (upcomingClasses.length > 0) {
         await this.sendClassReminders(upcomingClasses, now);
       }
-    } catch (error) {
-      this.logger.error('Error in notification scheduler:', error);
-    }
+    }, 'notification scheduler');
   }
 
   private async sendClassReminders(upcomingClasses: any[], currentTime: Date) {
@@ -77,7 +77,7 @@ export class NotificationSchedulerService {
       } catch (error) {
         this.logger.error(
           `Error sending reminder for class ${classInfo.courseName}:`,
-          error,
+          error.message,
         );
       }
     }
@@ -86,11 +86,86 @@ export class NotificationSchedulerService {
   // Daily cleanup at 2 AM
   @Cron(CronExpression.EVERY_DAY_AT_2AM)
   async cleanupOldNotifications() {
-    try {
+    await this.executeWithRetry(async () => {
       await this.notificationsService.cleanupOldNotifications();
-    } catch (error) {
-      this.logger.error('Error in notification cleanup:', error);
+    }, 'notification cleanup');
+  }
+
+  /**
+   * Execute operation with retry mechanism for MongoDB connection issues
+   */
+  private async executeWithRetry(
+    operation: () => Promise<void>,
+    operationName: string,
+  ): Promise<void> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+      try {
+        await operation();
+        
+        // If we had previous failures but this attempt succeeded, log recovery
+        if (lastError && attempt > 1) {
+          this.logger.log(
+            `${operationName} recovered after ${attempt} attempts`,
+          );
+        }
+        
+        return; // Success
+      } catch (error) {
+        lastError = error;
+        
+        // Check if this is a MongoDB connection error
+        const isConnectionError = this.isMongoConnectionError(error);
+        
+        if (isConnectionError && attempt < this.maxRetries) {
+          this.logger.warn(
+            `${operationName} failed (attempt ${attempt}/${this.maxRetries}): ${error.message}. Retrying in ${this.retryDelay}ms...`,
+          );
+          
+          // Wait before retrying
+          await this.sleep(this.retryDelay);
+        } else {
+          // Final attempt failed or non-connection error
+          this.logger.error(
+            `Error in ${operationName}${attempt > 1 ? ` after ${attempt} attempts` : ''}:`,
+            error.message,
+          );
+          
+          // Don't throw for connection errors to prevent crashing the scheduler
+          if (!isConnectionError) {
+            throw error;
+          }
+        }
+      }
     }
+  }
+
+  /**
+   * Check if error is related to MongoDB connection issues
+   */
+  private isMongoConnectionError(error: any): boolean {
+    if (!error) return false;
+    
+    const errorMessage = error.message?.toLowerCase() || '';
+    const errorName = error.name?.toLowerCase() || '';
+    
+    return (
+      errorName.includes('mongoserverselectionerror') ||
+      errorName.includes('poolclearedonnetworkerror') ||
+      errorMessage.includes('connection') ||
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('network') ||
+      errorMessage.includes('enotfound') ||
+      errorMessage.includes('server selection')
+    );
+  }
+
+  /**
+   * Sleep utility function
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   // Manual testing methods

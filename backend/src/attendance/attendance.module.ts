@@ -8,6 +8,7 @@ import { Course, CourseSchema } from '../courses/schemas/course.schema';
 import { AuthModule } from '../auth/auth.module';
 import { RemoveClassFieldMigration } from './migration/remove-class-field.migration';
 import { CoursesModule } from '../courses/courses.module';
+import { GamificationModule } from '../gamification/gamification.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { CoursesModule } from '../courses/courses.module';
     ]),
     AuthModule,
     forwardRef(() => CoursesModule),
+    GamificationModule,
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService, RemoveClassFieldMigration],

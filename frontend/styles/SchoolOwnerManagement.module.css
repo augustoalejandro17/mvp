@@ -1,0 +1,282 @@
+.container {
+  margin: 2rem 0;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.5rem;
+  background: #fff;
+}
+
+.header {
+  margin-bottom: 1.5rem;
+}
+
+.header h3 {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.addOwnerSection {
+  margin-bottom: 2rem;
+}
+
+.addOwnerSection label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #2c3e50;
+  font-weight: 500;
+}
+
+.searchInputContainer {
+  position: relative;
+}
+
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #7f8c8d;
+}
+
+.error {
+  background: #fee;
+  color: #c0392b;
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  border: 1px solid #fadad7;
+}
+
+.success {
+  background: #eafaf1;
+  color: #27ae60;
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  border: 1px solid #d4edda;
+}
+
+.ownersList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.noOwners {
+  text-align: center;
+  color: #7f8c8d;
+  padding: 2rem;
+  font-style: italic;
+}
+
+.ownerCard {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  background: #f9f9f9;
+  transition: box-shadow 0.3s ease;
+}
+
+.ownerCard:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.ownerInfo h4 {
+  margin: 0 0 0.25rem 0;
+  color: #2c3e50;
+  font-size: 1.1rem;
+}
+
+.ownerInfo p {
+  margin: 0 0 0.5rem 0;
+  color: #7f8c8d;
+  font-size: 0.9rem;
+}
+
+.roleBadge {
+  background: #3498db;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.ownerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.removeButton {
+  background: #e74c3c;
+  color: white;
+  border: none;
+  padding: 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.removeButton:hover {
+  background: #c0392b;
+}
+
+.currentUserBadge {
+  background: #f39c12;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Search dropdown styles */
+
+.searchInput {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.searchInput svg {
+  position: absolute;
+  left: 1rem;
+  color: #7f8c8d;
+  z-index: 1;
+}
+
+.searchInput input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.5rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.3s ease;
+}
+
+.searchInput input:focus {
+  border-color: #3498db;
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
+}
+
+.searchLoading {
+  text-align: center;
+  color: #7f8c8d;
+  padding: 1rem;
+}
+
+.searchResults {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 0 0 6px 6px;
+  border-top: none;
+  max-height: 300px;
+  overflow-y: auto;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.searchResult {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #e8e8e8;
+  background: white;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.searchResult:hover {
+  background: #f9f9f9;
+}
+
+.searchResult:last-child {
+  border-bottom: none;
+  border-radius: 0 0 6px 6px;
+}
+
+.searchResult .userInfo h4 {
+  margin: 0 0 0.25rem 0;
+  color: #2c3e50;
+  font-size: 1rem;
+}
+
+.searchResult .userInfo p {
+  margin: 0 0 0.5rem 0;
+  color: #7f8c8d;
+  font-size: 0.9rem;
+}
+
+.addUserButton {
+  background: #27ae60;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color 0.3s ease;
+  white-space: nowrap;
+}
+
+.addUserButton:hover {
+  background: #219a52;
+}
+
+.addUserButton:disabled {
+  background: #95a5a6;
+  cursor: not-allowed;
+}
+
+.noResults {
+  text-align: center;
+  color: #7f8c8d;
+  padding: 2rem;
+  font-style: italic;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .header h3 {
+    text-align: center;
+  }
+  
+  .ownerCard {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  .ownerActions {
+    justify-content: center;
+  }
+  
+  .searchResult {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  .addUserButton {
+    width: 100%;
+  }
+} 

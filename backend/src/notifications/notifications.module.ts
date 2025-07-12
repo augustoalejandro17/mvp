@@ -19,7 +19,7 @@ import { CoursesModule } from '../courses/courses.module';
       { name: Course.name, schema: CourseSchema },
       { name: User.name, schema: UserSchema },
     ]),
-    AuthModule,
+    forwardRef(() => AuthModule),
     forwardRef(() => CoursesModule),
   ],
   controllers: [NotificationsController],

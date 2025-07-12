@@ -86,4 +86,35 @@ export class NotificationsController {
     const unread = await this.notificationsService.countUnread();
     return { total, unread };
   }
+
+  @Get('debug/counts')
+  async getDebugCounts() {
+    const [total, unread] = await Promise.all([
+      this.notificationsService.countAll(),
+      this.notificationsService.countUnread(),
+    ]);
+
+    return {
+      total,
+      unread,
+    };
+  }
+
+  @Get('health')
+  async getHealth() {
+    try {
+      const health = await this.notificationsService.checkDatabaseHealth();
+      return {
+        service: 'notifications',
+        ...health,
+      };
+    } catch (error) {
+      return {
+        service: 'notifications',
+        status: 'unhealthy',
+        timestamp: new Date(),
+        error: error.message,
+      };
+    }
+  }
 }

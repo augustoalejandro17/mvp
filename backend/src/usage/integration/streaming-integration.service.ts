@@ -4,6 +4,7 @@ import {
   StreamingTrackingOptions,
 } from '../usage-tracking.service';
 import { v4 as uuidv4 } from 'uuid';
+import { GamificationIntegrationService } from '../../gamification/services/gamification-integration.service';
 
 interface ActiveSession {
   sessionId: string;
@@ -11,6 +12,10 @@ interface ActiveSession {
   startTime: Date;
   userId: string;
   assetId: string;
+  relatedCourse?: string;
+  relatedClass?: string;
+  videoTitle?: string;
+  videoDuration?: number;
 }
 
 @Injectable()
@@ -18,7 +23,10 @@ export class StreamingIntegrationService {
   private readonly logger = new Logger(StreamingIntegrationService.name);
   private activeSessions = new Map<string, ActiveSession>(); // sessionId -> session data
 
-  constructor(private readonly usageTrackingService: UsageTrackingService) {}
+  constructor(
+    private readonly usageTrackingService: UsageTrackingService,
+    private readonly gamificationIntegrationService: GamificationIntegrationService,
+  ) {}
 
   /**
    * Start tracking when user begins streaming a video
@@ -44,6 +52,8 @@ export class StreamingIntegrationService {
         startTime,
         userId,
         assetId,
+        relatedCourse,
+        relatedClass,
       });
 
       const trackingOptions: StreamingTrackingOptions = {
@@ -102,6 +112,106 @@ export class StreamingIntegrationService {
     } catch (error) {
       this.logger.error(
         `Error ending streaming session: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * End video streaming with completion tracking for gamification
+   * Call this when video playback completes with watch percentage
+   */
+  async endVideoStreamingWithCompletion(
+    sessionId: string,
+    completionData: {
+      watchedPercentage: number;
+      videoDuration: number;
+      videoTitle: string;
+      bytesTransferred?: number;
+    },
+  ): Promise<void> {
+    try {
+      const session = this.activeSessions.get(sessionId);
+      if (!session) {
+        this.logger.warn(
+          `Attempted to end unknown streaming session: ${sessionId}`,
+        );
+        return;
+      }
+
+      // End the streaming session first
+      await this.usageTrackingService.endStreamingSession(
+        session.schoolId,
+        sessionId,
+        completionData.bytesTransferred,
+      );
+
+      // Award gamification points for video watching
+      if (session.relatedCourse && session.relatedClass) {
+        await this.gamificationIntegrationService.handleVideoWatched(
+          session.userId,
+          session.schoolId,
+          session.relatedCourse,
+          session.relatedClass,
+          {
+            duration: completionData.videoDuration,
+            watchedPercentage: completionData.watchedPercentage,
+            title: completionData.videoTitle,
+          },
+        );
+
+        this.logger.log(
+          `Gamification points awarded for video completion: ${sessionId}, ${completionData.watchedPercentage}% watched`,
+        );
+      }
+
+      // Remove from active sessions
+      this.activeSessions.delete(sessionId);
+
+      this.logger.log(`Streaming session ended with completion tracking: ${sessionId}`);
+    } catch (error) {
+      this.logger.error(
+        `Error ending streaming session with completion: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Track video completion streak for gamification
+   * Call this when a user completes multiple videos in a row
+   */
+  async trackVideoCompletionStreak(
+    userId: string,
+    schoolId: string,
+    courseId: string,
+    classId: string,
+    consecutiveVideosCompleted: number,
+  ): Promise<void> {
+    try {
+      if (consecutiveVideosCompleted >= 3) {
+        // Award streak bonus for watching multiple videos in a row
+        await this.gamificationIntegrationService.handleVideoWatched(
+          userId,
+          schoolId,
+          courseId,
+          classId,
+          {
+            duration: 0, // Not relevant for streak bonus
+            watchedPercentage: 100, // Assume full completion for streak
+            title: `Video streak bonus: ${consecutiveVideosCompleted} videos`,
+          },
+        );
+
+        this.logger.log(
+          `Video completion streak bonus awarded: ${consecutiveVideosCompleted} videos for user ${userId}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error tracking video completion streak: ${error.message}`,
         error.stack,
       );
       throw error;

@@ -1,4 +1,4 @@
-import { Module, Logger } from '@nestjs/common';
+import { Module, Logger, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -13,6 +13,7 @@ import { User, UserSchema } from './schemas/user.schema';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { School, SchoolSchema } from '../schools/schemas/school.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
+import { GamificationModule } from '../gamification/gamification.module';
 
 const logger = new Logger('AuthModule');
 
@@ -46,6 +47,7 @@ const logger = new Logger('AuthModule');
       { name: School.name, schema: SchoolSchema },
       { name: Course.name, schema: CourseSchema },
     ]),
+    forwardRef(() => GamificationModule),
   ],
   controllers: [AuthController, OnboardingController],
   providers: [

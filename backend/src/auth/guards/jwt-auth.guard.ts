@@ -15,7 +15,14 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const request = context.switchToHttp().getRequest();
 
     // Skip auth for specific routes
-    if (request.url?.includes('/health') || request.url?.includes('/test-')) {
+    if (request.url?.includes('/health') || 
+        request.url?.includes('/test-') || 
+        request.url?.includes('/test/') || 
+        request.url?.includes('/gamification/leaderboard/global') || 
+        request.url?.includes('/gamification/points/user/') || 
+        request.url?.includes('/gamification/points/public/') || 
+        request.url?.includes('/courses/public/') ||
+        request.url?.includes('/progress/public/')) {
       return true;
     }
 

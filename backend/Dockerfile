@@ -48,8 +48,8 @@ RUN npm ci --only=production
 # Copy built application from the builder stage
 COPY --from=builder /usr/src/app/dist ./dist
 
-# Importante: Reconstruir bcrypt para la arquitectura objetivo
-RUN npm rebuild bcrypt --build-from-source
+# Install node-pre-gyp globally and rebuild bcrypt for the target architecture
+RUN npm install -g node-pre-gyp && npm rebuild bcrypt --build-from-source
 
 # Create directory for CloudFront keys and set correct path
 RUN mkdir -p /usr/src/app/keys

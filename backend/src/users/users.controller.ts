@@ -572,14 +572,21 @@ export class UsersController {
         );
       }
 
-      // School_owner solo puede ser asignado por super_admin o admin
-      if (
-        normalizedRole === 'school_owner' &&
-        !['super_admin', 'admin'].includes(requestUserRole)
-      ) {
+      // School_owner solo puede ser asignado por super_admin, admin, o school_owner de la misma escuela
+      if (normalizedRole === 'school_owner') {
+        // Super admin y admin pueden asignar school_owner a cualquier escuela
+        if (!['super_admin', 'admin'].includes(requestUserRole)) {
+          // Si no es super_admin ni admin, verificar si es school_owner de esta escuela
+          const isSchoolOwner = await this.authorizationService.isSchoolOwner(
+            requestUserId,
+            body.schoolId,
+          );
+          if (!isSchoolOwner) {
         throw new ForbiddenException(
-          'Solo administradores pueden asignar este rol',
+              'Solo administradores o dueños de escuela pueden asignar este rol',
         );
+          }
+        }
       }
 
       // Verificar que el usuario tiene permisos para gestionar esta escuela

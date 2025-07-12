@@ -188,6 +188,28 @@ export class NotificationsService {
     this.logger.log(`Cleaned up notifications older than ${daysOld} days`);
   }
 
+  // Health check method
+  async checkDatabaseHealth(): Promise<{
+    status: string;
+    timestamp: Date;
+    collections: { notifications: number };
+  }> {
+    try {
+      const count = await this.notificationModel.countDocuments({}).exec();
+      
+      return {
+        status: 'healthy',
+        timestamp: new Date(),
+        collections: {
+          notifications: count,
+        },
+      };
+    } catch (error) {
+      this.logger.error('Database health check failed:', error.message);
+      throw error;
+    }
+  }
+
   // Debug methods
   async countAll(): Promise<number> {
     return this.notificationModel.countDocuments({}).exec();

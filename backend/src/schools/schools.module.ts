@@ -1,4 +1,4 @@
-import { Module, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
+import { Module, MiddlewareConsumer, RequestMethod, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SchoolsController } from './schools.controller';
 import { SchoolsService } from './schools.service';
@@ -15,7 +15,7 @@ import { PlanLimitsMiddleware } from './middleware/plan-limits.middleware';
       { name: School.name, schema: SchoolSchema },
       { name: User.name, schema: UserSchema },
     ]),
-    AuthModule,
+    forwardRef(() => AuthModule),
     UsersModule,
     PlansModule,
   ],

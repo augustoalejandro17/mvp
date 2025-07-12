@@ -6,12 +6,20 @@ import Cookies from 'js-cookie';
 import styles from '../../../styles/SchoolForm.module.css';
 import ImageUploader from '../../../components/ImageUploader';
 import SchoolLogoPreview from '../../../components/SchoolLogoPreview';
+import SchoolOwnerManagement from '../../../components/SchoolOwnerManagement';
 import { jwtDecode } from 'jwt-decode';
 
 interface DecodedToken {
   sub: string;
   email: string;
   name: string;
+  role: string;
+}
+
+interface User {
+  _id: string;
+  name: string;
+  email: string;
   role: string;
 }
 
@@ -43,6 +51,8 @@ export default function EditSchool() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [currentUser, setCurrentUser] = useState<DecodedToken | null>(null);
+  const [pendingOwners, setPendingOwners] = useState<User[]>([]);
 
   const fetchSchool = useCallback(async (schoolId: string, token: string) => {
     setLoading(true);
@@ -108,6 +118,16 @@ export default function EditSchool() {
       return;
     }
 
+    // Decode token to get current user info
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      setCurrentUser(decoded);
+    } catch (error) {
+      console.error('Error decoding token:', error);
+      router.push('/login');
+      return;
+    }
+
     // Asegurarse de que id sea un string válido
     if (id && typeof id === 'string') {
       fetchSchool(id, token);
@@ -120,6 +140,30 @@ export default function EditSchool() {
     const cleanUrl = imageUrl.split('?')[0];
     
     setLogoUrl(imageUrl);
+  };
+
+  const saveSchoolOwners = async (owners: User[]) => {
+    const token = Cookies.get('token');
+    if (!token || !id) return;
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    
+    try {
+      // For each owner, assign them the school_owner role
+      for (const owner of owners) {
+        await axios.post(
+          `${apiUrl}/api/users/${owner._id}/assign-role-in-school`,
+          {
+            schoolId: id,
+            role: 'school_owner'
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+    } catch (error) {
+      console.error('Error saving school owners:', error);
+      throw error;
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -174,6 +218,11 @@ export default function EditSchool() {
         }
       );
       
+      // Save school owners if there are pending changes
+      if (pendingOwners.length > 0) {
+        await saveSchoolOwners(pendingOwners);
+      }
+
       setSuccess('¡Escuela actualizada con éxito!');
       
       // Redirigir después de 2 segundos
@@ -292,6 +341,19 @@ export default function EditSchool() {
               />
             )}
           </div>
+
+          {/* School Owner Management - Only visible to school owners */}
+          {currentUser && 
+           (currentUser.role === 'super_admin' || 
+            currentUser.role === 'school_owner' || 
+            currentUser.role === 'admin') && 
+            id && typeof id === 'string' && (
+            <SchoolOwnerManagement 
+              schoolId={id}
+              currentUserId={currentUser.sub}
+              onOwnersChange={(owners) => setPendingOwners(owners)}
+            />
+          )}
           
           <div className={styles.formGroup}>
             <label htmlFor="address">Dirección</label>
