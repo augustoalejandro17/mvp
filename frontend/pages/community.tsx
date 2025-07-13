@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
@@ -223,6 +223,10 @@ export default function Community() {
     router.push(`/community?tab=${newTab}`, undefined, { shallow: true });
   };
 
+  const handleCourseClick = (courseId: string) => {
+    router.push(`/course/${courseId}`);
+  };
+
   const loadData = async (userId: string) => {
     setLoading(true);
     try {
@@ -354,7 +358,20 @@ export default function Community() {
       <h2 className={styles.sectionTitle}>📚 Mis Cursos</h2>
       <div className={styles.coursesList}>
         {myCourses.map((course) => (
-          <div key={course.id} className={styles.courseCard}>
+          <div 
+            key={course.id} 
+            className={styles.courseCard}
+            onClick={() => handleCourseClick(course.id)}
+            style={{ cursor: 'pointer' }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleCourseClick(course.id);
+              }
+            }}
+          >
             <div className={styles.courseHeader}>
               <h3 className={styles.courseTitle}>{course.title}</h3>
               <span className={`${styles.courseStatus} ${styles[course.status]}`}>

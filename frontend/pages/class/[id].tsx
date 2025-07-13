@@ -2,11 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
-import VideoPlayer from '../../components/VideoPlayer';
 import Layout from '../../components/Layout';
+import LazyVideoLoader from '../../components/LazyVideoLoader';
+import VideoPlayerWithTracking from '../../components/VideoPlayerWithTracking';
 import styles from '../../styles/ClassDetail.module.css';
 import { UserRole } from '../../types/user';
 import { canModifyClass, canManageVideos, canDownloadVideos } from '../../utils/permission-utils';
+import api from '../../utils/api-client';
+import VideoJSPlayer from '../../components/VideoJSPlayer';
+import SimpleVideoPlayer from '../../components/SimpleVideoPlayer';
 
 // Interfaces
 interface Class {
@@ -23,6 +27,14 @@ interface Class {
     lastName: string;
   };
   isPublic: boolean;
+  course?: {
+    _id: string;
+    title: string;
+    school: {
+      _id: string;
+      name: string;
+    };
+  };
 }
 
 interface DecodedToken {
@@ -41,6 +53,8 @@ const ClassDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<UserRole | string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [videoLoadError, setVideoLoadError] = useState(false);
+  const [useSimplePlayer, setUseSimplePlayer] = useState(false);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -79,6 +93,29 @@ const ClassDetail: React.FC = () => {
         }
         
         const data = await response.json();
+        
+        // If we have courseId, fetch course information for gamification
+        if (data.courseId) {
+          try {
+            const courseResponse = await fetch(`/api/courses/${data.courseId}`, {
+              headers: {
+                'Authorization': `Bearer ${Cookies.get('token')}`
+              }
+            });
+            
+            if (courseResponse.ok) {
+              const courseData = await courseResponse.json();
+              data.course = {
+                _id: courseData._id,
+                title: courseData.title,
+                school: courseData.school
+              };
+            }
+          } catch (courseErr) {
+            console.warn('Could not fetch course information:', courseErr);
+          }
+        }
+        
         setClassData(data);
         setError(null);
       } catch (err) {
@@ -202,12 +239,136 @@ const ClassDetail: React.FC = () => {
         
         {classData.videoUrl && (
           <div className={styles.videoContainer}>
-            <VideoPlayer 
-              url={classData.videoUrl} 
-              title={classData.title} 
-              classId={classData._id}
-              allowDownload={canManageVideo()}
-            />
+            {videoLoadError ? (
+              <div style={{
+                padding: "20px", 
+                textAlign: "center",
+                background: "#000",
+                borderRadius: "8px",
+                minHeight: "300px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                alignItems: "center"
+              }}>
+                <div style={{color: "#e53e3e", fontSize: "48px", marginBottom: "20px"}}>⚠️</div>
+                <p style={{color: "white", marginBottom: "20px", fontSize: "18px", fontWeight: "bold"}}>Error cargando video</p>
+                <p style={{color: "#a0aec0", fontSize: "14px", marginBottom: "20px"}}>El reproductor no pudo cargar el video</p>
+                
+                <div style={{display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "center"}}>
+                  <button 
+                    onClick={() => {
+                      console.log('Trying simple player fallback');
+                      setUseSimplePlayer(true);
+                      setVideoLoadError(false);
+                    }}
+                    style={{
+                      background: "#10b981", 
+                      color: "white", 
+                      padding: "10px 15px", 
+                      borderRadius: "4px", 
+                      border: "none",
+                      cursor: "pointer",
+                      fontWeight: "bold"
+                    }}
+                  >
+                    Usar reproductor simple
+                  </button>
+                  
+                  <button 
+                    onClick={() => {
+                      console.log('Retrying advanced player');
+                      setVideoLoadError(false);
+                      setUseSimplePlayer(false);
+                    }}
+                    style={{
+                      background: "#3182ce", 
+                      color: "white", 
+                      padding: "10px 15px", 
+                      borderRadius: "4px", 
+                      border: "none",
+                      cursor: "pointer",
+                      fontWeight: "bold"
+                    }}
+                  >
+                    Reintentar
+                  </button>
+                  
+                  <a 
+                    href={classData.videoUrl} 
+                    target="_blank"
+                    style={{
+                      background: "#6b7280", 
+                      color: "white", 
+                      padding: "10px 15px", 
+                      borderRadius: "4px", 
+                      textDecoration: "none", 
+                      fontWeight: "bold"
+                    }}
+                  >
+                    Abrir en nueva pestaña
+                  </a>
+                </div>
+              </div>
+            ) : useSimplePlayer ? (
+              <div style={{position: "relative"}}>
+                <SimpleVideoPlayer
+                  src={classData.videoUrl}
+                  title={classData.title}
+                  preload="metadata"
+                  crossOrigin="anonymous"
+                  onPlay={() => {
+                    console.log('Simple player: Video started playing:', classData.title);
+                  }}
+                  onError={(error) => {
+                    console.error('Simple player: Video playback error:', error);
+                    setVideoLoadError(true);
+                  }}
+                />
+                <div style={{
+                  position: "absolute",
+                  top: "8px",
+                  right: "8px",
+                  background: "rgba(0, 0, 0, 0.7)",
+                  color: "white",
+                  padding: "4px 8px",
+                  borderRadius: "4px",
+                  fontSize: "12px"
+                }}>
+                  Reproductor Simple
+                </div>
+                <button
+                  onClick={() => {
+                    console.log('Switching back to advanced player');
+                    setUseSimplePlayer(false);
+                    setVideoLoadError(false);
+                  }}
+                  style={{
+                    position: "absolute",
+                    bottom: "8px",
+                    right: "8px",
+                    background: "rgba(0, 0, 0, 0.7)",
+                    color: "white",
+                    border: "none",
+                    padding: "4px 8px",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    cursor: "pointer"
+                  }}
+                >
+                  Usar reproductor avanzado
+                </button>
+              </div>
+            ) : (
+              <VideoPlayerWithTracking
+                url={classData.videoUrl}
+                title={classData.title}
+                classId={classData._id}
+                courseId={classData.course?._id}
+                schoolId={classData.course?.school?._id}
+                allowDownload={false}
+              />
+            )}
           </div>
         )}
         

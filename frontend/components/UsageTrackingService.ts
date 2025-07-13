@@ -146,15 +146,35 @@ class UsageTrackingService {
   }
 
   /**
-   * End a streaming session
+   * End a streaming session with regular tracking
    */
   async endStreamingSession(sessionId: string, bytesTransferred?: number): Promise<void> {
     try {
       await api.post(`/api/usage/streaming/end/${sessionId}`, {
-        bytesTransferred
+        bytesTransferred: bytesTransferred || 0,
       });
     } catch (error) {
       console.error('Error ending streaming session:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * End a streaming session with completion tracking for gamification
+   */
+  async endStreamingSessionWithCompletion(
+    sessionId: string, 
+    completionData: {
+      watchedPercentage: number;
+      videoDuration: number;
+      videoTitle: string;
+      bytesTransferred?: number;
+    }
+  ): Promise<void> {
+    try {
+      await api.post(`/api/usage/streaming/end/${sessionId}/completion`, completionData);
+    } catch (error) {
+      console.error('Error ending streaming session with completion:', error);
       throw error;
     }
   }

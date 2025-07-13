@@ -167,6 +167,18 @@ export class UserProgressService {
         cp.attendanceMarked && cp.attendanceStatus !== 'absent'
       ).length;
 
+      // Debug logging for course completion calculation
+      this.logger.log(`Course Progress Debug for user ${userId}, course ${courseId}:`);
+      this.logger.log(`  - Total classes in course: ${totalClasses}`);
+      this.logger.log(`  - User class progresses found: ${classProgresses.length}`);
+      this.logger.log(`  - Completed classes: ${completedClasses}`);
+      this.logger.log(`  - Completion percentage: ${completionPercentage}%`);
+      
+      // Log individual class progress details
+      classProgresses.forEach((cp, index) => {
+        this.logger.log(`  - Class ${index + 1}: ${cp.class} - ${cp.completed ? 'COMPLETED' : 'NOT COMPLETED'} (${cp.videoWatchPercentage}% watched)`);
+      });
+
       // Calculate video metrics
       const totalVideoMinutes = await this.getTotalVideoMinutesInCourse(courseId);
       const watchedVideoMinutes = classProgresses.reduce((sum, cp) => {
@@ -239,7 +251,21 @@ export class UserProgressService {
         return sum + (playlist.classes?.length || 0);
       }, 0);
 
-      return directClasses + playlistClasses;
+      const totalClasses = directClasses + playlistClasses;
+
+      // Debug logging
+      this.logger.log(`Total Classes Debug for course ${courseId}:`);
+      this.logger.log(`  - Direct classes: ${directClasses}`);
+      this.logger.log(`  - Playlists found: ${playlists.length}`);
+      this.logger.log(`  - Classes in playlists: ${playlistClasses}`);
+      this.logger.log(`  - Total classes: ${totalClasses}`);
+
+      // Log playlist details
+      playlists.forEach((playlist, index) => {
+        this.logger.log(`  - Playlist ${index + 1}: "${playlist.name}" with ${playlist.classes?.length || 0} classes`);
+      });
+
+      return totalClasses;
     } catch (error) {
       this.logger.error(`Error getting total classes for course ${courseId}: ${error.message}`);
       return 0;

@@ -242,9 +242,20 @@ const Navigation: React.FC = () => {
                   </Link>
                 )}
                 {(userRole === 'admin' || userRole === 'ADMIN') && (
-                  <Link href="/admin/payment-management" className={`${styles.navLink} ${isActive('/admin/payment-management')}`}>
-                    Pagos
-                  </Link>
+                  <>
+                    <Link href="/admin/schools" className={`${styles.navLink} ${isActive('/admin/schools')}`}>
+                      🏫 Escuelas
+                    </Link>
+                    <Link href="/admin/subscriptions/list" className={`${styles.navLink} ${isActive('/admin/subscriptions')}`}>
+                      💳 Suscripciones
+                    </Link>
+                    <Link href="/admin/users" className={`${styles.navLink} ${isActive('/admin/users')}`}>
+                      👥 Usuarios
+                    </Link>
+                    <Link href="/admin/bulk-upload" className={`${styles.navLink} ${isActive('/admin/bulk-upload')}`}>
+                      📁 Carga Masiva
+                    </Link>
+                  </>
                 )}
                 <div className={`${styles.dropdown} ${isDropdownOpen ? styles.open : ''}`} ref={dropdownRef}>
                   <button

@@ -40,6 +40,23 @@ export class GamificationIntegrationService {
         },
       });
 
+      // Check if points were already awarded for completing this video (90%+)
+      const userPoints = await this.pointsService.getUserPoints(userId, schoolId);
+      if (userPoints && videoData.watchedPercentage >= 90) {
+        // Check if completion points were already awarded for this specific video
+        const hasCompletionPoints = userPoints.transactions.some(
+          transaction => 
+            transaction.actionType === PointsActionType.VIDEO_WATCH &&
+            transaction.classId === classId &&
+            transaction.metadata?.completionBonus === true
+        );
+
+        if (hasCompletionPoints) {
+          this.logger.log(`Video completion points already awarded for class ${classId}, skipping duplicate award`);
+          return;
+        }
+      }
+
       // Award points for watching video
       let points = 5; // Base points
       let shouldNotify = false;

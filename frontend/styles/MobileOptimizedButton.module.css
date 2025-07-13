@@ -1,0 +1,378 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+  overflow: hidden;
+  touch-action: manipulation;
+  
+  /* Minimum touch target size (44px recommended by Apple) */
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.button:hover::before {
+  opacity: 0.1;
+}
+
+.button.pressed::before {
+  opacity: 0.2;
+}
+
+/* Content wrapper */
+.content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.text {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Icon styles */
+.iconLeft,
+.iconRight {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.iconLeft {
+  margin-right: -0.25rem;
+}
+
+.iconRight {
+  margin-left: -0.25rem;
+}
+
+/* Loading spinner */
+.loadingSpinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Variants */
+.primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.3);
+}
+
+.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.primary.pressed {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.secondary {
+  background: #f8f9fa;
+  color: #495057;
+  border: 1px solid #dee2e6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.secondary:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.secondary.pressed {
+  background: #dee2e6;
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.danger {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(255, 107, 107, 0.3);
+}
+
+.danger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+}
+
+.danger.pressed {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
+}
+
+.success {
+  background: linear-gradient(135deg, #51cf66 0%, #40c057 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(81, 207, 102, 0.3);
+}
+
+.success:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(81, 207, 102, 0.4);
+}
+
+.success.pressed {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(81, 207, 102, 0.3);
+}
+
+.outline {
+  background: transparent;
+  color: #667eea;
+  border: 2px solid #667eea;
+  box-shadow: none;
+}
+
+.outline:hover {
+  background: #667eea;
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.outline.pressed {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.2);
+}
+
+/* Sizes */
+.small {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  min-height: 36px;
+  border-radius: 8px;
+}
+
+.small .content {
+  gap: 0.375rem;
+}
+
+.small .loadingSpinner {
+  width: 16px;
+  height: 16px;
+}
+
+.medium {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  min-height: 44px;
+}
+
+.large {
+  padding: 1rem 2rem;
+  font-size: 1.125rem;
+  min-height: 52px;
+  border-radius: 14px;
+}
+
+.large .content {
+  gap: 0.625rem;
+}
+
+.large .loadingSpinner {
+  width: 24px;
+  height: 24px;
+}
+
+.xl {
+  padding: 1.25rem 2.5rem;
+  font-size: 1.25rem;
+  min-height: 60px;
+  border-radius: 16px;
+}
+
+.xl .content {
+  gap: 0.75rem;
+}
+
+.xl .loadingSpinner {
+  width: 28px;
+  height: 28px;
+}
+
+/* States */
+.fullWidth {
+  width: 100%;
+}
+
+.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.disabled::before {
+  display: none;
+}
+
+.loading {
+  cursor: default;
+  pointer-events: none;
+}
+
+.loading .text {
+  opacity: 0.7;
+}
+
+/* Mobile-specific optimizations */
+@media (max-width: 768px) {
+  .button {
+    /* Larger touch targets on mobile */
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  .small {
+    min-height: 40px;
+    padding: 0.625rem 1.125rem;
+  }
+
+  .medium {
+    min-height: 48px;
+    padding: 0.875rem 1.75rem;
+  }
+
+  .large {
+    min-height: 56px;
+    padding: 1.125rem 2.25rem;
+  }
+
+  .xl {
+    min-height: 64px;
+    padding: 1.375rem 2.75rem;
+  }
+
+  /* Enhanced touch feedback */
+  .button.pressed {
+    transform: scale(0.98);
+  }
+
+  .primary.pressed,
+  .danger.pressed,
+  .success.pressed {
+    filter: brightness(0.9);
+  }
+
+  .secondary.pressed {
+    background: #ced4da;
+  }
+
+  .outline.pressed {
+    background: rgba(102, 126, 234, 0.1);
+  }
+}
+
+@media (max-width: 480px) {
+  .button {
+    /* Even larger touch targets on small screens */
+    min-height: 52px;
+    font-weight: 500;
+  }
+
+  .small {
+    min-height: 44px;
+    font-size: 0.9rem;
+  }
+
+  .medium {
+    min-height: 52px;
+    font-size: 1.05rem;
+  }
+
+  .large {
+    min-height: 60px;
+    font-size: 1.15rem;
+  }
+
+  .xl {
+    min-height: 68px;
+    font-size: 1.3rem;
+  }
+
+  /* Full width buttons are more common on mobile */
+  .fullWidth {
+    margin: 0.25rem 0;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .button {
+    border: 2px solid currentColor;
+  }
+
+  .outline {
+    border-width: 3px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+
+  .button:hover {
+    transform: none;
+  }
+
+  .button.pressed {
+    transform: none;
+  }
+
+  .loadingSpinner {
+    animation: none;
+  }
+} 

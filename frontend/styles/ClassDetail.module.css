@@ -217,6 +217,12 @@
     font-size: var(--text-xl);
     margin-bottom: var(--spacing-4);
   }
+  
+  /* Enhanced mobile video container */
+  .videoContainer {
+    min-height: 60vh;
+    height: auto;
+  }
 
   .details {
     padding: var(--spacing-4);
@@ -224,5 +230,30 @@
 
   .details h2 {
     font-size: var(--text-lg);
+  }
+}
+
+/* Mobile Landscape Optimization */
+@media (max-width: 768px) and (orientation: landscape) {
+  .videoContainer {
+    min-height: 85vh;
+  }
+  
+  .details {
+    padding: 1rem;
+  }
+}
+
+/* Tablet Portrait */
+@media (min-width: 769px) and (max-width: 1024px) and (orientation: portrait) {
+  .videoContainer {
+    min-height: 50vh;
+  }
+}
+
+/* Tablet Landscape */
+@media (min-width: 769px) and (max-width: 1024px) and (orientation: landscape) {
+  .videoContainer {
+    min-height: 60vh;
   }
 } 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import Cookies from 'js-cookie';
@@ -12,6 +12,9 @@ import { canModifyClass, canManageVideos, canManageAttendance } from '../../util
 import { useMediaQuery } from 'react-responsive';
 import PlaylistManager from '../../components/PlaylistManager';
 import VideoPlayerWithTracking from '../../components/VideoPlayerWithTracking';
+import LazyVideoLoader from '../../components/LazyVideoLoader';
+import VideoJSPlayer from '../../components/VideoJSPlayer';
+import SimpleVideoPlayer from '../../components/SimpleVideoPlayer';
 
 interface Course {
   _id: string;
@@ -71,6 +74,7 @@ export default function CourseDetail() {
   const [currentVideoIndex, setCurrentVideoIndex] = useState(-1);
   const [videoStreamUrl, setVideoStreamUrl] = useState<string | null>(null);
   const [videoLoadError, setVideoLoadError] = useState(false);
+  const [useSimplePlayer, setUseSimplePlayer] = useState(false);
   const videoColumnRef = useRef<HTMLDivElement>(null);
   const { handleApiError } = useApiErrorHandler();
 
@@ -607,22 +611,128 @@ export default function CourseDetail() {
                         left: 0,
                         width: "100%"
                       }}>
-                        <p style={{color: "white", marginBottom: "20px"}}>No se pudo cargar el video en el reproductor.</p>
-                        <a 
-                          href={videoStreamUrl || selectedClass.videoUrl} 
-                          target="_blank"
-                          style={{background: "#3182ce", color: "white", padding: "10px 15px", borderRadius: "4px", textDecoration: "none", fontWeight: "bold"}}
+                        <div style={{color: "#e53e3e", fontSize: "48px", marginBottom: "20px"}}>⚠️</div>
+                        <p style={{color: "white", marginBottom: "20px", fontSize: "18px", fontWeight: "bold"}}>Error cargando video</p>
+                        <p style={{color: "#a0aec0", fontSize: "14px", marginBottom: "20px"}}>El reproductor avanzado no pudo cargar el video</p>
+                        
+                        <div style={{display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "center"}}>
+                          <button 
+                            onClick={() => {
+                              console.log('Trying simple player fallback');
+                              setUseSimplePlayer(true);
+                              setVideoLoadError(false);
+                            }}
+                            style={{
+                              background: "#10b981", 
+                              color: "white", 
+                              padding: "10px 15px", 
+                              borderRadius: "4px", 
+                              border: "none",
+                              cursor: "pointer",
+                              fontWeight: "bold"
+                            }}
+                          >
+                            Usar reproductor simple
+                          </button>
+                          
+                          <button 
+                            onClick={() => {
+                              console.log('Retrying advanced player');
+                              setVideoLoadError(false);
+                              setUseSimplePlayer(false);
+                            }}
+                            style={{
+                              background: "#3182ce", 
+                              color: "white", 
+                              padding: "10px 15px", 
+                              borderRadius: "4px", 
+                              border: "none",
+                              cursor: "pointer",
+                              fontWeight: "bold"
+                            }}
+                          >
+                            Reintentar
+                          </button>
+                          
+                          <a 
+                            href={videoStreamUrl || selectedClass.videoUrl} 
+                            target="_blank"
+                            style={{
+                              background: "#6b7280", 
+                              color: "white", 
+                              padding: "10px 15px", 
+                              borderRadius: "4px", 
+                              textDecoration: "none", 
+                              fontWeight: "bold"
+                            }}
+                          >
+                            Abrir en nueva pestaña
+                          </a>
+                        </div>
+                      </div>
+                    ) : useSimplePlayer ? (
+                      <div style={{position: "relative"}}>
+                        <SimpleVideoPlayer
+                          src={videoStreamUrl || selectedClass.videoUrl}
+                          title={selectedClass.title}
+                          poster={selectedClass.thumbnailUrl}
+                          preload="metadata"
+                          crossOrigin="anonymous"
+                          onPlay={() => {
+                            console.log('Simple player: Video started playing:', selectedClass.title);
+                          }}
+                          onTimeUpdate={(currentTime, duration) => {
+                            if (duration > 0) {
+                              const progress = (currentTime / duration) * 100;
+                              console.log(`Simple player: Video progress: ${progress.toFixed(1)}%`);
+                            }
+                          }}
+                          onError={(error) => {
+                            console.error('Simple player: Video playback error:', error);
+                            setVideoLoadError(true);
+                          }}
+                        />
+                        <div style={{
+                          position: "absolute",
+                          top: "8px",
+                          right: "8px",
+                          background: "rgba(0, 0, 0, 0.7)",
+                          color: "white",
+                          padding: "4px 8px",
+                          borderRadius: "4px",
+                          fontSize: "12px"
+                        }}>
+                          Reproductor Simple
+                        </div>
+                        <button
+                          onClick={() => {
+                            console.log('Switching back to advanced player');
+                            setUseSimplePlayer(false);
+                            setVideoLoadError(false);
+                          }}
+                          style={{
+                            position: "absolute",
+                            bottom: "8px",
+                            right: "8px",
+                            background: "rgba(0, 0, 0, 0.7)",
+                            color: "white",
+                            border: "none",
+                            padding: "4px 8px",
+                            borderRadius: "4px",
+                            fontSize: "12px",
+                            cursor: "pointer"
+                          }}
                         >
-                          Abrir video en nueva pestaña
-                        </a>
+                          Usar reproductor avanzado
+                        </button>
                       </div>
                     ) : (
                       <VideoPlayerWithTracking
                         url={videoStreamUrl || selectedClass.videoUrl}
                         title={selectedClass.title}
                         classId={selectedClass._id}
-                        courseId={course?._id}
-                        schoolId={course?.school._id}
+                        courseId={course._id}
+                        schoolId={course.school._id}
                         allowDownload={false}
                       />
                     )

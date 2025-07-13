@@ -626,15 +626,9 @@ export default function IntegratedAttendancePage() {
               <Link href={`/course/attendance/stats/${selectedCourse}`} className={styles.link}>
                 Ver Estadísticas de Asistencia
               </Link>
-              {currentUser?.role === 'admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'school_owner' ? (
-                <Link href={`/admin/payment-management`} className={styles.link}>
-                  Gestionar Pagos
-                </Link>
-              ) : (
-                <Link href={`/teacher/payment-status`} className={styles.link}>
-                  Ver Estado de Pagos
-                </Link>
-              )}
+              <Link href={`/teacher/payment-status`} className={styles.link}>
+                Ver Estado de Pagos
+              </Link>
             </div>
           )}
         </main>

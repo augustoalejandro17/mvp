@@ -743,6 +743,15 @@
     margin-bottom: 1.5rem;
   }
 
+  /* Enhanced mobile video container */
+  .videoContainer {
+    /* Remove fixed aspect ratio for mobile to allow dynamic sizing */
+    padding-top: 0;
+    height: auto;
+    min-height: 60vh;
+    position: relative;
+  }
+
   .createButton, .deleteButton, .addButton, .editButton, .attendanceButton {
     width: 100%;
   }
@@ -763,6 +772,35 @@
     width: 100%;
     justify-content: flex-end;
     min-width: auto;
+  }
+}
+
+/* Mobile Landscape Optimization */
+@media (max-width: 768px) and (orientation: landscape) {
+  .videoContainer {
+    min-height: 85vh;
+  }
+  
+  .videoColumn {
+    margin-bottom: 1rem;
+  }
+  
+  .classDetails {
+    padding: 1rem;
+  }
+}
+
+/* Tablet Portrait */
+@media (min-width: 769px) and (max-width: 1024px) and (orientation: portrait) {
+  .videoContainer {
+    min-height: 50vh;
+  }
+}
+
+/* Tablet Landscape */
+@media (min-width: 769px) and (max-width: 1024px) and (orientation: landscape) {
+  .videoContainer {
+    min-height: 60vh;
   }
 }
 

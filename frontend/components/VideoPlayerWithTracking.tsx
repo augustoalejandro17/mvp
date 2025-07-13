@@ -192,9 +192,30 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
       }
       
       const sessionDuration = startTime ? (Date.now() - startTime) / 1000 : 0; // Duration in seconds
-      console.log(`Ending session: ${currentTime.toFixed(1)}s/${duration.toFixed(1)}s watched, ${finalBytesTransferred} bytes transferred, session lasted ${sessionDuration.toFixed(1)}s`);
+      const watchedPercentage = duration > 0 ? Math.round((currentTime / duration) * 100) : 0;
       
-      await UsageTrackingService.endStreamingSession(sessionId, finalBytesTransferred);
+      console.log(`Ending session: ${currentTime.toFixed(1)}s/${duration.toFixed(1)}s watched (${watchedPercentage}%), ${finalBytesTransferred} bytes transferred, session lasted ${sessionDuration.toFixed(1)}s`);
+      
+      // Check if we have course and class info for gamification
+      if (courseId && classId && title && watchedPercentage > 0) {
+        try {
+          // Call the completion endpoint with gamification tracking
+          await UsageTrackingService.endStreamingSessionWithCompletion(sessionId, {
+            watchedPercentage,
+            videoDuration: duration,
+            videoTitle: title,
+            bytesTransferred: finalBytesTransferred
+          });
+          console.log(`Gamification tracking completed: ${watchedPercentage}% watched of "${title}"`);
+        } catch (error) {
+          console.error('Error with gamification tracking:', error);
+          // Fallback to regular session end
+          await UsageTrackingService.endStreamingSession(sessionId, finalBytesTransferred);
+        }
+      } else {
+        // Regular session end without gamification
+        await UsageTrackingService.endStreamingSession(sessionId, finalBytesTransferred);
+      }
 
       setSessionId(null);
       setStartTime(null);
@@ -203,7 +224,7 @@ const VideoPlayerWithTracking: React.FC<VideoPlayerWithTrackingProps> = ({
     } catch (error) {
       console.error('Error ending streaming session:', error);
     }
-  }, [sessionId]);
+  }, [sessionId, courseId, classId, title]);
 
   // Calculate bytes transferred based on actual video properties
   const updateBytesTransferred = useCallback(() => {
