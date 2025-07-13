@@ -338,9 +338,16 @@ export class LeaderboardService {
       isActive: true,
     };
 
-    if (filters.schoolId) query.school = filters.schoolId;
-    if (filters.courseId) query.course = filters.courseId;
-    if (filters.category) query.category = filters.category;
+    // Validate ObjectIds before using them
+    if (filters.schoolId && Types.ObjectId.isValid(filters.schoolId)) {
+      query.school = filters.schoolId;
+    }
+    if (filters.courseId && Types.ObjectId.isValid(filters.courseId)) {
+      query.course = filters.courseId;
+    }
+    if (filters.category) {
+      query.category = filters.category;
+    }
 
     return this.leaderboardModel.findOne(query).exec();
   }
@@ -353,13 +360,17 @@ export class LeaderboardService {
   ): Promise<void> {
     const { startDate, endDate } = this.getPeriodRange(period);
 
+    // Validate ObjectIds before using them
+    const schoolId = filters.schoolId && Types.ObjectId.isValid(filters.schoolId) ? filters.schoolId : undefined;
+    const courseId = filters.courseId && Types.ObjectId.isValid(filters.courseId) ? filters.courseId : undefined;
+
     const leaderboardData = {
       type,
       period,
       periodStart: startDate,
       periodEnd: endDate,
-      school: filters.schoolId,
-      course: filters.courseId,
+      school: schoolId,
+      course: courseId,
       category: filters.category,
       entries,
       totalParticipants: entries.length,
@@ -373,8 +384,8 @@ export class LeaderboardService {
         period,
         periodStart: startDate,
         periodEnd: endDate,
-        school: filters.schoolId,
-        course: filters.courseId,
+        school: schoolId,
+        course: courseId,
         category: filters.category,
       },
       leaderboardData,
@@ -411,28 +422,58 @@ export class LeaderboardService {
   }
 
   private async updateAllLeaderboards(period: LeaderboardPeriod): Promise<void> {
-    const schools = await this.userPointsModel.distinct('school').exec();
+    try {
+      const schools = await this.userPointsModel.distinct('school').exec();
 
-    for (const schoolId of schools) {
-      // Update school leaderboards
-      await this.generateLeaderboard(LeaderboardType.SCHOOL, period, {
-        schoolId: schoolId.toString(),
-      });
+      for (const schoolId of schools) {
+        // Validate school ID
+        if (!Types.ObjectId.isValid(schoolId)) {
+          this.logger.warn(`Invalid school ID skipped: ${schoolId}`);
+          continue;
+        }
 
-      // Update course leaderboards for this school
-      const courses = await this.userPointsModel.distinct('coursePoints', { school: schoolId }).exec();
-      
-      for (const courseId of Object.keys(courses)) {
-        await this.generateLeaderboard(LeaderboardType.COURSE, period, {
-          courseId,
+        // Update school leaderboards
+        await this.generateLeaderboard(LeaderboardType.SCHOOL, period, {
+          schoolId: schoolId.toString(),
         });
+
+        // Update course leaderboards for this school
+        const userPointsWithCourses = await this.userPointsModel
+          .find({ school: schoolId })
+          .select('coursePoints')
+          .exec();
+        
+        const courseIds = new Set<string>();
+        
+        for (const userPoints of userPointsWithCourses) {
+          if (userPoints.coursePoints) {
+            for (const courseId of userPoints.coursePoints.keys()) {
+              // Only add valid ObjectIds and skip "0", null, undefined
+              if (courseId && courseId !== "0" && Types.ObjectId.isValid(courseId)) {
+                courseIds.add(courseId);
+              }
+            }
+          }
+        }
+        
+        for (const courseId of courseIds) {
+          try {
+            await this.generateLeaderboard(LeaderboardType.COURSE, period, {
+              courseId,
+            });
+          } catch (error) {
+            this.logger.error(`Error updating course leaderboard for course ${courseId}:`, error.message);
+          }
+        }
       }
+
+      // Update global leaderboard
+      await this.generateLeaderboard(LeaderboardType.GLOBAL, period, {});
+
+      this.logger.log(`Updated ${period} leaderboards`);
+    } catch (error) {
+      this.logger.error(`Error updating ${period} leaderboards:`, error.message);
     }
-
-    // Update global leaderboard
-    await this.generateLeaderboard(LeaderboardType.GLOBAL, period, {});
-
-    this.logger.log(`Updated ${period} leaderboards`);
   }
 
   private async getFirstRegisteredUsers(limit: number = 20): Promise<LeaderboardEntry[]> {
@@ -461,11 +502,11 @@ export class LeaderboardService {
           level: userPoint.level || 1,
           rank: i + 1,
           previousRank: undefined,
-          badges: await this.getUserBadgeCount(user._id.toString()),
-          streak: userPoint.streak || 0,
+          badges: 0,
+          streak: 0,
           lastActivity: userPoint.lastActivityDate || user.createdAt,
           isActive: user.isActive,
-          specialTitles: userPoint.specialTitles || [],
+          specialTitles: [],
           rankChange: 0,
         };
 

@@ -100,14 +100,28 @@ const getRealCourseProgress = async (course: any, userId: string): Promise<numbe
     const response = await fetch(`${apiUrl}/api/progress/public/course/${course._id}/user/${userId}`);
     
     if (response.ok) {
-      const progressData = await response.json();
-      if (progressData && progressData.completionPercentage !== undefined) {
-        return progressData.completionPercentage;
+      // Check if response is actually JSON
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const progressData = await response.json();
+          if (progressData && progressData.completionPercentage !== undefined) {
+            return progressData.completionPercentage;
+          }
+        } catch (jsonError) {
+          console.error('JSON parsing error for course progress:', jsonError);
+          // Try to get response as text to see what we actually received
+          const responseText = await response.text();
+          console.error('Response text:', responseText);
+        }
+      } else {
+        console.log('Response is not JSON for course:', course._id);
       }
+    } else {
+      console.log('Progress API failed with status:', response.status, 'for course:', course._id, 'user:', userId);
     }
     
     // If API fails, return 0% instead of simulated progress
-    console.log('Progress API failed for course:', course._id, 'user:', userId);
     return 0;
   } catch (error) {
     console.error('Error fetching real course progress:', error);
