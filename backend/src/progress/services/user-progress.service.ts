@@ -243,22 +243,31 @@ export class UserProgressService {
     try {
       // Get direct classes
       const course = await this.courseModel.findById(courseId).populate('classes');
-      const directClasses = course?.classes?.length || 0;
+      const directClassIds = course?.classes?.map((c: any) => c._id) || [];
 
       // Get playlist classes
       const playlists = await this.playlistModel.find({ course: new Types.ObjectId(courseId) });
-      const playlistClasses = playlists.reduce((sum, playlist) => {
-        return sum + (playlist.classes?.length || 0);
-      }, 0);
+      const playlistClassIds = playlists.reduce((acc: any[], playlist) => {
+        return acc.concat(playlist.classes || []);
+      }, []);
 
-      const totalClasses = directClasses + playlistClasses;
+      // Combine all class IDs (direct + playlists)
+      const allClassIds = [...directClassIds, ...playlistClassIds];
+
+      // Only count classes that are active and public (matching UI)
+      const filteredClasses = await this.classModel.find({
+        _id: { $in: allClassIds },
+        isActive: true,
+      });
+
+      const totalClasses = filteredClasses.length;
 
       // Debug logging
       this.logger.log(`Total Classes Debug for course ${courseId}:`);
-      this.logger.log(`  - Direct classes: ${directClasses}`);
+      this.logger.log(`  - Direct classes: ${directClassIds.length}`);
       this.logger.log(`  - Playlists found: ${playlists.length}`);
-      this.logger.log(`  - Classes in playlists: ${playlistClasses}`);
-      this.logger.log(`  - Total classes: ${totalClasses}`);
+      this.logger.log(`  - Classes in playlists: ${playlistClassIds.length}`);
+      this.logger.log(`  - Filtered (active+public) classes: ${totalClasses}`);
 
       // Log playlist details
       playlists.forEach((playlist, index) => {
