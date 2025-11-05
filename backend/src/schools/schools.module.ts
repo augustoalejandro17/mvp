@@ -5,7 +5,7 @@ import { SchoolsService } from './schools.service';
 import { School, SchoolSchema } from './schemas/school.schema';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
-import { User, UserSchema } from '../users/schemas/user.schema';
+import { User, UserSchema } from '../auth/schemas/user.schema';
 import { PlansModule } from '../plans/plans.module';
 import { PlanLimitsMiddleware } from './middleware/plan-limits.middleware';
 

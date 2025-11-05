@@ -1,0 +1,94 @@
+{
+  "thresholds": {
+    "timing_ms_ok": 80,
+    "timing_ms_bad": 150,
+    "posture_deg_ok": 5,
+    "posture_deg_bad": 10,
+    "hip_amp_low": 3,
+    "smoothness_ok": 0.7
+  },
+  "rules": [
+    {
+      "when": { "timing.mean_ms_gt": 150 },
+      "feedback": "You're ~{{timing.mean_ms}}ms off-beat ({{timing.sign}}). Start with a metronome at {{suggested_bpm}} BPM.",
+      "drill": { 
+        "title": "1-2-3-tap with metronome", 
+        "durationSec": 60, 
+        "how": "Mark a micro-pause on 2/4. Focus on hitting each beat precisely." 
+      }
+    },
+    {
+      "when": { "timing.mean_ms_gt": 80, "timing.mean_ms_lte": 150 },
+      "feedback": "Your timing needs refinement (~{{timing.mean_ms}}ms {{timing.sign}}). Practice with clearer beat emphasis.",
+      "drill": { 
+        "title": "Beat emphasis practice", 
+        "durationSec": 45, 
+        "how": "Emphasize beats 1 and 3 with slight weight shifts." 
+      }
+    },
+    {
+      "when": { "weight.transfer_ratio_lt": 0.6 },
+      "feedback": "You remain in double support too long ({{weight.transfer_ratio}}% clear transfers). Shift weight before the next beat.",
+      "drill": { 
+        "title": "Side step + pause", 
+        "durationSec": 60, 
+        "how": "Exaggerate hip movement on 2/4 over the support foot." 
+      }
+    },
+    {
+      "when": { "posture.deg_gt": 10 },
+      "feedback": "Torso tilted {{posture.deg}}°. Lift sternum and engage lats.",
+      "drill": { 
+        "title": "Wall + chest up", 
+        "durationSec": 45, 
+        "how": "Touch wall with back of head and lower back; breathe keeping chest up." 
+      }
+    },
+    {
+      "when": { "posture.deg_gt": 5, "posture.deg_lte": 10 },
+      "feedback": "Watch your posture - slight lean of {{posture.deg}}°. Keep your spine neutral.",
+      "drill": { 
+        "title": "Posture awareness", 
+        "durationSec": 30, 
+        "how": "Practice basic steps while imagining a string pulling your head up." 
+      }
+    },
+    {
+      "when": { "hips.amp_deg_lt": 3 },
+      "feedback": "Hip movement is minimal ({{hips.amp_deg}}°). Bachata is about hip isolation!",
+      "drill": { 
+        "title": "Hip figure-eight", 
+        "durationSec": 60, 
+        "how": "Stand in front of mirror and practice figure-eight hip movements. Focus on isolating hips from torso." 
+      }
+    },
+    {
+      "when": { "hips.amp_deg_lt": 6, "hips.amp_deg_gte": 3 },
+      "feedback": "Increase your hip amplitude ({{hips.amp_deg}}°). Let your hips lead the movement.",
+      "drill": { 
+        "title": "Hip isolation practice", 
+        "durationSec": 45, 
+        "how": "Side steps with exaggerated hip drops on each weight transfer." 
+      }
+    },
+    {
+      "when": { "arms.smoothness_lt": 0.5 },
+      "feedback": "Your arm movement is rigid ({{arms.smoothness}} smoothness). Focus on flowing and connecting your whole body.",
+      "drill": { 
+        "title": "Floating arms", 
+        "durationSec": 45, 
+        "how": "Keep arms 10-15cm from torso and let them flow naturally with body movement." 
+      }
+    },
+    {
+      "when": { "arms.smoothness_lt": 0.7, "arms.smoothness_gte": 0.5 },
+      "feedback": "Try to make your arm movements more fluid ({{arms.smoothness}} smoothness).",
+      "drill": { 
+        "title": "Arm flow practice", 
+        "durationSec": 30, 
+        "how": "Practice arm movements separately, focusing on smooth transitions." 
+      }
+    }
+  ],
+  "pickTop": 3
+}

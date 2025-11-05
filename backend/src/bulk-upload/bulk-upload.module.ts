@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { BulkUploadController } from './bulk-upload.controller';
 import { BulkUploadService } from './bulk-upload.service';
-import { User, UserSchema } from '../users/schemas/user.schema';
+import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
 import { School, SchoolSchema } from '../schools/schemas/school.schema';
 import { UsersModule } from '../users/users.module';

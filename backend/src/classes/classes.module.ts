@@ -13,7 +13,7 @@ import {
 import { AuthModule } from '../auth/auth.module';
 import { CoursesModule } from '../courses/courses.module';
 import { UsersModule } from '../users/users.module';
-import { User, UserSchema } from '../users/schemas/user.schema';
+import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
 import { ServicesModule } from '../services/services.module';
 import {

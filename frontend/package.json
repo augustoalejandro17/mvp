@@ -34,7 +34,9 @@
     "react-responsive": "^10.0.1",
     "recharts": "^2.15.4",
     "video.js": "^8.23.3",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "@mediapipe/tasks-vision": "^0.10.8",
+    "meyda": "^5.5.1"
   },
   "devDependencies": {
     "@types/js-cookie": "^3.0.5",

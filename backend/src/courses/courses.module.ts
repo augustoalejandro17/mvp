@@ -12,7 +12,7 @@ import { CourseScheduleController } from './course-schedule.controller';
 import { AuthModule } from '../auth/auth.module';
 import { SchoolsModule } from '../schools/schools.module';
 import { UsersModule } from '../users/users.module';
-import { User, UserSchema } from '../users/schemas/user.schema';
+import { User, UserSchema } from '../auth/schemas/user.schema';
 import { School, SchoolSchema } from '../schools/schemas/school.schema';
 import { Enrollment, EnrollmentSchema } from './schemas/enrollment.schema';
 import { EnrollmentsController } from './enrollments.controller';

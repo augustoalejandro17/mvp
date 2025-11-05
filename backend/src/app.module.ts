@@ -23,6 +23,9 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { VideosModule } from './videos/videos.module';
 import { GamificationModule } from './gamification/gamification.module';
 import { ProgressModule } from './progress/progress.module';
+import { AnalysisModule } from './analysis/analysis.module';
+import { CoachModule } from './coach/coach.module';
+import { DatabaseModule } from './db/db.module';
 import awsConfig from './config/aws.config';
 import { S3Service } from './services/s3.service';
 import { CloudFrontService } from './services/cloudfront.service';
@@ -53,6 +56,7 @@ import { MigrationService } from './migrations/migration.service';
       load: [awsConfig],
     }),
     ScheduleModule.forRoot(),
+    DatabaseModule,
     MongooseModule.forRoot(process.env.MONGODB_URI, {
       // Connection pool settings
       maxPoolSize: 10,
@@ -101,6 +105,8 @@ import { MigrationService } from './migrations/migration.service';
     VideosModule,
     GamificationModule,
     ProgressModule,
+    AnalysisModule,
+    CoachModule,
   ],
   controllers: [
     AppController,

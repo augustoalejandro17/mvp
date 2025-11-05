@@ -39,14 +39,13 @@ RUN apk add --no-cache \
 
 WORKDIR /usr/src/app
 
-# Copy package files
+# Copy package files and built application from builder stage
 COPY package*.json ./
-
-# Install only production dependencies
-RUN npm ci --only=production
-
-# Copy built application from the builder stage
 COPY --from=builder /usr/src/app/dist ./dist
+COPY --from=builder /usr/src/app/node_modules ./node_modules
+
+# Remove devDependencies to reduce image size
+RUN npm prune --production
 
 # Install node-pre-gyp globally and rebuild bcrypt for the target architecture
 RUN npm install -g node-pre-gyp && npm rebuild bcrypt --build-from-source
