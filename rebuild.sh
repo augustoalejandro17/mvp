@@ -8,12 +8,12 @@ if ! docker info > /dev/null 2>&1; then
   exit 1
 fi
 
-# Generar archivo .env.local para frontend con valores de desarrollo
+# Generar archivo .env.local para web-admin con valores de desarrollo
 echo "📝 Generando variables de entorno para desarrollo local..."
-cat > ./frontend/.env.local << EOL
+cat > ./apps/web-admin/.env.local << EOL
 NEXT_PUBLIC_API_URL=http://localhost:4000
 EOL
-echo "✅ Archivo .env.local creado para frontend."
+echo "✅ Archivo .env.local creado para web-admin."
 
 echo "🛑 Deteniendo contenedores actuales..."
 docker compose down

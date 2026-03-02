@@ -1,6 +1,6 @@
 services:
   backend:
-    build: ./backend
+    build: ./apps/api
     container_name: backend
     ports:
       - "${PORT:-4000}:4000"
@@ -24,7 +24,7 @@ services:
 
   frontend:
     build: 
-      context: ./frontend
+      context: ./apps/web-admin
       args:
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     container_name: frontend

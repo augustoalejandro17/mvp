@@ -1,0 +1,119 @@
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { Request } from 'express';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { UserRole } from '../auth/schemas/user.schema';
+import { ContentReportsService } from './content-reports.service';
+import { CreateContentReportDto } from './dto/create-content-report.dto';
+import { UpdateContentReportStatusDto } from './dto/update-content-report-status.dto';
+import {
+  ReportContentType,
+  ReportStatus,
+} from './schemas/content-report.schema';
+
+@Controller('content-reports')
+export class ContentReportsController {
+  constructor(private readonly contentReportsService: ContentReportsService) {}
+
+  @Post()
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async createReport(
+    @Req() req: Request,
+    @Body() dto: CreateContentReportDto,
+  ) {
+    const reporterId = req.user['sub'] || req.user['_id'];
+    const report = await this.contentReportsService.createReport(reporterId, dto);
+
+    return {
+      success: true,
+      message: 'Denuncia enviada. Nuestro equipo la revisará pronto.',
+      report,
+    };
+  }
+
+  @Get('mine')
+  @UseGuards(JwtAuthGuard)
+  async getMyReports(
+    @Req() req: Request,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '20',
+  ) {
+    const reporterId = req.user['sub'] || req.user['_id'];
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 20;
+    const { reports, total } = await this.contentReportsService.getMyReports(
+      reporterId,
+      pageNum,
+      limitNum,
+    );
+
+    return {
+      reports,
+      total,
+      currentPage: pageNum,
+      totalPages: Math.ceil(total / Math.max(limitNum, 1)),
+    };
+  }
+
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SCHOOL_OWNER)
+  async getAllReports(
+    @Query('status') status?: ReportStatus,
+    @Query('contentType') contentType?: ReportContentType,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '20',
+  ) {
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 20;
+    const { reports, total } = await this.contentReportsService.getAllReports({
+      status,
+      contentType,
+      page: pageNum,
+      limit: limitNum,
+    });
+
+    return {
+      reports,
+      total,
+      currentPage: pageNum,
+      totalPages: Math.ceil(total / Math.max(limitNum, 1)),
+    };
+  }
+
+  @Patch(':id/status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SCHOOL_OWNER)
+  async updateReportStatus(
+    @Req() req: Request,
+    @Param('id') reportId: string,
+    @Body() dto: UpdateContentReportStatusDto,
+  ) {
+    const reviewerId = req.user['sub'] || req.user['_id'];
+    const report = await this.contentReportsService.updateReportStatus(
+      reportId,
+      reviewerId,
+      dto,
+    );
+
+    return {
+      success: true,
+      message: 'Estado de denuncia actualizado',
+      report,
+    };
+  }
+}

@@ -38,6 +38,8 @@ Thumbs.db
 *.swo
 .tmp/
 .temp/
+*.pem
+*.key
 
 # Cachés
 .npm
@@ -62,6 +64,18 @@ coverage/
 .docker/
 data/
 mongodb/ 
-frontend/.env.production
-package-lock.json
-backend/package-lock.json
+
+# Archivos específicos de aplicaciones
+apps/web-admin/.env.production
+apps/api/.env.production
+
+# TurboRepo
+.turbo/
+
+# TypeScript
+*.tsbuildinfo
+.tsbuildinfo
+
+# Expo (para mobile-app futuro)
+apps/mobile-app/.expo/
+apps/mobile-app/expo-env.d.ts

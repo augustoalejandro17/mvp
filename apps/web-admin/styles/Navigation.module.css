@@ -1,0 +1,280 @@
+.navbar {
+  background-color: var(--bg-primary, #ffffff);
+  box-shadow: var(--shadow-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-fixed, 300);
+  height: 72px;
+  display: flex;
+  align-items: center;
+  transition: box-shadow var(--transition-fast, 150ms ease);
+}
+
+/* Add shadow on scroll */
+.navbar.scrolled {
+  box-shadow: var(--shadow-md, 0 4px 6px -1px rgba(0, 0, 0, 0.1));
+}
+
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-6, 1.5rem);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Brand */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 0.5rem);
+  text-decoration: none;
+  color: var(--text-primary, #111827);
+  transition: opacity var(--transition-fast, 150ms ease);
+}
+
+.brand:hover {
+  opacity: 0.85;
+}
+
+.brandName {
+  font-size: 1.75rem;
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--color-primary-500, #f59e0b);
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.brandSubtitle {
+  font-size: var(--font-size-xs, 0.75rem);
+  color: var(--text-secondary, #6b7280);
+  letter-spacing: 0.05em;
+}
+
+/* Navigation Menu */
+.navMenu {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 0.75rem);
+}
+
+.navLinks {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 0.75rem);
+  height: 100%;
+}
+
+/* Nav Link */
+.navLink {
+  text-decoration: none;
+  color: var(--text-secondary, #6b7280);
+  font-weight: var(--font-weight-medium, 500);
+  font-size: var(--font-size-sm, 0.875rem);
+  padding: var(--spacing-2, 0.5rem) var(--spacing-3, 0.75rem);
+  border-radius: var(--radius-lg, 0.5rem);
+  transition: all var(--transition-fast, 150ms ease);
+  position: relative;
+  white-space: nowrap;
+}
+
+.navLink:hover {
+  color: var(--text-primary, #111827);
+  background-color: var(--bg-secondary, #f9fafb);
+}
+
+.navLink.active {
+  color: var(--color-primary-600, #d97706);
+  background-color: var(--color-primary-50, #fffbeb);
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+/* Admin Link */
+.adminLink {
+  background-color: var(--color-primary-500, #f59e0b);
+  color: var(--text-inverse, #ffffff) !important;
+  padding: var(--spacing-2, 0.5rem) var(--spacing-4, 1rem);
+  border-radius: var(--radius-lg, 0.5rem);
+  font-weight: var(--font-weight-medium, 500);
+  box-shadow: var(--shadow-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
+  transition: all var(--transition-fast, 150ms ease);
+}
+
+.adminLink:hover {
+  background-color: var(--color-primary-600, #d97706);
+  color: var(--text-inverse, #ffffff) !important;
+  transform: translateY(-1px);
+}
+
+.adminLink.active {
+  background-color: var(--color-primary-700, #b45309);
+  color: var(--text-inverse, #ffffff) !important;
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+/* Dropdown */
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdownButton {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 0.5rem);
+  padding: var(--spacing-2, 0.5rem) var(--spacing-3, 0.75rem);
+  background: none;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-lg, 0.5rem);
+  color: var(--text-secondary, #6b7280);
+  font-weight: var(--font-weight-medium, 500);
+  font-size: var(--font-size-sm, 0.875rem);
+  cursor: pointer;
+  transition: all var(--transition-fast, 150ms ease);
+  white-space: nowrap;
+}
+
+.dropdownButton:hover {
+  color: var(--text-primary, #111827);
+  background-color: var(--bg-secondary, #f9fafb);
+  border-color: var(--border-secondary, #d1d5db);
+}
+
+.dropdownButton::after {
+  content: '';
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 4px solid currentColor;
+  transition: transform var(--transition-fast, 150ms ease);
+}
+
+.dropdown.open .dropdownButton {
+  background-color: var(--bg-secondary, #f9fafb);
+  border-color: var(--border-secondary, #d1d5db);
+}
+
+.dropdown.open .dropdownButton::after {
+  transform: rotate(180deg);
+}
+
+/* Dropdown Content */
+.dropdownContent {
+  position: absolute;
+  top: calc(100% + var(--spacing-2, 0.5rem));
+  right: 0;
+  background-color: var(--bg-primary, #ffffff);
+  border-radius: var(--radius-xl, 0.75rem);
+  box-shadow: var(--shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.1));
+  min-width: 200px;
+  padding: var(--spacing-2, 0.5rem);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
+  transition: all var(--transition-fast, 150ms ease);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  z-index: var(--z-dropdown, 100);
+}
+
+.dropdown.open .dropdownContent {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.dropdownItem {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 0.75rem);
+  width: 100%;
+  padding: var(--spacing-3, 0.75rem) var(--spacing-4, 1rem);
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius-lg, 0.5rem);
+  color: var(--text-secondary, #6b7280);
+  font-weight: var(--font-weight-medium, 500);
+  font-size: var(--font-size-sm, 0.875rem);
+  cursor: pointer;
+  transition: all var(--transition-fast, 150ms ease);
+  text-decoration: none;
+}
+
+.dropdownItem:hover {
+  background-color: var(--bg-secondary, #f9fafb);
+  color: var(--text-primary, #111827);
+}
+
+/* Danger variant for logout */
+.dropdownItem:last-child {
+  color: var(--color-error-600, #dc2626);
+  margin-top: var(--spacing-1, 0.25rem);
+  border-top: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 0 0 var(--radius-lg, 0.5rem) var(--radius-lg, 0.5rem);
+}
+
+.dropdownItem:last-child:hover {
+  background-color: var(--color-error-50, #fef2f2);
+  color: var(--color-error-700, #b91c1c);
+}
+
+/* Body padding helper class */
+.bodyPadding {
+  padding-top: 72px;
+}
+
+.pageContent {
+  margin-top: 72px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .navbar {
+    height: 64px;
+  }
+  
+  .container {
+    padding: 0 var(--spacing-4, 1rem);
+  }
+  
+  .brandName {
+    font-size: 1.5rem;
+  }
+  
+  .navMenu {
+    gap: var(--spacing-2, 0.5rem);
+  }
+  
+  .navLinks {
+    gap: var(--spacing-2, 0.5rem);
+  }
+  
+  .dropdownButton {
+    padding: var(--spacing-2, 0.5rem) var(--spacing-3, 0.75rem);
+    font-size: var(--font-size-sm, 0.875rem);
+  }
+  
+  .pageContent {
+    margin-top: 64px;
+  }
+  
+  .bodyPadding {
+    padding-top: 64px;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 0 var(--spacing-3, 0.75rem);
+  }
+  
+  .brandName {
+    font-size: 1.375rem;
+  }
+}

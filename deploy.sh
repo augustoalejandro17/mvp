@@ -28,7 +28,7 @@ FRONTEND_URL="https://intihubs.com"
 
 # Generar archivo .env.production para frontend
 echo "📝 Generando variables de entorno para producción..."
-cat > ./frontend/.env.production << EOL
+cat > ./apps/web-admin/.env.production << EOL
 NEXT_PUBLIC_API_URL=${BACKEND_URL}
 EOL
 echo "✅ Archivo .env.production creado para frontend."
@@ -58,17 +58,17 @@ echo "⚡ Nota: Usando cache de Docker para acelerar builds. Use --no-cache solo
 # Build all images in parallel (background processes)
 echo "🔄 Construyendo backend..."
 if [ "$VERBOSE" = true ]; then
-    docker buildx build --platform linux/amd64 -t mvp-backend:latest ./backend --load &
+    docker buildx build --platform linux/amd64 -t mvp-backend:latest ./apps/api --load &
 else
-    docker buildx build --platform linux/amd64 -t mvp-backend:latest ./backend --load --quiet > /tmp/backend_build.log 2>&1 &
+    docker buildx build --platform linux/amd64 -t mvp-backend:latest ./apps/api --load --quiet > /tmp/backend_build.log 2>&1 &
 fi
 BACKEND_PID=$!
 
 echo "🔄 Construyendo frontend con NEXT_PUBLIC_API_URL=${BACKEND_URL}..."
 if [ "$VERBOSE" = true ]; then
-    docker buildx build --platform linux/amd64 --build-arg NEXT_PUBLIC_API_URL="${BACKEND_URL}" -t mvp-frontend:latest ./frontend --load &
+    docker buildx build --platform linux/amd64 --build-arg NEXT_PUBLIC_API_URL="${BACKEND_URL}" -t mvp-frontend:latest ./apps/web-admin --load &
 else
-    docker buildx build --platform linux/amd64 --build-arg NEXT_PUBLIC_API_URL="${BACKEND_URL}" -t mvp-frontend:latest ./frontend --load --quiet > /tmp/frontend_build.log 2>&1 &
+    docker buildx build --platform linux/amd64 --build-arg NEXT_PUBLIC_API_URL="${BACKEND_URL}" -t mvp-frontend:latest ./apps/web-admin --load --quiet > /tmp/frontend_build.log 2>&1 &
 fi
 FRONTEND_PID=$!
 

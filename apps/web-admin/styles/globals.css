@@ -1,0 +1,117 @@
+/* Global bridge for legacy pages + unified app shell */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  padding-top: 80px;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at -10% -15%, rgba(245, 158, 11, 0.16), transparent 38%),
+    radial-gradient(circle at 108% 28%, rgba(37, 99, 235, 0.1), transparent 34%),
+    var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+@media (max-width: 768px) {
+  body {
+    padding-top: 70px;
+  }
+}
+
+#__next {
+  min-height: 100vh;
+}
+
+.page-content {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px;
+  min-height: calc(100vh - 120px);
+}
+
+@media (max-width: 768px) {
+  .page-content {
+    padding: 12px;
+  }
+}
+
+/* Keep links/buttons/inputs consistent for pages with custom CSS modules */
+a {
+  color: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* Reusable compatibility classes used across older pages */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: none;
+  border-radius: 10px;
+  padding: 0.7rem 1rem;
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.button:hover {
+  filter: brightness(0.97);
+  transform: translateY(-1px);
+}
+
+.button.secondary {
+  background: #f9fafb;
+  border: 1px solid #d1d5db;
+  color: #1f2937;
+}
+
+.accent {
+  color: var(--color-primary-600);
+}
+
+.success {
+  color: var(--color-success-600);
+}
+
+.warning {
+  color: var(--color-warning-600);
+}
+
+.error {
+  color: var(--color-error-600);
+}
+
+.info {
+  color: var(--color-info-600);
+}
+
+.text-error {
+  color: var(--color-error-600);
+}
+
+.text-success {
+  color: var(--color-success-600);
+}
+
+.text-warning {
+  color: var(--color-warning-600);
+}

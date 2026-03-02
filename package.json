@@ -1,20 +1,46 @@
 {
-  "dependencies": {
-    "@faker-js/faker": "^8.3.1",
-    "@ffmpeg-installer/ffmpeg": "^1.1.0",
-    "@nestjs/mapped-types": "^2.1.0",
-    "aws-sdk": "^2.1692.0",
-    "axios": "^1.6.0",
-    "chart.js": "^4.4.9",
-    "date-fns-tz": "^3.2.0",
-    "dotenv": "^16.5.0",
-    "mongodb": "^6.16.0",
-    "multer": "^1.4.5-lts.2",
-    "multer-s3": "^3.0.1",
-    "next-auth": "^4.24.11",
-    "react-chartjs-2": "^5.3.0",
-    "react-icons": "^5.5.0",
-    "react-player": "^2.16.0",
-    "react-responsive": "^10.0.1"
-  }
+  "name": "inti-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Inti Education Platform - Monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "clean": "turbo run clean",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "api:dev": "npm run dev --workspace=apps/api",
+    "web:dev": "npm run dev --workspace=apps/web-admin",
+    "mobile:dev": "npm start --workspace=apps/mobile-app",
+    "types:build": "npm run build --workspace=packages/shared-types",
+    "types:watch": "npm run watch --workspace=packages/shared-types",
+    "start": "./start.sh",
+    "start:api": "npm run api:dev",
+    "start:web": "npm run web:dev",
+    "start:mobile": "npm run mobile:dev",
+    "build:api": "npm run build --workspace=apps/api",
+    "build:web": "npm run build --workspace=apps/web-admin",
+    "build:mobile": "npm run build --workspace=apps/mobile-app",
+    "docker:dev": "./rebuild.sh",
+    "docker:deploy": "./deploy.sh"
+  },
+  "devDependencies": {
+    "prettier": "^3.0.0",
+    "turbo": "^1.11.0",
+    "typescript": "^5.3.3"
+  },
+  "overrides": {
+    "csstype": "3.0.10",
+    "react-native-reanimated": "3.16.1"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "packageManager": "npm@10.2.0"
 }
