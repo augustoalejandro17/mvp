@@ -10,6 +10,7 @@ import {
   Query,
   Req,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -24,6 +25,24 @@ import { UserReportStatus } from './schemas/user-report.schema';
 @Controller('user-reports')
 export class UserReportsController {
   constructor(private readonly userReportsService: UserReportsService) {}
+
+  private parsePagination(
+    page: string,
+    limit: string,
+  ): { pageNum: number; limitNum: number } {
+    const pageNum = Number.parseInt(page, 10);
+    const limitNum = Number.parseInt(limit, 10);
+
+    if (!Number.isInteger(pageNum) || pageNum < 1) {
+      throw new BadRequestException('page debe ser un entero >= 1');
+    }
+
+    if (!Number.isInteger(limitNum) || limitNum < 1 || limitNum > 100) {
+      throw new BadRequestException('limit debe ser un entero entre 1 y 100');
+    }
+
+    return { pageNum, limitNum };
+  }
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -47,8 +66,7 @@ export class UserReportsController {
     @Query('limit') limit: string = '20',
   ) {
     const reporterId = req.user['sub'] || req.user['_id'];
-    const pageNum = parseInt(page, 10) || 1;
-    const limitNum = parseInt(limit, 10) || 20;
+    const { pageNum, limitNum } = this.parsePagination(page, limit);
     const { reports, total } = await this.userReportsService.getMyReports(
       reporterId,
       pageNum,
@@ -71,8 +89,7 @@ export class UserReportsController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '20',
   ) {
-    const pageNum = parseInt(page, 10) || 1;
-    const limitNum = parseInt(limit, 10) || 20;
+    const { pageNum, limitNum } = this.parsePagination(page, limit);
     const { reports, total } = await this.userReportsService.getAllReports({
       status,
       page: pageNum,

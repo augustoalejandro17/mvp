@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import {
   UsageTrackingService,
   StorageTrackingOptions,
@@ -167,7 +167,7 @@ export class StorageIntegrationService {
     // Fallback: use user's first school
     // return await this.getUserFirstSchool(uploadedBy);
 
-    throw new Error(
+    throw new BadRequestException(
       'Could not determine school for attribution. Please provide explicit schoolId.',
     );
   }

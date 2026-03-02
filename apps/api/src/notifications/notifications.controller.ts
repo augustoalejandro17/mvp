@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   Request,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -36,14 +37,27 @@ export class NotificationsController {
     @Query('unreadOnly') unreadOnly: string = 'false',
   ) {
     const userId = req.user._id || req.user.sub;
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
+    const pageNum = Number.parseInt(page, 10);
+    const limitNum = Number.parseInt(limit, 10);
+    const unreadOnlyBool = unreadOnly === 'true' || unreadOnly === '1';
+
+    if (!Number.isInteger(pageNum) || pageNum < 1) {
+      throw new BadRequestException(
+        'El parámetro page debe ser un entero >= 1',
+      );
+    }
+
+    if (!Number.isInteger(limitNum) || limitNum < 1 || limitNum > 100) {
+      throw new BadRequestException(
+        'El parámetro limit debe ser un entero entre 1 y 100',
+      );
+    }
 
     const result = await this.notificationsService.findUserNotifications(
       userId,
       pageNum,
       limitNum,
-      unreadOnly === 'true',
+      unreadOnlyBool,
     );
 
     return {

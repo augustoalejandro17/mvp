@@ -1,4 +1,12 @@
-import { Controller, Get, Query, UseGuards, Request } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  ForbiddenException,
+  Get,
+  Query,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -24,6 +32,14 @@ export class StatisticsController {
     private readonly statisticsService: StatisticsService,
     private readonly snapshotService: SnapshotService,
   ) {}
+
+  private ensureDebugEndpointAllowed(): void {
+    if (process.env.NODE_ENV === 'production') {
+      throw new ForbiddenException(
+        'Debug endpoints are not available in production',
+      );
+    }
+  }
 
   @Get('overview')
   @Roles(
@@ -163,12 +179,13 @@ export class StatisticsController {
 
   // TEMPORARY: Remove this endpoint after testing
   @Get('test/trigger-cron')
-  @UseGuards()
+  @Roles(UserRole.SUPER_ADMIN)
   @ApiOperation({
-    summary: 'TESTING: Trigger daily snapshot generation (NO AUTH)',
+    summary: 'TESTING: Trigger daily snapshot generation',
   })
   async triggerCronJob(): Promise<any> {
     try {
+      this.ensureDebugEndpointAllowed();
       console.log('🚀 Manually triggering cron job...');
       await this.snapshotService.generateDailySnapshots();
       return {
@@ -188,13 +205,20 @@ export class StatisticsController {
 
   // TEMPORARY: Remove this endpoint after testing
   @Get('test/generate-historical')
-  @UseGuards()
-  @ApiOperation({ summary: 'TESTING: Generate historical snapshots (NO AUTH)' })
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'TESTING: Generate historical snapshots' })
   async generateHistoricalSnapshots(
     @Query('days') days?: string,
   ): Promise<any> {
     try {
-      const numDays = parseInt(days || '30');
+      this.ensureDebugEndpointAllowed();
+
+      const numDays = days ? Number.parseInt(days, 10) : 30;
+      if (!Number.isInteger(numDays) || numDays < 1 || numDays > 365) {
+        throw new BadRequestException(
+          'days must be an integer between 1 and 365',
+        );
+      }
       const schoolId = '68044f6422ec1bd6922709f4'; // Mambuco school
       const results = [];
 
@@ -249,10 +273,11 @@ export class StatisticsController {
 
   // TEMPORARY: Debug attendance aggregation
   @Get('test/debug-attendance')
-  @UseGuards()
-  @ApiOperation({ summary: 'TESTING: Debug attendance aggregation (NO AUTH)' })
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'TESTING: Debug attendance aggregation' })
   async debugAttendanceAggregation(@Query('date') date?: string): Promise<any> {
     try {
+      this.ensureDebugEndpointAllowed();
       const academyId = new Types.ObjectId('68044f6422ec1bd6922709f4');
       const testDate = date ? new Date(date) : new Date('2025-05-27');
       const startOfDay = new Date(testDate);

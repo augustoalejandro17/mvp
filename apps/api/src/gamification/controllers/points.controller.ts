@@ -9,6 +9,7 @@ import {
   Request,
   HttpStatus,
   HttpCode,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -27,6 +28,14 @@ import {
 @UseGuards(JwtAuthGuard)
 export class PointsController {
   constructor(private readonly pointsService: PointsService) {}
+
+  private parseLimit(value: string): number {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
+      throw new BadRequestException('limit debe ser un entero entre 1 y 100');
+    }
+    return parsed;
+  }
 
   @Get('user/:userId')
   async getUserPoints(
@@ -110,7 +119,7 @@ export class PointsController {
     @Param('schoolId') schoolId: string,
     @Query('limit') limit: string = '10',
   ) {
-    return this.pointsService.getTopUsers(schoolId, parseInt(limit));
+    return this.pointsService.getTopUsers(schoolId, this.parseLimit(limit));
   }
 
   @Post('award')

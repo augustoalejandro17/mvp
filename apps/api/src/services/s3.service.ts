@@ -27,7 +27,9 @@ export class S3Service {
   ) {
     const accountId = this.configService.get<string>('aws.r2.accountId');
     const accessKeyId = this.configService.get<string>('aws.r2.accessKeyId');
-    const secretAccessKey = this.configService.get<string>('aws.r2.secretAccessKey');
+    const secretAccessKey = this.configService.get<string>(
+      'aws.r2.secretAccessKey',
+    );
 
     this.s3 = new S3({
       endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
@@ -39,11 +41,15 @@ export class S3Service {
     });
 
     this.bucketName = this.configService.get<string>('aws.r2.bucketName');
-    this.tempBucketName = this.configService.get<string>('aws.r2.tempBucketName');
+    this.tempBucketName = this.configService.get<string>(
+      'aws.r2.tempBucketName',
+    );
 
     const rawDomain = this.configService.get<string>('aws.r2.publicDomain');
     if (rawDomain) {
-      this.publicDomain = rawDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      this.publicDomain = rawDomain
+        .replace(/^https?:\/\//, '')
+        .replace(/\/$/, '');
     }
   }
 
@@ -58,7 +64,10 @@ export class S3Service {
       .toLowerCase();
   }
 
-  private getContentType(key: string, fallback = 'application/octet-stream'): string {
+  private getContentType(
+    key: string,
+    fallback = 'application/octet-stream',
+  ): string {
     if (key.endsWith('.mp4') || key.endsWith('.webm')) return 'video/mp4';
     if (key.endsWith('.jpg') || key.endsWith('.jpeg')) return 'image/jpeg';
     if (key.endsWith('.png')) return 'image/png';
@@ -95,14 +104,16 @@ export class S3Service {
     const fileExtension = file.originalname.split('.').pop();
     const key = `videos/${uuidv4()}.${fileExtension}`;
 
-    await this.s3.upload({
-      Bucket: this.bucketName,
-      Key: key,
-      Body: file.buffer,
-      ContentType: 'video/mp4',
-      ContentDisposition: 'inline',
-      CacheControl: 'max-age=31536000',
-    }).promise();
+    await this.s3
+      .upload({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: file.buffer,
+        ContentType: 'video/mp4',
+        ContentDisposition: 'inline',
+        CacheControl: 'max-age=31536000',
+      })
+      .promise();
 
     this.logger.log(`Video uploaded to R2: ${key}, size: ${file.size} bytes`);
 
@@ -119,7 +130,10 @@ export class S3Service {
     }
 
     let cleanKey = key;
-    if (key.includes('amazonaws.com') || key.includes('r2.cloudflarestorage.com')) {
+    if (
+      key.includes('amazonaws.com') ||
+      key.includes('r2.cloudflarestorage.com')
+    ) {
       cleanKey = this.getKeyFromUrl(key);
     }
 
@@ -151,7 +165,9 @@ export class S3Service {
     }
 
     try {
-      await this.s3.deleteObject({ Bucket: this.bucketName, Key: key }).promise();
+      await this.s3
+        .deleteObject({ Bucket: this.bucketName, Key: key })
+        .promise();
       this.logger.log(`Deleted from R2: ${key}`);
     } catch (error) {
       if (error.code === 'AccessDenied') {
@@ -209,14 +225,16 @@ export class S3Service {
     const sanitizedName = this.sanitizeFileName(originalname.split('.')[0]);
     const key = `videos/${sanitizedName}-${Date.now()}.mp4`;
 
-    await this.s3.upload({
-      Bucket: this.bucketName,
-      Key: key,
-      Body: buffer,
-      ContentType: 'video/mp4',
-      ContentDisposition: 'inline',
-      CacheControl: 'max-age=31536000',
-    }).promise();
+    await this.s3
+      .upload({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: buffer,
+        ContentType: 'video/mp4',
+        ContentDisposition: 'inline',
+        CacheControl: 'max-age=31536000',
+      })
+      .promise();
 
     const url = await this.buildUrl(key);
     return { url, key };
@@ -224,21 +242,27 @@ export class S3Service {
 
   async uploadImage(file: Express.Multer.File): Promise<string> {
     const fileExtension = file.originalname.split('.').pop() || 'jpg';
-    const sanitizedName = this.sanitizeFileName(file.originalname.split('.')[0]);
+    const sanitizedName = this.sanitizeFileName(
+      file.originalname.split('.')[0],
+    );
     const timestamp = Date.now();
     const key = `images/${sanitizedName}-${timestamp}-${uuidv4()}.${fileExtension}`;
 
-    await this.s3.upload({
-      Bucket: this.bucketName,
-      Key: key,
-      Body: file.buffer,
-      ContentType: file.mimetype,
-      CacheControl: 'max-age=3600',
-      ContentDisposition: 'inline',
-    }).promise();
+    await this.s3
+      .upload({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+        CacheControl: 'max-age=3600',
+        ContentDisposition: 'inline',
+      })
+      .promise();
 
     const baseUrl = await this.buildUrl(key);
-    return baseUrl.includes('?') ? `${baseUrl}&t=${timestamp}` : `${baseUrl}?t=${timestamp}`;
+    return baseUrl.includes('?')
+      ? `${baseUrl}&t=${timestamp}`
+      : `${baseUrl}?t=${timestamp}`;
   }
 
   async generatePresignedUploadUrl(
@@ -268,18 +292,19 @@ export class S3Service {
     classId: string,
     originalFileName: string,
   ): Promise<string> {
-    const fileExtension = originalFileName.split('.').pop() || 'mp4';
-    const finalKey = `videos/${schoolId}/${classId}/final.${fileExtension}`;
+    const finalKey = `videos/${schoolId}/${classId}/final.mp4`;
 
-    await this.s3.copyObject({
-      Bucket: this.bucketName,
-      CopySource: `${this.tempBucketName}/${tempKey}`,
-      Key: finalKey,
-      ContentType: 'video/mp4',
-      MetadataDirective: 'REPLACE',
-      ContentDisposition: 'inline',
-      CacheControl: 'max-age=31536000',
-    }).promise();
+    await this.s3
+      .copyObject({
+        Bucket: this.bucketName,
+        CopySource: `${this.tempBucketName}/${tempKey}`,
+        Key: finalKey,
+        ContentType: 'video/mp4',
+        MetadataDirective: 'REPLACE',
+        ContentDisposition: 'inline',
+        CacheControl: 'max-age=31536000',
+      })
+      .promise();
 
     this.logger.log(`Video moved in R2: ${tempKey} → ${finalKey}`);
 
@@ -289,7 +314,9 @@ export class S3Service {
   }
 
   async downloadFromTempBucket(key: string): Promise<Buffer> {
-    const result = await this.s3.getObject({ Bucket: this.tempBucketName, Key: key }).promise();
+    const result = await this.s3
+      .getObject({ Bucket: this.tempBucketName, Key: key })
+      .promise();
 
     if (!result.Body) {
       throw new Error(`Empty body for key: ${key}`);
@@ -304,29 +331,36 @@ export class S3Service {
     classId: string,
     originalFileName: string,
   ): Promise<string> {
-    const fileExtension = originalFileName.split('.').pop() || 'mp4';
-    const key = `videos/${schoolId}/${classId}/final.${fileExtension}`;
+    const key = `videos/${schoolId}/${classId}/final.mp4`;
 
-    await this.s3.upload({
-      Bucket: this.bucketName,
-      Key: key,
-      Body: buffer,
-      ContentType: 'video/mp4',
-      ContentDisposition: 'inline',
-      CacheControl: 'max-age=31536000',
-    }).promise();
+    await this.s3
+      .upload({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: buffer,
+        ContentType: 'video/mp4',
+        ContentDisposition: 'inline',
+        CacheControl: 'max-age=31536000',
+      })
+      .promise();
 
-    this.logger.log(`Processed video uploaded to R2: ${key}, size: ${buffer.length} bytes`);
+    this.logger.log(
+      `Processed video uploaded to R2: ${key}, size: ${buffer.length} bytes`,
+    );
 
     return this.buildUrl(key);
   }
 
   async deleteFromTempBucket(key: string): Promise<void> {
     try {
-      await this.s3.deleteObject({ Bucket: this.tempBucketName, Key: key }).promise();
+      await this.s3
+        .deleteObject({ Bucket: this.tempBucketName, Key: key })
+        .promise();
       this.logger.log(`Deleted from R2 temp bucket: ${key}`);
     } catch (error) {
-      this.logger.error(`Error deleting from temp bucket (${key}): ${error.message}`);
+      this.logger.error(
+        `Error deleting from temp bucket (${key}): ${error.message}`,
+      );
     }
   }
 }

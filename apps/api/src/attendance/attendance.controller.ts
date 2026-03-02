@@ -10,6 +10,7 @@ import {
   Query,
   Req,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
@@ -67,6 +68,11 @@ export class AttendanceController {
     // Parse the date directly without timezone conversion
     // The frontend should send the correct UTC date string
     const date = dateStr ? new Date(dateStr) : new Date();
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException(
+        'El parámetro date no tiene formato válido',
+      );
+    }
 
     return this.attendanceService.findByCourseAndDate(courseId, date);
   }
@@ -143,6 +149,11 @@ export class AttendanceController {
     // Si se proporciona una fecha de referencia, extraer el año y mes de ella
     if (referenceDateStr) {
       const referenceDate = new Date(referenceDateStr);
+      if (Number.isNaN(referenceDate.getTime())) {
+        throw new BadRequestException(
+          'El parámetro referenceDate no tiene formato válido',
+        );
+      }
       year = referenceDate.getFullYear();
       month = referenceDate.getMonth() + 1; // getMonth() devuelve 0-11
     }
@@ -160,7 +171,7 @@ export class AttendanceController {
 
     if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
       this.logger.error(`Valores de año (${year}) o mes (${month}) inválidos`);
-      throw new Error('Valores de año o mes inválidos');
+      throw new BadRequestException('Valores de año o mes inválidos');
     }
 
     return this.attendanceService.findByCourseAndMonth(courseId, year, month);

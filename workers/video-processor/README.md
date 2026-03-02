@@ -4,6 +4,7 @@ This worker processes video files uploaded to the temp S3 bucket, applies ffmpeg
 
 ## Features
 
+- **Storage**: Supports Cloudflare R2 or AWS S3 (S3-compatible)
 - **S3 Integration**: Downloads from temp bucket, uploads to final bucket
 - **Video Processing**: Uses ffmpeg to scale videos to 1280x720, H.264 encoding
 - **Flexible Deployment**: Can run as standalone process, Docker container, or AWS Fargate
@@ -20,28 +21,38 @@ Frontend → Temp S3 Bucket → Worker → Final S3 Bucket → CloudFront → Us
 
 ## Environment Variables
 
-Create a `.env` file with the following variables:
+Copy `.env.example` to `.env` and configure for your storage:
+
+**Option A: Cloudflare R2** (when API uploads to R2 - recommended to match API)
 
 ```bash
-# AWS Configuration
+API_URL=http://localhost:4000
+VIDEO_WORKER_SECRET=optional_shared_secret
+R2_ACCOUNT_ID=your_account_id
+R2_ACCESS_KEY_ID=your_r2_access_key
+R2_SECRET_ACCESS_KEY=your_r2_secret_key
+R2_BUCKET_NAME=inti-media
+R2_TEMP_BUCKET_NAME=inti-media-temp
+R2_PUBLIC_DOMAIN=media.intihubs.com
+```
+
+**Option B: AWS S3**
+
+```bash
+API_URL=http://localhost:4000
+VIDEO_WORKER_SECRET=optional_shared_secret
 AWS_ACCESS_KEY_ID=your_access_key_id
 AWS_SECRET_ACCESS_KEY=your_secret_access_key
 AWS_REGION=us-east-1
-
-# S3 Bucket Configuration
 AWS_S3_BUCKET_NAME=your-final-videos-bucket
 AWS_S3_TEMP_BUCKET_NAME=your-temp-videos-bucket
 
-# API Configuration
-API_URL=http://localhost:4000
-
-# SQS Configuration (Optional - for S3 notifications)
+# Optional - for S3 notifications
 SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789012/video-processing-queue
-
-# Worker Configuration
-NODE_ENV=production
-TEMP_VIDEO_DIR=/tmp/videos
 ```
+
+If `R2_ACCOUNT_ID` is set, the worker uses R2. Otherwise it uses AWS S3.
+If `VIDEO_WORKER_SECRET` is set in API, set the same value in worker.
 
 ## Installation
 
@@ -65,6 +76,7 @@ docker run --env-file .env video-processor
 ### AWS Fargate
 
 1. Build and push to ECR:
+
 ```bash
 aws ecr create-repository --repository-name video-processor
 docker build -t video-processor .
@@ -106,31 +118,24 @@ The worker provides comprehensive logging and health checks:
 The worker needs the following AWS permissions:
 
 ### S3 Permissions
+
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:DeleteObject"
-      ],
+      "Action": ["s3:GetObject", "s3:DeleteObject"],
       "Resource": "arn:aws:s3:::your-temp-bucket/*"
     },
     {
       "Effect": "Allow",
-      "Action": [
-        "s3:PutObject",
-        "s3:PutObjectAcl"
-      ],
+      "Action": ["s3:PutObject", "s3:PutObjectAcl"],
       "Resource": "arn:aws:s3:::your-final-bucket/*"
     },
     {
       "Effect": "Allow",
-      "Action": [
-        "s3:ListBucket"
-      ],
+      "Action": ["s3:ListBucket"],
       "Resource": [
         "arn:aws:s3:::your-temp-bucket",
         "arn:aws:s3:::your-final-bucket"
@@ -141,16 +146,14 @@ The worker needs the following AWS permissions:
 ```
 
 ### SQS Permissions (if using SQS)
+
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "sqs:ReceiveMessage",
-        "sqs:DeleteMessage"
-      ],
+      "Action": ["sqs:ReceiveMessage", "sqs:DeleteMessage"],
       "Resource": "arn:aws:sqs:us-east-1:123456789012:video-processing-queue"
     }
   ]
@@ -175,8 +178,9 @@ The worker needs the following AWS permissions:
 ### Logs
 
 The worker provides detailed logging for debugging:
+
 - 🎬 Video processing start/end
 - 📦 S3 upload/download operations
 - ⚙️ FFmpeg processing progress
 - ✅ Success operations
-- ❌ Error conditions 
+- ❌ Error conditions

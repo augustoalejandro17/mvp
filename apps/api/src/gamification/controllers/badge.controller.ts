@@ -11,6 +11,7 @@ import {
   Request,
   HttpStatus,
   HttpCode,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -25,6 +26,14 @@ import { BadgeType } from '../schemas/badge.schema';
 @UseGuards(JwtAuthGuard)
 export class BadgeController {
   constructor(private readonly badgeService: BadgeService) {}
+
+  private parseLimit(value: string): number {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
+      throw new BadRequestException('limit debe ser un entero entre 1 y 100');
+    }
+    return parsed;
+  }
 
   @Get()
   async getAllBadges(
@@ -89,7 +98,7 @@ export class BadgeController {
   ) {
     return this.badgeService.getSchoolBadgeLeaderboard(
       schoolId,
-      parseInt(limit),
+      this.parseLimit(limit),
     );
   }
 

@@ -1,4 +1,10 @@
-import { Controller, Get, Query, Logger } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  Logger,
+  BadRequestException,
+} from '@nestjs/common';
 import { S3Service } from '../services/s3.service';
 import { CloudFrontService } from '../services/cloudfront.service';
 
@@ -19,7 +25,7 @@ export class ImagesController {
   @Get('refresh-url')
   async refreshImageUrl(@Query('key') key: string): Promise<{ url: string }> {
     if (!key) {
-      throw new Error('Se requiere el parámetro "key"');
+      throw new BadRequestException('Se requiere el parámetro "key"');
     }
 
     try {

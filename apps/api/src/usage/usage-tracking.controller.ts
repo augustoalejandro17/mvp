@@ -8,6 +8,8 @@ import {
   UseGuards,
   Req,
   Logger,
+  BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -24,6 +26,22 @@ export class UsageTrackingController {
     private readonly usageTrackingService: UsageTrackingService,
     private readonly streamingIntegrationService: StreamingIntegrationService,
   ) {}
+
+  private parseOptionalIntInRange(
+    value: string | undefined,
+    fieldName: string,
+    min: number,
+    max: number,
+  ): number | undefined {
+    if (value === undefined) return undefined;
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+      throw new BadRequestException(
+        `${fieldName} debe ser un entero entre ${min} y ${max}`,
+      );
+    }
+    return parsed;
+  }
 
   // ========================================
   // USAGE SUMMARY ENDPOINTS
@@ -44,8 +62,8 @@ export class UsageTrackingController {
     @Req() req: any,
   ): Promise<UsageSummary> {
     try {
-      const monthNum = month ? parseInt(month) : undefined;
-      const yearNum = year ? parseInt(year) : undefined;
+      const monthNum = this.parseOptionalIntInRange(month, 'month', 1, 12);
+      const yearNum = this.parseOptionalIntInRange(year, 'year', 2020, 2100);
 
       return await this.usageTrackingService.getUsageSummary(
         schoolId,
@@ -74,8 +92,8 @@ export class UsageTrackingController {
     @Query('year') year: string | undefined,
   ): Promise<any[]> {
     try {
-      const monthNum = month ? parseInt(month) : undefined;
-      const yearNum = year ? parseInt(year) : undefined;
+      const monthNum = this.parseOptionalIntInRange(month, 'month', 1, 12);
+      const yearNum = this.parseOptionalIntInRange(year, 'year', 2020, 2100);
 
       return await this.usageTrackingService.getSchoolsWithOverages(
         monthNum,
@@ -274,11 +292,13 @@ export class UsageTrackingController {
     @Query('limit') limit?: string,
   ): Promise<any[]> {
     try {
+      const limitNum =
+        this.parseOptionalIntInRange(limit, 'limit', 1, 200) ?? 50;
       return await this.usageTrackingService.getStreamingHistory(
         schoolId,
         startDate,
         endDate,
-        parseInt(limit || '50'),
+        limitNum,
       );
     } catch (error) {
       this.logger.error(
@@ -443,7 +463,9 @@ export class UsageTrackingController {
         message: `Storage total updated to ${totalMB} MB (${totalGB.toFixed(3)} GB) for school ${schoolId}`,
       };
     } catch (error) {
-      throw new Error(`Error fixing storage total: ${error.message}`);
+      throw new InternalServerErrorException(
+        `Error fixing storage total: ${error.message}`,
+      );
     }
   }
 

@@ -751,7 +751,9 @@ export class SchoolsService {
       this.logger.error(
         `Error al buscar escuelas por propietario: ${error.message}`,
       );
-      throw new Error('Error al buscar escuelas por propietario');
+      throw new InternalServerErrorException(
+        'Error al buscar escuelas por propietario',
+      );
     }
   }
 
@@ -839,7 +841,9 @@ export class SchoolsService {
       this.logger.error(
         `Error al buscar escuelas por administrador: ${error.message}`,
       );
-      throw new Error('Error al buscar escuelas por administrador');
+      throw new InternalServerErrorException(
+        'Error al buscar escuelas por administrador',
+      );
     }
   }
 

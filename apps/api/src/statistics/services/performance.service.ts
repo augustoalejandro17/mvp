@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Course } from '../../courses/schemas/course.schema';
@@ -123,7 +123,7 @@ export class PerformanceService {
     const teacher = await this.userModel.findById(teacherId).exec();
 
     if (!teacher) {
-      throw new Error(`Teacher with ID ${teacherId} not found`);
+      throw new NotFoundException(`Teacher with ID ${teacherId} not found`);
     }
 
     // Cursos que imparte el profesor

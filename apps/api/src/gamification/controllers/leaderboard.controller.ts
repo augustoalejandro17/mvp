@@ -6,6 +6,7 @@ import {
   UseGuards,
   Request,
   SetMetadata,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -23,6 +24,21 @@ import { GetLeaderboardDto } from '../dto/points.dto';
 export class LeaderboardController {
   constructor(private readonly leaderboardService: LeaderboardService) {}
 
+  private parseIntInRange(
+    value: string,
+    fieldName: string,
+    min: number,
+    max: number,
+  ): number {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+      throw new BadRequestException(
+        `${fieldName} debe ser un entero entre ${min} y ${max}`,
+      );
+    }
+    return parsed;
+  }
+
   @Get()
   async getLeaderboard(
     @Query('type') type: string = 'school',
@@ -34,14 +50,17 @@ export class LeaderboardController {
     @Query('offset') offset: string = '0',
     @Query('includeInactive') includeInactive: string = 'false',
   ) {
+    const limitNum = this.parseIntInRange(limit, 'limit', 1, 100);
+    const offsetNum = this.parseIntInRange(offset, 'offset', 0, 10000);
+
     const getLeaderboardDto: GetLeaderboardDto = {
       type,
       period,
       schoolId,
       courseId,
       category,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+      limit: limitNum,
+      offset: offsetNum,
       includeInactive: includeInactive === 'true',
     };
 
@@ -79,10 +98,11 @@ export class LeaderboardController {
     @Query('period') period: string = 'monthly',
     @Query('limit') limit: string = '5',
   ) {
+    const limitNum = this.parseIntInRange(limit, 'limit', 1, 100);
     return this.leaderboardService.getTopPerformers(
       schoolId,
       period as LeaderboardPeriod,
-      parseInt(limit),
+      limitNum,
     );
   }
 
@@ -92,10 +112,11 @@ export class LeaderboardController {
     @Query('period') period: string = 'weekly',
     @Query('limit') limit: string = '10',
   ) {
+    const limitNum = this.parseIntInRange(limit, 'limit', 1, 100);
     return this.leaderboardService.getCourseLeaderboard(
       courseId,
       period as LeaderboardPeriod,
-      parseInt(limit),
+      limitNum,
     );
   }
 
@@ -106,11 +127,14 @@ export class LeaderboardController {
     @Query('limit') limit: string = '50',
     @Query('offset') offset: string = '0',
   ) {
+    const limitNum = this.parseIntInRange(limit, 'limit', 1, 100);
+    const offsetNum = this.parseIntInRange(offset, 'offset', 0, 10000);
+
     const getLeaderboardDto: GetLeaderboardDto = {
       type: 'global',
       period,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+      limit: limitNum,
+      offset: offsetNum,
     };
 
     return this.leaderboardService.getLeaderboard(getLeaderboardDto);
@@ -123,12 +147,15 @@ export class LeaderboardController {
     @Query('limit') limit: string = '20',
     @Query('offset') offset: string = '0',
   ) {
+    const limitNum = this.parseIntInRange(limit, 'limit', 1, 100);
+    const offsetNum = this.parseIntInRange(offset, 'offset', 0, 10000);
+
     const getLeaderboardDto: GetLeaderboardDto = {
       type: 'school',
       period,
       schoolId,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+      limit: limitNum,
+      offset: offsetNum,
     };
 
     return this.leaderboardService.getLeaderboard(getLeaderboardDto);
@@ -141,12 +168,15 @@ export class LeaderboardController {
     @Query('limit') limit: string = '20',
     @Query('offset') offset: string = '0',
   ) {
+    const limitNum = this.parseIntInRange(limit, 'limit', 1, 100);
+    const offsetNum = this.parseIntInRange(offset, 'offset', 0, 10000);
+
     const getLeaderboardDto: GetLeaderboardDto = {
       type: 'category',
       period,
       category,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+      limit: limitNum,
+      offset: offsetNum,
     };
 
     return this.leaderboardService.getLeaderboard(getLeaderboardDto);
@@ -178,7 +208,7 @@ export class LeaderboardController {
         category,
       );
 
-    const rangeNum = parseInt(range);
+    const rangeNum = this.parseIntInRange(range, 'range', 1, 50);
     const startOffset = Math.max(0, userPosition.position - rangeNum - 1);
     const limit = rangeNum * 2 + 1;
 
@@ -242,10 +272,11 @@ export class LeaderboardController {
     @Query('period') period: string = 'all_time',
     @Query('limit') limit: string = '20',
   ) {
+    const limitNum = this.parseIntInRange(limit, 'limit', 1, 100);
     const getLeaderboardDto: GetLeaderboardDto = {
       type: 'global',
       period,
-      limit: parseInt(limit),
+      limit: limitNum,
       offset: 0,
     };
 

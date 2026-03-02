@@ -41,8 +41,13 @@ interface DimensionMetric {
 }
 
 @Controller('stats')
-// @UseGuards(JwtAuthGuard, RolesGuard)
-// @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMIN, UserRole.ADMINISTRATIVE)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(
+  UserRole.SUPER_ADMIN,
+  UserRole.SCHOOL_OWNER,
+  UserRole.ADMIN,
+  UserRole.ADMINISTRATIVE,
+)
 export class ApiStatsController {
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,

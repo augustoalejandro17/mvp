@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Course } from '../../courses/schemas/course.schema';
@@ -98,7 +98,7 @@ export class DropoutService {
     const course = await this.courseModel.findById(courseId).exec();
 
     if (!course) {
-      throw new Error(`Course with ID ${courseId} not found`);
+      throw new NotFoundException(`Course with ID ${courseId} not found`);
     }
 
     // Obtener todas las inscripciones para este curso

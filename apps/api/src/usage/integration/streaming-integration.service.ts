@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import {
   UsageTrackingService,
   StreamingTrackingOptions,
@@ -345,7 +345,7 @@ export class StreamingIntegrationService {
     // 4. Use user's primary/first school
 
     // For now, throw error to force explicit school attribution
-    throw new Error(
+    throw new BadRequestException(
       'School attribution required for streaming tracking. Please provide explicit schoolId.',
     );
   }

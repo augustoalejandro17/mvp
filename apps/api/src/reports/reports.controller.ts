@@ -24,6 +24,33 @@ export class ReportsController {
 
   constructor(private readonly reportsService: ReportsService) {}
 
+  private resolveReportPeriod(month?: string, year?: string) {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const reportMonth = month ? Number.parseInt(month, 10) : now.getMonth() + 1;
+    const reportYear = year ? Number.parseInt(year, 10) : currentYear;
+
+    if (!Number.isInteger(reportMonth) || reportMonth < 1 || reportMonth > 12) {
+      throw new BadRequestException('Month must be between 1 and 12');
+    }
+
+    if (
+      !Number.isInteger(reportYear) ||
+      reportYear < 2020 ||
+      reportYear > currentYear + 1
+    ) {
+      throw new BadRequestException('Invalid year provided');
+    }
+
+    return { reportMonth, reportYear };
+  }
+
+  private validateExportFormat(format: string) {
+    if (!['csv', 'excel'].includes(format)) {
+      throw new BadRequestException('format must be csv or excel');
+    }
+  }
+
   @Get('attendance/monthly')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(Permission.VIEW_ATTENDANCE)
@@ -42,17 +69,7 @@ export class ReportsController {
         `Monthly attendance report requested by user ${userId} (${userRole})`,
       );
 
-      // Validate month and year
-      const reportMonth = month ? parseInt(month) : new Date().getMonth() + 1;
-      const reportYear = year ? parseInt(year) : new Date().getFullYear();
-
-      if (reportMonth < 1 || reportMonth > 12) {
-        throw new BadRequestException('Month must be between 1 and 12');
-      }
-
-      if (reportYear < 2020 || reportYear > new Date().getFullYear() + 1) {
-        throw new BadRequestException('Invalid year provided');
-      }
+      const { reportMonth, reportYear } = this.resolveReportPeriod(month, year);
 
       return await this.reportsService.getMonthlyAttendanceReport({
         userId,
@@ -91,8 +108,8 @@ export class ReportsController {
         `Attendance export requested by user ${userId} in ${format} format`,
       );
 
-      const reportMonth = month ? parseInt(month) : new Date().getMonth() + 1;
-      const reportYear = year ? parseInt(year) : new Date().getFullYear();
+      this.validateExportFormat(format);
+      const { reportMonth, reportYear } = this.resolveReportPeriod(month, year);
 
       const result = await this.reportsService.exportMonthlyAttendanceReport({
         userId,
@@ -143,17 +160,7 @@ export class ReportsController {
         `Monthly payment report requested by user ${userId} (${userRole})`,
       );
 
-      // Validate month and year
-      const reportMonth = month ? parseInt(month) : new Date().getMonth() + 1;
-      const reportYear = year ? parseInt(year) : new Date().getFullYear();
-
-      if (reportMonth < 1 || reportMonth > 12) {
-        throw new BadRequestException('Month must be between 1 and 12');
-      }
-
-      if (reportYear < 2020 || reportYear > new Date().getFullYear() + 1) {
-        throw new BadRequestException('Invalid year provided');
-      }
+      const { reportMonth, reportYear } = this.resolveReportPeriod(month, year);
 
       return await this.reportsService.getMonthlyPaymentReport({
         userId,
@@ -192,8 +199,8 @@ export class ReportsController {
         `Payment export requested by user ${userId} in ${format} format`,
       );
 
-      const reportMonth = month ? parseInt(month) : new Date().getMonth() + 1;
-      const reportYear = year ? parseInt(year) : new Date().getFullYear();
+      this.validateExportFormat(format);
+      const { reportMonth, reportYear } = this.resolveReportPeriod(month, year);
 
       const result = await this.reportsService.exportMonthlyPaymentReport({
         userId,

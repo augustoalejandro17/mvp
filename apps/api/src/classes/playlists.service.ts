@@ -487,6 +487,25 @@ export class PlaylistsService {
     }
   }
 
+  private getEntityId(value: any): string | undefined {
+    if (!value) return undefined;
+
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    if (value._id) {
+      return this.getEntityId(value._id);
+    }
+
+    if (typeof value.toString === 'function') {
+      const asString = value.toString();
+      return asString && asString !== '[object Object]' ? asString : undefined;
+    }
+
+    return undefined;
+  }
+
   private canModifyPlaylist(
     course: any,
     userId: string,
@@ -499,7 +518,7 @@ export class PlaylistsService {
     }
 
     // School owner and administrative can modify playlists in their school
-    if (['school_owner', 'administrative', 'school_owner'].includes(roleLower)) {
+    if (['school_owner', 'administrative'].includes(roleLower)) {
       // In a real implementation, you'd verify the user belongs to the course's school
       // For now, we'll allow it for these roles
       return true;
@@ -508,13 +527,14 @@ export class PlaylistsService {
     // Teachers can modify playlists in courses they teach
     if (roleLower === 'teacher') {
       // Check if user is the main teacher
-      if (course.teacher && course.teacher._id.toString() === userId) {
+      const mainTeacherId = this.getEntityId(course.teacher);
+      if (mainTeacherId === userId) {
         return true;
       }
       // Check if user is in the additional teachers array
       if (course.teachers && Array.isArray(course.teachers)) {
         return course.teachers.some(
-          (teacher) => teacher._id.toString() === userId,
+          (teacher) => this.getEntityId(teacher) === userId,
         );
       }
     }
@@ -579,16 +599,70 @@ export class PlaylistsService {
   ): Promise<void> {
     try {
       const roleLower = userRole?.toLowerCase();
-      if (!['super_admin', 'admin', 'school_owner', 'administrative', 'teacher'].includes(roleLower)) {
-        throw new BadRequestException('No tienes permisos para reordenar las listas de reproducción');
+      if (
+        ![
+          'super_admin',
+          'admin',
+          'school_owner',
+          'administrative',
+          'teacher',
+        ].includes(roleLower)
+      ) {
+        throw new BadRequestException(
+          'No tienes permisos para reordenar las listas de reproducción',
+        );
+      }
+
+      if (roleLower === 'teacher') {
+        const course = await this.courseModel
+          .findById(courseId)
+          .select('teacher teachers')
+          .lean();
+        if (!course) {
+          throw new NotFoundException('Curso no encontrado');
+        }
+
+        const isCourseTeacher =
+          this.getEntityId(course.teacher) === userId ||
+          (Array.isArray(course.teachers) &&
+            course.teachers.some(
+              (teacher) => this.getEntityId(teacher) === userId,
+            ));
+
+        if (!isCourseTeacher) {
+          throw new BadRequestException(
+            'No tienes permisos para reordenar las listas de este curso',
+          );
+        }
+      }
+
+      const validPlaylists = await this.playlistModel
+        .find({
+          _id: { $in: playlistIds },
+          course: courseId,
+          isActive: true,
+        })
+        .select('_id')
+        .lean();
+
+      if (validPlaylists.length !== playlistIds.length) {
+        throw new BadRequestException(
+          'Una o más listas no existen o no pertenecen al curso indicado',
+        );
       }
 
       const updates = playlistIds.map((id, index) =>
-        this.playlistModel.findByIdAndUpdate(id, { order: index }),
+        this.playlistModel.findOneAndUpdate(
+          { _id: id, course: courseId },
+          { order: index, updatedAt: new Date() },
+        ),
       );
       await Promise.all(updates);
     } catch (error) {
-      this.logger.error(`Error reordering playlists: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error reordering playlists: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }

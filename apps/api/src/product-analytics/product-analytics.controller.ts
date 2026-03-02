@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { Request } from 'express';
 import { ProductAnalyticsService } from './product-analytics.service';
 import { TrackEventDto } from './dto/track-event.dto';
@@ -9,7 +18,9 @@ import { UserRole } from '../auth/schemas/user.schema';
 
 @Controller('product-analytics')
 export class ProductAnalyticsController {
-  constructor(private readonly productAnalyticsService: ProductAnalyticsService) {}
+  constructor(
+    private readonly productAnalyticsService: ProductAnalyticsService,
+  ) {}
 
   @Post('events')
   @UseGuards(JwtAuthGuard)
@@ -26,6 +37,10 @@ export class ProductAnalyticsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async getFunnel(@Query('days') days?: string) {
-    return this.productAnalyticsService.getFunnel(days ? parseInt(days, 10) : 30);
+    const parsedDays = days ? Number.parseInt(days, 10) : 30;
+    if (!Number.isInteger(parsedDays) || parsedDays < 1 || parsedDays > 365) {
+      throw new BadRequestException('days debe ser un entero entre 1 y 365');
+    }
+    return this.productAnalyticsService.getFunnel(parsedDays);
   }
 }

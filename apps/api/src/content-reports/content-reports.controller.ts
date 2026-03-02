@@ -10,6 +10,7 @@ import {
   Query,
   Req,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -28,15 +29,33 @@ import {
 export class ContentReportsController {
   constructor(private readonly contentReportsService: ContentReportsService) {}
 
+  private parsePagination(
+    page: string,
+    limit: string,
+  ): { pageNum: number; limitNum: number } {
+    const pageNum = Number.parseInt(page, 10);
+    const limitNum = Number.parseInt(limit, 10);
+
+    if (!Number.isInteger(pageNum) || pageNum < 1) {
+      throw new BadRequestException('page debe ser un entero >= 1');
+    }
+
+    if (!Number.isInteger(limitNum) || limitNum < 1 || limitNum > 100) {
+      throw new BadRequestException('limit debe ser un entero entre 1 y 100');
+    }
+
+    return { pageNum, limitNum };
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
-  async createReport(
-    @Req() req: Request,
-    @Body() dto: CreateContentReportDto,
-  ) {
+  async createReport(@Req() req: Request, @Body() dto: CreateContentReportDto) {
     const reporterId = req.user['sub'] || req.user['_id'];
-    const report = await this.contentReportsService.createReport(reporterId, dto);
+    const report = await this.contentReportsService.createReport(
+      reporterId,
+      dto,
+    );
 
     return {
       success: true,
@@ -53,8 +72,7 @@ export class ContentReportsController {
     @Query('limit') limit: string = '20',
   ) {
     const reporterId = req.user['sub'] || req.user['_id'];
-    const pageNum = parseInt(page, 10) || 1;
-    const limitNum = parseInt(limit, 10) || 20;
+    const { pageNum, limitNum } = this.parsePagination(page, limit);
     const { reports, total } = await this.contentReportsService.getMyReports(
       reporterId,
       pageNum,
@@ -78,8 +96,7 @@ export class ContentReportsController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '20',
   ) {
-    const pageNum = parseInt(page, 10) || 1;
-    const limitNum = parseInt(limit, 10) || 20;
+    const { pageNum, limitNum } = this.parsePagination(page, limit);
     const { reports, total } = await this.contentReportsService.getAllReports({
       status,
       contentType,

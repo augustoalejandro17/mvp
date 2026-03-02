@@ -8,6 +8,8 @@ import {
   Query,
   BadRequestException,
   Req,
+  UnauthorizedException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { S3Service } from '../services/s3.service';
@@ -35,6 +37,18 @@ export class VideosController {
     private readonly s3Service: S3Service,
     private readonly classesService: ClassesService,
   ) {}
+
+  private ensureWorkerAuthorized(req: any): void {
+    const configuredSecret = process.env.VIDEO_WORKER_SECRET;
+    if (!configuredSecret) {
+      return;
+    }
+
+    const providedSecret = req.headers?.['x-worker-secret'];
+    if (!providedSecret || providedSecret !== configuredSecret) {
+      throw new UnauthorizedException('Invalid worker secret');
+    }
+  }
 
   /**
    * Generate presigned URL for direct upload to temp bucket
@@ -87,8 +101,10 @@ export class VideosController {
    * Mark video as ready after processing
    */
   @Post('mark-ready')
-  async markVideoReady(@Body() request: MarkReadyRequest) {
+  async markVideoReady(@Body() request: MarkReadyRequest, @Req() req: any) {
     try {
+      this.ensureWorkerAuthorized(req);
+
       // Validate MongoDB ObjectId format
       if (!Types.ObjectId.isValid(request.classId)) {
         throw new BadRequestException(
@@ -121,8 +137,13 @@ export class VideosController {
    * Mark video processing as failed
    */
   @Post('mark-error')
-  async markVideoError(@Body() body: { classId: string; error: string }) {
+  async markVideoError(
+    @Body() body: { classId: string; error: string },
+    @Req() req: any,
+  ) {
     try {
+      this.ensureWorkerAuthorized(req);
+
       // Validate MongoDB ObjectId format
       if (!Types.ObjectId.isValid(body.classId)) {
         throw new BadRequestException(
@@ -155,8 +176,13 @@ export class VideosController {
    * Mark video as processing (called by worker)
    */
   @Post('mark-processing')
-  async markVideoProcessing(@Body() body: { classId: string; status: string }) {
+  async markVideoProcessing(
+    @Body() body: { classId: string; status: string },
+    @Req() req: any,
+  ) {
     try {
+      this.ensureWorkerAuthorized(req);
+
       // Validate MongoDB ObjectId format
       if (!Types.ObjectId.isValid(body.classId)) {
         throw new BadRequestException(
@@ -240,7 +266,12 @@ export class VideosController {
       }
 
       // Get user info from JWT token
-      const userId = req.user.userId;
+      const userId = req.user.sub || req.user._id || req.user.userId;
+      if (!userId) {
+        throw new InternalServerErrorException(
+          'No se pudo identificar al usuario autenticado',
+        );
+      }
 
       // Generate IDs if not provided
       const schoolId = body.schoolId || new Types.ObjectId().toString();
