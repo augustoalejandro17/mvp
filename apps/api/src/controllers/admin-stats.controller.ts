@@ -1,4 +1,9 @@
 import {
+  ForbiddenException,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
   Controller,
   Get,
   Query,
@@ -28,6 +33,8 @@ import { Plan } from '../plans/schemas/plan.schema';
   UserRole.ADMINISTRATIVE,
 )
 export class AdminStatsController {
+  private readonly logger = new Logger(AdminStatsController.name);
+
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(School.name) private schoolModel: Model<School>,
@@ -46,7 +53,7 @@ export class AdminStatsController {
       // Normalizar user._id para asegurarse de que es un string
       const userId = user.sub || (user._id ? user._id.toString() : null);
       if (!userId) {
-        throw new Error('ID de usuario no disponible');
+        throw new UnauthorizedException('ID de usuario no disponible');
       }
 
       const stats: any = {};
@@ -54,6 +61,9 @@ export class AdminStatsController {
       // Si schoolId es provided y no es 'all', verificar acceso
       if (schoolId && schoolId !== 'all') {
         const hasAccess = await this.checkSchoolAccess(user, schoolId);
+        if (!hasAccess) {
+          throw new ForbiddenException('Acceso denegado a la escuela');
+        }
 
         // Get stats for specific school
         stats.users = await this.getUserCountForSchool(schoolId);
@@ -110,14 +120,11 @@ export class AdminStatsController {
 
       return stats;
     } catch (error) {
-      console.error('Error getting stats:', error);
-      return {
-        users: 0,
-        schools: 0,
-        courses: 0,
-        classes: 0,
-        error: 'Error al obtener estadísticas',
-      };
+      this.logger.error(`Error getting stats: ${error.message}`, error.stack);
+      if (error?.getStatus) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Error al obtener estadísticas');
     }
   }
 
@@ -176,10 +183,16 @@ export class AdminStatsController {
         topSchoolsByStorage,
       };
     } catch (error) {
-      console.error('Error getting subscription stats:', error);
-      return {
-        error: 'Error al obtener estadísticas de suscripciones',
-      };
+      this.logger.error(
+        `Error getting subscription stats: ${error.message}`,
+        error.stack,
+      );
+      if (error?.getStatus) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Error al obtener estadísticas de suscripciones',
+      );
     }
   }
 
@@ -196,17 +209,19 @@ export class AdminStatsController {
       if (user.role !== UserRole.SUPER_ADMIN) {
         const hasAccess = await this.checkSchoolAccess(user, schoolId);
         if (!hasAccess) {
-          return { error: 'No tienes acceso a esta escuela' };
+          throw new ForbiddenException('No tienes acceso a esta escuela');
         }
       }
 
       const school = await this.schoolModel.findById(schoolId);
       if (!school) {
-        return { error: 'Escuela no encontrada' };
+        throw new NotFoundException('Escuela no encontrada');
       }
 
       if (!school.activeSubscription) {
-        return { error: 'Esta escuela no tiene una suscripción activa' };
+        throw new NotFoundException(
+          'Esta escuela no tiene una suscripción activa',
+        );
       }
 
       // Get subscription details with plan info
@@ -215,7 +230,7 @@ export class AdminStatsController {
         .populate('plan');
 
       if (!subscription) {
-        return { error: 'Suscripción no encontrada' };
+        throw new NotFoundException('Suscripción no encontrada');
       }
 
       // Calculate usage percentages
@@ -286,10 +301,16 @@ export class AdminStatsController {
         monthlyUsage,
       };
     } catch (error) {
-      console.error('Error getting school subscription details:', error);
-      return {
-        error: 'Error al obtener detalles de suscripción de la escuela',
-      };
+      this.logger.error(
+        `Error getting school subscription details: ${error.message}`,
+        error.stack,
+      );
+      if (error?.getStatus) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Error al obtener detalles de suscripción de la escuela',
+      );
     }
   }
 
@@ -304,19 +325,7 @@ export class AdminStatsController {
 
   @Get('overview')
   async getOverviewStats(@Request() req) {
-    try {
-      // Corrigiendo la forma en que llamamos a getStats
-      return await this.getStats(null, req);
-    } catch (error) {
-      console.error('Error getting overview stats:', error);
-      return {
-        users: 0,
-        schools: 0,
-        courses: 0,
-        classes: 0,
-        error: 'Error al obtener estadísticas de vista general',
-      };
-    }
+    return await this.getStats(null, req);
   }
 
   private async checkSchoolAccess(

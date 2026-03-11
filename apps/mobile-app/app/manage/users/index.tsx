@@ -8,11 +8,32 @@ import {
   RefreshControl,
   TextInput,
   Alert,
+  Modal,
+  Pressable,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { apiClient } from '@/services/apiClient';
-import { IUser } from '@inti/shared-types';
+import { ICourse, ISchool, IUser } from '@inti/shared-types';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  apiClient,
+  SeatPolicyCapabilities,
+} from '@/services/apiClient';
+
+const DEFAULT_CAPABILITIES: SeatPolicyCapabilities = {
+  canViewSeatManagementModule: false,
+  canOpenEnrollFlow: false,
+  canAssignCourseSeatPermit: false,
+  canSetOwnerQuota: false,
+  canReadOwnerQuota: false,
+  canSetOwnerQuotaForTarget: false,
+  canReadOwnerQuotaForTarget: false,
+  canEnrollStudentInCourse: false,
+  canUnenrollStudentFromCourse: false,
+  canAddStudentToCourse: false,
+  canRemoveStudentFromCourse: false,
+};
 
 const ROLE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   SUPER_ADMIN: { label: 'Super Admin', color: '#dc2626', bg: '#fef2f2' },
@@ -20,16 +41,47 @@ const ROLE_CONFIG: Record<string, { label: string; color: string; bg: string }> 
   SCHOOL_OWNER: { label: 'Propietario', color: '#ea580c', bg: '#fff7ed' },
   TEACHER: { label: 'Profesor', color: '#2563eb', bg: '#eff6ff' },
   STUDENT: { label: 'Estudiante', color: '#16a34a', bg: '#f0fdf4' },
+  UNREGISTERED: { label: 'Asistente', color: '#64748b', bg: '#f1f5f9' },
 };
 
-function UserRow({ user }: { user: IUser }) {
-  const role = ROLE_CONFIG[user.role ?? ''] ?? { label: user.role, color: '#6b7280', bg: '#f9fafb' };
+const ROLE_CHOICES = [
+  { value: 'student', label: 'Estudiante' },
+  { value: 'teacher', label: 'Profesor' },
+  { value: 'administrative', label: 'Administrativo' },
+  { value: 'school_owner', label: 'Propietario' },
+  { value: 'admin', label: 'Admin' },
+];
+
+function UserRow({
+  user,
+  canOpenEnrollFlow,
+  canOpenManageFlow,
+  onOpenEnroll,
+  onOpenManage,
+}: {
+  user: IUser;
+  canOpenEnrollFlow: boolean;
+  canOpenManageFlow: boolean;
+  onOpenEnroll: (user: IUser) => void;
+  onOpenManage: (user: IUser) => void;
+}) {
+  const role = ROLE_CONFIG[String(user.role || '').toUpperCase()] ?? {
+    label: String(user.role || 'usuario'),
+    color: '#6b7280',
+    bg: '#f9fafb',
+  };
+  const normalizedStatus = String((user as any).status || 'active').toLowerCase();
+  const isUserActive =
+    (user as any).isActive !== false &&
+    normalizedStatus !== 'suspended' &&
+    normalizedStatus !== 'inactive';
   const initials = (user.name ?? user.email ?? '?')
     .split(' ')
     .map((p) => p[0])
     .join('')
     .toUpperCase()
     .slice(0, 2);
+  const isRegistered = String(user.role || '').toLowerCase() !== 'unregistered';
 
   return (
     <View
@@ -47,6 +99,37 @@ function UserRow({ user }: { user: IUser }) {
           {user.email}
         </Text>
       </View>
+      {canOpenEnrollFlow && isRegistered && (
+        <TouchableOpacity
+          onPress={() => onOpenEnroll(user)}
+          className="p-2.5 rounded-xl mr-2"
+          style={{ backgroundColor: '#dbeafe' }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="person-add-outline" size={16} color="#1d4ed8" />
+        </TouchableOpacity>
+      )}
+      {canOpenManageFlow && (
+        <TouchableOpacity
+          onPress={() => onOpenManage(user)}
+          className="p-2.5 rounded-xl mr-2"
+          style={{ backgroundColor: '#f3f4f6' }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="ellipsis-horizontal" size={16} color="#4b5563" />
+        </TouchableOpacity>
+      )}
+      <View
+        className="px-2.5 py-1 rounded-full mr-2"
+        style={{ backgroundColor: isUserActive ? '#ecfdf5' : '#fef2f2' }}
+      >
+        <Text
+          className="text-xs font-semibold"
+          style={{ color: isUserActive ? '#15803d' : '#b91c1c' }}
+        >
+          {isUserActive ? 'Activo' : 'Suspendido'}
+        </Text>
+      </View>
       <View className="px-2.5 py-1 rounded-full" style={{ backgroundColor: role.bg }}>
         <Text className="text-xs font-semibold" style={{ color: role.color }}>
           {role.label}
@@ -58,19 +141,50 @@ function UserRow({ user }: { user: IUser }) {
 
 export default function UsersScreen() {
   const router = useRouter();
+  const { user: authUser } = useAuth();
+
   const [users, setUsers] = useState<IUser[]>([]);
   const [filtered, setFiltered] = useState<IUser[]>([]);
+  const [schools, setSchools] = useState<ISchool[]>([]);
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [seatCapabilities, setSeatCapabilities] = useState<SeatPolicyCapabilities>(
+    DEFAULT_CAPABILITIES,
+  );
+
+  const [showEnrollModal, setShowEnrollModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<IUser | null>(null);
+  const [selectedSchoolId, setSelectedSchoolId] = useState('');
+  const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [schoolCourses, setSchoolCourses] = useState<ICourse[]>([]);
+  const [isLoadingCourses, setIsLoadingCourses] = useState(false);
+  const [isEnrolling, setIsEnrolling] = useState(false);
+  const [showManageUserModal, setShowManageUserModal] = useState(false);
+  const [manageUserTarget, setManageUserTarget] = useState<IUser | null>(null);
+  const [isUpdatingUser, setIsUpdatingUser] = useState(false);
+
+  const currentUserId =
+    (authUser as any)?._id || (authUser as any)?.id || (authUser as any)?.sub || '';
+  const currentRole = String((authUser as any)?.role || '').toLowerCase();
+  const canManageUsers = ['super_admin', 'admin', 'school_owner', 'administrative'].includes(currentRole);
+  const canChangeRoles = currentRole === 'super_admin';
 
   const loadUsers = useCallback(async () => {
     try {
-      const data = await apiClient.getUsers();
+      const [data, policy, schoolsData] = await Promise.all([
+        apiClient.getUsers(),
+        apiClient.getSeatPolicy().catch(() => null),
+        apiClient.getAllSchools().catch(() => [] as ISchool[]),
+      ]);
       const list = Array.isArray(data) ? data : (data as any).users ?? [];
       setUsers(list);
       setFiltered(list);
-    } catch (e: any) {
+      setSchools(schoolsData || []);
+      if (policy?.capabilities) {
+        setSeatCapabilities(policy.capabilities);
+      }
+    } catch {
       Alert.alert('Error', 'No se pudo cargar la lista de usuarios');
     } finally {
       setIsLoading(false);
@@ -85,22 +199,194 @@ export default function UsersScreen() {
   useEffect(() => {
     if (!search.trim()) {
       setFiltered(users);
-    } else {
-      const q = search.toLowerCase();
-      setFiltered(
-        users.filter(
-          (u) =>
-            u.name?.toLowerCase().includes(q) ||
-            u.email?.toLowerCase().includes(q) ||
-            u.role?.toLowerCase().includes(q),
-        ),
-      );
+      return;
     }
+    const q = search.toLowerCase();
+    setFiltered(
+      users.filter(
+        (u) =>
+          u.name?.toLowerCase().includes(q) ||
+          u.email?.toLowerCase().includes(q) ||
+          u.role?.toLowerCase().includes(q),
+      ),
+    );
   }, [search, users]);
+
+  useEffect(() => {
+    const loadCourses = async () => {
+      if (!showEnrollModal || !selectedSchoolId) {
+        setSchoolCourses([]);
+        return;
+      }
+      setIsLoadingCourses(true);
+      try {
+        const data = await apiClient.getCoursesBySchool(selectedSchoolId);
+        setSchoolCourses(data || []);
+      } catch {
+        setSchoolCourses([]);
+      } finally {
+        setIsLoadingCourses(false);
+      }
+    };
+    loadCourses();
+  }, [showEnrollModal, selectedSchoolId]);
+
+  const openEnrollModal = (target: IUser) => {
+    setSelectedUser(target);
+    setSelectedCourseId('');
+    setSchoolCourses([]);
+    const firstSchoolId = String((schools[0] as any)?._id || '');
+    setSelectedSchoolId(firstSchoolId);
+    setShowEnrollModal(true);
+  };
+
+  const openManageModal = (target: IUser) => {
+    setManageUserTarget(target);
+    setShowManageUserModal(true);
+  };
+
+  const applyUserPatch = (updated: IUser) => {
+    setUsers((prev) =>
+      prev.map((item) =>
+        item._id === updated._id ? { ...item, ...updated } : item,
+      ),
+    );
+  };
+
+  const handleChangeUserStatus = async (
+    status: 'active' | 'inactive' | 'suspended',
+  ) => {
+    const target = manageUserTarget;
+    if (!target?._id) return;
+    if (target._id === currentUserId) {
+      Alert.alert(
+        'Acción no permitida',
+        'No puedes modificar tu propio estado desde esta pantalla.',
+      );
+      return;
+    }
+    setIsUpdatingUser(true);
+    try {
+      const updated = await apiClient.updateUserStatus(target._id, status);
+      applyUserPatch(updated);
+      Alert.alert('Listo', `Estado actualizado a ${status}.`);
+      setShowManageUserModal(false);
+      setManageUserTarget(null);
+    } catch (error: any) {
+      Alert.alert(
+        'Error',
+        error?.response?.data?.message ||
+          error?.message ||
+          'No se pudo actualizar el estado',
+      );
+    } finally {
+      setIsUpdatingUser(false);
+    }
+  };
+
+  const handleChangeUserRole = async (role: string) => {
+    const target = manageUserTarget;
+    if (!target?._id) return;
+    if (target._id === currentUserId) {
+      Alert.alert(
+        'Acción no permitida',
+        'No puedes modificar tu propio rol desde esta pantalla.',
+      );
+      return;
+    }
+    setIsUpdatingUser(true);
+    try {
+      const updated = await apiClient.updateUserRole(target._id, role);
+      applyUserPatch(updated);
+      Alert.alert('Listo', `Rol actualizado a ${role}.`);
+      setShowManageUserModal(false);
+      setManageUserTarget(null);
+    } catch (error: any) {
+      Alert.alert(
+        'Error',
+        error?.response?.data?.message ||
+          error?.message ||
+          'No se pudo actualizar el rol',
+      );
+    } finally {
+      setIsUpdatingUser(false);
+    }
+  };
+
+  const handleEnroll = async () => {
+    const studentId = selectedUser?._id;
+    if (!studentId || !selectedSchoolId || !selectedCourseId) {
+      Alert.alert('Error', 'Selecciona escuela y curso');
+      return;
+    }
+
+    setIsEnrolling(true);
+    try {
+      const policy = await apiClient.getSeatPolicy({
+        schoolId: selectedSchoolId,
+        courseId: selectedCourseId,
+      });
+      if (!policy.capabilities?.canEnrollStudentInCourse) {
+        throw new Error('No tienes permisos para matricular en este curso');
+      }
+
+      if (policy.capabilities?.canAssignCourseSeatPermit) {
+        await apiClient.assignCourseSeatPermit(
+          studentId,
+          selectedSchoolId,
+          selectedCourseId,
+        );
+      }
+
+      await apiClient.enrollStudentInCourse(selectedCourseId, studentId);
+
+      try {
+        const updatedCourses = await apiClient.getEnrolledCoursesByUser(studentId);
+        const updatedCourseIds = updatedCourses
+          .map((course) => String(course._id || ''))
+          .filter(Boolean);
+        setUsers((prev) =>
+          prev.map((row) =>
+            row._id === studentId
+              ? {
+                  ...row,
+                  enrolledCourses: updatedCourseIds,
+                }
+              : row,
+          ),
+        );
+      } catch {
+        // non-blocking local refresh
+      }
+
+      let successMessage = 'Usuario matriculado correctamente.';
+      if (currentRole === 'school_owner' && currentUserId) {
+        try {
+          const ownerQuota = await apiClient.getOwnerSeatQuota(
+            currentUserId,
+            selectedSchoolId,
+          );
+          successMessage = `${successMessage} Cupos disponibles: ${ownerQuota.availableSeats}.`;
+        } catch {
+          // ignore quota fetch errors in success flow
+        }
+      }
+
+      Alert.alert('Listo', successMessage);
+      setShowEnrollModal(false);
+      setSelectedUser(null);
+    } catch (error: any) {
+      Alert.alert(
+        'Error',
+        error?.response?.data?.message || error?.message || 'No se pudo matricular',
+      );
+    } finally {
+      setIsEnrolling(false);
+    }
+  };
 
   return (
     <View className="flex-1 bg-amber-50">
-      {/* Header */}
       <View className="bg-amber-500 px-5 pt-5 pb-8 flex-row items-center">
         <TouchableOpacity onPress={() => router.back()} className="mr-4">
           <Ionicons name="arrow-back" size={24} color="white" />
@@ -115,7 +401,24 @@ export default function UsersScreen() {
       </View>
 
       <View className="px-4 -mt-4 mb-3">
-        <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
+        {seatCapabilities.canViewSeatManagementModule && (
+          <TouchableOpacity
+            onPress={() => router.push('/manage/seats' as any)}
+            className="bg-white rounded-2xl px-4 py-3 mb-3 flex-row items-center"
+            style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}
+          >
+            <Ionicons name="speedometer-outline" size={18} color="#0284c7" />
+            <Text className="ml-2 text-gray-800 font-semibold flex-1">
+              Gestión de Cupos
+            </Text>
+            <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+          </TouchableOpacity>
+        )}
+
+        <View
+          className="flex-row items-center bg-white rounded-2xl px-4 py-3 shadow-sm"
+          style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}
+        >
           <Ionicons name="search-outline" size={18} color="#9ca3af" />
           <TextInput
             value={search}
@@ -141,7 +444,15 @@ export default function UsersScreen() {
           data={filtered}
           keyExtractor={(u) => u._id ?? u.email ?? Math.random().toString()}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
-          renderItem={({ item }) => <UserRow user={item} />}
+          renderItem={({ item }) => (
+            <UserRow
+              user={item}
+              canOpenEnrollFlow={seatCapabilities.canOpenEnrollFlow}
+              canOpenManageFlow={canManageUsers}
+              onOpenEnroll={openEnrollModal}
+              onOpenManage={openManageModal}
+            />
+          )}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
@@ -162,6 +473,175 @@ export default function UsersScreen() {
           }
         />
       )}
+
+      <Modal
+        visible={showEnrollModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEnrollModal(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}
+          onPress={() => setShowEnrollModal(false)}
+        >
+          <Pressable onPress={(e) => e.stopPropagation()}>
+            <View className="bg-white rounded-t-3xl px-5 pt-5 pb-10">
+              <View className="w-10 h-1 bg-gray-200 rounded-full self-center mb-4" />
+              <Text className="text-base font-bold text-gray-900 mb-1">Matricular Usuario</Text>
+              <Text className="text-xs text-gray-500 mb-4" numberOfLines={1}>
+                {selectedUser?.name || selectedUser?.email}
+              </Text>
+
+              <Text className="text-gray-700 font-semibold text-sm mb-2">Escuela</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+                {schools.map((school) => {
+                  const schoolId = String((school as any)._id || '');
+                  const active = selectedSchoolId === schoolId;
+                  return (
+                    <TouchableOpacity
+                      key={schoolId}
+                      onPress={() => {
+                        setSelectedSchoolId(schoolId);
+                        setSelectedCourseId('');
+                      }}
+                      className="px-3 py-2 rounded-xl mr-2"
+                      style={{ backgroundColor: active ? '#f59e0b' : '#f3f4f6' }}
+                    >
+                      <Text style={{ color: active ? 'white' : '#374151', fontWeight: '600' }}>
+                        {school.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <Text className="text-gray-700 font-semibold text-sm mb-2">Curso</Text>
+              {isLoadingCourses ? (
+                <View className="py-3">
+                  <ActivityIndicator color="#f59e0b" />
+                </View>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+                  {schoolCourses.map((course) => {
+                    const courseId = String(course._id || '');
+                    const active = selectedCourseId === courseId;
+                    return (
+                      <TouchableOpacity
+                        key={courseId}
+                        onPress={() => setSelectedCourseId(courseId)}
+                        className="px-3 py-2 rounded-xl mr-2"
+                        style={{ backgroundColor: active ? '#111827' : '#f3f4f6' }}
+                      >
+                        <Text style={{ color: active ? 'white' : '#374151', fontWeight: '600' }}>
+                          {course.title}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {schoolCourses.length === 0 && (
+                    <View className="py-2">
+                      <Text className="text-gray-400">No hay cursos en esta escuela.</Text>
+                    </View>
+                  )}
+                </ScrollView>
+              )}
+
+              <TouchableOpacity
+                disabled={!selectedSchoolId || !selectedCourseId || isEnrolling}
+                onPress={handleEnroll}
+                className="bg-amber-500 rounded-xl py-3 items-center"
+                style={{
+                  opacity:
+                    !selectedSchoolId || !selectedCourseId || isEnrolling ? 0.6 : 1,
+                }}
+              >
+                {isEnrolling ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text className="text-white font-bold">Matricular</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setShowEnrollModal(false)}
+                className="mt-3 py-3 bg-gray-100 rounded-xl items-center"
+              >
+                <Text className="text-gray-600 font-semibold">Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={showManageUserModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowManageUserModal(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}
+          onPress={() => setShowManageUserModal(false)}
+        >
+          <Pressable onPress={(e) => e.stopPropagation()}>
+            <View className="bg-white rounded-t-3xl px-5 pt-5 pb-10">
+              <View className="w-10 h-1 bg-gray-200 rounded-full self-center mb-4" />
+              <Text className="text-base font-bold text-gray-900 mb-1">Gestionar usuario</Text>
+              <Text className="text-xs text-gray-500 mb-4" numberOfLines={1}>
+                {manageUserTarget?.name || manageUserTarget?.email}
+              </Text>
+
+              <Text className="text-gray-700 font-semibold text-sm mb-2">Estado</Text>
+              <View className="flex-row mb-4">
+                <TouchableOpacity
+                  disabled={isUpdatingUser}
+                  onPress={() => handleChangeUserStatus('active')}
+                  className="px-3 py-2 rounded-xl mr-2"
+                  style={{ backgroundColor: '#ecfdf5' }}
+                >
+                  <Text style={{ color: '#166534', fontWeight: '600' }}>Activar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  disabled={isUpdatingUser}
+                  onPress={() => handleChangeUserStatus('suspended')}
+                  className="px-3 py-2 rounded-xl"
+                  style={{ backgroundColor: '#fef2f2' }}
+                >
+                  <Text style={{ color: '#b91c1c', fontWeight: '600' }}>Suspender</Text>
+                </TouchableOpacity>
+              </View>
+
+              {canChangeRoles ? (
+                <>
+                  <Text className="text-gray-700 font-semibold text-sm mb-2">Rol</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+                    {ROLE_CHOICES.map((roleChoice) => (
+                      <TouchableOpacity
+                        key={roleChoice.value}
+                        disabled={isUpdatingUser}
+                        onPress={() => handleChangeUserRole(roleChoice.value)}
+                        className="px-3 py-2 rounded-xl mr-2"
+                        style={{ backgroundColor: '#f3f4f6' }}
+                      >
+                        <Text style={{ color: '#1f2937', fontWeight: '600' }}>
+                          {roleChoice.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              ) : null}
+
+              <TouchableOpacity
+                onPress={() => setShowManageUserModal(false)}
+                className="py-3 bg-gray-100 rounded-xl items-center"
+              >
+                <Text className="text-gray-600 font-semibold">Cerrar</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

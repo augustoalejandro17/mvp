@@ -1,4 +1,9 @@
 import {
+  ForbiddenException,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
   Controller,
   Get,
   Post,
@@ -36,7 +41,16 @@ import {
 } from '../dto/statistics.dto';
 
 @Controller('admin/stats')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(
+  UserRole.SUPER_ADMIN,
+  UserRole.SCHOOL_OWNER,
+  UserRole.ADMIN,
+  UserRole.ADMINISTRATIVE,
+)
 export class StatisticsController {
+  private readonly logger = new Logger(StatisticsController.name);
+
   constructor(
     private retentionService: RetentionService,
     private performanceService: PerformanceService,
@@ -65,7 +79,7 @@ export class StatisticsController {
       const user = req.user;
       const userId = user.sub || (user._id ? user._id.toString() : null);
       if (!userId) {
-        throw new Error('ID de usuario no disponible');
+        throw new UnauthorizedException('ID de usuario no disponible');
       }
 
       const stats: any = {};
@@ -74,7 +88,7 @@ export class StatisticsController {
         // Asegurarse de que checkSchoolAccess existe o moverlo aquí
         const hasAccess = await this.checkSchoolAccess(user, schoolId);
         if (!hasAccess) {
-          throw new Error('Acceso denegado a la escuela');
+          throw new ForbiddenException('Acceso denegado a la escuela');
         }
         stats.users = await this.getUserCountForSchool(schoolId);
         stats.schools = 1;
@@ -125,14 +139,13 @@ export class StatisticsController {
       }
       return stats;
     } catch (error) {
-      console.error('Error getting stats:', error);
-      return {
-        users: 0,
-        schools: 0,
-        courses: 0,
-        classes: 0,
-        error: 'Error al obtener estadísticas generales: ' + error.message,
-      };
+      this.logger.error(`Error getting stats: ${error.message}`, error.stack);
+      if (error?.getStatus) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Error al obtener estadísticas generales',
+      );
     }
   }
 
@@ -192,10 +205,16 @@ export class StatisticsController {
         topSchoolsByStorage,
       };
     } catch (error) {
-      console.error('Error getting subscription stats:', error);
-      return {
-        error: 'Error al obtener estadísticas de suscripciones',
-      };
+      this.logger.error(
+        `Error getting subscription stats: ${error.message}`,
+        error.stack,
+      );
+      if (error?.getStatus) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Error al obtener estadísticas de suscripciones',
+      );
     }
   }
 
@@ -213,17 +232,19 @@ export class StatisticsController {
       if (user.role !== UserRole.SUPER_ADMIN) {
         const hasAccess = await this.checkSchoolAccess(user, schoolId);
         if (!hasAccess) {
-          return { error: 'No tienes acceso a esta escuela' };
+          throw new ForbiddenException('No tienes acceso a esta escuela');
         }
       }
 
       const school = await this.schoolModel.findById(schoolId);
       if (!school) {
-        return { error: 'Escuela no encontrada' };
+        throw new NotFoundException('Escuela no encontrada');
       }
 
       if (!school.activeSubscription) {
-        return { error: 'Esta escuela no tiene una suscripción activa' };
+        throw new NotFoundException(
+          'Esta escuela no tiene una suscripción activa',
+        );
       }
 
       // Get subscription details with plan info
@@ -232,7 +253,7 @@ export class StatisticsController {
         .populate('plan');
 
       if (!subscription) {
-        return { error: 'Suscripción no encontrada' };
+        throw new NotFoundException('Suscripción no encontrada');
       }
 
       // Calculate usage percentages
@@ -305,63 +326,57 @@ export class StatisticsController {
         monthlyUsage,
       };
     } catch (error) {
-      console.error('Error getting school subscription details:', error);
-      return {
-        error: 'Error al obtener detalles de suscripción de la escuela',
-      };
+      this.logger.error(
+        `Error getting school subscription details: ${error.message}`,
+        error.stack,
+      );
+      if (error?.getStatus) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Error al obtener detalles de suscripción de la escuela',
+      );
     }
   }
 
   @Get('overview')
   async getOverviewStats(@Request() req) {
-    try {
-      // Obtener información básica para el dashboard
-      const dateRange = {
-        startDate: new Date(new Date().setMonth(new Date().getMonth() - 1)),
-        endDate: new Date(),
-      };
+    // Obtener información básica para el dashboard
+    const dateRange = {
+      startDate: new Date(new Date().setMonth(new Date().getMonth() - 1)),
+      endDate: new Date(),
+    };
 
-      // Obtener todas las métricas básicas en paralelo
-      const [retentionRates, teacherPerformance, revenue] = await Promise.all([
-        this.retentionService.getRetentionRatesByCourse(),
-        this.performanceService.getTeachersPerformance(),
-        this.revenueService.getRevenueMetrics(dateRange),
-      ]);
+    // Obtener todas las métricas básicas en paralelo
+    const [retentionRates, teacherPerformance, revenue] = await Promise.all([
+      this.retentionService.getRetentionRatesByCourse(),
+      this.performanceService.getTeachersPerformance(),
+      this.revenueService.getRevenueMetrics(dateRange),
+    ]);
 
-      // Calcular resumen de estadísticas generales
-      const totalStudents = retentionRates.reduce(
-        (sum, course) => sum + course.initialEnrollment,
-        0,
-      );
-      const activeStudents = retentionRates.reduce(
-        (sum, course) => sum + course.currentEnrollment,
-        0,
-      );
-      const totalCourses = retentionRates.length;
-      const totalTeachers = teacherPerformance.length;
+    // Calcular resumen de estadísticas generales
+    const totalStudents = retentionRates.reduce(
+      (sum, course) => sum + course.initialEnrollment,
+      0,
+    );
+    const activeStudents = retentionRates.reduce(
+      (sum, course) => sum + course.currentEnrollment,
+      0,
+    );
+    const totalCourses = retentionRates.length;
+    const totalTeachers = teacherPerformance.length;
 
-      return {
-        usersCount: activeStudents,
-        coursesCount: totalCourses,
-        teachersCount: totalTeachers,
-        totalRevenue: revenue.totalRevenue,
-        retentionRate:
-          activeStudents > 0
-            ? Math.round((activeStudents / totalStudents) * 100)
-            : 0,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      console.error('Error getting overview stats:', error);
-      return {
-        usersCount: 0,
-        coursesCount: 0,
-        teachersCount: 0,
-        totalRevenue: 0,
-        retentionRate: 0,
-        error: 'Error al obtener estadísticas de vista general',
-      };
-    }
+    return {
+      usersCount: activeStudents,
+      coursesCount: totalCourses,
+      teachersCount: totalTeachers,
+      totalRevenue: revenue.totalRevenue,
+      retentionRate:
+        activeStudents > 0
+          ? Math.round((activeStudents / totalStudents) * 100)
+          : 0,
+      timestamp: new Date().toISOString(),
+    };
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

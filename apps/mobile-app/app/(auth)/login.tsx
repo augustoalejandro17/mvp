@@ -23,6 +23,8 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const appExtra = Constants.expoConfig?.extra as Record<string, string> | undefined;
+  const privacyPolicyUrl = appExtra?.privacyPolicyUrl;
+  const termsConditionsUrl = appExtra?.termsConditionsUrl;
 
   const handleForgotPassword = async () => {
     const supportEmail = appExtra?.supportEmail;
@@ -58,6 +60,23 @@ export default function LoginScreen() {
       Alert.alert('Error de acceso', error.message || 'Credenciales incorrectas');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const openExternalUrl = async (url?: string) => {
+    if (!url) {
+      Alert.alert('No disponible', 'Este enlace no está configurado.');
+      return;
+    }
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) {
+        Alert.alert('No disponible', 'No se pudo abrir el enlace.');
+        return;
+      }
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Error', 'No se pudo abrir el enlace.');
     }
   };
 
@@ -147,6 +166,21 @@ export default function LoginScreen() {
           <TouchableOpacity className="mt-5 items-center" onPress={handleForgotPassword}>
             <Text className="text-amber-600 font-medium">¿Olvidaste tu contraseña?</Text>
           </TouchableOpacity>
+
+          <View className="mt-7 items-center">
+            <Text className="text-gray-400 text-xs text-center">
+              Al continuar aceptas nuestros términos y política de privacidad.
+            </Text>
+            <View className="flex-row items-center mt-2">
+              <TouchableOpacity onPress={() => openExternalUrl(termsConditionsUrl)}>
+                <Text className="text-amber-600 text-xs font-semibold">Términos</Text>
+              </TouchableOpacity>
+              <Text className="text-gray-300 mx-2">•</Text>
+              <TouchableOpacity onPress={() => openExternalUrl(privacyPolicyUrl)}>
+                <Text className="text-amber-600 text-xs font-semibold">Privacidad</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -17,6 +18,8 @@ import {
 
 @Injectable()
 export class UserReportsService {
+  private readonly logger = new Logger(UserReportsService.name);
+
   constructor(
     @InjectModel(UserReport.name)
     private readonly userReportModel: Model<UserReportDocument>,
@@ -134,8 +137,30 @@ export class UserReportsService {
     report.moderatorNotes = dto.moderatorNotes?.trim();
     report.reviewedAt = new Date();
     report.set('reviewedBy', new Types.ObjectId(reviewerId));
+
+    if (dto.status === UserReportStatus.ACTION_TAKEN) {
+      await this.applyModerationAction(report);
+    }
+
     await report.save();
 
     return report;
+  }
+
+  private async applyModerationAction(report: UserReportDocument): Promise<void> {
+    if (!report.reportedUser) {
+      this.logger.warn(
+        `User report ${report._id.toString()} has no reportedUser reference`,
+      );
+      return;
+    }
+
+    await this.userModel.updateOne(
+      { _id: report.reportedUser },
+      {
+        $set: { isActive: false, activeSessions: [] },
+        $unset: { currentSessionId: 1, sessionExpiredAt: 1 },
+      },
+    );
   }
 }

@@ -2,12 +2,10 @@ import { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
   Alert,
-  Switch,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -15,39 +13,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiClient } from '@/services/apiClient';
 import { ISchool } from '@inti/shared-types';
-
-function FormField({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-  multiline,
-  keyboardType,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (v: string) => void;
-  placeholder?: string;
-  multiline?: boolean;
-  keyboardType?: 'default' | 'url' | 'phone-pad';
-}) {
-  return (
-    <View className="mb-4">
-      <Text className="text-gray-700 font-semibold text-sm mb-1.5">{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#9ca3af"
-        multiline={multiline}
-        keyboardType={keyboardType}
-        numberOfLines={multiline ? 4 : 1}
-        className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-gray-900 text-base"
-        style={multiline ? { minHeight: 100, textAlignVertical: 'top' } : undefined}
-      />
-    </View>
-  );
-}
+import ManageFormField from '@/components/manage/ManageFormField';
+import ManageHeader from '@/components/manage/ManageHeader';
+import ManageMediaField from '@/components/manage/ManageMediaField';
+import ManageSummaryCard from '@/components/manage/ManageSummaryCard';
+import ManageToggleField from '@/components/manage/ManageToggleField';
+import { pickImageFromDevice } from '@/services/mediaPicker';
 
 export default function EditSchoolScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -56,11 +27,13 @@ export default function EditSchoolScreen() {
   const [school, setSchool] = useState<ISchool | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [website, setWebsite] = useState('');
   const [isPublic, setIsPublic] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -70,6 +43,7 @@ export default function EditSchoolScreen() {
         setSchool(data);
         setName(data.name ?? '');
         setDescription(data.description ?? '');
+        setLogoUrl((data as any).logoUrl ?? '');
         setAddress(data.address ?? '');
         setPhone((data as any).phone ?? '');
         setWebsite((data as any).website ?? '');
@@ -84,6 +58,24 @@ export default function EditSchoolScreen() {
     load();
   }, [id]);
 
+  const handlePickLogo = async () => {
+    try {
+      const file = await pickImageFromDevice();
+      if (!file) return;
+      setIsUploadingImage(true);
+      const uploadedUrl = await apiClient.uploadImage(file);
+      setLogoUrl(uploadedUrl);
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message ||
+        error?.message ||
+        'No se pudo subir la imagen';
+      Alert.alert('Error', Array.isArray(msg) ? msg.join('\n') : String(msg));
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Error', 'El nombre es requerido');
@@ -94,6 +86,7 @@ export default function EditSchoolScreen() {
       await apiClient.updateSchool(id, {
         name: name.trim(),
         description: description.trim(),
+        logoUrl: logoUrl.trim() || undefined,
         address: address.trim(),
         phone: phone.trim(),
         website: website.trim(),
@@ -118,47 +111,93 @@ export default function EditSchoolScreen() {
   }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
-      <ScrollView className="flex-1 bg-amber-50" showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View className="bg-amber-500 px-5 pt-5 pb-8 flex-row items-center">
-          <TouchableOpacity onPress={() => router.back()} className="mr-4">
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          <View className="flex-1">
-            <Text className="text-white text-xs opacity-80 mb-1">Gestión de Escuelas</Text>
-            <Text className="text-white text-xl font-bold" numberOfLines={1}>
-              {school?.name ?? 'Editar Escuela'}
-            </Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1 bg-amber-50"
+    >
+      <ScrollView
+        className="flex-1 bg-amber-50"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 28 }}
+      >
+        <ManageHeader
+          sectionLabel="Gestión de Escuelas"
+          title="Editar Escuela"
+          onBack={() => router.back()}
+        />
+
+        <View className="px-4 -mt-3">
+          <ManageSummaryCard
+            icon="school-outline"
+            title={name || school?.name || 'Escuela'}
+            subtitle="Actualiza los datos principales"
+          />
+
+          <View
+            className="bg-white rounded-2xl p-4 mb-4"
+            style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}
+          >
+            <Text className="text-gray-900 font-bold text-base mb-3">Información general</Text>
+            <ManageFormField
+              label="Nombre *"
+              icon="text-outline"
+              value={name}
+              onChangeText={setName}
+              placeholder="Nombre de la escuela"
+            />
+            <ManageFormField
+              label="Descripción"
+              icon="chatbubble-ellipses-outline"
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Breve descripción de la escuela"
+              multiline
+            />
+            <ManageMediaField
+              label="Logo de la escuela"
+              helperText="JPG, PNG, WEBP o GIF (máx. 5MB)"
+              mediaType="image"
+              previewUrl={logoUrl || undefined}
+              selectedFileName={logoUrl ? 'Logo cargado' : undefined}
+              isUploading={isUploadingImage}
+              onPick={handlePickLogo}
+              onClear={() => setLogoUrl('')}
+            />
+
+            <Text className="text-gray-900 font-bold text-base mb-3 mt-1">Contacto</Text>
+            <ManageFormField
+              label="Dirección"
+              icon="location-outline"
+              value={address}
+              onChangeText={setAddress}
+              placeholder="Dirección física"
+            />
+            <ManageFormField
+              label="Teléfono"
+              icon="call-outline"
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="+1 (000) 000-0000"
+              keyboardType="phone-pad"
+            />
+            <ManageFormField
+              label="Sitio Web"
+              icon="globe-outline"
+              value={website}
+              onChangeText={setWebsite}
+              placeholder="https://..."
+              keyboardType="url"
+            />
+
+            <ManageToggleField
+              icon="eye-outline"
+              label="Escuela pública"
+              description="Visible para todos los usuarios"
+              value={isPublic}
+              onValueChange={setIsPublic}
+            />
           </View>
-        </View>
 
-        <View className="px-4 -mt-4">
-          <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
-            <Text className="text-gray-900 font-bold text-base mb-4">Información de la Escuela</Text>
-
-            <FormField label="Nombre *" value={name} onChangeText={setName} placeholder="Nombre de la escuela" />
-            <FormField label="Descripción" value={description} onChangeText={setDescription} placeholder="Breve descripción de la escuela" multiline />
-            <FormField label="Dirección" value={address} onChangeText={setAddress} placeholder="Dirección física" />
-            <FormField label="Teléfono" value={phone} onChangeText={setPhone} placeholder="+1 (000) 000-0000" keyboardType="phone-pad" />
-            <FormField label="Sitio Web" value={website} onChangeText={setWebsite} placeholder="https://..." keyboardType="url" />
-
-            {/* Toggle público */}
-            <View className="flex-row items-center justify-between py-3 border-t border-gray-100 mt-2">
-              <View>
-                <Text className="text-gray-800 font-semibold text-base">Escuela pública</Text>
-                <Text className="text-gray-500 text-xs mt-0.5">Visible para todos los usuarios</Text>
-              </View>
-              <Switch
-                value={isPublic}
-                onValueChange={setIsPublic}
-                trackColor={{ false: '#e5e7eb', true: '#fbbf24' }}
-                thumbColor={isPublic ? '#f59e0b' : '#f3f4f6'}
-              />
-            </View>
-          </View>
-
-          {/* Save */}
           <TouchableOpacity
             onPress={handleSave}
             disabled={isSaving}
@@ -168,11 +207,12 @@ export default function EditSchoolScreen() {
             {isSaving ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text className="text-white font-bold text-base">Guardar Cambios</Text>
+              <View className="flex-row items-center">
+                <Ionicons name="save-outline" size={18} color="white" />
+                <Text className="text-white font-bold text-base ml-2">Guardar Cambios</Text>
+              </View>
             )}
           </TouchableOpacity>
-
-          <View className="h-4" />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

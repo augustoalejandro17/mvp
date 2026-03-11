@@ -240,7 +240,9 @@ export class ClassesService {
 
   async findAll(userId?: string, role?: UserRole, courseId?: string) {
     try {
-      let query: any = {};
+      const isAdminViewer =
+        role === UserRole.ADMIN || role === UserRole.SUPER_ADMIN;
+      let query: any = isAdminViewer ? {} : { isActive: true };
 
       // Si se especifica un curso, filtramos por él
       if (courseId) {
@@ -248,7 +250,7 @@ export class ClassesService {
       }
 
       // Si es un usuario no admin o super_admin, filtramos por clases públicas o donde el profesor sea el usuario
-      if (userId && role !== UserRole.ADMIN && role !== UserRole.SUPER_ADMIN) {
+      if (userId && !isAdminViewer) {
         if (role === UserRole.TEACHER) {
           query = {
             ...query,
@@ -369,6 +371,10 @@ export class ClassesService {
         throw new NotFoundException(`Clase con ID ${id} no encontrada`);
       }
 
+      if (!classItem.isActive) {
+        throw new NotFoundException(`Clase con ID ${id} no encontrada`);
+      }
+
       // If the class has a video key, generate a streaming URL
       if (classItem.videoKey) {
         const streamingUrl = await this.getVideoStreamingUrl(
@@ -403,6 +409,16 @@ export class ClassesService {
 
       if (!classItem) {
         throw new NotFoundException(`Clase con ID ${id} no encontrada`);
+      }
+
+      if (
+        !classItem.isActive &&
+        userRole !== UserRole.ADMIN &&
+        userRole !== UserRole.SUPER_ADMIN
+      ) {
+        throw new UnauthorizedException(
+          'No tienes permiso para ver esta clase o requiere autenticación.',
+        );
       }
 
       // Admin and super admin can see all classes

@@ -5,10 +5,10 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Enrollment, EnrollmentStatus } from './schemas/enrollment.schema';
 import { Course } from '../courses/schemas/course.schema';
-import { User } from '../auth/schemas/user.schema';
+import { User, UserRole } from '../auth/schemas/user.schema';
 import { GamificationIntegrationService } from '../gamification/services/gamification-integration.service';
 import { UserProgressService } from '../progress/services/user-progress.service';
 
@@ -24,12 +24,217 @@ export class EnrollmentsService {
     private readonly userProgressService: UserProgressService,
   ) {}
 
+  private hasSchoolRole(user: User, schoolId: string, role: UserRole): boolean {
+    const roleStr = String(role).toLowerCase();
+    return (
+      user.schoolRoles?.some(
+        (item) =>
+          item.schoolId?.toString() === schoolId &&
+          String(item.role || '').toLowerCase() === roleStr,
+      ) || false
+    );
+  }
+
+  private canManageEnrollment(
+    requester: User,
+    course: Course,
+    schoolId: string,
+  ): boolean {
+    const requesterRole = String(requester.role || '').toLowerCase();
+    const requesterId = (requester as any)._id?.toString();
+
+    if (
+      requesterRole === UserRole.SUPER_ADMIN ||
+      requesterRole === UserRole.ADMIN
+    ) {
+      return true;
+    }
+
+    if (requesterRole === UserRole.TEACHER) {
+      const isMainTeacher =
+        !!requesterId && course.teacher?.toString() === requesterId;
+      const isSecondaryTeacher =
+        course.teachers?.some(
+          (teacherId) => !!requesterId && teacherId?.toString() === requesterId,
+        ) || false;
+      return isMainTeacher || isSecondaryTeacher;
+    }
+
+    if (requesterRole === UserRole.SCHOOL_OWNER) {
+      const ownsSchool =
+        requester.ownedSchools?.some((id) => id.toString() === schoolId) ||
+        false;
+      return (
+        ownsSchool ||
+        this.hasSchoolRole(requester, schoolId, UserRole.SCHOOL_OWNER)
+      );
+    }
+
+    if (requesterRole === UserRole.ADMINISTRATIVE) {
+      const administratesSchool =
+        requester.administratedSchools?.some(
+          (id) => id.toString() === schoolId,
+        ) || false;
+      return (
+        administratesSchool ||
+        this.hasSchoolRole(requester, schoolId, UserRole.ADMINISTRATIVE)
+      );
+    }
+
+    return false;
+  }
+
+  private async consumeSeatForEnrollment(
+    userId: string,
+    schoolId: string,
+    courseId: string,
+  ): Promise<void> {
+    const student = await this.userModel
+      .findById(userId)
+      .select('courseSeatGrants')
+      .exec();
+    if (!student) {
+      throw new NotFoundException('User not found');
+    }
+
+    const studentDoc = student as any;
+    const grants = studentDoc.courseSeatGrants || [];
+    const grant = grants.find(
+      (item) =>
+        item.isActive === true &&
+        item.schoolId?.toString() === schoolId &&
+        item.courseId?.toString() === courseId,
+    );
+
+    if (!grant) {
+      throw new BadRequestException(
+        'Student does not have an active seat assigned for this course',
+      );
+    }
+
+    if (grant.isConsumed === true) {
+      return;
+    }
+
+    const quotaOwnerId =
+      grant.quotaOwnerId?.toString() || grant.assignedBy?.toString();
+    if (quotaOwnerId) {
+      const owner = await this.userModel
+        .findById(quotaOwnerId)
+        .select('role ownerSeatQuotas')
+        .exec();
+
+      const ownerRole = owner?.role ? String(owner.role).toLowerCase() : '';
+      if (owner && ownerRole === UserRole.SCHOOL_OWNER) {
+        const quotas = (owner as any).ownerSeatQuotas || [];
+        const quota = quotas.find(
+          (item) => item.schoolId?.toString() === schoolId,
+        );
+        const totalSeats = Number(quota?.totalSeats || 0);
+
+        const usedAgg = await this.userModel.aggregate([
+          { $unwind: '$courseSeatGrants' },
+          {
+            $match: {
+              'courseSeatGrants.schoolId': new Types.ObjectId(schoolId),
+              'courseSeatGrants.isActive': true,
+              'courseSeatGrants.isConsumed': true,
+              $or: [
+                {
+                  'courseSeatGrants.quotaOwnerId': new Types.ObjectId(
+                    quotaOwnerId,
+                  ),
+                },
+                {
+                  'courseSeatGrants.quotaOwnerId': { $exists: false },
+                  'courseSeatGrants.assignedBy': new Types.ObjectId(
+                    quotaOwnerId,
+                  ),
+                },
+              ],
+            },
+          },
+          { $count: 'count' },
+        ]);
+        const usedSeats = usedAgg?.[0]?.count || 0;
+
+        if (usedSeats >= totalSeats) {
+          throw new BadRequestException(
+            `Seat quota reached. Total: ${totalSeats}, Used: ${usedSeats}`,
+          );
+        }
+      }
+    }
+
+    grant.isConsumed = true;
+    grant.consumedAt = new Date();
+    grant.releasedAt = undefined;
+    student.markModified('courseSeatGrants');
+    await student.save();
+  }
+
+  private async releaseSeatForEnrollment(
+    userId: string,
+    schoolId: string,
+    courseId: string,
+  ): Promise<void> {
+    const student = await this.userModel
+      .findById(userId)
+      .select('courseSeatGrants')
+      .exec();
+    if (!student) return;
+
+    const studentDoc = student as any;
+    const grants = studentDoc.courseSeatGrants || [];
+    const grant = grants.find(
+      (item) =>
+        item.isActive === true &&
+        item.isConsumed === true &&
+        item.schoolId?.toString() === schoolId &&
+        item.courseId?.toString() === courseId,
+    );
+    if (!grant) return;
+
+    grant.isConsumed = false;
+    grant.releasedAt = new Date();
+    student.markModified('courseSeatGrants');
+    await student.save();
+  }
+
   async enrollUser(
     userId: string,
     courseId: string,
     enrolledBy: string,
   ): Promise<Enrollment> {
     try {
+      const courseForSeat = await this.courseModel
+        .findById(courseId)
+        .select('school teacher teachers');
+      if (!courseForSeat) {
+        throw new NotFoundException('Course not found');
+      }
+      const schoolId =
+        typeof courseForSeat.school === 'object' &&
+        courseForSeat.school !== null
+          ? (courseForSeat.school as any)._id?.toString() ||
+            String(courseForSeat.school)
+          : String(courseForSeat.school);
+
+      const requester = await this.userModel.findById(enrolledBy).exec();
+      if (!requester) {
+        throw new NotFoundException('Requesting user not found');
+      }
+      const hasPermission = this.canManageEnrollment(
+        requester,
+        courseForSeat as any,
+        schoolId,
+      );
+      if (!hasPermission) {
+        throw new BadRequestException(
+          'You do not have permission to enroll users in this course',
+        );
+      }
+
       // Check if enrollment already exists
       const existingEnrollment = await this.enrollmentModel.findOne({
         userId,
@@ -43,6 +248,8 @@ export class EnrollmentsService {
           );
         }
 
+        await this.consumeSeatForEnrollment(userId, schoolId, courseId);
+
         // Reactivate existing enrollment
         existingEnrollment.status = EnrollmentStatus.ACTIVE;
         existingEnrollment.statusHistory.push({
@@ -54,6 +261,8 @@ export class EnrollmentsService {
 
         return existingEnrollment.save();
       }
+
+      await this.consumeSeatForEnrollment(userId, schoolId, courseId);
 
       // Create new enrollment
       const enrollment = new this.enrollmentModel({
@@ -106,6 +315,42 @@ export class EnrollmentsService {
 
     if (!enrollment) {
       throw new NotFoundException('Enrollment not found');
+    }
+
+    const course = await this.courseModel
+      .findById(courseId)
+      .select('school teacher teachers');
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+    const schoolId =
+      typeof course.school === 'object' && course.school !== null
+        ? (course.school as any)._id?.toString() || String(course.school)
+        : String(course.school);
+
+    const requester = await this.userModel.findById(changedBy).exec();
+    if (!requester) {
+      throw new NotFoundException('Requesting user not found');
+    }
+    const hasPermission = this.canManageEnrollment(
+      requester,
+      course as any,
+      schoolId,
+    );
+    if (!hasPermission) {
+      throw new BadRequestException(
+        'You do not have permission to update enrollment in this course',
+      );
+    }
+
+    if (status === EnrollmentStatus.ACTIVE) {
+      await this.consumeSeatForEnrollment(userId, schoolId, courseId);
+    }
+    if (
+      status === EnrollmentStatus.INACTIVE ||
+      status === EnrollmentStatus.DROPPED
+    ) {
+      await this.releaseSeatForEnrollment(userId, schoolId, courseId);
     }
 
     enrollment.status = status;

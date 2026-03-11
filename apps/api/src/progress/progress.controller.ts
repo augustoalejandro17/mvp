@@ -1,12 +1,17 @@
 import {
   Controller,
+  ForbiddenException,
   Get,
+  Post,
   Param,
   Query,
   UseGuards,
   Logger,
+  Req,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { UserRole } from '../auth/schemas/user.schema';
 import {
   UserProgressService,
   CourseProgressSummary,
@@ -19,6 +24,23 @@ export class ProgressController {
 
   constructor(private readonly userProgressService: UserProgressService) {}
 
+  private ensureCanAccessUserProgress(req: Request, targetUserId: string): void {
+    const requesterId = String(req.user['sub'] || req.user['_id'] || '');
+    const requesterRole = String(req.user['role'] || '').toLowerCase();
+    const canViewAny = [
+      UserRole.SUPER_ADMIN,
+      UserRole.ADMIN,
+      UserRole.SCHOOL_OWNER,
+      UserRole.ADMINISTRATIVE,
+    ].includes(requesterRole as UserRole);
+
+    if (!canViewAny && requesterId !== targetUserId) {
+      throw new ForbiddenException(
+        'No tienes permisos para consultar el progreso de otro usuario',
+      );
+    }
+  }
+
   /**
    * Get user's progress for a specific course
    */
@@ -27,8 +49,10 @@ export class ProgressController {
   async getUserCourseProgress(
     @Param('courseId') courseId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
   ): Promise<CourseProgressSummary | null> {
     try {
+      this.ensureCanAccessUserProgress(req, userId);
       return await this.userProgressService.getUserCourseProgress(
         userId,
         courseId,
@@ -46,9 +70,11 @@ export class ProgressController {
   @UseGuards(JwtAuthGuard)
   async getUserCoursesProgress(
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Query('schoolId') schoolId?: string,
   ): Promise<CourseProgressSummary[]> {
     try {
+      this.ensureCanAccessUserProgress(req, userId);
       return await this.userProgressService.getUserCoursesProgress(
         userId,
         schoolId,
@@ -69,8 +95,10 @@ export class ProgressController {
   async getUserClassProgressInCourse(
     @Param('courseId') courseId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
   ): Promise<UserClassProgressDocument[]> {
     try {
+      this.ensureCanAccessUserProgress(req, userId);
       return await this.userProgressService.getUserClassProgressInCourse(
         userId,
         courseId,
@@ -79,6 +107,26 @@ export class ProgressController {
       this.logger.error(`Error getting user class progress: ${error.message}`);
       throw error;
     }
+  }
+
+  @Post('class/:classId/complete')
+  @UseGuards(JwtAuthGuard)
+  async markClassCompleted(
+    @Param('classId') classId: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user['sub'] || req.user['_id'];
+    const classProgress = await this.userProgressService.markClassCompleted(
+      userId,
+      classId,
+    );
+
+    return {
+      success: true,
+      completed: classProgress.completed,
+      completedAt: classProgress.completedAt,
+      classProgress,
+    };
   }
 
   /**
@@ -90,6 +138,9 @@ export class ProgressController {
     @Param('userId') userId: string,
   ): Promise<CourseProgressSummary | null> {
     try {
+      if (process.env.ENABLE_PUBLIC_PROGRESS !== 'true') {
+        throw new ForbiddenException('Public progress endpoint is disabled');
+      }
       return await this.userProgressService.getUserCourseProgress(
         userId,
         courseId,
@@ -111,6 +162,9 @@ export class ProgressController {
     @Query('schoolId') schoolId?: string,
   ): Promise<CourseProgressSummary[]> {
     try {
+      if (process.env.ENABLE_PUBLIC_PROGRESS !== 'true') {
+        throw new ForbiddenException('Public progress endpoint is disabled');
+      }
       return await this.userProgressService.getUserCoursesProgress(
         userId,
         schoolId,

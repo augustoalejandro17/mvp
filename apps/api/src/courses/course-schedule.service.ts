@@ -220,7 +220,7 @@ export class CourseScheduleService {
 
           // Check for overlap
           if (start1 < end2 && start2 < end1) {
-            throw new Error(
+            throw new BadRequestException(
               `Schedule times overlap: ${time1.dayOfWeek} ${time1.startTime}-${time1.endTime} and ${time2.startTime}-${time2.endTime}`,
             );
           }

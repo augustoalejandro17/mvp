@@ -41,6 +41,22 @@ export class CoursesController {
 
   constructor(private readonly coursesService: CoursesService) {}
 
+  @Get('/seats/policy')
+  @UseGuards(JwtAuthGuard)
+  async getSeatPolicy(
+    @Req() req,
+    @Query('schoolId') schoolId?: string,
+    @Query('courseId') courseId?: string,
+    @Query('ownerId') ownerId?: string,
+  ) {
+    const userId = getUserIdFromRequest(req);
+    return this.coursesService.getSeatPolicyForUser(userId, {
+      schoolId,
+      courseId,
+      ownerId,
+    });
+  }
+
   @Get()
   @UseGuards(OptionalJwtAuthGuard)
   async findAll(@Req() req, @Query('schoolId') schoolId?: string) {
@@ -207,7 +223,14 @@ export class CoursesController {
   }
 
   @Post(':id/students/:studentId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.SCHOOL_OWNER,
+    UserRole.ADMINISTRATIVE,
+    UserRole.TEACHER,
+  )
   async addStudent(
     @Param('id') id: string,
     @Param('studentId') studentId: string,
@@ -228,8 +251,52 @@ export class CoursesController {
     }
   }
 
+  @Post(':id/enroll/:studentId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.SCHOOL_OWNER,
+    UserRole.ADMINISTRATIVE,
+    UserRole.TEACHER,
+  )
+  async enrollStudent(
+    @Param('id') id: string,
+    @Param('studentId') studentId: string,
+    @Req() req,
+  ) {
+    const userId = getUserIdFromRequest(req);
+    return this.coursesService.enrollStudent(id, studentId, userId);
+  }
+
+  @Post(':id/unenroll/:studentId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.SCHOOL_OWNER,
+    UserRole.ADMINISTRATIVE,
+    UserRole.TEACHER,
+  )
+  async unenrollStudent(
+    @Param('id') id: string,
+    @Param('studentId') studentId: string,
+    @Req() req,
+  ) {
+    const userId = getUserIdFromRequest(req);
+    await this.coursesService.unenrollStudent(id, studentId, userId);
+    return { success: true };
+  }
+
   @Post(':id/students/:studentId/remove')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.SCHOOL_OWNER,
+    UserRole.ADMINISTRATIVE,
+    UserRole.TEACHER,
+  )
   async removeStudent(
     @Param('id') id: string,
     @Param('studentId') studentId: string,

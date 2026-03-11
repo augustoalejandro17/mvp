@@ -3,7 +3,7 @@ export default function AccountDeletionPage() {
     <main style={{ maxWidth: 860, margin: '0 auto', padding: '40px 20px', color: '#111827' }}>
       <h1 style={{ fontSize: 32, marginBottom: 10 }}>Eliminación de cuenta</h1>
       <p style={{ color: '#4b5563', marginBottom: 24 }}>
-        Esta página describe cómo solicitar la baja de cuenta para Inti Education.
+        Esta página describe cómo solicitar la baja de cuenta para Inti.
       </p>
 
       <section style={{ marginBottom: 18 }}>
@@ -16,10 +16,10 @@ export default function AccountDeletionPage() {
       </section>
 
       <section style={{ marginBottom: 18 }}>
-        <h2 style={{ fontSize: 20 }}>Qué datos se eliminan</h2>
+        <h2 style={{ fontSize: 20 }}>Qué ocurre al confirmar</h2>
         <ul>
-          <li>Tu perfil y credenciales de acceso.</li>
-          <li>Tus sesiones activas y relaciones principales de usuario.</li>
+          <li>Se desactiva el acceso y se cierran tus sesiones activas.</li>
+          <li>Se eliminan datos principales de perfil y relaciones operativas.</li>
         </ul>
       </section>
 
@@ -29,6 +29,14 @@ export default function AccountDeletionPage() {
           <li>Registros técnicos necesarios para seguridad, prevención de fraude y cumplimiento legal.</li>
           <li>Datos mínimos requeridos por obligaciones regulatorias o fiscales.</li>
         </ul>
+      </section>
+
+      <section style={{ marginBottom: 18 }}>
+        <h2 style={{ fontSize: 20 }}>Plazos de atención</h2>
+        <p>
+          Las solicitudes de soporte para eliminación de cuenta (cuando no puedes
+          iniciar sesión) se atienden normalmente en 3 a 7 días hábiles.
+        </p>
       </section>
 
       <section style={{ marginBottom: 24 }}>

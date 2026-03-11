@@ -7,7 +7,26 @@ import styles from '../../styles/Admin.module.css';
 import dashboardStyles from '../../styles/AdminDashboard.module.css';
 import AdminNavigation from '../../components/AdminNavigation';
 import Link from 'next/link';
-import { FaEdit, FaTrash, FaUserPlus, FaLink, FaUserCheck, FaSearch, FaClock, FaCheckCircle, FaEnvelope, FaUniversity, FaList, FaGraduationCap, FaCalendarAlt, FaMoneyBillWave, FaEye, FaTimes, FaFilter, FaTimesCircle, FaPauseCircle } from 'react-icons/fa';
+import {
+  FaEdit,
+  FaTrash,
+  FaUserPlus,
+  FaLink,
+  FaUserCheck,
+  FaSearch,
+  FaClock,
+  FaCheckCircle,
+  FaEnvelope,
+  FaList,
+  FaGraduationCap,
+  FaCalendarAlt,
+  FaMoneyBillWave,
+  FaEye,
+  FaTimes,
+  FaFilter,
+  FaTimesCircle,
+  FaPauseCircle,
+} from 'react-icons/fa';
 import { UserStatus, EnrollmentStatus } from '../../types/user';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import PaymentRegistrationModal from '../../components/PaymentRegistrationModal';
@@ -17,7 +36,7 @@ import AssignSchoolRoleModal from '../../components/AssignSchoolRoleModal';
 // Tipos de usuario
 enum UserType {
   REGISTERED = 'registered', // Usuario con acceso a la plataforma
-  UNREGISTERED = 'unregistered' // Usuario solo para asistencias (sin acceso)
+  UNREGISTERED = 'unregistered', // Usuario solo para asistencias (sin acceso)
 }
 
 // Interfaces
@@ -33,6 +52,15 @@ interface User {
   schools?: string[]; // Array de IDs de escuelas asociadas
   isRegistered?: boolean; // Para diferenciar usuarios registrados vs no registrados
   createdAt?: Date;
+  courseSeatGrants?: Array<{
+    schoolId: string;
+    courseId: string;
+    assignedBy: string;
+    quotaOwnerId?: string;
+    isActive: boolean;
+    isConsumed?: boolean;
+    assignedAt?: string;
+  }>;
 }
 
 interface SchoolRole {
@@ -42,11 +70,13 @@ interface SchoolRole {
 
 interface Attendance {
   _id: string;
-  student: string | {
-    _id: string;
-    name: string;
-    email: string;
-  };
+  student:
+    | string
+    | {
+        _id: string;
+        name: string;
+        email: string;
+      };
   class: string;
   course: string;
   date: string;
@@ -68,12 +98,48 @@ interface Course {
 }
 
 interface DecodedToken {
-  sub?: string;   // For JWT token payload
-  id?: string;    // For frontend user object
+  sub?: string; // For JWT token payload
+  id?: string; // For frontend user object
   email: string;
   name: string;
   role: string;
 }
+
+interface OwnerSeatQuota {
+  ownerId: string;
+  schoolId: string;
+  totalSeats: number;
+  usedSeats: number;
+  availableSeats: number;
+}
+
+interface SeatPolicyCapabilities {
+  canViewSeatManagementModule: boolean;
+  canOpenEnrollFlow: boolean;
+  canAssignCourseSeatPermit: boolean;
+  canSetOwnerQuota: boolean;
+  canReadOwnerQuota: boolean;
+  canSetOwnerQuotaForTarget: boolean;
+  canReadOwnerQuotaForTarget: boolean;
+  canEnrollStudentInCourse: boolean;
+  canUnenrollStudentFromCourse: boolean;
+  canAddStudentToCourse: boolean;
+  canRemoveStudentFromCourse: boolean;
+}
+
+const DEFAULT_SEAT_CAPABILITIES: SeatPolicyCapabilities = {
+  canViewSeatManagementModule: false,
+  canOpenEnrollFlow: false,
+  canAssignCourseSeatPermit: false,
+  canSetOwnerQuota: false,
+  canReadOwnerQuota: false,
+  canSetOwnerQuotaForTarget: false,
+  canReadOwnerQuotaForTarget: false,
+  canEnrollStudentInCourse: false,
+  canUnenrollStudentFromCourse: false,
+  canAddStudentToCourse: false,
+  canRemoveStudentFromCourse: false,
+};
 
 export default function UserManagement() {
   // Estados
@@ -92,7 +158,9 @@ export default function UserManagement() {
   const [errorMessage, setErrorMessage] = useState('');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userCourses, setUserCourses] = useState<any[]>([]);
-  const [createUserType, setCreateUserType] = useState<UserType>(UserType.REGISTERED);
+  const [createUserType, setCreateUserType] = useState<UserType>(
+    UserType.REGISTERED
+  );
   const [schools, setSchools] = useState<School[]>([]);
   const [userSchools, setUserSchools] = useState<School[]>([]); // Escuelas asociadas al usuario actual
   const [courses, setCourses] = useState<Course[]>([]);
@@ -108,18 +176,41 @@ export default function UserManagement() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null); // Nuevo estado para controlar qué email está expandido
-  
+  const [showSeatQuotaModal, setShowSeatQuotaModal] = useState(false);
+  const [selectedOwnerForQuota, setSelectedOwnerForQuota] =
+    useState<User | null>(null);
+  const [quotaSchoolId, setQuotaSchoolId] = useState('');
+  const [quotaTotalSeats, setQuotaTotalSeats] = useState<number>(0);
+  const [quotaLoading, setQuotaLoading] = useState(false);
+  const [ownerQuota, setOwnerQuota] = useState<OwnerSeatQuota | null>(null);
+  const [myOwnerQuota, setMyOwnerQuota] = useState<OwnerSeatQuota | null>(null);
+  const [enrollOwnerQuota, setEnrollOwnerQuota] =
+    useState<OwnerSeatQuota | null>(null);
+  const [ownerQuotaByUserId, setOwnerQuotaByUserId] = useState<
+    Record<string, OwnerSeatQuota | null>
+  >({});
+  const [showSeatManagement, setShowSeatManagement] = useState(false);
+  const [seatManagerOwnerId, setSeatManagerOwnerId] = useState('');
+  const [seatManagerQuotaValue, setSeatManagerQuotaValue] = useState<number>(0);
+  const [seatManagerOwnerQuota, setSeatManagerOwnerQuota] =
+    useState<OwnerSeatQuota | null>(null);
+  const [seatCapabilities, setSeatCapabilities] =
+    useState<SeatPolicyCapabilities>(DEFAULT_SEAT_CAPABILITIES);
+
   // Nuevo estado para filtros de asistentes sin registro
   const [unregSchoolFilter, setUnregSchoolFilter] = useState('');
   const [unregCourseFilter, setUnregCourseFilter] = useState('');
-  
+
   // Memoize currentSchool for use in JSX
-  const currentSchool = useMemo(() => schools.find(s => s._id === selectedSchool), [schools, selectedSchool]);
-  
+  const currentSchool = useMemo(
+    () => schools.find((s) => s._id === selectedSchool),
+    [schools, selectedSchool]
+  );
+
   // Estados para el ordenamiento
   const [sortBy, setSortBy] = useState<string>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  
+
   // Paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -137,7 +228,9 @@ export default function UserManagement() {
   });
 
   const [showAssignRoleModal, setShowAssignRoleModal] = useState(false);
-  const [selectedUserForRole, setSelectedUserForRole] = useState<User | null>(null);
+  const [selectedUserForRole, setSelectedUserForRole] = useState<User | null>(
+    null
+  );
 
   const router = useRouter();
   const { handleApiError } = useApiErrorHandler();
@@ -147,19 +240,19 @@ export default function UserManagement() {
     try {
       const token = Cookies.get('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      
+
       // Primero, obtener la información directa del usuario para garantizar acceso a enrolledCourses
       const userResponse = await axios.get(`${apiUrl}/api/users/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       // Verificar si hay enrolledCourses directamente en el usuario
-      const hasDirectEnrolledCourses = 
-        userResponse.data && 
-        userResponse.data.enrolledCourses && 
-        Array.isArray(userResponse.data.enrolledCourses) && 
+      const hasDirectEnrolledCourses =
+        userResponse.data &&
+        userResponse.data.enrolledCourses &&
+        Array.isArray(userResponse.data.enrolledCourses) &&
         userResponse.data.enrolledCourses.length > 0;
-      
+
       if (hasDirectEnrolledCourses) {
         // Si es un asistente (unregistered), obtener detalles de cursos directamente
         if (userResponse.data.role === 'unregistered') {
@@ -167,51 +260,64 @@ export default function UserManagement() {
           const coursesDetails = await Promise.all(
             userResponse.data.enrolledCourses.map(async (courseId: string) => {
               try {
-                const courseResponse = await axios.get(`${apiUrl}/api/courses/${courseId}`, {
-                  headers: { Authorization: `Bearer ${token}` }
-                });
-                
+                const courseResponse = await axios.get(
+                  `${apiUrl}/api/courses/${courseId}`,
+                  {
+                    headers: { Authorization: `Bearer ${token}` },
+                  }
+                );
+
                 return courseResponse.data;
               } catch (error) {
                 return { _id: courseId, title: 'Curso no disponible' };
               }
             })
           );
-          
-          return coursesDetails.filter(c => c); // Filtrar valores nulos
+
+          return coursesDetails.filter((c) => c); // Filtrar valores nulos
         }
       }
-      
+
       // Para usuarios registrados o sin cursos directos, intentar con el endpoint
-      const enrolledResponse = await axios.get(`${apiUrl}/api/courses/enrolled`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { userId }
-      });
-      
+      const enrolledResponse = await axios.get(
+        `${apiUrl}/api/courses/enrolled`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { userId },
+        }
+      );
+
       // Si el endpoint devolvió datos, usarlos
-      if (enrolledResponse.data && Array.isArray(enrolledResponse.data) && enrolledResponse.data.length > 0) {
+      if (
+        enrolledResponse.data &&
+        Array.isArray(enrolledResponse.data) &&
+        enrolledResponse.data.length > 0
+      ) {
         return enrolledResponse.data;
       }
-      
+
       // Si llegamos aquí y hay enrolledCourses, usarlos como respaldo
       if (hasDirectEnrolledCourses) {
         // Obtener detalles de cada curso
         const coursesDetails = await Promise.all(
           userResponse.data.enrolledCourses.map(async (courseId: string) => {
             try {
-              const courseResponse = await axios.get(`${apiUrl}/api/courses/${courseId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-              });
+              const courseResponse = await axios.get(
+                `${apiUrl}/api/courses/${courseId}`,
+                {
+                  headers: { Authorization: `Bearer ${token}` },
+                }
+              );
               return courseResponse.data;
             } catch (error) {
               return { _id: courseId, title: 'Curso no disponible' };
             }
           })
         );
-        
-        return coursesDetails.filter(c => c); // Filtrar valores nulos
+
+        return coursesDetails.filter((c) => c); // Filtrar valores nulos
       }
-      
+
       // No se encontraron cursos
       return [];
     } catch (error) {
@@ -228,29 +334,36 @@ export default function UserManagement() {
       initialUnregUsers: User[],
       courseData: Course[]
     ) => {
-
-      
       const nonRegisteredAttendees = new Map();
-      
+
       // Determinar si debemos filtrar por escuelas del usuario (basado en el estado 'user')
-      const shouldFilterBySchool = user?.role === 'school_owner' || user?.role === 'administrative';
+      const shouldFilterBySchool =
+        user?.role === 'school_owner' || user?.role === 'administrative';
       // Usa currentUserSchoolsData (argumento) en lugar de userSchools (estado) para determinar los IDs
-      const userOwnedSchoolIds = currentUserSchoolsData.map(school => school._id);
-      
+      const userOwnedSchoolIds = currentUserSchoolsData.map(
+        (school) => school._id
+      );
+
       // Usa currentLocalUsers (argumento) en lugar de users (estado)
-      const combinedInitialUnregistered = [...currentLocalUsers.filter(u => u.role === 'unregistered'), ...initialUnregUsers];
-      
-      combinedInitialUnregistered.forEach(u => { // renombrado user a u para evitar conflicto con estado 'user'
+      const combinedInitialUnregistered = [
+        ...currentLocalUsers.filter((u) => u.role === 'unregistered'),
+        ...initialUnregUsers,
+      ];
+
+      combinedInitialUnregistered.forEach((u) => {
+        // renombrado user a u para evitar conflicto con estado 'user'
         if (shouldFilterBySchool) {
           const userSchoolIds = u.schools || [];
-          const hasSchoolAssociation = userSchoolIds.some(schoolId => 
-            userOwnedSchoolIds.includes(typeof schoolId === 'string' 
-              ? schoolId 
-              : (schoolId as any).toString())
+          const hasSchoolAssociation = userSchoolIds.some((schoolId) =>
+            userOwnedSchoolIds.includes(
+              typeof schoolId === 'string'
+                ? schoolId
+                : (schoolId as any).toString()
+            )
           );
           if (!hasSchoolAssociation) return;
         }
-        
+
         if (!nonRegisteredAttendees.has(u._id)) {
           nonRegisteredAttendees.set(u._id, {
             _id: u._id,
@@ -260,47 +373,54 @@ export default function UserManagement() {
             occurrences: 1,
             courses: u.enrolledCourses || [],
             schools: u.schools || [],
-            lastSeen: u.createdAt || new Date()
+            lastSeen: u.createdAt || new Date(),
           });
         }
       });
-      
+
       if (attendanceData && attendanceData.length > 0) {
         let filteredAttendanceRecords = attendanceData;
-        
+
         if (shouldFilterBySchool) {
-          filteredAttendanceRecords = attendanceData.filter(record => {
+          filteredAttendanceRecords = attendanceData.filter((record) => {
             if (!record.course) return false;
-            const course = courseData.find(c => c._id === record.course);
+            const course = courseData.find((c) => c._id === record.course);
             if (!course) return false;
-            const courseSchoolId = typeof course.school === 'string' 
-              ? course.school 
-              : (course.school as School)?._id;
+            const courseSchoolId =
+              typeof course.school === 'string'
+                ? course.school
+                : (course.school as School)?._id;
             return userOwnedSchoolIds.includes(courseSchoolId);
           });
         }
-        
-        filteredAttendanceRecords.forEach(record => {
-          const isNonRegistered = 
-            typeof record.student === 'string' || 
+
+        filteredAttendanceRecords.forEach((record) => {
+          const isNonRegistered =
+            typeof record.student === 'string' ||
             record.studentModel === 'String';
-          
+
           if (isNonRegistered) {
-            const studentName = typeof record.student === 'string' 
-              ? record.student 
-              : (record.student as any)?.name || 'Desconocido';
-            
+            const studentName =
+              typeof record.student === 'string'
+                ? record.student
+                : (record.student as any)?.name || 'Desconocido';
+
             let existingKey = null;
-            Array.from(nonRegisteredAttendees.entries()).some(([key, value]) => {
-              if (value.name === studentName && value.role === 'unregistered') {
-                existingKey = key;
-                return true;
+            Array.from(nonRegisteredAttendees.entries()).some(
+              ([key, value]) => {
+                if (
+                  value.name === studentName &&
+                  value.role === 'unregistered'
+                ) {
+                  existingKey = key;
+                  return true;
+                }
+                return false;
               }
-              return false;
-            });
-            
+            );
+
             if (!existingKey) {
-              const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2,9)}`;
+              const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
               nonRegisteredAttendees.set(tempId, {
                 _id: tempId,
                 name: studentName,
@@ -309,12 +429,15 @@ export default function UserManagement() {
                 occurrences: 1,
                 courses: record.course ? [record.course] : [],
                 schools: [],
-                lastSeen: new Date(record.date)
+                lastSeen: new Date(record.date),
               });
             } else {
               const existingRecord = nonRegisteredAttendees.get(existingKey);
               existingRecord.occurrences += 1;
-              if (record.course && !existingRecord.courses.includes(record.course)) {
+              if (
+                record.course &&
+                !existingRecord.courses.includes(record.course)
+              ) {
                 existingRecord.courses.push(record.course);
               }
               const recordDate = new Date(record.date);
@@ -322,117 +445,149 @@ export default function UserManagement() {
                 existingRecord.lastSeen = recordDate;
               }
             }
-            }
-          });
+          }
+        });
       }
-      
+
       const finalUnregisteredList = Array.from(nonRegisteredAttendees.values());
       setUnregisteredUsers(finalUnregisteredList);
-
     },
-    [setUnregisteredUsers, user?.role, user?.sub] // Dependencias más estables
+    [setUnregisteredUsers, user?.role] // Dependencias más estables
   );
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchData = useCallback(async () => {
-    
     try {
       setLoading(true);
       setDataReady(false);
-      
+
       const token = Cookies.get('token');
       if (!token) {
         setError('No hay un token de autenticación disponible');
         setLoading(false);
         return;
       }
-      
+
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      
+
       // 1. Fetch Users
       const usersResponse = await axios.get(`${apiUrl}/api/users`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       const rawUsers = usersResponse.data.users || usersResponse.data; // Adapt based on actual API response
-      const allUsers = rawUsers.map((user: User) => ({...user, isRegistered: true}));
+      const allUsers = rawUsers.map((user: User) => ({
+        ...user,
+        isRegistered: true,
+      }));
       setUsers(allUsers);
-      
+
       setLoading(false);
       setDataReady(true); // Datos de usuarios principales listos
       setError(''); // Clear any previous error
-
     } catch (err: any) {
-      console.error("Error in fetchData:", err);
-      console.error("fetchData error details:", err.response?.data || err.message || err);
+      console.error('Error in fetchData:', err);
+      console.error(
+        'fetchData error details:',
+        err.response?.data || err.message || err
+      );
       setError(err.message || 'Error al cargar datos de usuarios.');
       setLoading(false);
       setDataReady(false); // Ensure dataReady is false on error
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setUsers, setLoading, setDataReady, setError]); // Explicitly list state setters
 
   // Renamed and refactored from fetchSecondaryData
   const fetchSecondaryDataAndProcess = useCallback(async () => {
     const token = Cookies.get('token');
-    if (!token || !user || users.length === 0) { // Ensure primary data is ready
+    if (!token || !user || users.length === 0) {
+      // Ensure primary data is ready
       return;
     }
-    
+
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
     try {
       // setLoading(true); // Consider if a separate loading for secondary is needed
-      const [schoolsResponse, coursesResponse, attendanceResponse, rawUnregisteredUsersResponse] = await Promise.all([
-        axios.get(`${apiUrl}/api/schools`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${apiUrl}/api/courses`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${apiUrl}/api/attendance/all-records-admin`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${apiUrl}/api/users/unregistered`, { headers: { Authorization: `Bearer ${token}` } })
+      const [
+        schoolsResponse,
+        coursesResponse,
+        attendanceResponse,
+        rawUnregisteredUsersResponse,
+      ] = await Promise.all([
+        axios.get(`${apiUrl}/api/schools`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get(`${apiUrl}/api/courses`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get(`${apiUrl}/api/attendance/all-records-admin`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get(`${apiUrl}/api/users/unregistered`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ]);
 
-      const fetchedSchools = schoolsResponse.data.schools || schoolsResponse.data;
+      const fetchedSchools =
+        schoolsResponse.data.schools || schoolsResponse.data;
       const fetchedCourses = coursesResponse.data;
       const fetchedAttendanceRecords = attendanceResponse.data;
       const initialUnregisteredUsersFromAPI = rawUnregisteredUsersResponse.data;
 
-
-
       setSchools(fetchedSchools);
-      
+
       // Determinar qué escuelas puede ver el usuario actual basado en su rol
       let userAccessibleSchools = fetchedSchools;
-      
+
       if (user.role === 'administrative') {
         try {
-          const adminSchoolsResponse = await axios.get(`${apiUrl}/api/users/${user.id || user.sub}/administered-schools`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          const adminSchoolsResponse = await axios.get(
+            `${apiUrl}/api/users/${user.id || user.sub}/administered-schools`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
           userAccessibleSchools = adminSchoolsResponse.data || [];
         } catch (error) {
-          console.warn('Error loading administered schools in secondary data, using all schools:', error);
+          console.warn(
+            'Error loading administered schools in secondary data, using all schools:',
+            error
+          );
           userAccessibleSchools = fetchedSchools;
         }
       } else if (user.role === 'school_owner') {
         try {
-          const ownedSchoolsResponse = await axios.get(`${apiUrl}/api/users/${user.id || user.sub}/owned-schools`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          const ownedSchoolsResponse = await axios.get(
+            `${apiUrl}/api/users/${user.id || user.sub}/owned-schools`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
           userAccessibleSchools = ownedSchoolsResponse.data || [];
         } catch (error) {
-          console.warn('Error loading owned schools in secondary data, using all schools:', error);
+          console.warn(
+            'Error loading owned schools in secondary data, using all schools:',
+            error
+          );
           userAccessibleSchools = fetchedSchools;
         }
       }
-      
+
       setUserSchools(userAccessibleSchools);
-      
+
       // Si el usuario administrativo solo tiene acceso a una escuela, seleccionarla automáticamente
-      if (user.role === 'administrative' && userAccessibleSchools.length === 1 && !selectedSchool) {
+      if (
+        user.role === 'administrative' &&
+        userAccessibleSchools.length === 1 &&
+        !selectedSchool
+      ) {
         setSelectedSchool(userAccessibleSchools[0]._id);
       }
-      
+
       setCourses(fetchedCourses);
       setAttendanceRecords(fetchedAttendanceRecords);
-      
+
       // Pass the current 'users' state and the just-fetched 'fetchedSchools'
       processAttendanceForUnregisteredUsers(
         users, // current 'users' state from fetchData
@@ -442,22 +597,31 @@ export default function UserManagement() {
         fetchedCourses
       );
 
-
       // setDataReady(true); // Or a more specific ready flag
     } catch (err) {
-      console.error("[AdminUsers] Error fetching secondary data:", err);
-      setError('Error al cargar datos adicionales.'); 
+      console.error('[AdminUsers] Error fetching secondary data:', err);
+      setError('Error al cargar datos adicionales.');
     } finally {
       // setLoading(false); // Match setLoading(true) if used
     }
-  }, [user, users, selectedSchool, processAttendanceForUnregisteredUsers, setSchools, setUserSchools, setCourses, setAttendanceRecords, setError]); // Dependencies
+  }, [
+    user,
+    users,
+    selectedSchool,
+    processAttendanceForUnregisteredUsers,
+    setSchools,
+    setUserSchools,
+    setCourses,
+    setAttendanceRecords,
+    setError,
+  ]); // Dependencies
 
   // Cargar escuelas y cursos específicamente - definido con useCallback
   const loadSchoolsAndCourses = useCallback(async () => {
     try {
       setLoading(true); // Indicar carga
       setDataReady(false); // Indicar que los datos no están listos
-      
+
       const token = Cookies.get('token');
       if (!token || !user) {
         setError('No hay un token de autenticación disponible');
@@ -467,66 +631,82 @@ export default function UserManagement() {
         }, 300);
         return false;
       }
-      
+
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      
+
       // Cargar escuelas
       const schoolsResponse = await axios.get(`${apiUrl}/api/schools`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       // Cargar cursos
       const coursesResponse = await axios.get(`${apiUrl}/api/courses`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       const allSchools = schoolsResponse.data.schools || schoolsResponse.data; // Adaptar por si la API devuelve {schools: []} o solo []
       const allCourses = coursesResponse.data;
-      
+
       // Actualizar estados
       setSchools(allSchools);
       setCourses(allCourses);
-      
+
       // Determinar qué escuelas puede ver el usuario actual basado en su rol
       let userAccessibleSchools = allSchools;
-      
+
       if (user.role === 'administrative') {
         try {
           // Para usuarios administrativos, obtener solo las escuelas que administran
-          const adminSchoolsResponse = await axios.get(`${apiUrl}/api/users/${user.id || user.sub}/administered-schools`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          const adminSchoolsResponse = await axios.get(
+            `${apiUrl}/api/users/${user.id || user.sub}/administered-schools`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
           userAccessibleSchools = adminSchoolsResponse.data || [];
         } catch (error) {
-          console.warn('Error loading administered schools, falling back to all schools:', error);
+          console.warn(
+            'Error loading administered schools, falling back to all schools:',
+            error
+          );
           // Fallback to all schools if the endpoint fails
           userAccessibleSchools = allSchools;
         }
       } else if (user.role === 'school_owner') {
         try {
           // Para dueños de escuela, obtener solo las escuelas que poseen
-          const ownedSchoolsResponse = await axios.get(`${apiUrl}/api/users/${user.id || user.sub}/owned-schools`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          const ownedSchoolsResponse = await axios.get(
+            `${apiUrl}/api/users/${user.id || user.sub}/owned-schools`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
           userAccessibleSchools = ownedSchoolsResponse.data || [];
         } catch (error) {
-          console.warn('Error loading owned schools, falling back to all schools:', error);
+          console.warn(
+            'Error loading owned schools, falling back to all schools:',
+            error
+          );
           // Fallback to all schools if the endpoint fails
           userAccessibleSchools = allSchools;
         }
       }
       // For super_admin and admin roles, keep all schools
-      
+
       setUserSchools(userAccessibleSchools);
-      
+
       // Si el usuario administrativo solo tiene acceso a una escuela, seleccionarla automáticamente
-      if (user.role === 'administrative' && userAccessibleSchools.length === 1 && !selectedSchool) {
+      if (
+        user.role === 'administrative' &&
+        userAccessibleSchools.length === 1 &&
+        !selectedSchool
+      ) {
         setSelectedSchool(userAccessibleSchools[0]._id);
       }
-      
+
       // Marcar que los datos están listos
       setDataReady(true);
-      
+
       setTimeout(() => {
         setLoading(false);
       }, 300);
@@ -540,7 +720,17 @@ export default function UserManagement() {
       }, 300);
       return false;
     }
-  }, [handleApiError, setLoading, setDataReady, setError, setSchools, setCourses, setUserSchools, user, selectedSchool]); // Added user and selectedSchool dependencies
+  }, [
+    handleApiError,
+    setLoading,
+    setDataReady,
+    setError,
+    setSchools,
+    setCourses,
+    setUserSchools,
+    user,
+    selectedSchool,
+  ]); // Added user and selectedSchool dependencies
 
   // useEffect for initial token decoding and primary data fetch
   useEffect(() => {
@@ -551,15 +741,15 @@ export default function UserManagement() {
         setUser(decodedToken); // Set user state
         fetchData(); // Fetch primary users
       } catch (e: any) {
-        console.error("Failed to decode token:", e);
-        console.error("Token decoding error details:", e.message || e);
-        setError("Token inválido o expirado.");
-      router.push('/login');
+        console.error('Failed to decode token:', e);
+        console.error('Token decoding error details:', e.message || e);
+        setError('Token inválido o expirado.');
+        router.push('/login');
       }
     } else {
       router.push('/login');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchData, router]); // Only depends on fetchData and router (stable)
 
   // useEffect for secondary data fetching and processing
@@ -568,22 +758,27 @@ export default function UserManagement() {
     if (user && users.length > 0) {
       fetchSecondaryDataAndProcess();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, users, fetchSecondaryDataAndProcess]);
-    
+
   // useEffect para filtrar usuarios cuando cambia el término de búsqueda o la escuela seleccionada
   useEffect(() => {
     let tempUsers = users;
 
-    if (selectedSchool && selectedSchool !== 'all' && selectedSchool !== 'unregistered') {
-      tempUsers = tempUsers.filter(user => 
-        user.schoolRoles?.some(sr => sr.schoolId === selectedSchool) || 
-        user.schools?.includes(selectedSchool)
+    if (
+      selectedSchool &&
+      selectedSchool !== 'all' &&
+      selectedSchool !== 'unregistered'
+    ) {
+      tempUsers = tempUsers.filter(
+        (user) =>
+          user.schoolRoles?.some((sr) => sr.schoolId === selectedSchool) ||
+          user.schools?.includes(selectedSchool)
       );
 
       // Filter by selected course if a school is selected
       if (selectedCourse) {
-        tempUsers = tempUsers.filter(user =>
+        tempUsers = tempUsers.filter((user) =>
           user.enrolledCourses?.includes(selectedCourse)
         );
       }
@@ -595,29 +790,39 @@ export default function UserManagement() {
         // Backend changes would be needed to make this effective.
       }
     }
-    
+
     // Aplicar filtro de búsqueda por término
     if (searchTerm) {
-      tempUsers = tempUsers.filter(user =>
-        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) // Verificar si email existe
+      tempUsers = tempUsers.filter(
+        (user) =>
+          user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (user.email &&
+            user.email.toLowerCase().includes(searchTerm.toLowerCase())) // Verificar si email existe
       );
     }
 
     // Aplicar filtro de estado
     if (selectedStatus) {
-      tempUsers = tempUsers.filter(user => {
+      tempUsers = tempUsers.filter((user) => {
         if (selectedStatus === 'active') {
           return !user.status || user.status === 'active';
         }
         return user.status === selectedStatus;
       });
     }
-    
+
     setFilteredUsers(tempUsers);
     setCurrentPage(1); // Resetear a la primera página con cada filtro
-  }, [searchTerm, users, selectedSchool, selectedCourse, selectedSede, selectedStatus, schools]); // Added selectedSede, selectedStatus and schools
-        
+  }, [
+    searchTerm,
+    users,
+    selectedSchool,
+    selectedCourse,
+    selectedSede,
+    selectedStatus,
+    schools,
+  ]); // Added selectedSede, selectedStatus and schools
+
   // Actualizar totalPages cuando cambia el ordenamiento o los filtros
   useEffect(() => {
     if (selectedSchool === 'unregistered') {
@@ -626,23 +831,334 @@ export default function UserManagement() {
       setTotalPages(Math.ceil(filteredUsers.length / itemsPerPage)); // Usar filteredUsers aquí
     }
     setCurrentPage(1); // Resetear a la primera página con cada cambio que afecte el total de páginas
-  }, [filteredUsers, unregisteredUsers, selectedSchool, itemsPerPage, sortBy, sortOrder]); // Agregado sortBy y sortOrder
+  }, [
+    filteredUsers,
+    unregisteredUsers,
+    selectedSchool,
+    itemsPerPage,
+    sortBy,
+    sortOrder,
+  ]); // Agregado sortBy y sortOrder
+
+  const getCurrentUserId = useCallback(() => {
+    return user?.id || user?.sub || '';
+  }, [user]);
+
+  const sessionRole = (user?.role || '').toLowerCase();
+  const selectedSchoolIsValid =
+    !!selectedSchool &&
+    selectedSchool !== 'all' &&
+    selectedSchool !== 'unregistered';
+  const seatManagementOwnerId =
+    sessionRole === 'school_owner' ? getCurrentUserId() : seatManagerOwnerId;
+
+  const fetchSeatPolicy = useCallback(
+    async (params?: {
+      schoolId?: string;
+      courseId?: string;
+      ownerId?: string;
+    }) => {
+      const token = Cookies.get('token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      if (!token) return DEFAULT_SEAT_CAPABILITIES;
+
+      try {
+        const response = await axios.get(`${apiUrl}/api/courses/seats/policy`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params,
+        });
+        return response.data?.capabilities || DEFAULT_SEAT_CAPABILITIES;
+      } catch {
+        return DEFAULT_SEAT_CAPABILITIES;
+      }
+    },
+    []
+  );
+
+  const fetchOwnerQuota = useCallback(
+    async (ownerId: string, schoolId: string) => {
+      const token = Cookies.get('token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      if (!token || !ownerId || !schoolId) return null;
+
+      try {
+        const response = await axios.get(
+          `${apiUrl}/api/users/${ownerId}/owner-seat-quota`,
+          {
+            params: { schoolId },
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        return response.data?.quota || null;
+      } catch {
+        return null;
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    const loadSeatCapabilities = async () => {
+      const policy = await fetchSeatPolicy({
+        schoolId:
+          selectedSchool &&
+          selectedSchool !== 'all' &&
+          selectedSchool !== 'unregistered'
+            ? selectedSchool
+            : undefined,
+      });
+      setSeatCapabilities(policy);
+    };
+
+    loadSeatCapabilities();
+  }, [selectedSchool, user?.role, fetchSeatPolicy]);
+
+  useEffect(() => {
+    const loadMyQuota = async () => {
+      if (
+        !selectedSchool ||
+        selectedSchool === 'unregistered' ||
+        selectedSchool === 'all'
+      ) {
+        setMyOwnerQuota(null);
+        return;
+      }
+
+      const currentRole = (user?.role || '').toLowerCase();
+      if (currentRole !== 'school_owner') {
+        setMyOwnerQuota(null);
+        return;
+      }
+
+      const currentUserId = getCurrentUserId();
+      if (!currentUserId) return;
+
+      const quota = await fetchOwnerQuota(currentUserId, selectedSchool);
+      setMyOwnerQuota(quota);
+    };
+
+    loadMyQuota();
+  }, [selectedSchool, user?.role, getCurrentUserId, fetchOwnerQuota]);
+
+  useEffect(() => {
+    const loadEnrollQuota = async () => {
+      if (!showEnrollModal || !formData.school) {
+        setEnrollOwnerQuota(null);
+        return;
+      }
+
+      if ((user?.role || '').toLowerCase() !== 'school_owner') {
+        setEnrollOwnerQuota(null);
+        return;
+      }
+
+      const currentUserId = getCurrentUserId();
+      if (!currentUserId) return;
+      const quota = await fetchOwnerQuota(currentUserId, formData.school);
+      setEnrollOwnerQuota(quota);
+    };
+
+    loadEnrollQuota();
+  }, [
+    showEnrollModal,
+    formData.school,
+    user?.role,
+    getCurrentUserId,
+    fetchOwnerQuota,
+  ]);
+
+  useEffect(() => {
+    const loadOwnerQuotaColumn = async () => {
+      if (!seatCapabilities.canReadOwnerQuota) {
+        setOwnerQuotaByUserId({});
+        return;
+      }
+
+      if (
+        !selectedSchool ||
+        selectedSchool === 'all' ||
+        selectedSchool === 'unregistered'
+      ) {
+        setOwnerQuotaByUserId({});
+        return;
+      }
+
+      const currentRole = (user?.role || '').toLowerCase();
+      const currentUserId = getCurrentUserId();
+      const ownerRows = filteredUsers.filter(
+        (row) => row.role === 'school_owner'
+      );
+      if (ownerRows.length === 0) {
+        setOwnerQuotaByUserId({});
+        return;
+      }
+
+      let targetOwners = ownerRows;
+      if (currentRole === 'school_owner') {
+        targetOwners = ownerRows.filter((row) => row._id === currentUserId);
+      }
+
+      const results = await Promise.all(
+        targetOwners.map(async (ownerRow) => {
+          const quota = await fetchOwnerQuota(ownerRow._id, selectedSchool);
+          return [ownerRow._id, quota] as const;
+        })
+      );
+
+      const quotaMap: Record<string, OwnerSeatQuota | null> = {};
+      results.forEach(([ownerId, quota]) => {
+        quotaMap[ownerId] = quota;
+      });
+      setOwnerQuotaByUserId(quotaMap);
+    };
+
+    loadOwnerQuotaColumn();
+  }, [
+    selectedSchool,
+    filteredUsers,
+    user?.role,
+    getCurrentUserId,
+    fetchOwnerQuota,
+    seatCapabilities.canReadOwnerQuota,
+  ]);
+
+  useEffect(() => {
+    const loadSeatManagerQuota = async () => {
+      const effectiveOwnerId =
+        sessionRole === 'school_owner'
+          ? getCurrentUserId()
+          : seatManagerOwnerId;
+
+      if (!showSeatManagement || !selectedSchoolIsValid || !effectiveOwnerId) {
+        setSeatManagerOwnerQuota(null);
+        return;
+      }
+      const quota = await fetchOwnerQuota(effectiveOwnerId, selectedSchool);
+      setSeatManagerOwnerQuota(quota);
+      setSeatManagerQuotaValue(Number(quota?.totalSeats || 0));
+    };
+    loadSeatManagerQuota();
+  }, [
+    showSeatManagement,
+    sessionRole,
+    getCurrentUserId,
+    selectedSchoolIsValid,
+    selectedSchool,
+    seatManagerOwnerId,
+    fetchOwnerQuota,
+  ]);
+
+  const openSeatQuotaModal = async (owner: User) => {
+    if (!seatCapabilities.canSetOwnerQuota) {
+      setError('No tienes permisos para configurar cupos');
+      return;
+    }
+
+    setSelectedOwnerForQuota(owner);
+    setShowSeatQuotaModal(true);
+    setOwnerQuota(null);
+    setQuotaTotalSeats(0);
+
+    const preferredSchoolId =
+      selectedSchool &&
+      selectedSchool !== 'all' &&
+      selectedSchool !== 'unregistered'
+        ? selectedSchool
+        : userSchools[0]?._id || '';
+    setQuotaSchoolId(preferredSchoolId);
+
+    if (!preferredSchoolId) return;
+    setQuotaLoading(true);
+    const quota = await fetchOwnerQuota(owner._id, preferredSchoolId);
+    if (quota) {
+      setOwnerQuota(quota);
+      setQuotaTotalSeats(Number(quota.totalSeats || 0));
+    }
+    setQuotaLoading(false);
+  };
+
+  const handleQuotaSchoolChange = async (schoolId: string) => {
+    setQuotaSchoolId(schoolId);
+    setOwnerQuota(null);
+    setQuotaTotalSeats(0);
+    if (!selectedOwnerForQuota || !schoolId) return;
+    setQuotaLoading(true);
+    const quota = await fetchOwnerQuota(selectedOwnerForQuota._id, schoolId);
+    if (quota) {
+      setOwnerQuota(quota);
+      setQuotaTotalSeats(Number(quota.totalSeats || 0));
+    }
+    setQuotaLoading(false);
+  };
+
+  const saveOwnerSeatQuotaByOwner = async (
+    ownerId: string,
+    schoolId: string,
+    totalSeats: number,
+    ownerName?: string
+  ) => {
+    if (!ownerId || !schoolId) return null;
+    setQuotaLoading(true);
+    try {
+      const token = Cookies.get('token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+      const response = await axios.patch(
+        `${apiUrl}/api/users/${ownerId}/owner-seat-quota`,
+        {
+          schoolId,
+          totalSeats: Math.max(0, Number(totalSeats || 0)),
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (ownerName) {
+        setSuccess(`Cupos actualizados para ${ownerName}`);
+      } else {
+        setSuccess('Cupos actualizados');
+      }
+      setTimeout(() => setSuccess(''), 3000);
+      return response.data?.quota || null;
+    } catch (err) {
+      setError(handleApiError(err, 'No se pudo actualizar la cuota de cupos'));
+      return null;
+    } finally {
+      setQuotaLoading(false);
+    }
+  };
+
+  const saveOwnerSeatQuota = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOwnerForQuota || !quotaSchoolId) return;
+    const quota = await saveOwnerSeatQuotaByOwner(
+      selectedOwnerForQuota._id,
+      quotaSchoolId,
+      quotaTotalSeats,
+      selectedOwnerForQuota.name
+    );
+    if (quota) {
+      setOwnerQuota(quota);
+      setQuotaTotalSeats(Number(quota.totalSeats || quotaTotalSeats));
+    }
+  };
 
   // Manejar cambios en el formulario
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   // Crear usuario
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
       const token = Cookies.get('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      
+
       if (createUserType === UserType.REGISTERED) {
         // Crear usuario registrado con acceso a la plataforma
         const requestData: any = {
@@ -653,57 +1169,53 @@ export default function UserManagement() {
           schoolId: formData.school || undefined,
           courseId: formData.course || undefined,
         };
-        
-        if (formData.age && !isNaN(Number(formData.age)) && Number(formData.age) > 0) {
+
+        if (
+          formData.age &&
+          !isNaN(Number(formData.age)) &&
+          Number(formData.age) > 0
+        ) {
           requestData.age = Number(formData.age);
         }
-        
-        const response = await axios.post(
-          `${apiUrl}/api/users`, 
-          requestData,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        
+
+        const response = await axios.post(`${apiUrl}/api/users`, requestData, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
         // Actualizar la lista de usuarios
-        setUsers(prev => [...prev, {...response.data, isRegistered: true}]);
+        setUsers((prev) => [...prev, { ...response.data, isRegistered: true }]);
         setSuccess(`Usuario ${formData.name} creado correctamente.`);
-        
       } else {
         // Para usuarios no registrados, debemos crear directamente el usuario
-        
-        
+
         // Verificar que esté seleccionado un curso
         if (!formData.course) {
           setError('Debe seleccionar un curso para agregar un asistente.');
           setLoading(false);
           return;
         }
-        
+
         // Crear asistente con una estructura muy simple para evitar conflictos
         const createUserData = {
-          name: formData.name
+          name: formData.name,
         };
-        
+
         // Verificar si debemos añadir curso o escuela
         if (formData.course) {
           Object.assign(createUserData, { courseId: formData.course });
         }
-        
+
         if (formData.school) {
           Object.assign(createUserData, { schoolId: formData.school });
         }
-        
-        
-        
+
         // Crear usuario no registrado usando el endpoint bypass
         const response = await axios.post(
-          `${apiUrl}/api/users/bypass-assistant`, 
+          `${apiUrl}/api/users/bypass-assistant`,
           createUserData,
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        
-        
-        
+
         // Añadir manualmente el usuario a la lista de no registrados para visualización inmediata
         const newUnregisteredUser = {
           _id: response.data._id,
@@ -712,26 +1224,31 @@ export default function UserManagement() {
           role: 'unregistered',
           occurrences: 1,
           courses: [formData.course],
-          lastSeen: new Date()
+          lastSeen: new Date(),
         };
-        
+
         // Actualizar la lista de usuarios no registrados y cambiar a esa pestaña
-        setUnregisteredUsers(prev => {
+        setUnregisteredUsers((prev) => {
           // Verificar si ya existe un usuario con ese nombre para evitar duplicados
-          const exists = prev.some(u => u.name === formData.name);
+          const exists = prev.some((u) => u.name === formData.name);
           if (exists) {
-            return prev.map(u => u.name === formData.name ? newUnregisteredUser : u);
+            return prev.map((u) =>
+              u.name === formData.name ? newUnregisteredUser : u
+            );
           } else {
             return [...prev, newUnregisteredUser];
           }
         });
-        
+
         // También actualizar la lista de usuarios registrados
-        setUsers(prev => [...prev, {...response.data, isRegistered: false}]);
-        
+        setUsers((prev) => [
+          ...prev,
+          { ...response.data, isRegistered: false },
+        ]);
+
         setSelectedSchool('unregistered'); // Cambiar inmediatamente a la pestaña de no registrados
         setSuccess(`Asistente ${formData.name} creado correctamente.`);
-        
+
         // Recargar todos los datos para asegurar consistencia
         setTimeout(() => {
           fetchData().then(() => {
@@ -740,7 +1257,7 @@ export default function UserManagement() {
           });
         }, 1000);
       }
-      
+
       // Cerrar el modal y limpiar el formulario
       setShowCreateUserModal(false);
       setFormData({
@@ -752,7 +1269,6 @@ export default function UserManagement() {
         course: '',
         age: '',
       });
-      
     } catch (error: any) {
       // Mostrar mensaje de error más detallado y específico
       if (error.response && error.response.data) {
@@ -783,36 +1299,40 @@ export default function UserManagement() {
   const completeUserLinking = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
       const token = Cookies.get('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      
+
       // Convertir el usuario no registrado existente a registrado
       const response = await axios.post(
-        `${apiUrl}/api/users/${selectedUserToLink._id}/register`, 
+        `${apiUrl}/api/users/${selectedUserToLink._id}/register`,
         {
           email: formData.email,
-          password: formData.password
+          password: formData.password,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
+
       // El usuario ya tiene sus asistencias vinculadas (mismo ID), no necesitamos vincular nada más
-      
+
       // Actualizar listas
-      setUsers(prev => [...prev, {...response.data.user, isRegistered: true}]);
-      setUnregisteredUsers(prev => prev.filter(u => u._id !== selectedUserToLink._id));
-      
+      setUsers((prev) => [
+        ...prev,
+        { ...response.data.user, isRegistered: true },
+      ]);
+      setUnregisteredUsers((prev) =>
+        prev.filter((u) => u._id !== selectedUserToLink._id)
+      );
+
       // Limpiar y cerrar
-      setFormData(prev => ({...prev, email: '', password: '', age: ''}));
+      setFormData((prev) => ({ ...prev, email: '', password: '', age: '' }));
       setSelectedUserToLink(null);
       setShowLinkModal(false);
       setSuccess('Usuario vinculado correctamente');
-      
+
       // Recargar datos
       fetchData();
-      
     } catch (error) {
       console.error('Error al vincular usuario:', error);
       setError(handleApiError(error));
@@ -822,13 +1342,17 @@ export default function UserManagement() {
   };
 
   // Cambiar estado del usuario
-  const handleChangeUserStatus = async (userId: string, userName: string, newStatus: string) => {
+  const handleChangeUserStatus = async (
+    userId: string,
+    userName: string,
+    newStatus: string
+  ) => {
     const statusLabels: { [key: string]: string } = {
-      'active': 'activar',
-      'inactive': 'desactivar', 
-      'suspended': 'suspender'
+      active: 'activar',
+      inactive: 'desactivar',
+      suspended: 'suspender',
     };
-    
+
     const confirmMessage = `¿Estás seguro de que deseas ${statusLabels[newStatus]} al usuario ${userName}?
 
 IMPORTANTE: Esta acción:
@@ -842,32 +1366,35 @@ ${newStatus === 'active' ? '• El usuario tendrá acceso completo' : ''}`;
     if (!confirm(confirmMessage)) {
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
       const token = Cookies.get('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      
-      await axios.patch(`${apiUrl}/api/users/${userId}/status`, {
-        status: newStatus,
-        reason: `Estado cambiado a ${newStatus} por administrador`
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
+
+      await axios.patch(
+        `${apiUrl}/api/users/${userId}/status`,
+        {
+          status: newStatus,
+          reason: `Estado cambiado a ${newStatus} por administrador`,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
       // Actualizar usuario en la lista para mostrar el nuevo estado
-      setUsers(prev => prev.map(u => 
-        u._id === userId 
-          ? { ...u, status: newStatus } 
-          : u
-      ));
-      
-      setSuccess(`Usuario ${userName} ${statusLabels[newStatus]}do correctamente.`);
-      
+      setUsers((prev) =>
+        prev.map((u) => (u._id === userId ? { ...u, status: newStatus } : u))
+      );
+
+      setSuccess(
+        `Usuario ${userName} ${statusLabels[newStatus]}do correctamente.`
+      );
+
       // Limpiar mensaje después de 3 segundos
       setTimeout(() => setSuccess(''), 3000);
-      
     } catch (error) {
       console.error('Error al cambiar estado del usuario:', error);
       setError(handleApiError(error));
@@ -892,32 +1419,35 @@ Para reactivar el usuario más tarde, contacta al administrador.`;
     if (!confirm(confirmMessage)) {
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
       const token = Cookies.get('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      
+
       // Usar PATCH en lugar de DELETE para cambiar status
-      await axios.patch(`${apiUrl}/api/users/${userId}/status`, {
-        status: 'inactive'
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
+      await axios.patch(
+        `${apiUrl}/api/users/${userId}/status`,
+        {
+          status: 'inactive',
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
       // Actualizar usuario en la lista para mostrar el nuevo estado
-      setUsers(prev => prev.map(u => 
-        u._id === userId 
-          ? { ...u, status: 'inactive' } 
-          : u
-      ));
-      
-      setSuccess(`Usuario ${userName} desactivado correctamente. Sus datos históricos se conservaron.`);
-      
+      setUsers((prev) =>
+        prev.map((u) => (u._id === userId ? { ...u, status: 'inactive' } : u))
+      );
+
+      setSuccess(
+        `Usuario ${userName} desactivado correctamente. Sus datos históricos se conservaron.`
+      );
+
       // Limpiar mensaje después de 3 segundos
       setTimeout(() => setSuccess(''), 3000);
-      
     } catch (error) {
       console.error('Error al desactivar usuario:', error);
       setError(handleApiError(error));
@@ -945,13 +1475,13 @@ Para reactivar el usuario más tarde, contacta al administrador.`;
   const handleSaveUserChanges = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
       const token = Cookies.get('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      
+
       if (!selectedUser) return;
-      
+
       // If there's a password, update it separately first
       if (formData.password) {
         await axios.patch(
@@ -960,35 +1490,42 @@ Para reactivar el usuario más tarde, contacta al administrador.`;
           { headers: { Authorization: `Bearer ${token}` } }
         );
       }
-      
+
       // Update other user data
       const updateData: any = {
         name: formData.name,
         email: formData.email,
         role: formData.role,
       };
-      
-      if (formData.age && !isNaN(Number(formData.age)) && Number(formData.age) > 0) {
+
+      if (
+        formData.age &&
+        !isNaN(Number(formData.age)) &&
+        Number(formData.age) > 0
+      ) {
         updateData.age = Number(formData.age);
       }
-      
+
       const response = await axios.patch(
-        `${apiUrl}/api/users/${selectedUser._id}`, 
+        `${apiUrl}/api/users/${selectedUser._id}`,
         updateData,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
+
       // Actualizar usuario en la lista
-      setUsers(prev => prev.map(u => 
-        u._id === selectedUser._id ? { ...response.data, isRegistered: true } : u
-      ));
-      
+      setUsers((prev) =>
+        prev.map((u) =>
+          u._id === selectedUser._id
+            ? { ...response.data, isRegistered: true }
+            : u
+        )
+      );
+
       setSuccess(`Usuario ${formData.name} actualizado correctamente.`);
       setShowEditUserModal(false);
-      
+
       // Limpiar mensaje después de 3 segundos
       setTimeout(() => setSuccess(''), 3000);
-      
     } catch (error) {
       console.error('Error al actualizar usuario:', error);
       setError(handleApiError(error));
@@ -1001,18 +1538,18 @@ Para reactivar el usuario más tarde, contacta al administrador.`;
   const handleEnrollUser = async (userToEnroll: User) => {
     setSelectedUser(userToEnroll);
     setError(''); // Limpiar mensajes de error previos
-    
+
     // Resetear el formulario
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       school: '',
       course: '',
     }));
-    
+
     // Cargar escuelas y cursos disponibles
     setShowEnrollModal(true); // Mostrar el modal inmediatamente
     const loaded = await loadSchoolsAndCourses();
-    
+
     if (!loaded) {
       // Mostrar mensaje de error solo si falla la carga
       setError('Error al cargar escuelas y cursos');
@@ -1023,22 +1560,21 @@ Para reactivar el usuario más tarde, contacta al administrador.`;
   const updateUserCourseCount = async (userId: string) => {
     try {
       // Buscar usuario en la lista actual
-      const userIndex = users.findIndex(u => u._id === userId);
+      const userIndex = users.findIndex((u) => u._id === userId);
       if (userIndex === -1) return;
-      
+
       // Obtener cursos actualizados
       const userCourses = await getUserCourses(userId);
-      
+
       // Actualizar usuario en la lista
-      setUsers(prev => {
+      setUsers((prev) => {
         const updatedUsers = [...prev];
         updatedUsers[userIndex] = {
           ...updatedUsers[userIndex],
-          enrolledCourses: userCourses.map((c: any) => c._id)
+          enrolledCourses: userCourses.map((c: any) => c._id),
         };
         return updatedUsers;
       });
-      
     } catch (error) {
       // Error silencioso
     }
@@ -1048,54 +1584,104 @@ Para reactivar el usuario más tarde, contacta al administrador.`;
   const handleEnrollUserToCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
       const token = Cookies.get('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      
+
       if (!selectedUser || !formData.course) return;
-      
+
+      if (!formData.school) {
+        throw new Error('Debes seleccionar una escuela para asignar el cupo');
+      }
+
+      const coursePolicy = await fetchSeatPolicy({
+        schoolId: formData.school,
+        courseId: formData.course,
+      });
+      if (!coursePolicy.canEnrollStudentInCourse) {
+        throw new Error('No tienes permisos para matricular en este curso');
+      }
+
+      if (coursePolicy.canAssignCourseSeatPermit) {
+        // Assign a seat permit for this course before enrolling when policy allows it.
+        await axios.post(
+          `${apiUrl}/api/users/${selectedUser._id}/course-seats`,
+          {
+            schoolId: formData.school,
+            courseId: formData.course,
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+
       // Usar el formato correcto del endpoint: /api/courses/:id/enroll/:studentId
       await axios.post(
-        `${apiUrl}/api/courses/${formData.course}/enroll/${selectedUser._id}`, 
+        `${apiUrl}/api/courses/${formData.course}/enroll/${selectedUser._id}`,
         {}, // Cuerpo vacío ya que los IDs van en la URL
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
+
       // Actualizar usuario en la lista local
-      setUsers(prev => prev.map(u => {
-        if (u._id === selectedUser._id) {
-          return {
-            ...u,
-            enrolledCourses: [...(u.enrolledCourses || []), formData.course]
-          };
-        }
-        return u;
-      }));
-      
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u._id === selectedUser._id) {
+            return {
+              ...u,
+              enrolledCourses: [...(u.enrolledCourses || []), formData.course],
+            };
+          }
+          return u;
+        })
+      );
+
       // Actualizar el conteo de cursos para el usuario
       await updateUserCourseCount(selectedUser._id);
-      
-      setSuccess(`Usuario ${selectedUser.name} enrollado en el curso correctamente.`);
+
+      let quotaMsg = '';
+      if ((user?.role || '').toLowerCase() === 'school_owner') {
+        const currentOwnerId = getCurrentUserId();
+        if (currentOwnerId) {
+          const refreshedQuota = await fetchOwnerQuota(
+            currentOwnerId,
+            formData.school
+          );
+          if (refreshedQuota) {
+            setMyOwnerQuota(refreshedQuota);
+            setEnrollOwnerQuota(refreshedQuota);
+            if (Number.isFinite(refreshedQuota.availableSeats)) {
+              quotaMsg = ` Cupos disponibles: ${refreshedQuota.availableSeats}.`;
+            }
+          }
+        }
+      }
+
+      setSuccess(
+        `Usuario ${selectedUser.name} enrollado en el curso correctamente.${quotaMsg}`
+      );
       setShowEnrollModal(false);
-      
+
       // Limpiar mensaje después de 3 segundos
       setTimeout(() => setSuccess(''), 3000);
-      
+
       // Recargar datos para asegurar consistencia
       fetchData();
-      
     } catch (error: any) {
       // Preparar mensaje de error detallado para mostrar en modal
       let message = 'Error desconocido al enrollar usuario';
-      
+
       if (error.response && error.response.data) {
         if (error.response.data.message) {
           message = error.response.data.message;
-          
+
           // Mejorar mensaje para usuario ya enrollado
-          if (message.includes('already enrolled') || message.toLowerCase().includes('ya está inscrito')) {
-            const courseName = courses.find(c => c._id === formData.course)?.title || 'este curso';
+          if (
+            message.includes('already enrolled') ||
+            message.toLowerCase().includes('ya está inscrito')
+          ) {
+            const courseName =
+              courses.find((c) => c._id === formData.course)?.title ||
+              'este curso';
             message = `El usuario ${selectedUser?.name} ya está inscrito en ${courseName}.`;
           }
         } else if (error.response.data.error) {
@@ -1104,7 +1690,7 @@ Para reactivar el usuario más tarde, contacta al administrador.`;
       } else if (error.message) {
         message = error.message;
       }
-      
+
       // Mostrar error en modal
       setErrorMessage(message);
       setShowErrorModal(true);
@@ -1116,22 +1702,30 @@ Para reactivar el usuario más tarde, contacta al administrador.`;
 
   // Filtrado de cursos según escuela seleccionada
   const getFilteredCoursesBySchool = () => {
-    if (!selectedSchool || selectedSchool === 'all' || selectedSchool === 'unregistered') return [];
-    
-    let schoolCourses = courses.filter(course => {
+    if (
+      !selectedSchool ||
+      selectedSchool === 'all' ||
+      selectedSchool === 'unregistered'
+    )
+      return [];
+
+    let schoolCourses = courses.filter((course) => {
       const schoolOfCourse = course.school;
       let courseMatchesSchool = false;
       if (typeof schoolOfCourse === 'string') {
         courseMatchesSchool = schoolOfCourse === selectedSchool;
       } else {
-        courseMatchesSchool = (schoolOfCourse as School)?._id === selectedSchool;
+        courseMatchesSchool =
+          (schoolOfCourse as School)?._id === selectedSchool;
       }
       return courseMatchesSchool;
     });
 
     // If a sede is also selected, further filter courses by that sede
     if (selectedSede) {
-      schoolCourses = schoolCourses.filter(course => course.sede === selectedSede);
+      schoolCourses = schoolCourses.filter(
+        (course) => course.sede === selectedSede
+      );
     }
 
     return schoolCourses;
@@ -1154,9 +1748,9 @@ Para reactivar el usuario más tarde, contacta al administrador.`;
   // Filtrado de cursos según escuela seleccionada
   const getFilteredCourses = () => {
     if (!formData.school) return [];
-    
-    return courses.filter(course => 
-      typeof course.school === 'string' 
+
+    return courses.filter((course) =>
+      typeof course.school === 'string'
         ? course.school === formData.school
         : course.school && (course.school as School)._id === formData.school
     );
@@ -1174,7 +1768,7 @@ Para reactivar el usuario más tarde, contacta al administrador.`;
   const handleViewUserCourses = async (userItem: User) => {
     setSelectedUser(userItem);
     setLoading(true);
-    
+
     try {
       const courses = await getUserCourses(userItem._id);
       setUserCourses(courses);
@@ -1191,7 +1785,7 @@ Para reactivar el usuario más tarde, contacta al administrador.`;
   // Desenrolar usuario de un curso (soft delete - cambiar status)
   const handleUnenrollUser = async (courseId: string, courseTitle: string) => {
     if (!selectedUser) return;
-    
+
     const confirmMessage = `¿Estás seguro de que deseas desenrolar a ${selectedUser.name} del curso "${courseTitle}"?
 
 IMPORTANTE: Esta acción:
@@ -1201,47 +1795,65 @@ IMPORTANTE: Esta acción:
 • Los datos estadísticos se conservarán`;
 
     if (!confirm(confirmMessage)) return;
-    
+
     setLoading(true);
-    
+
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const token = Cookies.get('token');
-      
+
       if (!token) {
         setErrorMessage('Debes iniciar sesión para realizar esta acción');
         return;
       }
-      
-      // Usar PATCH en lugar de DELETE para cambiar status
-      await axios.patch(`${apiUrl}/api/enrollments/status`, {
-        userId: selectedUser._id,
-        courseId: courseId,
-        status: 'inactive'
-      }, {
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+
+      await axios.post(
+        `${apiUrl}/api/courses/${courseId}/unenroll/${selectedUser._id}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
-      });
-      
+      );
+
       // Actualizar la lista de cursos del usuario
       const updatedCourses = await getUserCourses(selectedUser._id);
       setUserCourses(updatedCourses);
-      
+
       // Actualizar contador en la tabla principal
       await updateUserCourseCount(selectedUser._id);
-      
+
+      if (
+        (user?.role || '').toLowerCase() === 'school_owner' &&
+        selectedSchoolIsValid
+      ) {
+        const currentOwnerId = getCurrentUserId();
+        if (currentOwnerId) {
+          const refreshedQuota = await fetchOwnerQuota(
+            currentOwnerId,
+            selectedSchool
+          );
+          if (refreshedQuota) {
+            setMyOwnerQuota(refreshedQuota);
+            setEnrollOwnerQuota(refreshedQuota);
+          }
+        }
+      }
+
       setSuccess(`Usuario desenrolado exitosamente del curso "${courseTitle}"`);
-      
     } catch (error: any) {
       console.error('Error al desenrolar usuario:', error);
       let message = 'Error al desenrolar el usuario del curso';
-      
-      if (error.response && error.response.data && error.response.data.message) {
+
+      if (
+        error.response &&
+        error.response.data &&
+        error.response.data.message
+      ) {
         message = error.response.data.message;
       }
-      
+
       setErrorMessage(message);
       setShowErrorModal(true);
     } finally {
@@ -1253,7 +1865,7 @@ IMPORTANTE: Esta acción:
   const handleShowPaymentModal = async (userItem: User) => {
     setSelectedUser(userItem);
     setLoading(true);
-    
+
     try {
       // Cargar los cursos del usuario para mostrarlos en el modal
       const courses = await getUserCourses(userItem._id);
@@ -1269,7 +1881,13 @@ IMPORTANTE: Esta acción:
   };
 
   // Registrar un pago
-  const handleRegisterPayment = async (userId: string, amount: number, notes: string, courseId?: string, month?: string) => {
+  const handleRegisterPayment = async (
+    userId: string,
+    amount: number,
+    notes: string,
+    courseId?: string,
+    month?: string
+  ) => {
     if (!courseId) {
       setErrorMessage('Debe seleccionar un curso para registrar el pago.');
       setShowErrorModal(true);
@@ -1278,10 +1896,10 @@ IMPORTANTE: Esta acción:
 
     try {
       setLoading(true);
-      
+
       const token = Cookies.get('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      
+
       // Preparar información del mes para incluir en las notas si está disponible
       let paymentNotes = notes;
       if (month) {
@@ -1289,32 +1907,35 @@ IMPORTANTE: Esta acción:
         try {
           const [year, monthNum] = month.split('-');
           const date = new Date(parseInt(year), parseInt(monthNum) - 1, 1);
-          const formattedMonth = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+          const formattedMonth = date.toLocaleString('default', {
+            month: 'long',
+            year: 'numeric',
+          });
           paymentNotes = `Pago para ${formattedMonth}. ${notes}`.trim();
         } catch (e) {
           // Si hay algún error, simplemente añadimos el mes en formato original
           paymentNotes = `Pago para ${month}. ${notes}`.trim();
         }
       }
-      
+
       // Llamar al endpoint para registrar el pago
       await axios.post(
         `${apiUrl}/api/courses/${courseId}/enrollment/${userId}/payment`,
-        { 
-          amount, 
+        {
+          amount,
           notes: paymentNotes,
-          month: month // Incluir el mes en la petición
+          month: month, // Incluir el mes en la petición
         },
         {
           headers: {
-            Authorization: `Bearer ${token}`
-          }
+            Authorization: `Bearer ${token}`,
+          },
         }
       );
-      
+
       setShowPaymentModal(false);
       setSuccess('Pago registrado correctamente.');
-      
+
       // Limpiar mensaje de éxito después de 3 segundos
       setTimeout(() => {
         setSuccess('');
@@ -1332,18 +1953,18 @@ IMPORTANTE: Esta acción:
   // Función para manejar la selección de un usuario desde la búsqueda
   const handleUserSelected = (user: any) => {
     // Agregar el usuario al listado si no existe
-    if (!users.some(u => u._id === user._id)) {
+    if (!users.some((u) => u._id === user._id)) {
       setUsers([...users, user]);
       setFilteredUsers([...filteredUsers, user]);
       setSuccess(`Usuario "${user.name}" añadido al listado`);
-      
+
       // Limpiar el mensaje de éxito después de 3 segundos
       setTimeout(() => {
         setSuccess('');
       }, 3000);
     } else {
       setError(`El usuario "${user.name}" ya está en el listado`);
-      
+
       // Limpiar el mensaje de error después de 3 segundos
       setTimeout(() => {
         setError('');
@@ -1362,7 +1983,7 @@ IMPORTANTE: Esta acción:
     // Recargar usuarios para mostrar roles actualizados
     fetchData();
     setSuccess('Rol asignado correctamente');
-    
+
     // Limpiar el mensaje de éxito después de 3 segundos
     setTimeout(() => {
       setSuccess('');
@@ -1372,22 +1993,23 @@ IMPORTANTE: Esta acción:
   // Función para truncar el email
   const truncateEmail = (email: string) => {
     if (!email) return '';
-    
+
     // En móviles queremos truncar más agresivamente
     const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
-    const extraSmallScreen = typeof window !== 'undefined' && window.innerWidth <= 480;
-    
+    const extraSmallScreen =
+      typeof window !== 'undefined' && window.innerWidth <= 480;
+
     // Longitud máxima ajustada según el tamaño de pantalla
-    const maxLength = extraSmallScreen ? 15 : (isMobile ? 20 : 25);
-    
+    const maxLength = extraSmallScreen ? 15 : isMobile ? 20 : 25;
+
     if (email.length <= maxLength) return email;
-    
+
     const atIndex = email.indexOf('@');
     if (atIndex <= 0) return email;
-    
+
     const username = email.substring(0, atIndex);
     const domain = email.substring(atIndex);
-    
+
     // Diferentes estrategias de truncado según el tamaño de pantalla
     if (extraSmallScreen) {
       // En pantallas muy pequeñas, sólo mostrar parte del nombre y dominio
@@ -1395,18 +2017,18 @@ IMPORTANTE: Esta acción:
       const domainLimit = Math.min(7, domain.length);
       return `${username.substring(0, usernameLimit)}...${domain.substring(0, domainLimit)}...`;
     }
-    
+
     if (isMobile) {
       // En móviles, truncar más agresivamente
       const usernameLimit = Math.min(7, username.length);
       return `${username.substring(0, usernameLimit)}...${domain.length > 8 ? domain.substring(0, 8) + '...' : domain}`;
     }
-    
+
     // En pantallas normales
     if (username.length <= 10) {
       return `${username}${domain.length > 10 ? domain.substring(0, 10) + '...' : domain}`;
     }
-    
+
     return `${username.substring(0, 10)}...${domain.length > 10 ? domain.substring(0, 10) + '...' : domain}`;
   };
 
@@ -1432,48 +2054,51 @@ IMPORTANTE: Esta acción:
   };
 
   // Función para aplicar el ordenamiento a los usuarios
-  const getSortedUsers = useCallback((users: User[]) => {
-    if (!users || users.length === 0) return [];
-    
-    return [...users].sort((a, b) => {
-      let valueA: string | number;
-      let valueB: string | number;
-      
-      switch (sortBy) {
-        case 'name':
-          valueA = a.name?.toLowerCase() || '';
-          valueB = b.name?.toLowerCase() || '';
-          break;
-        case 'email':
-          valueA = a.email?.toLowerCase() || '';
-          valueB = b.email?.toLowerCase() || '';
-          break;
-        case 'role':
-          valueA = a.role?.toLowerCase() || '';
-          valueB = b.role?.toLowerCase() || '';
-          break;
-        case 'date':
-          valueA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          valueB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          break;
-        default:
-          valueA = a.name?.toLowerCase() || '';
-          valueB = b.name?.toLowerCase() || '';
-      }
-      
-      // Para valores de texto
-      if (typeof valueA === 'string' && typeof valueB === 'string') {
-        return sortOrder === 'asc' 
-          ? valueA.localeCompare(valueB)
-          : valueB.localeCompare(valueA);
-      }
-      
-      // Para valores numéricos y fechas
-      const numA = valueA as number;
-      const numB = valueB as number;
-      return sortOrder === 'asc' ? (numA - numB) : (numB - numA);
-    });
-  }, [sortBy, sortOrder]);
+  const getSortedUsers = useCallback(
+    (users: User[]) => {
+      if (!users || users.length === 0) return [];
+
+      return [...users].sort((a, b) => {
+        let valueA: string | number;
+        let valueB: string | number;
+
+        switch (sortBy) {
+          case 'name':
+            valueA = a.name?.toLowerCase() || '';
+            valueB = b.name?.toLowerCase() || '';
+            break;
+          case 'email':
+            valueA = a.email?.toLowerCase() || '';
+            valueB = b.email?.toLowerCase() || '';
+            break;
+          case 'role':
+            valueA = a.role?.toLowerCase() || '';
+            valueB = b.role?.toLowerCase() || '';
+            break;
+          case 'date':
+            valueA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            valueB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            break;
+          default:
+            valueA = a.name?.toLowerCase() || '';
+            valueB = b.name?.toLowerCase() || '';
+        }
+
+        // Para valores de texto
+        if (typeof valueA === 'string' && typeof valueB === 'string') {
+          return sortOrder === 'asc'
+            ? valueA.localeCompare(valueB)
+            : valueB.localeCompare(valueA);
+        }
+
+        // Para valores numéricos y fechas
+        const numA = valueA as number;
+        const numB = valueB as number;
+        return sortOrder === 'asc' ? numA - numB : numB - numA;
+      });
+    },
+    [sortBy, sortOrder]
+  );
 
   // Obtener usuarios ordenados para mostrar en la tabla
   const sortedFilteredUsers = useMemo(() => {
@@ -1483,7 +2108,7 @@ IMPORTANTE: Esta acción:
   // Función para mostrar icono de dirección en las cabeceras de tabla
   const renderSortIcon = (field: string) => {
     if (sortBy !== field) return null;
-    
+
     return (
       <span className={styles.sortIcon}>
         {sortOrder === 'asc' ? ' ▲' : ' ▼'}
@@ -1491,15 +2116,93 @@ IMPORTANTE: Esta acción:
     );
   };
 
+  const userBelongsToSchool = useCallback((target: User, schoolId: string) => {
+    const inSchools = target.schools?.includes(schoolId) || false;
+    const inSchoolRoles =
+      target.schoolRoles?.some((role) => role.schoolId === schoolId) || false;
+    return inSchools || inSchoolRoles;
+  }, []);
+
+  const schoolOwnersForSelectedSchool = useMemo(() => {
+    if (!selectedSchoolIsValid) return [];
+    return users.filter(
+      (row) =>
+        row.role === 'school_owner' && userBelongsToSchool(row, selectedSchool)
+    );
+  }, [users, selectedSchool, selectedSchoolIsValid, userBelongsToSchool]);
+
+  const seatDistributionRows = useMemo(() => {
+    if (!selectedSchoolIsValid || !seatManagementOwnerId) return [];
+
+    const rows: Array<{
+      userId: string;
+      userName: string;
+      userEmail: string;
+      permits: number;
+      consumedSeats: number;
+      courses: string[];
+    }> = [];
+
+    users.forEach((row) => {
+      const grants = (row.courseSeatGrants || []).filter(
+        (grant) =>
+          grant.isActive &&
+          grant.schoolId === selectedSchool &&
+          grant.assignedBy === seatManagementOwnerId
+      );
+
+      if (grants.length > 0) {
+        rows.push({
+          userId: row._id,
+          userName: row.name,
+          userEmail: row.email,
+          permits: grants.length,
+          consumedSeats: grants.filter((grant) => grant.isConsumed === true)
+            .length,
+          courses: grants.map((grant) => grant.courseId),
+        });
+      }
+    });
+
+    return rows.sort(
+      (a, b) =>
+        b.consumedSeats - a.consumedSeats ||
+        a.userName.localeCompare(b.userName)
+    );
+  }, [users, selectedSchool, selectedSchoolIsValid, seatManagementOwnerId]);
+
+  useEffect(() => {
+    if (!showSeatManagement) return;
+    if (!(sessionRole === 'super_admin' || sessionRole === 'admin')) return;
+    if (!selectedSchoolIsValid) return;
+    if (seatManagerOwnerId) return;
+    if (schoolOwnersForSelectedSchool.length > 0) {
+      setSeatManagerOwnerId(schoolOwnersForSelectedSchool[0]._id);
+    }
+  }, [
+    showSeatManagement,
+    sessionRole,
+    selectedSchoolIsValid,
+    seatManagerOwnerId,
+    schoolOwnersForSelectedSchool,
+  ]);
+
   if (error && !users.length && !unregisteredUsers.length && !dataReady) {
-    return <div className={dashboardStyles.centeredMessage}>Error al cargar datos: {error}. Intente recargar la página.</div>;
+    return (
+      <div className={dashboardStyles.centeredMessage}>
+        Error al cargar datos: {error}. Intente recargar la página.
+      </div>
+    );
   }
 
   return (
     <div className={dashboardStyles.container}>
       <div className={dashboardStyles.dashboardHeader}>
         <h1>Gestión de Usuarios</h1>
-        <p>Búsqueda global: encuentra usuarios de todo el sistema para asignarles roles</p>
+        <p>
+          Búsqueda global: encuentra usuarios de todo el sistema para asignarles
+          roles
+        </p>
       </div>
 
       <div className={dashboardStyles.content}>
@@ -1507,51 +2210,57 @@ IMPORTANTE: Esta acción:
 
         <div className={dashboardStyles.mainContent}>
           {/* El contenido principal (el fragmento <>) comienza inmediatamente aquí dentro */}
-            <>
-              <div className={styles.controlPanel}>
-                {user?.role === 'super_admin' || user?.role === 'admin' || 
-                  user?.role === 'school_owner' || user?.role === 'administrative' ? (
-                  <div className={styles.searchFilterRow}>
-                    <div className={styles.searchWrapper}>
-                      <UserSearch 
-                        onSelectUser={handleUserSelected}
-                        onAssignRole={handleAssignRole}
-                        availableSchools={userSchools}
-                        selectedSchool={selectedSchool}
-                      />
-                    </div>
-                    <div className={styles.filterWrapper}>
-                      <select
-                        className={styles.select}
-                        value={selectedSchool}
-                        onChange={(e) => {
-                          setSelectedSchool(e.target.value);
-                          setSelectedCourse('');
-                          setSelectedSede('');
-                          setSelectedStatus('');
-                          setUnregSchoolFilter('');
-                          setUnregCourseFilter('');
-                        }}
-                      >
-                        <option value="">Todas las escuelas</option>
-                        <option value="unregistered">Asistentes sin registro</option>
-                        {userSchools.map(school => (
-                          <option key={school._id} value={school._id}>
-                            {school.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    {/* Filtros de curso y sede para usuarios registrados */}
-                    {selectedSchool && selectedSchool !== 'all' && selectedSchool !== 'unregistered' && (
+          <>
+            <div className={styles.controlPanel}>
+              {user?.role === 'super_admin' ||
+              user?.role === 'admin' ||
+              user?.role === 'school_owner' ||
+              user?.role === 'administrative' ? (
+                <div className={styles.searchFilterRow}>
+                  <div className={styles.searchWrapper}>
+                    <UserSearch
+                      onSelectUser={handleUserSelected}
+                      onAssignRole={handleAssignRole}
+                      availableSchools={userSchools}
+                      selectedSchool={selectedSchool}
+                    />
+                  </div>
+                  <div className={styles.filterWrapper}>
+                    <select
+                      className={styles.select}
+                      value={selectedSchool}
+                      onChange={(e) => {
+                        setSelectedSchool(e.target.value);
+                        setSelectedCourse('');
+                        setSelectedSede('');
+                        setSelectedStatus('');
+                        setUnregSchoolFilter('');
+                        setUnregCourseFilter('');
+                      }}
+                    >
+                      <option value="">Todas las escuelas</option>
+                      <option value="unregistered">
+                        Asistentes sin registro
+                      </option>
+                      {userSchools.map((school) => (
+                        <option key={school._id} value={school._id}>
+                          {school.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Filtros de curso y sede para usuarios registrados */}
+                  {selectedSchool &&
+                    selectedSchool !== 'all' &&
+                    selectedSchool !== 'unregistered' && (
                       <div className={styles.filterWrapper}>
-                        <select 
+                        <select
                           className={styles.select}
                           value={selectedCourse}
                           onChange={(e) => setSelectedCourse(e.target.value)}
                         >
                           <option value="">Todos los cursos</option>
-                          {getFilteredCoursesBySchool().map(course => (
+                          {getFilteredCoursesBySchool().map((course) => (
                             <option key={course._id} value={course._id}>
                               {course.title}
                             </option>
@@ -1559,7 +2268,10 @@ IMPORTANTE: Esta acción:
                         </select>
                       </div>
                     )}
-                    {(currentSchool && currentSchool.sedes && currentSchool.sedes.length > 0 && selectedSchool !== 'unregistered') && (
+                  {currentSchool &&
+                    currentSchool.sedes &&
+                    currentSchool.sedes.length > 0 &&
+                    selectedSchool !== 'unregistered' && (
                       <div className={styles.filterWrapper}>
                         <select
                           className={styles.select}
@@ -1567,7 +2279,7 @@ IMPORTANTE: Esta acción:
                           onChange={(e) => setSelectedSede(e.target.value)}
                         >
                           <option value="">Todas las sedes</option>
-                          {currentSchool.sedes.map(sede => (
+                          {currentSchool.sedes.map((sede) => (
                             <option key={sede} value={sede}>
                               {sede}
                             </option>
@@ -1575,300 +2287,458 @@ IMPORTANTE: Esta acción:
                         </select>
                       </div>
                     )}
-                    {/* Filtro de estado para usuarios registrados */}
-                    {selectedSchool !== 'unregistered' && (
+                  {/* Filtro de estado para usuarios registrados */}
+                  {selectedSchool !== 'unregistered' && (
+                    <div className={styles.filterWrapper}>
+                      <select
+                        className={styles.select}
+                        value={selectedStatus}
+                        onChange={(e) => setSelectedStatus(e.target.value)}
+                      >
+                        <option value="">Todos los estados</option>
+                        <option value="active">Activos</option>
+                        <option value="inactive">Inactivos</option>
+                        <option value="suspended">Suspendidos</option>
+                      </select>
+                    </div>
+                  )}
+                  {/* Filtros para asistentes sin registro, mismos estilos y estructura */}
+                  {selectedSchool === 'unregistered' && (
+                    <>
                       <div className={styles.filterWrapper}>
                         <select
                           className={styles.select}
-                          value={selectedStatus}
-                          onChange={(e) => setSelectedStatus(e.target.value)}
+                          value={unregSchoolFilter}
+                          onChange={(e) => {
+                            setUnregSchoolFilter(e.target.value);
+                            setUnregCourseFilter('');
+                          }}
                         >
-                          <option value="">Todos los estados</option>
-                          <option value="active">Activos</option>
-                          <option value="inactive">Inactivos</option>
-                          <option value="suspended">Suspendidos</option>
+                          <option value="">Todas las escuelas</option>
+                          {userSchools.map((school) => (
+                            <option key={school._id} value={school._id}>
+                              {school.name}
+                            </option>
+                          ))}
                         </select>
                       </div>
-                    )}
-                    {/* Filtros para asistentes sin registro, mismos estilos y estructura */}
-                    {selectedSchool === 'unregistered' && (
-                      <>
-                        <div className={styles.filterWrapper}>
-                          <select
-                            className={styles.select}
-                            value={unregSchoolFilter}
-                            onChange={e => {
-                              setUnregSchoolFilter(e.target.value);
-                              setUnregCourseFilter('');
-                            }}
-                          >
-                            <option value=''>Todas las escuelas</option>
-                            {userSchools.map(school => (
-                              <option key={school._id} value={school._id}>{school.name}</option>
+                      <div className={styles.filterWrapper}>
+                        <select
+                          className={styles.select}
+                          value={unregCourseFilter}
+                          onChange={(e) => setUnregCourseFilter(e.target.value)}
+                        >
+                          <option value="">Todos los cursos</option>
+                          {courses
+                            .filter(
+                              (course) =>
+                                !unregSchoolFilter ||
+                                (typeof course.school === 'string'
+                                  ? course.school === unregSchoolFilter
+                                  : (course.school as School)?._id ===
+                                    unregSchoolFilter)
+                            )
+                            .map((course) => (
+                              <option key={course._id} value={course._id}>
+                                {course.title}
+                              </option>
                             ))}
-                          </select>
-                        </div>
-                        <div className={styles.filterWrapper}>
-                          <select
-                            className={styles.select}
-                            value={unregCourseFilter}
-                            onChange={e => setUnregCourseFilter(e.target.value)}
-                          >
-                            <option value=''>Todos los cursos</option>
-                            {courses.filter(course =>
-                              !unregSchoolFilter || (typeof course.school === 'string' ? course.school === unregSchoolFilter : (course.school as School)?._id === unregSchoolFilter)
-                            ).map(course => (
-                              <option key={course._id} value={course._id}>{course.title}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ) : 
-                  <div className={styles.noPermissionsMessage}>
-                    No tienes permisos para gestionar usuarios.
-                  </div>
-                }
-                
-                <div className={styles.actionButtonsRow}>
-                  <button 
-                    className={styles.createButton}
-                    onClick={() => {
-                      setCreateUserType(UserType.REGISTERED);
-                      setShowCreateUserModal(true);
-                    }}
-                  >
-                    <FaUserPlus /> Crear Usuario
-                  </button>
-                  <button 
-                    className={styles.altButton}
-                    onClick={() => {
-                      setCreateUserType(UserType.UNREGISTERED);
-                      setShowCreateUserModal(true);
-                    }}
-                  >
-                    <FaUserCheck /> Agregar Asistente
-                  </button>
+                        </select>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
-      
-              {error && <div className={styles.error}>{error}</div>}
-              {success && <div className={styles.success}>{success}</div>}
-              
-              {/* Tabla de usuarios */}
-              {selectedSchool === 'unregistered' ? (
-                  <div className={`${styles.tableContainer} ${styles.usersTableContainer}`}>
-                    <table className={styles.table} data-table="users">
-                      <thead>
-                        <tr>
-                          <th>Nombre</th>
-                          <th>Cursos</th>
-                          <th>Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {unregisteredUsers
-                          .filter(user =>
-                            (!unregSchoolFilter || (user.schools && user.schools.includes(unregSchoolFilter))) &&
-                            (!unregCourseFilter || (user.courses && user.courses.includes(unregCourseFilter)))
-                          )
-                          .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                          .map((user) => (
-                            <tr key={user._id}>
-                              <td>{user.name} <span className={styles.tagNonRegistered}>Asistente</span></td>
-                              <td>
-                                {user.courses && user.courses.length > 0 ? (
-                                  <div className={styles.inlineRow}>
-                                    <span className={styles.iconSpacing}>
-                                      <FaGraduationCap />
-                                    </span>
-                                    <span>{user.courses.length}</span>
-                                    <button 
-                                      className={`${styles.iconButton} ${styles.marginLeftSmall}`}
-                                      onClick={() => handleViewUserCourses(user)}
-                                    >
-                                      <FaList />
-                                    </button>
-                                  </div>
-                                ) : 'Sin cursos'}
-                              </td>
-                              <td className={styles.actionButtons}>
-                                <button 
-                                  className={`${styles.iconButton} ${styles.linkActionButton}`}
-                                  onClick={() => handleLinkUser(user)}
-                                  title="Vincular a cuenta registrada"
-                                >
-                                  <FaLink />
-                                </button>
-                                {(!user.status || user.status === 'active') ? (
-                                  <button 
-                                    className={`${styles.iconButton} ${styles.deleteButton} ${styles.compactActionButton}`}
-                                    onClick={() => handleChangeUserStatus(user._id, user.name, 'inactive')}
-                                    title="Desactivar Asistente"
-                                  >
-                                    <FaTimesCircle />
-                                  </button>
-                                ) : (
-                                  <button 
-                                    className={`${styles.iconButton} ${styles.activateButton} ${styles.compactActionButton}`}
-                                    onClick={() => handleChangeUserStatus(user._id, user.name, 'active')}
-                                    title="Reactivar Asistente"
-                                  >
-                                    <FaCheckCircle />
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          ))
-                        }
-                        {/* ...existing code for empty state... */}
-                      </tbody>
-                    </table>
-                  </div>
               ) : (
-                // Mostrar tabla de usuarios registrados
-                <div className={`${styles.tableContainer} ${styles.usersTableContainer}`}>
-                  <table className={styles.table} data-table="users">
-                    <thead>
-                      <tr>
-                        <th onClick={() => handleSort('name')} className={styles.sortableHeader}>
-                          Nombre {renderSortIcon('name')}
-                        </th>
-                        <th onClick={() => handleSort('email')} className={styles.sortableHeader}>
-                          Email {renderSortIcon('email')}
-                        </th>
-                        <th onClick={() => handleSort('role')} className={styles.sortableHeader}>
-                          Rol {renderSortIcon('role')}
-                        </th>
-                        <th>Estado</th>
-                        <th>Cursos</th>
-                        <th onClick={() => handleSort('date')} className={styles.sortableHeader}>
-                          Fecha Registro {renderSortIcon('date')}
-                        </th>
-                        <th>Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                <div className={styles.noPermissionsMessage}>
+                  No tienes permisos para gestionar usuarios.
+                </div>
+              )}
+
+              {user?.role === 'school_owner' &&
+                selectedSchool &&
+                selectedSchool !== 'all' &&
+                selectedSchool !== 'unregistered' && (
+                  <div className={styles.seatQuotaBanner}>
+                    <div className={styles.seatQuotaTitle}>
+                      Mis Cupos en esta Escuela
+                    </div>
+                    <div className={styles.seatQuotaStats}>
+                      <span>
+                        Total: <strong>{myOwnerQuota?.totalSeats ?? 0}</strong>
+                      </span>
+                      <span>
+                        Usados: <strong>{myOwnerQuota?.usedSeats ?? 0}</strong>
+                      </span>
+                      <span>
+                        Disponibles:{' '}
+                        <strong>{myOwnerQuota?.availableSeats ?? 0}</strong>
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+              <div className={styles.actionButtonsRow}>
+                <button
+                  className={styles.createButton}
+                  onClick={() => {
+                    setCreateUserType(UserType.REGISTERED);
+                    setShowCreateUserModal(true);
+                  }}
+                >
+                  <FaUserPlus /> Crear Usuario
+                </button>
+                <button
+                  className={styles.altButton}
+                  onClick={() => {
+                    setCreateUserType(UserType.UNREGISTERED);
+                    setShowCreateUserModal(true);
+                  }}
+                >
+                  <FaUserCheck /> Agregar Asistente
+                </button>
+              </div>
+            </div>
+
+            {error && <div className={styles.error}>{error}</div>}
+            {success && <div className={styles.success}>{success}</div>}
+
+            {/* Tabla de usuarios */}
+            {selectedSchool === 'unregistered' ? (
+              <div
+                className={`${styles.tableContainer} ${styles.usersTableContainer}`}
+              >
+                <table className={styles.table} data-table="users">
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>Cursos</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unregisteredUsers
+                      .filter(
+                        (user) =>
+                          (!unregSchoolFilter ||
+                            (user.schools &&
+                              user.schools.includes(unregSchoolFilter))) &&
+                          (!unregCourseFilter ||
+                            (user.courses &&
+                              user.courses.includes(unregCourseFilter)))
+                      )
+                      .slice(
+                        (currentPage - 1) * itemsPerPage,
+                        currentPage * itemsPerPage
+                      )
+                      .map((user) => (
+                        <tr key={user._id}>
+                          <td>
+                            {user.name}{' '}
+                            <span className={styles.tagNonRegistered}>
+                              Asistente
+                            </span>
+                          </td>
+                          <td>
+                            {user.courses && user.courses.length > 0 ? (
+                              <div className={styles.inlineRow}>
+                                <span className={styles.iconSpacing}>
+                                  <FaGraduationCap />
+                                </span>
+                                <span>{user.courses.length}</span>
+                                <button
+                                  className={`${styles.iconButton} ${styles.marginLeftSmall}`}
+                                  onClick={() => handleViewUserCourses(user)}
+                                >
+                                  <FaList />
+                                </button>
+                              </div>
+                            ) : (
+                              'Sin cursos'
+                            )}
+                          </td>
+                          <td className={styles.actionButtons}>
+                            <button
+                              className={`${styles.iconButton} ${styles.linkActionButton}`}
+                              onClick={() => handleLinkUser(user)}
+                              title="Vincular a cuenta registrada"
+                            >
+                              <FaLink />
+                            </button>
+                            {!user.status || user.status === 'active' ? (
+                              <button
+                                className={`${styles.iconButton} ${styles.deleteButton} ${styles.compactActionButton}`}
+                                onClick={() =>
+                                  handleChangeUserStatus(
+                                    user._id,
+                                    user.name,
+                                    'inactive'
+                                  )
+                                }
+                                title="Desactivar Asistente"
+                              >
+                                <FaTimesCircle />
+                              </button>
+                            ) : (
+                              <button
+                                className={`${styles.iconButton} ${styles.activateButton} ${styles.compactActionButton}`}
+                                onClick={() =>
+                                  handleChangeUserStatus(
+                                    user._id,
+                                    user.name,
+                                    'active'
+                                  )
+                                }
+                                title="Reactivar Asistente"
+                              >
+                                <FaCheckCircle />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    {/* ...existing code for empty state... */}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              // Mostrar tabla de usuarios registrados
+              <div
+                className={`${styles.tableContainer} ${styles.usersTableContainer}`}
+              >
+                <table className={styles.table} data-table="users">
+                  <thead>
+                    <tr>
+                      <th
+                        onClick={() => handleSort('name')}
+                        className={styles.sortableHeader}
+                      >
+                        Nombre {renderSortIcon('name')}
+                      </th>
+                      <th
+                        onClick={() => handleSort('email')}
+                        className={styles.sortableHeader}
+                      >
+                        Email {renderSortIcon('email')}
+                      </th>
+                      <th
+                        onClick={() => handleSort('role')}
+                        className={styles.sortableHeader}
+                      >
+                        Rol {renderSortIcon('role')}
+                      </th>
+                      <th>Estado</th>
+                      <th>Cursos</th>
+                      <th
+                        onClick={() => handleSort('date')}
+                        className={styles.sortableHeader}
+                      >
+                        Fecha Registro {renderSortIcon('date')}
+                      </th>
+                      <th>Acciones</th>
+                      <th className={styles.quotaColumn}>Cupos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                     {!loading && sortedFilteredUsers.length > 0 ? (
-                        sortedFilteredUsers
-                          .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                          .map((user) => (
-                            <tr key={user._id}>
+                      sortedFilteredUsers
+                        .slice(
+                          (currentPage - 1) * itemsPerPage,
+                          currentPage * itemsPerPage
+                        )
+                        .map((user) => (
+                          <tr key={user._id}>
                             <td>
-                              <Link href={`/admin/users/${user._id}`} className={styles.userNameLink}>
+                              <Link
+                                href={`/admin/users/${user._id}`}
+                                className={styles.userNameLink}
+                              >
                                 {user.name}
                               </Link>
                             </td>
-                            <td 
-                              title={user.email} 
-                                  onClick={() => handleEmailClick(user.email)}
+                            <td
+                              title={user.email}
+                              onClick={() => handleEmailClick(user.email)}
                               className={styles.emailCell}
-                                >
-                                  {expandedEmail === user.email ? user.email : truncateEmail(user.email)}
-                              </td>
-                              <td>
-                              <span className={`${styles.roleBadge} ${styles[user.role.replace(/_/g, '')]}`}>
-                                {user.role.replace(/_/g, ' ')}
-                                  </span>
-                              {user.isRegistered === false && (
-                                <span className={`${styles.roleBadge} ${styles.unregistered}`}>no registrado</span>
-                                )}
-                              </td>
-                              <td>
-                                <div className={styles.statusCell}>
-                                  {user.status === 'inactive' ? (
-                                    <>
-                                      <FaTimesCircle className={`${styles.statusIconDot} ${styles.statusInactive}`} />
-                                      <span className={styles.statusInactive}>Inactivo</span>
-                                    </>
-                                  ) : user.status === 'suspended' ? (
-                                    <>
-                                      <FaPauseCircle className={`${styles.statusIconDot} ${styles.statusSuspended}`} />
-                                      <span className={styles.statusSuspended}>Suspendido</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <FaCheckCircle className={`${styles.statusIconDot} ${styles.statusActive}`} />
-                                      <span className={styles.statusActive}>Activo</span>
-                                    </>
-                                  )}
-                                </div>
-                              </td>
-                              <td>
-                                  <div className={styles.inlineRow}>
-                                <span className={styles.courseStatIcon} title="Cursos matriculados">
-                                      <FaGraduationCap />
-                                    </span>
-                                <span>{user.enrolledCourses?.length || 0}</span>
-                                    <button 
-                                      onClick={() => handleViewUserCourses(user)}
-                                  className={`${styles.iconButton} ${styles.viewCoursesButton} ${styles.marginLeftSmall}`} 
-                                  title="Ver cursos"
-                                    >
-                                      <FaList />
-                                    </button>
-                                  </div>
-                              </td>
-                              <td>
-                                <div className={styles.inlineRow}>
-                                <span className={styles.iconSpacing} title="Fecha de registro">
-                                    <FaClock />
-                                  </span>
-                                  <span>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</span>
-                                </div>
-                              </td>
+                            >
+                              {expandedEmail === user.email
+                                ? user.email
+                                : truncateEmail(user.email)}
+                            </td>
                             <td>
-                              <button onClick={() => handleEditUser(user)} className={`${styles.iconButton} ${styles.editButton}`} title="Editar Usuario">
-                                  <FaEdit />
+                              <span
+                                className={`${styles.roleBadge} ${styles[user.role.replace(/_/g, '')]}`}
+                              >
+                                {user.role.replace(/_/g, ' ')}
+                              </span>
+                              {user.isRegistered === false && (
+                                <span
+                                  className={`${styles.roleBadge} ${styles.unregistered}`}
+                                >
+                                  no registrado
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              <div className={styles.statusCell}>
+                                {user.status === 'inactive' ? (
+                                  <>
+                                    <FaTimesCircle
+                                      className={`${styles.statusIconDot} ${styles.statusInactive}`}
+                                    />
+                                    <span className={styles.statusInactive}>
+                                      Inactivo
+                                    </span>
+                                  </>
+                                ) : user.status === 'suspended' ? (
+                                  <>
+                                    <FaPauseCircle
+                                      className={`${styles.statusIconDot} ${styles.statusSuspended}`}
+                                    />
+                                    <span className={styles.statusSuspended}>
+                                      Suspendido
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <FaCheckCircle
+                                      className={`${styles.statusIconDot} ${styles.statusActive}`}
+                                    />
+                                    <span className={styles.statusActive}>
+                                      Activo
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                            <td>
+                              <div className={styles.inlineRow}>
+                                <span
+                                  className={styles.courseStatIcon}
+                                  title="Cursos matriculados"
+                                >
+                                  <FaGraduationCap />
+                                </span>
+                                <span>{user.enrolledCourses?.length || 0}</span>
+                                <button
+                                  onClick={() => handleViewUserCourses(user)}
+                                  className={`${styles.iconButton} ${styles.viewCoursesButton} ${styles.marginLeftSmall}`}
+                                  title="Ver cursos"
+                                >
+                                  <FaList />
                                 </button>
+                              </div>
+                            </td>
+                            <td>
+                              <div className={styles.inlineRow}>
+                                <span
+                                  className={styles.iconSpacing}
+                                  title="Fecha de registro"
+                                >
+                                  <FaClock />
+                                </span>
+                                <span>
+                                  {user.createdAt
+                                    ? new Date(
+                                        user.createdAt
+                                      ).toLocaleDateString()
+                                    : 'N/A'}
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <button
+                                onClick={() => handleEditUser(user)}
+                                className={`${styles.iconButton} ${styles.editButton}`}
+                                title="Editar Usuario"
+                              >
+                                <FaEdit />
+                              </button>
                               {user.isRegistered !== false && (
                                 <>
-                                  <button onClick={() => handleEnrollUser(user)} className={`${styles.iconButton} ${styles.enrollButton}`} title="Matricular en Curso">
-                                    <FaUserPlus />
-                                </button>
-                                  <button onClick={() => handleShowPaymentModal(user)} className={`${styles.iconButton} ${styles.paymentButton}`} title="Registrar Pago">
-                                  <FaMoneyBillWave />
-                                </button>
+                                  {seatCapabilities.canOpenEnrollFlow && (
+                                    <button
+                                      onClick={() => handleEnrollUser(user)}
+                                      className={`${styles.iconButton} ${styles.enrollButton}`}
+                                      title="Matricular en Curso"
+                                    >
+                                      <FaUserPlus />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleShowPaymentModal(user)}
+                                    className={`${styles.iconButton} ${styles.paymentButton}`}
+                                    title="Registrar Pago"
+                                  >
+                                    <FaMoneyBillWave />
+                                  </button>
                                 </>
                               )}
-                              {user.isRegistered === false && selectedSchool === 'unregistered' && (
-                                <button onClick={() => handleLinkUser(user)} className={`${styles.iconButton} ${styles.linkButton}`} title="Vincular con Usuario Registrado">
-                                  <FaLink />
-                                </button>
-                              )}
+                              {user.isRegistered === false &&
+                                selectedSchool === 'unregistered' && (
+                                  <button
+                                    onClick={() => handleLinkUser(user)}
+                                    className={`${styles.iconButton} ${styles.linkButton}`}
+                                    title="Vincular con Usuario Registrado"
+                                  >
+                                    <FaLink />
+                                  </button>
+                                )}
                               {/* Status management buttons */}
                               {user.isRegistered !== false && (
                                 <>
-                                  {(!user.status || user.status === 'active') ? (
+                                  {!user.status || user.status === 'active' ? (
                                     <>
-                                      <button 
-                                        onClick={() => handleChangeUserStatus(user._id, user.name, 'inactive')} 
-                                        className={`${styles.iconButton} ${styles.deleteButton}`} 
+                                      <button
+                                        onClick={() =>
+                                          handleChangeUserStatus(
+                                            user._id,
+                                            user.name,
+                                            'inactive'
+                                          )
+                                        }
+                                        className={`${styles.iconButton} ${styles.deleteButton}`}
                                         title="Desactivar Usuario"
                                       >
                                         <FaTimesCircle />
                                       </button>
-                                      <button 
-                                        onClick={() => handleChangeUserStatus(user._id, user.name, 'suspended')} 
-                                        className={`${styles.iconButton} ${styles.suspendButton}`} 
+                                      <button
+                                        onClick={() =>
+                                          handleChangeUserStatus(
+                                            user._id,
+                                            user.name,
+                                            'suspended'
+                                          )
+                                        }
+                                        className={`${styles.iconButton} ${styles.suspendButton}`}
                                         title="Suspender Usuario"
                                       >
                                         <FaPauseCircle />
                                       </button>
                                     </>
                                   ) : user.status === 'inactive' ? (
-                                    <button 
-                                      onClick={() => handleChangeUserStatus(user._id, user.name, 'active')} 
-                                      className={`${styles.iconButton} ${styles.activateButton}`} 
+                                    <button
+                                      onClick={() =>
+                                        handleChangeUserStatus(
+                                          user._id,
+                                          user.name,
+                                          'active'
+                                        )
+                                      }
+                                      className={`${styles.iconButton} ${styles.activateButton}`}
                                       title="Activar Usuario"
                                     >
                                       <FaCheckCircle />
                                     </button>
                                   ) : user.status === 'suspended' ? (
-                                    <button 
-                                      onClick={() => handleChangeUserStatus(user._id, user.name, 'active')} 
-                                      className={`${styles.iconButton} ${styles.activateButton}`} 
+                                    <button
+                                      onClick={() =>
+                                        handleChangeUserStatus(
+                                          user._id,
+                                          user.name,
+                                          'active'
+                                        )
+                                      }
+                                      className={`${styles.iconButton} ${styles.activateButton}`}
                                       title="Activar Usuario"
                                     >
                                       <FaCheckCircle />
@@ -1879,18 +2749,30 @@ IMPORTANTE: Esta acción:
                               {/* Status management for assistants (unregistered users) */}
                               {user.isRegistered === false && (
                                 <>
-                                  {(!user.status || user.status === 'active') ? (
-                                    <button 
-                                      onClick={() => handleChangeUserStatus(user._id, user.name, 'inactive')} 
-                                      className={`${styles.iconButton} ${styles.deleteButton}`} 
+                                  {!user.status || user.status === 'active' ? (
+                                    <button
+                                      onClick={() =>
+                                        handleChangeUserStatus(
+                                          user._id,
+                                          user.name,
+                                          'inactive'
+                                        )
+                                      }
+                                      className={`${styles.iconButton} ${styles.deleteButton}`}
                                       title="Desactivar Asistente"
                                     >
                                       <FaTimesCircle />
                                     </button>
                                   ) : (
-                                    <button 
-                                      onClick={() => handleChangeUserStatus(user._id, user.name, 'active')} 
-                                      className={`${styles.iconButton} ${styles.activateButton}`} 
+                                    <button
+                                      onClick={() =>
+                                        handleChangeUserStatus(
+                                          user._id,
+                                          user.name,
+                                          'active'
+                                        )
+                                      }
+                                      className={`${styles.iconButton} ${styles.activateButton}`}
                                       title="Reactivar Asistente"
                                     >
                                       <FaCheckCircle />
@@ -1898,45 +2780,73 @@ IMPORTANTE: Esta acción:
                                   )}
                                 </>
                               )}
-                              </td>
-                            </tr>
-                          ))
-                      ) : (
-                        <tr>
-                        <td colSpan={7} className={styles.noDataMessage}>
-                          {loading ? 'Cargando usuarios...' : 'No se encontraron usuarios que coincidan con los criterios de búsqueda.'}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              
-              {/* Paginación */}
-              {((selectedSchool === 'unregistered' && unregisteredUsers.length > 0) || 
-                (selectedSchool !== 'unregistered' && sortedFilteredUsers.length > 0)) && (
-                <div className={styles.pagination}>
-                  <button 
-                    className={styles.paginationButton}
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  >
-                    &laquo; Anterior
-                  </button>
-                  <span className={styles.pageInfo}>
-                    Página {currentPage} de {totalPages}
-                  </span>
-                  <button 
-                    className={styles.paginationButton}
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  >
-                    Siguiente &raquo;
-                  </button>
-                </div>
-              )}
-            </>
+                            </td>
+                            <td className={styles.quotaColumn}>
+                              {user.role !== 'school_owner' ? (
+                                '—'
+                              ) : !seatCapabilities.canReadOwnerQuota ? (
+                                'Sin permiso'
+                              ) : !selectedSchool ||
+                                selectedSchool === 'all' ||
+                                selectedSchool === 'unregistered' ? (
+                                'Selecciona escuela'
+                              ) : ownerQuotaByUserId[user._id] ? (
+                                <span>
+                                  {ownerQuotaByUserId[user._id]?.usedSeats ?? 0}
+                                  /
+                                  {ownerQuotaByUserId[user._id]?.totalSeats ??
+                                    0}
+                                </span>
+                              ) : (
+                                'Sin cuota'
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className={styles.noDataMessage}>
+                          {loading
+                            ? 'Cargando usuarios...'
+                            : 'No se encontraron usuarios que coincidan con los criterios de búsqueda.'}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Paginación */}
+            {((selectedSchool === 'unregistered' &&
+              unregisteredUsers.length > 0) ||
+              (selectedSchool !== 'unregistered' &&
+                sortedFilteredUsers.length > 0)) && (
+              <div className={styles.pagination}>
+                <button
+                  className={styles.paginationButton}
+                  disabled={currentPage === 1}
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.max(prev - 1, 1))
+                  }
+                >
+                  &laquo; Anterior
+                </button>
+                <span className={styles.pageInfo}>
+                  Página {currentPage} de {totalPages}
+                </span>
+                <button
+                  className={styles.paginationButton}
+                  disabled={currentPage === totalPages}
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                  }
+                >
+                  Siguiente &raquo;
+                </button>
+              </div>
+            )}
+          </>
         </div>
       </div>
 
@@ -1944,7 +2854,11 @@ IMPORTANTE: Esta acción:
       {showCreateUserModal && (
         <div className={styles.modalBackdrop}>
           <div className={styles.modal}>
-            <h2 className={styles.modalTitle}>{createUserType === UserType.REGISTERED ? 'Crear Usuario' : 'Agregar Asistente'}</h2>
+            <h2 className={styles.modalTitle}>
+              {createUserType === UserType.REGISTERED
+                ? 'Crear Usuario'
+                : 'Agregar Asistente'}
+            </h2>
             <form onSubmit={handleCreateUser} className={styles.form}>
               <div className={styles.formGroup}>
                 <label htmlFor="name">Nombre:</label>
@@ -1958,7 +2872,7 @@ IMPORTANTE: Esta acción:
                   required
                 />
               </div>
-              
+
               {createUserType === UserType.REGISTERED && (
                 <>
                   <div className={styles.formGroup}>
@@ -2022,7 +2936,7 @@ IMPORTANTE: Esta acción:
                   </div>
                 </>
               )}
-              
+
               {/* Escuela y Curso para ambos tipos de usuario */}
               <div className={styles.formGroup}>
                 <label htmlFor="school">Escuela:</label>
@@ -2035,14 +2949,14 @@ IMPORTANTE: Esta acción:
                   required={createUserType === UserType.UNREGISTERED}
                 >
                   <option value="">Seleccionar Escuela</option>
-                  {schools.map(school => (
+                  {schools.map((school) => (
                     <option key={school._id} value={school._id}>
                       {school.name}
                     </option>
                   ))}
                 </select>
               </div>
-              
+
               {formData.school && (
                 <div className={styles.formGroup}>
                   <label htmlFor="course">Curso:</label>
@@ -2055,7 +2969,7 @@ IMPORTANTE: Esta acción:
                     required={createUserType === UserType.UNREGISTERED}
                   >
                     <option value="">Seleccionar Curso</option>
-                    {getFilteredCourses().map(course => (
+                    {getFilteredCourses().map((course) => (
                       <option key={course._id} value={course._id}>
                         {course.title}
                       </option>
@@ -2063,14 +2977,16 @@ IMPORTANTE: Esta acción:
                   </select>
                 </div>
               )}
-              
+
               <div className={styles.formActions}>
                 <button type="submit" className={styles.submitButton}>
-                  {createUserType === UserType.REGISTERED ? 'Crear Usuario' : 'Agregar Asistente'}
+                  {createUserType === UserType.REGISTERED
+                    ? 'Crear Usuario'
+                    : 'Agregar Asistente'}
                 </button>
-                <button 
-                  type="button" 
-                  className={styles.cancelButton} 
+                <button
+                  type="button"
+                  className={styles.cancelButton}
                   onClick={() => setShowCreateUserModal(false)}
                 >
                   Cancelar
@@ -2080,7 +2996,7 @@ IMPORTANTE: Esta acción:
           </div>
         </div>
       )}
-      
+
       {/* Modal para editar usuario */}
       {showEditUserModal && selectedUser && (
         <div className={styles.modalBackdrop}>
@@ -2136,7 +3052,9 @@ IMPORTANTE: Esta acción:
                 </select>
               </div>
               <div className={styles.formGroup}>
-                <label htmlFor="edit-password">Nueva Contraseña (dejar vacío para mantener):</label>
+                <label htmlFor="edit-password">
+                  Nueva Contraseña (dejar vacío para mantener):
+                </label>
                 <input
                   type="password"
                   id="edit-password"
@@ -2164,9 +3082,9 @@ IMPORTANTE: Esta acción:
                 <button type="submit" className={styles.submitButton}>
                   Guardar Cambios
                 </button>
-                <button 
-                  type="button" 
-                  className={styles.cancelButton} 
+                <button
+                  type="button"
+                  className={styles.cancelButton}
                   onClick={() => setShowEditUserModal(false)}
                 >
                   Cancelar
@@ -2176,14 +3094,15 @@ IMPORTANTE: Esta acción:
           </div>
         </div>
       )}
-      
+
       {/* Modal para vincular usuario no registrado */}
       {showLinkModal && selectedUserToLink && (
         <div className={styles.modalBackdrop}>
           <div className={styles.modal}>
             <h2 className={styles.modalTitle}>Vincular Asistente a Cuenta</h2>
             <p className={styles.modalDescription}>
-              Vincular al asistente <strong>{selectedUserToLink.name}</strong> a una nueva cuenta de usuario
+              Vincular al asistente <strong>{selectedUserToLink.name}</strong> a
+              una nueva cuenta de usuario
             </p>
             <form onSubmit={completeUserLinking} className={styles.form}>
               <div className={styles.formGroup}>
@@ -2214,11 +3133,11 @@ IMPORTANTE: Esta acción:
                 <button type="submit" className={styles.submitButton}>
                   Crear Cuenta y Vincular
                 </button>
-                <button 
-                  type="button" 
-                  className={styles.cancelButton} 
+                <button
+                  type="button"
+                  className={styles.cancelButton}
                   onClick={() => {
-                    setShowLinkModal(false); 
+                    setShowLinkModal(false);
                     setSelectedUserToLink(null);
                   }}
                 >
@@ -2229,7 +3148,7 @@ IMPORTANTE: Esta acción:
           </div>
         </div>
       )}
-      
+
       {/* Modal para mostrar errores */}
       {showErrorModal && (
         <div className={styles.modalBackdrop}>
@@ -2237,8 +3156,8 @@ IMPORTANTE: Esta acción:
             <h2 className={styles.modalTitle}>Error</h2>
             <p className={styles.error}>{errorMessage}</p>
             <div className={styles.formActions}>
-              <button 
-                className={styles.submitButton} 
+              <button
+                className={styles.submitButton}
                 onClick={() => setShowErrorModal(false)}
               >
                 Cerrar
@@ -2247,7 +3166,87 @@ IMPORTANTE: Esta acción:
           </div>
         </div>
       )}
-      
+
+      {showSeatQuotaModal && selectedOwnerForQuota && (
+        <div className={styles.modalBackdrop}>
+          <div className={styles.modal}>
+            <h2 className={styles.modalTitle}>Configurar Cupos de Dueño</h2>
+            <p className={styles.modalDescription}>
+              Ajusta los cupos para{' '}
+              <strong>{selectedOwnerForQuota.name}</strong>.
+            </p>
+            <form onSubmit={saveOwnerSeatQuota} className={styles.form}>
+              <div className={styles.formGroup}>
+                <label htmlFor="quota-school">Escuela:</label>
+                <select
+                  id="quota-school"
+                  value={quotaSchoolId}
+                  onChange={(e) => handleQuotaSchoolChange(e.target.value)}
+                  className={styles.select}
+                  required
+                  disabled={quotaLoading}
+                >
+                  <option value="">Seleccionar Escuela</option>
+                  {userSchools.map((school) => (
+                    <option key={school._id} value={school._id}>
+                      {school.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label htmlFor="quota-total-seats">
+                  Total de cupos permitidos:
+                </label>
+                <input
+                  id="quota-total-seats"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={quotaTotalSeats}
+                  onChange={(e) =>
+                    setQuotaTotalSeats(Math.max(0, Number(e.target.value || 0)))
+                  }
+                  className={styles.input}
+                  required
+                  disabled={quotaLoading}
+                />
+              </div>
+
+              {ownerQuota && (
+                <div className={styles.seatQuotaStatsPanel}>
+                  <span>
+                    Usados: <strong>{ownerQuota.usedSeats}</strong>
+                  </span>
+                  <span>
+                    Disponibles: <strong>{ownerQuota.availableSeats}</strong>
+                  </span>
+                </div>
+              )}
+
+              <div className={styles.formActions}>
+                <button
+                  type="submit"
+                  className={styles.submitButton}
+                  disabled={quotaLoading || !quotaSchoolId}
+                >
+                  {quotaLoading ? 'Guardando...' : 'Guardar Cupos'}
+                </button>
+                <button
+                  type="button"
+                  className={styles.cancelButton}
+                  onClick={() => setShowSeatQuotaModal(false)}
+                  disabled={quotaLoading}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Modal para enrollar usuario en curso */}
       {showEnrollModal && selectedUser && (
         <div className={styles.modalBackdrop}>
@@ -2268,14 +3267,14 @@ IMPORTANTE: Esta acción:
                   required
                 >
                   <option value="">Seleccionar Escuela</option>
-                  {schools.map(school => (
+                  {schools.map((school) => (
                     <option key={school._id} value={school._id}>
                       {school.name}
                     </option>
                   ))}
                 </select>
               </div>
-              
+
               {formData.school && (
                 <div className={styles.formGroup}>
                   <label htmlFor="enroll-course">Curso:</label>
@@ -2288,7 +3287,7 @@ IMPORTANTE: Esta acción:
                     required
                   >
                     <option value="">Seleccionar Curso</option>
-                    {getFilteredCourses().map(course => (
+                    {getFilteredCourses().map((course) => (
                       <option key={course._id} value={course._id}>
                         {course.title}
                       </option>
@@ -2296,14 +3295,29 @@ IMPORTANTE: Esta acción:
                   </select>
                 </div>
               )}
-              
+
+              {sessionRole === 'school_owner' && formData.school && (
+                <div className={styles.seatQuotaStatsPanel}>
+                  <span>
+                    Total: <strong>{enrollOwnerQuota?.totalSeats ?? 0}</strong>
+                  </span>
+                  <span>
+                    Usados: <strong>{enrollOwnerQuota?.usedSeats ?? 0}</strong>
+                  </span>
+                  <span>
+                    Disponibles:{' '}
+                    <strong>{enrollOwnerQuota?.availableSeats ?? 0}</strong>
+                  </span>
+                </div>
+              )}
+
               <div className={styles.formActions}>
                 <button type="submit" className={styles.submitButton}>
                   Enrollar
                 </button>
-                <button 
-                  type="button" 
-                  className={styles.cancelButton} 
+                <button
+                  type="button"
+                  className={styles.cancelButton}
                   onClick={() => setShowEnrollModal(false)}
                 >
                   Cancelar
@@ -2313,14 +3327,16 @@ IMPORTANTE: Esta acción:
           </div>
         </div>
       )}
-      
+
       {/* Modal para ver cursos del usuario */}
       {showUserCoursesModal && selectedUser && (
         <div className={styles.modalBackdrop}>
           <div className={styles.modalImproved}>
             <div className={styles.modalHeader}>
-              <h2 className={styles.modalTitle}>Cursos de {selectedUser.name}</h2>
-              <button 
+              <h2 className={styles.modalTitle}>
+                Cursos de {selectedUser.name}
+              </h2>
+              <button
                 className={styles.modalCloseButton}
                 onClick={() => setShowUserCoursesModal(false)}
                 aria-label="Cerrar modal"
@@ -2328,7 +3344,7 @@ IMPORTANTE: Esta acción:
                 ×
               </button>
             </div>
-            
+
             {userCourses.length > 0 ? (
               <div className={styles.modalBody}>
                 <div className={styles.coursesTableContainer}>
@@ -2342,37 +3358,45 @@ IMPORTANTE: Esta acción:
                       </tr>
                     </thead>
                     <tbody>
-                      {userCourses.map(course => (
+                      {userCourses.map((course) => (
                         <tr key={course._id}>
                           <td>
                             <div className={styles.courseInfo}>
-                              <span className={styles.courseName}>{course.title}</span>
+                              <span className={styles.courseName}>
+                                {course.title}
+                              </span>
                             </div>
                           </td>
                           <td>
                             <span className={styles.schoolName}>
-                              {typeof course.school === 'string' 
-                                ? schools.find(s => s._id === course.school)?.name || 'N/A' 
+                              {typeof course.school === 'string'
+                                ? schools.find((s) => s._id === course.school)
+                                    ?.name || 'N/A'
                                 : course.school?.name || 'N/A'}
                             </span>
                           </td>
                           <td>
                             <span className={styles.activeStatus}>
-                              <FaCheckCircle className={styles.statusIcon} /> Activo
+                              <FaCheckCircle className={styles.statusIcon} />{' '}
+                              Activo
                             </span>
                           </td>
                           <td>
                             <div className={styles.courseActions}>
-                              <button 
+                              <button
                                 className={`${styles.actionBtn} ${styles.viewBtn}`}
-                                onClick={() => window.open(`/course/${course._id}`, '_blank')}
+                                onClick={() =>
+                                  window.open(`/course/${course._id}`, '_blank')
+                                }
                                 title="Ver curso"
                               >
                                 <FaEye />
                               </button>
-                              <button 
+                              <button
                                 className={`${styles.actionBtn} ${styles.removeBtn}`}
-                                onClick={() => handleUnenrollUser(course._id, course.title)}
+                                onClick={() =>
+                                  handleUnenrollUser(course._id, course.title)
+                                }
                                 title="Desenrolar del curso"
                               >
                                 <FaTimes />
@@ -2390,7 +3414,7 @@ IMPORTANTE: Esta acción:
                 <div className={styles.emptyState}>
                   <FaGraduationCap className={styles.emptyIcon} />
                   <p>Este usuario no está inscrito en ningún curso.</p>
-                  <button 
+                  <button
                     className={styles.enrollBtn}
                     onClick={() => {
                       setShowUserCoursesModal(false);
@@ -2402,10 +3426,10 @@ IMPORTANTE: Esta acción:
                 </div>
               </div>
             )}
-            
+
             <div className={styles.modalFooter}>
-              <button 
-                className={styles.primaryBtn} 
+              <button
+                className={styles.primaryBtn}
                 onClick={() => setShowUserCoursesModal(false)}
               >
                 Cerrar
@@ -2414,14 +3438,25 @@ IMPORTANTE: Esta acción:
           </div>
         </div>
       )}
-      
+
       {/* Modal para registrar pago */}
       {showPaymentModal && selectedUser && (
         <PaymentRegistrationModal
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
-          onRegisterPayment={(amount: number, notes: string, courseId?: string, month?: string) => 
-            handleRegisterPayment(selectedUser._id, amount, notes, courseId, month)
+          onRegisterPayment={(
+            amount: number,
+            notes: string,
+            courseId?: string,
+            month?: string
+          ) =>
+            handleRegisterPayment(
+              selectedUser._id,
+              amount,
+              notes,
+              courseId,
+              month
+            )
           }
           userId={selectedUser._id}
           userName={selectedUser.name}
@@ -2430,7 +3465,7 @@ IMPORTANTE: Esta acción:
           onSelectCourse={(courseId: string) => setSelectedCourseId(courseId)}
         />
       )}
-      
+
       {/* Modal para asignar rol en escuela */}
       {showAssignRoleModal && selectedUserForRole && (
         <AssignSchoolRoleModal
@@ -2443,4 +3478,4 @@ IMPORTANTE: Esta acción:
       )}
     </div>
   );
-} 
+}

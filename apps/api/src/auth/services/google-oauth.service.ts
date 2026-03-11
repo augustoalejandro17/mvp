@@ -88,6 +88,11 @@ export class GoogleOAuthService {
     let user = await this.userModel.findOne({ googleId: googleUser.sub });
 
     if (user) {
+      if (!user.isActive) {
+        throw new UnauthorizedException(
+          'Tu cuenta está desactivada. Contacta a soporte.',
+        );
+      }
       // User exists with Google ID - normal login
       this.logger.log(`Google login for existing user: ${googleUser.email}`);
       return { user, isNewUser: false };
@@ -97,6 +102,11 @@ export class GoogleOAuthService {
     user = await this.userModel.findOne({ email: googleUser.email });
 
     if (user) {
+      if (!user.isActive) {
+        throw new UnauthorizedException(
+          'Tu cuenta está desactivada. Contacta a soporte.',
+        );
+      }
       // User exists with same email but different provider
       if (user.provider === AuthProvider.LOCAL && !user.googleId) {
         // Local user wants to login with Google - need to link accounts
@@ -129,7 +139,7 @@ export class GoogleOAuthService {
     const googleUser = await this.verifyGoogleToken(linkDto.idToken);
 
     // Get the user who wants to link their account
-    const user = await this.userModel.findById(userId);
+    const user = await this.userModel.findById(userId).select('+password');
     if (!user) {
       throw new BadRequestException('User not found');
     }

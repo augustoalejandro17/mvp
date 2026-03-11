@@ -1,4 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { S3 } from 'aws-sdk';
 import { CloudFrontService } from './cloudfront.service';
@@ -68,7 +73,15 @@ export class S3Service {
     key: string,
     fallback = 'application/octet-stream',
   ): string {
-    if (key.endsWith('.mp4') || key.endsWith('.webm')) return 'video/mp4';
+    if (key.endsWith('.mp4')) return 'video/mp4';
+    if (key.endsWith('.webm')) return 'video/webm';
+    if (key.endsWith('.mov')) return 'video/quicktime';
+    if (key.endsWith('.m4v')) return 'video/x-m4v';
+    if (key.endsWith('.avi')) return 'video/x-msvideo';
+    if (key.endsWith('.mkv')) return 'video/x-matroska';
+    if (key.endsWith('.3gp')) return 'video/3gpp';
+    if (key.endsWith('.ogv')) return 'video/ogg';
+    if (key.endsWith('.mpeg') || key.endsWith('.mpg')) return 'video/mpeg';
     if (key.endsWith('.jpg') || key.endsWith('.jpeg')) return 'image/jpeg';
     if (key.endsWith('.png')) return 'image/png';
     if (key.endsWith('.gif')) return 'image/gif';
@@ -101,15 +114,22 @@ export class S3Service {
   // ---------------------------------------------------------------------------
 
   async uploadVideo(file: Express.Multer.File): Promise<string> {
-    const fileExtension = file.originalname.split('.').pop();
+    const rawExtension = (file.originalname.split('.').pop() || 'mp4')
+      .trim()
+      .toLowerCase();
+    const fileExtension = rawExtension.replace(/[^a-z0-9]/g, '') || 'mp4';
     const key = `videos/${uuidv4()}.${fileExtension}`;
+    const contentType =
+      file.mimetype && file.mimetype.startsWith('video/')
+        ? file.mimetype
+        : this.getContentType(key, 'video/mp4');
 
     await this.s3
       .upload({
         Bucket: this.bucketName,
         Key: key,
         Body: file.buffer,
-        ContentType: 'video/mp4',
+        ContentType: contentType,
         ContentDisposition: 'inline',
         CacheControl: 'max-age=31536000',
       })
@@ -126,7 +146,7 @@ export class S3Service {
     contentType?: string,
   ): Promise<string> {
     if (!key) {
-      throw new Error('Object key cannot be empty');
+      throw new BadRequestException('Object key cannot be empty');
     }
 
     let cleanKey = key;
@@ -223,14 +243,22 @@ export class S3Service {
     mimetype: string,
   ): Promise<{ url: string; key: string }> {
     const sanitizedName = this.sanitizeFileName(originalname.split('.')[0]);
-    const key = `videos/${sanitizedName}-${Date.now()}.mp4`;
+    const rawExtension = (originalname.split('.').pop() || 'mp4')
+      .trim()
+      .toLowerCase();
+    const fileExtension = rawExtension.replace(/[^a-z0-9]/g, '') || 'mp4';
+    const key = `videos/${sanitizedName}-${Date.now()}.${fileExtension}`;
+    const contentType =
+      mimetype && mimetype.startsWith('video/')
+        ? mimetype
+        : this.getContentType(key, 'video/mp4');
 
     await this.s3
       .upload({
         Bucket: this.bucketName,
         Key: key,
         Body: buffer,
-        ContentType: 'video/mp4',
+        ContentType: contentType,
         ContentDisposition: 'inline',
         CacheControl: 'max-age=31536000',
       })
@@ -319,7 +347,7 @@ export class S3Service {
       .promise();
 
     if (!result.Body) {
-      throw new Error(`Empty body for key: ${key}`);
+      throw new NotFoundException(`Empty body for key: ${key}`);
     }
 
     return result.Body as Buffer;

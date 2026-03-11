@@ -57,6 +57,8 @@ export default function ProfileScreen() {
 
   const supportUrl = appExtra?.supportUrl;
   const supportEmail = appExtra?.supportEmail;
+  const accountDeletionUrl = appExtra?.accountDeletionUrl;
+  const appVersion = Constants.expoConfig?.version || '1.0.0';
 
   const handleLogout = () => {
     Alert.alert('Cerrar Sesión', '¿Estás seguro?', [
@@ -163,8 +165,18 @@ export default function ProfileScreen() {
           Cuenta
         </Text>
         <View className="bg-white rounded-xl mb-4 overflow-hidden border border-gray-100">
-          <MenuItem icon="person-outline" label="Editar Perfil" subtitle="Actualiza tu información" />
-          <MenuItem icon="lock-closed-outline" label="Cambiar Contraseña" subtitle="Actualiza tu contraseña" />
+          <MenuItem
+            icon="person-outline"
+            label="Editar Perfil"
+            subtitle="Actualiza tu información"
+            onPress={() => router.push('/edit-profile' as any)}
+          />
+          <MenuItem
+            icon="lock-closed-outline"
+            label="Cambiar Contraseña"
+            subtitle="Actualiza tu contraseña"
+            onPress={() => router.push('/change-password' as any)}
+          />
           <MenuItem
             icon="notifications-outline"
             label="Notificaciones"
@@ -194,7 +206,8 @@ export default function ProfileScreen() {
           <MenuItem
             icon="information-circle-outline"
             label="Acerca de Inti"
-            subtitle="Versión 1.0.0"
+            subtitle={`Versión ${appVersion}`}
+            onPress={() => router.push('/about' as any)}
           />
           <MenuItem
             icon="shield-checkmark-outline"
@@ -203,10 +216,28 @@ export default function ProfileScreen() {
             onPress={() => router.push('/privacy-policy')}
           />
           <MenuItem
+            icon="document-outline"
+            label="Términos y Condiciones"
+            subtitle="Reglas de uso de la plataforma"
+            onPress={() => router.push('/terms-and-conditions' as any)}
+          />
+          <MenuItem
             icon="document-text-outline"
             label="Normas de Contenido"
             subtitle="Reglas de contenido permitido"
             onPress={() => router.push('/community-guidelines')}
+          />
+          <MenuItem
+            icon="flag-outline"
+            label="Mis denuncias"
+            subtitle="Revisa el estado de tus reportes"
+            onPress={() => router.push('/my-reports' as any)}
+          />
+          <MenuItem
+            icon="trash-bin-outline"
+            label="Página de eliminación de cuenta"
+            subtitle="Información pública para baja de cuenta"
+            onPress={() => openLink(accountDeletionUrl)}
           />
         </View>
 

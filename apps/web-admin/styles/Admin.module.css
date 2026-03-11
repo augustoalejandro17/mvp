@@ -1354,6 +1354,40 @@
   padding-top: 1.5rem;
 }
 
+.seatQuotaBanner {
+  border: 1px solid #dbe4f0;
+  background: #f8fbff;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.seatQuotaTitle {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 0.35rem;
+}
+
+.seatQuotaStats {
+  display: flex;
+  gap: 1rem;
+  color: #4a5568;
+  font-size: 0.88rem;
+}
+
+.seatQuotaStatsPanel {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 0.65rem 0.8rem;
+  color: #4a5568;
+  font-size: 0.9rem;
+}
+
 .select {
   width: 100%;
   padding: 0.75rem 1rem;
@@ -1430,6 +1464,12 @@
   .altButton {
     width: 100%;
     justify-content: center;
+  }
+
+  .seatQuotaStats,
+  .seatQuotaStatsPanel {
+    flex-direction: column;
+    gap: 0.4rem;
   }
   
   /* Improve pagination on mobile */
@@ -2189,6 +2229,12 @@
   color: #4a5568;
 }
 
+.quotaColumn {
+  min-width: 90px;
+  white-space: nowrap;
+  text-align: center;
+}
+
 /* Nuevo estilo para el botón de pago */
 .paymentButton {
   background-color: #e6fffa;
@@ -2201,6 +2247,10 @@
 
 /* Mobile-first approach for users table - highest priority */
 @media (max-width: 600px) {
+  .quotaColumn {
+    display: none !important;
+  }
+
   /* Force hide only Fecha Registro column */
   .usersTableContainer .table th:nth-child(5),
   .usersTableContainer .table td:nth-child(5) {
@@ -2290,6 +2340,10 @@
 
 /* Super aggressive mobile styles as fallback */
 @media screen and (max-width: 480px) {
+  .quotaColumn {
+    display: none !important;
+  }
+
   /* Force hide only Fecha Registro column - using only local classes */
   .usersTableContainer .table th:nth-child(5),
   .usersTableContainer .table td:nth-child(5) {

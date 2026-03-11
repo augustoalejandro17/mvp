@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -20,6 +21,8 @@ import {
 
 @Injectable()
 export class ContentReportsService {
+  private readonly logger = new Logger(ContentReportsService.name);
+
   constructor(
     @InjectModel(ContentReport.name)
     private readonly contentReportModel: Model<ContentReportDocument>,
@@ -137,9 +140,47 @@ export class ContentReportsService {
     report.reviewedAt = new Date();
     report.set('reviewedBy', new Types.ObjectId(reviewerId));
 
+    if (dto.status === ReportStatus.ACTION_TAKEN) {
+      await this.applyModerationAction(report.contentType, report.contentId);
+    }
+
     await report.save();
 
     return report;
+  }
+
+  private async applyModerationAction(
+    contentType: ReportContentType,
+    contentId: string,
+  ): Promise<void> {
+    switch (contentType) {
+      case ReportContentType.CLASS: {
+        await this.classModel.updateOne(
+          { _id: contentId },
+          { $set: { isActive: false } },
+        );
+        return;
+      }
+      case ReportContentType.COURSE: {
+        await this.courseModel.updateOne(
+          { _id: contentId },
+          { $set: { isActive: false } },
+        );
+        return;
+      }
+      case ReportContentType.SCHOOL: {
+        await this.schoolModel.updateOne(
+          { _id: contentId },
+          { $set: { isActive: false } },
+        );
+        return;
+      }
+      default: {
+        this.logger.warn(
+          `Unsupported content type for moderation action: ${String(contentType)}`,
+        );
+      }
+    }
   }
 
   private async validateContent(

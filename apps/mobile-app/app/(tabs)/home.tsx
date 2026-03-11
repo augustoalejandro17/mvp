@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ICourse, IClass, ISchool, UserRole } from '@inti/shared-types';
@@ -214,11 +215,52 @@ export default function HomeScreen() {
   const [moveModalFromPlaylist, setMoveModalFromPlaylist] = useState<string | null>(null);
   const [selectedSchool, setSelectedSchool] = useState<ISchool | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<ICourse | null>(null);
+  const [schoolSearch, setSchoolSearch] = useState('');
+  const [courseSearch, setCourseSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
   const [isLoadingClasses, setIsLoadingClasses] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const filteredSchools = useMemo(() => {
+    const q = schoolSearch.trim().toLowerCase();
+    if (!q) return schools;
+    return schools.filter((school) => {
+      const name = String(school.name || '').toLowerCase();
+      const description = String((school as any).description || '').toLowerCase();
+      const address = String((school as any).address || '').toLowerCase();
+      return name.includes(q) || description.includes(q) || address.includes(q);
+    });
+  }, [schools, schoolSearch]);
+
+  const filteredCourses = useMemo(() => {
+    const q = courseSearch.trim().toLowerCase();
+    if (!q) return courses;
+    return courses.filter((course) => {
+      const title = String(course.title || '').toLowerCase();
+      const description = String(course.description || '').toLowerCase();
+
+      const teacherName =
+        typeof (course as any).teacher === 'object' && (course as any).teacher?.name
+          ? String((course as any).teacher.name).toLowerCase()
+          : '';
+      const teachers = Array.isArray((course as any).teachers)
+        ? (course as any).teachers
+            .map((t: any) =>
+              typeof t === 'object' && t?.name ? String(t.name).toLowerCase() : '',
+            )
+            .join(' ')
+        : '';
+
+      return (
+        title.includes(q) ||
+        description.includes(q) ||
+        teacherName.includes(q) ||
+        teachers.includes(q)
+      );
+    });
+  }, [courses, courseSearch]);
 
   const loadSchools = useCallback(async () => {
     setError(null);
@@ -310,6 +352,7 @@ export default function HomeScreen() {
   const handleSelectSchool = async (school: ISchool) => {
     setSelectedSchool(school);
     setSelectedCourse(null);
+    setCourseSearch('');
     setClasses([]);
     setLevel('courses');
     setIsLoadingCourses(true);
@@ -456,12 +499,15 @@ export default function HomeScreen() {
       setSelectedCourse(null);
     } else if (level === 'courses') {
       setLevel('schools');
+      setCourseSearch('');
       setSelectedSchool(null);
     }
   };
 
   const onRefresh = () => {
     setIsRefreshing(true);
+    setSchoolSearch('');
+    setCourseSearch('');
     setLevel('schools');
     setSelectedSchool(null);
     setSelectedCourse(null);
@@ -503,7 +549,7 @@ export default function HomeScreen() {
       {/* Schools */}
       {level === 'schools' && (
         <FlatList
-          data={schools}
+          data={filteredSchools}
           keyExtractor={(s) => s._id || Math.random().toString()}
           contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
           showsVerticalScrollIndicator={false}
@@ -571,6 +617,25 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               )}
 
+              <View
+                className="flex-row items-center bg-white rounded-2xl px-4 py-3 mb-3 border border-gray-100"
+                style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}
+              >
+                <Ionicons name="search-outline" size={18} color="#9ca3af" />
+                <TextInput
+                  value={schoolSearch}
+                  onChangeText={setSchoolSearch}
+                  placeholder="Buscar escuelas..."
+                  placeholderTextColor="#9ca3af"
+                  className="flex-1 ml-2 text-gray-900 text-base"
+                />
+                {schoolSearch.length > 0 && (
+                  <TouchableOpacity onPress={() => setSchoolSearch('')}>
+                    <Ionicons name="close-circle" size={18} color="#9ca3af" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
               <Text className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 px-1">
                 {isAdmin ? 'Todas las Escuelas' : 'Escuelas Disponibles'}
               </Text>
@@ -580,10 +645,23 @@ export default function HomeScreen() {
             !error ? (
               <View className="items-center pt-12">
                 <Ionicons name="school-outline" size={56} color="#d97706" />
-                <Text className="text-lg font-semibold text-gray-700 mt-4">No hay escuelas</Text>
-                <Text className="text-gray-500 mt-1 text-center text-sm">
-                  Aún no hay escuelas públicas registradas
-                </Text>
+                {schoolSearch.trim() ? (
+                  <>
+                    <Text className="text-lg font-semibold text-gray-700 mt-4">
+                      Sin resultados
+                    </Text>
+                    <Text className="text-gray-500 mt-1 text-center text-sm">
+                      No encontramos escuelas para "{schoolSearch.trim()}"
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text className="text-lg font-semibold text-gray-700 mt-4">No hay escuelas</Text>
+                    <Text className="text-gray-500 mt-1 text-center text-sm">
+                      Aún no hay escuelas públicas registradas
+                    </Text>
+                  </>
+                )}
             </View>
             ) : null
           }
@@ -631,19 +709,52 @@ export default function HomeScreen() {
             </View>
           ) : (
             <FlatList
-              data={courses}
+              data={filteredCourses}
               keyExtractor={(c) => c._id || Math.random().toString()}
               contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
               showsVerticalScrollIndicator={false}
               ListHeaderComponent={
-                isAdmin ? (
-                  <TouchableOpacity
-                    onPress={() => router.push(`/manage/course/new?schoolId=${selectedSchool?._id}`)}
-                    className="flex-row items-center justify-center bg-amber-500 rounded-xl py-3 mb-4"
+                <>
+                  <View
+                    className="flex-row items-center bg-white rounded-2xl px-4 py-3 mb-3 border border-gray-100"
+                    style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}
                   >
-                    <Ionicons name="add-circle-outline" size={18} color="white" />
-                    <Text className="text-white font-semibold ml-2">Nuevo Curso</Text>
-                  </TouchableOpacity>
+                    <Ionicons name="search-outline" size={18} color="#9ca3af" />
+                    <TextInput
+                      value={courseSearch}
+                      onChangeText={setCourseSearch}
+                      placeholder="Buscar cursos..."
+                      placeholderTextColor="#9ca3af"
+                      className="flex-1 ml-2 text-gray-900 text-base"
+                    />
+                    {courseSearch.length > 0 && (
+                      <TouchableOpacity onPress={() => setCourseSearch('')}>
+                        <Ionicons name="close-circle" size={18} color="#9ca3af" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {isAdmin ? (
+                    <TouchableOpacity
+                      onPress={() => router.push(`/manage/course/new?schoolId=${selectedSchool?._id}`)}
+                      className="flex-row items-center justify-center bg-amber-500 rounded-xl py-3 mb-4"
+                    >
+                      <Ionicons name="add-circle-outline" size={18} color="white" />
+                      <Text className="text-white font-semibold ml-2">Nuevo Curso</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </>
+              }
+              ListEmptyComponent={
+                courseSearch.trim() ? (
+                  <View className="items-center pt-10 px-6">
+                    <Ionicons name="search-outline" size={44} color="#d97706" />
+                    <Text className="text-base font-semibold text-gray-700 mt-3">
+                      Sin resultados
+                    </Text>
+                    <Text className="text-gray-500 text-sm text-center mt-1">
+                      No encontramos cursos para "{courseSearch.trim()}"
+                    </Text>
+                  </View>
                 ) : null
               }
               renderItem={({ item: course }) => (

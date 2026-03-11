@@ -36,13 +36,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
 
       try {
-        const user = await this.userModel.findById(payload.sub);
+        const user = await this.userModel
+          .findById(payload.sub)
+          .select('+activeSessions');
 
         if (!user) {
           this.logger.error(
             `Usuario con ID ${payload.sub} no encontrado en la base de datos`,
           );
           throw new UnauthorizedException('Usuario no encontrado');
+        }
+
+        if (!user.isActive) {
+          this.logger.warn(
+            `Intento de uso de token para cuenta inactiva: ${payload.sub}`,
+          );
+          throw new UnauthorizedException('Cuenta desactivada');
         }
 
         // Session tracking: register active sessions but do NOT block access

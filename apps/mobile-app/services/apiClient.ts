@@ -139,6 +139,67 @@ export interface UserReport {
   };
 }
 
+export interface UpdateMyProfilePayload {
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  phone?: string;
+  bio?: string;
+  profileImageUrl?: string;
+}
+
+export interface ChangeMyPasswordPayload {
+  currentPassword?: string;
+  newPassword?: string;
+  password?: string;
+}
+
+export interface NativeUploadFile {
+  uri: string;
+  name: string;
+  type: string;
+}
+
+export interface CreatorTermsStatus {
+  accepted: boolean;
+  acceptedAt?: string;
+  acceptedVersion?: string;
+  requiredVersion: string;
+}
+
+export interface SeatPolicyCapabilities {
+  canViewSeatManagementModule: boolean;
+  canOpenEnrollFlow: boolean;
+  canAssignCourseSeatPermit: boolean;
+  canSetOwnerQuota: boolean;
+  canReadOwnerQuota: boolean;
+  canSetOwnerQuotaForTarget: boolean;
+  canReadOwnerQuotaForTarget: boolean;
+  canEnrollStudentInCourse: boolean;
+  canUnenrollStudentFromCourse: boolean;
+  canAddStudentToCourse: boolean;
+  canRemoveStudentFromCourse: boolean;
+}
+
+export interface SeatPolicyResponse {
+  userId: string;
+  role: string;
+  context: {
+    schoolId: string | null;
+    courseId: string | null;
+    ownerId: string | null;
+  };
+  capabilities: SeatPolicyCapabilities;
+}
+
+export interface OwnerSeatQuota {
+  ownerId: string;
+  schoolId: string;
+  totalSeats: number;
+  usedSeats: number;
+  availableSeats: number;
+}
+
 export const STORAGE_KEYS = {
   AUTH_TOKEN: 'auth_token',
   USER_DATA: 'user_data',
@@ -275,6 +336,18 @@ class ApiClient {
     return data;
   }
 
+  async updateMyProfile(payload: UpdateMyProfilePayload): Promise<any> {
+    const { data } = await this.client.put('/auth/onboarding/profile', payload);
+    return data?.data ?? data;
+  }
+
+  async changeMyPassword(
+    userId: string,
+    payload: ChangeMyPasswordPayload
+  ): Promise<void> {
+    await this.client.patch(`/users/${userId}/password`, payload);
+  }
+
   async createContentReport(
     payload: CreateContentReportPayload
   ): Promise<{ success: boolean; message: string; report: ContentReport }> {
@@ -362,6 +435,13 @@ class ApiClient {
     return data;
   }
 
+  async getEnrolledCoursesByUser(userId: string): Promise<ICourse[]> {
+    const { data } = await this.client.get<ICourse[]>('/courses/enrolled', {
+      params: { userId },
+    });
+    return data;
+  }
+
   async getCoursesBySchool(schoolId: string): Promise<ICourse[]> {
     const { data } = await this.client.get<ICourse[]>('/courses', {
       params: { schoolId },
@@ -398,6 +478,10 @@ class ApiClient {
       `/progress/user/${userId}/courses`
     );
     return data;
+  }
+
+  async markClassCompleted(classId: string): Promise<void> {
+    await this.client.post(`/progress/class/${classId}/complete`);
   }
 
   async getNotifications(page = 1, limit = 20): Promise<PaginatedNotifications> {
@@ -471,8 +555,71 @@ class ApiClient {
     return data;
   }
 
+  async createClassWithVideo(
+    dto: {
+      title: string;
+      description: string;
+      courseId: string;
+      order?: number;
+      isPublic?: boolean;
+    },
+    video: NativeUploadFile,
+  ): Promise<IClass> {
+    const formData = new FormData();
+    formData.append('title', dto.title);
+    formData.append('description', dto.description);
+    formData.append('courseId', dto.courseId);
+    if (dto.order != null) {
+      formData.append('order', String(dto.order));
+    }
+    if (dto.isPublic != null) {
+      formData.append('isPublic', String(dto.isPublic));
+    }
+    formData.append('video', video as any);
+
+    const { data } = await this.client.post<IClass>('/classes', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  }
+
   async updateClass(id: string, dto: Partial<{ title: string; description: string; order: number; isPublic: boolean }>): Promise<IClass> {
     const { data } = await this.client.put<IClass>(`/classes/${id}`, dto);
+    return data;
+  }
+
+  async updateClassWithVideo(
+    id: string,
+    dto: Partial<{
+      title: string;
+      description: string;
+      courseId: string;
+      order: number;
+      isPublic: boolean;
+    }>,
+    video: NativeUploadFile,
+  ): Promise<IClass> {
+    const formData = new FormData();
+    if (dto.title != null) {
+      formData.append('title', dto.title);
+    }
+    if (dto.description != null) {
+      formData.append('description', dto.description);
+    }
+    if (dto.courseId != null) {
+      formData.append('courseId', dto.courseId);
+    }
+    if (dto.order != null) {
+      formData.append('order', String(dto.order));
+    }
+    if (dto.isPublic != null) {
+      formData.append('isPublic', String(dto.isPublic));
+    }
+    formData.append('video', video as any);
+
+    const { data } = await this.client.put<IClass>(`/classes/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return data;
   }
 
@@ -481,12 +628,31 @@ class ApiClient {
   }
 
   // ─── Admin: Schools ───────────────────────────────────────────────────────
-  async createSchool(dto: { name: string; description: string; address?: string; phone?: string; website?: string; isPublic?: boolean }): Promise<ISchool> {
+  async createSchool(dto: {
+    name: string;
+    description: string;
+    logoUrl?: string;
+    address?: string;
+    phone?: string;
+    website?: string;
+    isPublic?: boolean;
+  }): Promise<ISchool> {
     const { data } = await this.client.post<ISchool>('/schools', dto);
     return data;
   }
 
-  async updateSchool(id: string, dto: Partial<{ name: string; description: string; address: string; phone: string; website: string; isPublic: boolean }>): Promise<ISchool> {
+  async updateSchool(
+    id: string,
+    dto: Partial<{
+      name: string;
+      description: string;
+      logoUrl: string;
+      address: string;
+      phone: string;
+      website: string;
+      isPublic: boolean;
+    }>,
+  ): Promise<ISchool> {
     const { data } = await this.client.put<ISchool>(`/schools/${id}`, dto);
     return data;
   }
@@ -506,12 +672,29 @@ class ApiClient {
   }
 
   // ─── Admin: Courses ───────────────────────────────────────────────────────
-  async createCourse(dto: { title: string; description: string; schoolId: string; isPublic?: boolean }): Promise<ICourse> {
+  async createCourse(dto: {
+    title: string;
+    description: string;
+    schoolId: string;
+    coverImageUrl?: string;
+    teacher?: string;
+    isPublic?: boolean;
+  }): Promise<ICourse> {
     const { data } = await this.client.post<ICourse>('/courses', dto);
     return data;
   }
 
-  async updateCourse(id: string, dto: Partial<{ title: string; description: string; isPublic: boolean; isActive: boolean; isFeatured: boolean }>): Promise<ICourse> {
+  async updateCourse(
+    id: string,
+    dto: Partial<{
+      title: string;
+      description: string;
+      coverImageUrl: string;
+      isPublic: boolean;
+      isActive: boolean;
+      isFeatured: boolean;
+    }>,
+  ): Promise<ICourse> {
     const { data } = await this.client.put<ICourse>(`/courses/${id}`, dto);
     return data;
   }
@@ -529,6 +712,100 @@ class ApiClient {
   async updateUserRole(userId: string, role: string): Promise<IUser> {
     const { data } = await this.client.patch<IUser>(`/auth/users/${userId}/role`, { role });
     return data;
+  }
+
+  async updateUserStatus(
+    userId: string,
+    status: 'active' | 'inactive' | 'suspended',
+    reason?: string,
+  ): Promise<IUser> {
+    const { data } = await this.client.patch<{ success: boolean; user: IUser }>(
+      `/users/${userId}/status`,
+      { status, reason },
+    );
+    return data.user;
+  }
+
+  async uploadImage(file: NativeUploadFile): Promise<string> {
+    const formData = new FormData();
+    formData.append('image', file as any);
+    const { data } = await this.client.post<{ imageUrl: string }>(
+      '/upload/image',
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      },
+    );
+    return data.imageUrl;
+  }
+
+  async getCreatorTermsStatus(): Promise<CreatorTermsStatus> {
+    const { data } = await this.client.get<CreatorTermsStatus>(
+      '/auth/creator-terms/status',
+    );
+    return data;
+  }
+
+  async acceptCreatorTerms(version?: string): Promise<CreatorTermsStatus> {
+    const { data } = await this.client.patch<CreatorTermsStatus>(
+      '/auth/creator-terms/accept',
+      version ? { version } : {},
+    );
+    return data;
+  }
+
+  async getSeatPolicy(params?: {
+    schoolId?: string;
+    courseId?: string;
+    ownerId?: string;
+  }): Promise<SeatPolicyResponse> {
+    const { data } = await this.client.get<SeatPolicyResponse>(
+      '/courses/seats/policy',
+      { params },
+    );
+    return data;
+  }
+
+  async getOwnerSeatQuota(ownerId: string, schoolId: string): Promise<OwnerSeatQuota> {
+    const { data } = await this.client.get<{ success: boolean; quota: OwnerSeatQuota }>(
+      `/users/${ownerId}/owner-seat-quota`,
+      { params: { schoolId } },
+    );
+    return data.quota;
+  }
+
+  async setOwnerSeatQuota(
+    ownerId: string,
+    schoolId: string,
+    totalSeats: number,
+  ): Promise<OwnerSeatQuota> {
+    const { data } = await this.client.patch<{ success: boolean; quota: OwnerSeatQuota }>(
+      `/users/${ownerId}/owner-seat-quota`,
+      { schoolId, totalSeats },
+    );
+    return data.quota;
+  }
+
+  async assignCourseSeatPermit(
+    userId: string,
+    schoolId: string,
+    courseId: string,
+  ): Promise<void> {
+    await this.client.post(`/users/${userId}/course-seats`, {
+      schoolId,
+      courseId,
+    });
+  }
+
+  async enrollStudentInCourse(courseId: string, studentId: string): Promise<void> {
+    await this.client.post(`/courses/${courseId}/enroll/${studentId}`, {});
+  }
+
+  async unenrollStudentFromCourse(
+    courseId: string,
+    studentId: string,
+  ): Promise<void> {
+    await this.client.post(`/courses/${courseId}/unenroll/${studentId}`, {});
   }
 
   // ─── Admin: Stats ─────────────────────────────────────────────────────────

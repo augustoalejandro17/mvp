@@ -16,6 +16,9 @@
 - Completar App Privacy en App Store Connect segun los datos reales de tu backend (login, perfil, progreso, notificaciones, etc.).
 - Cargar capturas correctas por dispositivo soportado (iPhone; iPad no requerido con `supportsTablet: false`).
 - Confirmar categoria, edad, URL de soporte y URL de privacidad.
+- Sign in with Apple:
+  - Es obligatorio solo si la app ofrece login social de terceros en iOS.
+  - Si el login en iOS es únicamente por email/contraseña (sin Google/Facebook/otros), no aplica obligación de botón Apple.
 
 ## 4) Android (Google Play Console)
 - Publicar en formato AAB (`buildType: app-bundle` en profile `production`).
@@ -49,11 +52,13 @@ eas submit --platform android --profile production
   - `GET /api/content-reports/mine` (usuario autenticado)
   - `GET /api/content-reports` (admin/super_admin/school_owner)
   - `PATCH /api/content-reports/:id/status` (admin/super_admin/school_owner)
+  - `status=action_taken` aplica acción efectiva: desactiva contenido reportado (`class|course|school`).
 - Moderación en app móvil:
   - Vista admin: `/manage/reports` para revisar y actualizar estado de denuncias.
 - Denuncia de usuarios:
   - Pantalla dedicada: `/report-user`.
   - Backend: `POST /api/user-reports`, `GET /api/user-reports/mine`, `GET /api/user-reports`, `PATCH /api/user-reports/:id/status`.
+  - `status=action_taken` suspende cuenta reportada (`isActive=false`) y revoca sesiones activas.
   - Vista admin: `/manage/user-reports`.
 - Términos para creadores (antes de subir UGC):
   - Estado y aceptación: `GET /api/auth/creator-terms/status`, `PATCH /api/auth/creator-terms/accept`.
@@ -63,6 +68,12 @@ eas submit --platform android --profile production
   - URL pública para Play Console/App Store: `/account-deletion`.
 - Enlaces legales y soporte en app:
   - Política de Privacidad
+  - Términos y Condiciones
   - Normas de Contenido
   - Términos de creador
   - Centro de Ayuda / soporte
+- Botones críticos con funcionalidad implementada:
+  - Perfil: Editar Perfil, Cambiar Contraseña, Acerca de Inti.
+  - Reproductor: Marcar como completado (evita CTA sin acción).
+- Seguridad de cuentas moderadas:
+  - Login/JWT bloquea cuentas inactivas para impedir acceso tras suspensión.

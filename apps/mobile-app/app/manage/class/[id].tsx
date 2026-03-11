@@ -2,59 +2,37 @@ import { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
   Alert,
-  Switch,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { apiClient } from '@/services/apiClient';
+import {
+  apiClient,
+  CreatorTermsStatus,
+  NativeUploadFile,
+} from '@/services/apiClient';
 import { IClass, VideoStatus } from '@inti/shared-types';
+import ManageFormField from '@/components/manage/ManageFormField';
+import ManageHeader from '@/components/manage/ManageHeader';
+import ManageMediaField from '@/components/manage/ManageMediaField';
+import ManageSummaryCard from '@/components/manage/ManageSummaryCard';
+import ManageToggleField from '@/components/manage/ManageToggleField';
+import { pickVideoFromDevice } from '@/services/mediaPicker';
 
-const VIDEO_STATUS_CONFIG: Record<VideoStatus, { label: string; icon: string; color: string; bg: string }> = {
+const VIDEO_STATUS_CONFIG: Record<
+  VideoStatus,
+  { label: string; icon: string; color: string; bg: string }
+> = {
   [VideoStatus.READY]: { label: 'Lista', icon: 'checkmark-circle', color: '#16a34a', bg: '#f0fdf4' },
   [VideoStatus.PROCESSING]: { label: 'Procesando', icon: 'time', color: '#d97706', bg: '#fffbeb' },
   [VideoStatus.UPLOADING]: { label: 'Subiendo', icon: 'cloud-upload', color: '#6b7280', bg: '#f9fafb' },
   [VideoStatus.ERROR]: { label: 'Error', icon: 'alert-circle', color: '#dc2626', bg: '#fef2f2' },
 };
-
-function FormField({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-  multiline,
-  keyboardType,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (v: string) => void;
-  placeholder?: string;
-  multiline?: boolean;
-  keyboardType?: 'default' | 'numeric';
-}) {
-  return (
-    <View className="mb-4">
-      <Text className="text-gray-700 font-semibold text-sm mb-1.5">{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#9ca3af"
-        multiline={multiline}
-        keyboardType={keyboardType}
-        numberOfLines={multiline ? 4 : 1}
-        className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 text-base"
-        style={multiline ? { minHeight: 100, textAlignVertical: 'top' } : undefined}
-      />
-    </View>
-  );
-}
 
 export default function EditClassScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -65,6 +43,13 @@ export default function EditClassScreen() {
   const [description, setDescription] = useState('');
   const [order, setOrder] = useState('');
   const [isPublic, setIsPublic] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState<NativeUploadFile | null>(
+    null,
+  );
+  const [creatorTermsStatus, setCreatorTermsStatus] =
+    useState<CreatorTermsStatus | null>(null);
+  const [acceptCreatorTermsChecked, setAcceptCreatorTermsChecked] =
+    useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -87,6 +72,38 @@ export default function EditClassScreen() {
     load();
   }, [id]);
 
+  useEffect(() => {
+    let mounted = true;
+    const loadCreatorTermsStatus = async () => {
+      try {
+        const status = await apiClient.getCreatorTermsStatus();
+        if (!mounted) return;
+        setCreatorTermsStatus(status);
+      } catch {
+        if (!mounted) return;
+        setCreatorTermsStatus(null);
+      }
+    };
+    loadCreatorTermsStatus();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handlePickVideo = async () => {
+    try {
+      const file = await pickVideoFromDevice();
+      if (!file) return;
+      setSelectedVideo(file);
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message ||
+        error?.message ||
+        'No se pudo seleccionar el video';
+      Alert.alert('Error', Array.isArray(msg) ? msg.join('\n') : String(msg));
+    }
+  };
+
   const handleSave = async () => {
     if (!title.trim()) {
       Alert.alert('Error', 'El título es requerido');
@@ -96,14 +113,41 @@ export default function EditClassScreen() {
       Alert.alert('Error', 'La descripción es requerida');
       return;
     }
+    if (selectedVideo && creatorTermsStatus && !creatorTermsStatus.accepted && !acceptCreatorTermsChecked) {
+      Alert.alert(
+        'Términos de creador',
+        'Debes aceptar los términos de creador antes de subir videos.',
+      );
+      return;
+    }
     setIsSaving(true);
     try {
-      await apiClient.updateClass(id, {
-        title: title.trim(),
-        description: description.trim(),
-        order: order ? parseInt(order, 10) : undefined,
-        isPublic,
-      });
+      if (selectedVideo) {
+        if (creatorTermsStatus && !creatorTermsStatus.accepted) {
+          const accepted = await apiClient.acceptCreatorTerms(
+            creatorTermsStatus.requiredVersion,
+          );
+          setCreatorTermsStatus(accepted);
+        }
+
+        await apiClient.updateClassWithVideo(
+          id,
+          {
+            title: title.trim(),
+            description: description.trim(),
+            order: order ? parseInt(order, 10) : undefined,
+            isPublic,
+          },
+          selectedVideo,
+        );
+      } else {
+        await apiClient.updateClass(id, {
+          title: title.trim(),
+          description: description.trim(),
+          order: order ? parseInt(order, 10) : undefined,
+          isPublic,
+        });
+      }
       Alert.alert('Guardado', 'Clase actualizada correctamente', [
         { text: 'OK', onPress: () => router.back() },
       ]);
@@ -126,26 +170,31 @@ export default function EditClassScreen() {
   const statusConfig = VIDEO_STATUS_CONFIG[videoStatus];
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
-      <ScrollView className="flex-1 bg-amber-50" showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View className="bg-amber-500 px-5 pt-5 pb-8 flex-row items-center">
-          <TouchableOpacity onPress={() => router.back()} className="mr-4">
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          <View className="flex-1">
-            <Text className="text-white text-xs opacity-80 mb-1">Gestión de Clases</Text>
-            <Text className="text-white text-xl font-bold" numberOfLines={1}>
-              {classItem?.title ?? 'Editar Clase'}
-            </Text>
-          </View>
-        </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1 bg-amber-50"
+    >
+      <ScrollView
+        className="flex-1 bg-amber-50"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 28 }}
+      >
+        <ManageHeader
+          sectionLabel="Gestión de Clases"
+          title="Editar Clase"
+          onBack={() => router.back()}
+        />
 
-        <View className="px-4 -mt-4">
-          {/* Video status banner */}
+        <View className="px-4 -mt-3">
+          <ManageSummaryCard
+            icon="videocam-outline"
+            title={title || classItem?.title || 'Clase'}
+            subtitle="Ajusta datos y visibilidad"
+          />
+
           <View
-            className="flex-row items-center rounded-2xl p-3 mb-4"
-            style={{ backgroundColor: statusConfig.bg }}
+            className="flex-row items-center rounded-2xl p-3 mb-4 border"
+            style={{ backgroundColor: statusConfig.bg, borderColor: statusConfig.color + '33' }}
           >
             <Ionicons name={statusConfig.icon as any} size={18} color={statusConfig.color} />
             <View className="ml-2 flex-1">
@@ -154,7 +203,8 @@ export default function EditClassScreen() {
               </Text>
               {classItem?.videoMetadata?.duration ? (
                 <Text className="text-xs mt-0.5" style={{ color: statusConfig.color + 'cc' }}>
-                  Duración: {Math.floor(classItem.videoMetadata.duration / 60)}:{String(classItem.videoMetadata.duration % 60).padStart(2, '0')} min
+                  Duración: {Math.floor(classItem.videoMetadata.duration / 60)}:
+                  {String(classItem.videoMetadata.duration % 60).padStart(2, '0')} min
                 </Text>
               ) : null}
               {classItem?.videoProcessingError ? (
@@ -163,41 +213,69 @@ export default function EditClassScreen() {
             </View>
           </View>
 
-          {/* Form */}
-          <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
-            <Text className="text-gray-900 font-bold text-base mb-4">Información de la Clase</Text>
-
-            <FormField label="Título *" value={title} onChangeText={setTitle} placeholder="Título de la clase" />
-            <FormField
+          <View
+            className="bg-white rounded-2xl p-4 mb-4"
+            style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}
+          >
+            <Text className="text-gray-900 font-bold text-base mb-3">Información general</Text>
+            <ManageFormField
+              label="Título *"
+              icon="text-outline"
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Título de la clase"
+            />
+            <ManageFormField
               label="Descripción *"
+              icon="chatbubble-ellipses-outline"
               value={description}
               onChangeText={setDescription}
               placeholder="Descripción detallada de la clase"
               multiline
             />
-            <FormField
+            <ManageFormField
               label="Orden"
+              icon="list-outline"
               value={order}
               onChangeText={setOrder}
               placeholder="Ej: 1, 2, 3..."
               keyboardType="numeric"
             />
+            <ManageMediaField
+              label="Reemplazar video"
+              helperText="Selecciona un archivo para reemplazar el video actual"
+              mediaType="video"
+              selectedFileName={selectedVideo?.name}
+              onPick={handlePickVideo}
+              onClear={() => setSelectedVideo(null)}
+            />
 
-            <View className="flex-row items-center justify-between py-3 border-t border-gray-100 mt-2">
-              <View>
-                <Text className="text-gray-800 font-semibold text-base">Clase pública</Text>
-                <Text className="text-gray-500 text-xs mt-0.5">Visible para todos los estudiantes</Text>
-              </View>
-              <Switch
-                value={isPublic}
-                onValueChange={setIsPublic}
-                trackColor={{ false: '#e5e7eb', true: '#fbbf24' }}
-                thumbColor={isPublic ? '#f59e0b' : '#f3f4f6'}
-              />
-            </View>
+            {selectedVideo && creatorTermsStatus && !creatorTermsStatus.accepted ? (
+              <TouchableOpacity
+                onPress={() => setAcceptCreatorTermsChecked((prev) => !prev)}
+                className="flex-row items-start bg-amber-50 border border-amber-200 rounded-xl px-3 py-3 mb-3"
+              >
+                <Ionicons
+                  name={acceptCreatorTermsChecked ? 'checkbox' : 'square-outline'}
+                  size={18}
+                  color="#b45309"
+                />
+                <Text className="text-amber-800 text-xs ml-2 flex-1">
+                  Confirmo que el contenido cumple políticas de comunidad y derechos de autor.
+                  Se registrará aceptación de términos de creador versión {creatorTermsStatus.requiredVersion}.
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
+            <ManageToggleField
+              icon="earth-outline"
+              label="Clase pública"
+              description="Visible para todos los estudiantes"
+              value={isPublic}
+              onValueChange={setIsPublic}
+            />
           </View>
 
-          {/* Save */}
           <TouchableOpacity
             onPress={handleSave}
             disabled={isSaving}
@@ -207,11 +285,12 @@ export default function EditClassScreen() {
             {isSaving ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text className="text-white font-bold text-base">Guardar Cambios</Text>
+              <View className="flex-row items-center">
+                <Ionicons name="save-outline" size={18} color="white" />
+                <Text className="text-white font-bold text-base ml-2">Guardar Cambios</Text>
+              </View>
             )}
           </TouchableOpacity>
-
-          <View className="h-4" />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

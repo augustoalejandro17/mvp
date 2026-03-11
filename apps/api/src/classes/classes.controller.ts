@@ -36,6 +36,61 @@ import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import * as https from 'https';
 import * as http from 'http';
 
+const ALLOWED_VIDEO_MIME_TYPES = [
+  'video/mp4',
+  'video/webm',
+  'video/quicktime', // .mov
+  'video/x-msvideo', // .avi
+  'video/mpeg', // .mpeg, .mpg
+  'video/x-matroska', // .mkv
+  'video/3gpp', // .3gp
+  'video/ogg', // .ogv
+  'video/x-m4v', // .m4v
+];
+
+const ALLOWED_VIDEO_EXTENSIONS = [
+  '.mp4',
+  '.webm',
+  '.mov',
+  '.avi',
+  '.mpeg',
+  '.mpg',
+  '.mkv',
+  '.3gp',
+  '.ogv',
+  '.m4v',
+];
+
+const isAllowedVideoFile = (file: Express.Multer.File): boolean => {
+  const mimeType = String(file.mimetype || '').toLowerCase();
+  const fileName = String(file.originalname || '').toLowerCase();
+
+  const hasAllowedMime = ALLOWED_VIDEO_MIME_TYPES.includes(mimeType);
+  const hasAllowedExtension = ALLOWED_VIDEO_EXTENSIONS.some((ext) =>
+    fileName.endsWith(ext),
+  );
+
+  return hasAllowedMime || hasAllowedExtension;
+};
+
+const videoFileFilter = (
+  req: Request,
+  file: Express.Multer.File,
+  callback: (error: any, acceptFile: boolean) => void,
+) => {
+  if (isAllowedVideoFile(file)) {
+    callback(null, true);
+    return;
+  }
+
+  callback(
+    new BadRequestException(
+      `Formato de archivo no soportado: ${file.mimetype}. Se admiten solamente archivos de video.`,
+    ),
+    false,
+  );
+};
+
 @Controller('classes')
 export class ClassesController {
   private readonly logger = new Logger(ClassesController.name);
@@ -206,7 +261,14 @@ export class ClassesController {
       });
 
       proxyReq.on('error', (error) => {
-        throw new Error(`Failed to fetch video: ${error.message}`);
+        this.logger.error(`Failed to fetch video: ${error.message}`);
+        if (!res.headersSent) {
+          res
+            .status(502)
+            .json({ message: `Failed to fetch video: ${error.message}` });
+        } else {
+          res.end();
+        }
       });
 
       proxyReq.end();
@@ -278,64 +340,19 @@ export class ClassesController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(
+    UserRole.TEACHER,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+    UserRole.SCHOOL_OWNER,
+    UserRole.ADMINISTRATIVE,
+  )
   @UseInterceptors(
     FileInterceptor('video', {
       limits: {
         fileSize: 200 * 1024 * 1024, // 200MB para soportar videos más grandes
       },
-      fileFilter: (req, file, callback) => {
-        // Durante pruebas, aceptar cualquier archivo
-        if (process.env.NODE_ENV === 'development') {
-          // Forzar el mimetype a video/mp4 para todos los tipos
-          file.mimetype = 'video/mp4';
-
-          // Cambiar la extensión a .mp4 en el nombre del archivo
-          const nameParts = file.originalname.split('.');
-          if (nameParts.length > 1) {
-            nameParts.pop(); // Eliminar la extensión existente
-          }
-          file.originalname = `${nameParts.join('.')}.mp4`;
-
-          callback(null, true);
-          return;
-        }
-
-        // En producción, continuar con la validación normal
-        const allowedMimeTypes = [
-          'video/mp4',
-          'video/webm',
-          'video/quicktime', // .mov
-          'video/x-msvideo', // .avi
-          'video/mpeg', // .mpeg, .mpg
-          'video/x-matroska', // .mkv
-          'video/3gpp', // .3gp
-          'video/ogg', // .ogv
-        ];
-
-        // Renombrar el mimetype para que todos sean tratados como mp4
-        if (allowedMimeTypes.includes(file.mimetype)) {
-          // Forzar el mimetype a video/mp4 para todos los tipos de video
-          file.mimetype = 'video/mp4';
-
-          // Cambiar la extensión a .mp4 en el nombre del archivo
-          const nameParts = file.originalname.split('.');
-          if (nameParts.length > 1) {
-            nameParts.pop(); // Eliminar la extensión existente
-          }
-          file.originalname = `${nameParts.join('.')}.mp4`;
-
-          callback(null, true);
-          return;
-        }
-
-        callback(
-          new BadRequestException(
-            `Formato de archivo no soportado: ${file.mimetype}. Se admiten solamente archivos de video.`,
-          ),
-          false,
-        );
-      },
+      fileFilter: videoFileFilter,
     }),
   )
   async create(
@@ -344,13 +361,6 @@ export class ClassesController {
     @Req() req,
   ) {
     const userId = req.user.sub || req.user._id?.toString();
-    const userRole = req.user.role;
-
-    if (!file) {
-      throw new BadRequestException(
-        'No se ha proporcionado ningún archivo de video',
-      );
-    }
 
     try {
       // Use worker-based processing for better scalability
@@ -375,58 +385,7 @@ export class ClassesController {
       limits: {
         fileSize: 200 * 1024 * 1024, // 200MB para soportar videos más grandes
       },
-      fileFilter: (req, file, callback) => {
-        // Durante pruebas, aceptar cualquier archivo
-        if (process.env.NODE_ENV === 'development') {
-          // Forzar el mimetype a video/mp4 para todos los tipos
-          file.mimetype = 'video/mp4';
-
-          // Cambiar la extensión a .mp4 en el nombre del archivo
-          const nameParts = file.originalname.split('.');
-          if (nameParts.length > 1) {
-            nameParts.pop(); // Eliminar la extensión existente
-          }
-          file.originalname = `${nameParts.join('.')}.mp4`;
-
-          callback(null, true);
-          return;
-        }
-
-        // En producción, continuar con la validación normal
-        const allowedMimeTypes = [
-          'video/mp4',
-          'video/webm',
-          'video/quicktime', // .mov
-          'video/x-msvideo', // .avi
-          'video/mpeg', // .mpeg, .mpg
-          'video/x-matroska', // .mkv
-          'video/3gpp', // .3gp
-          'video/ogg', // .ogv
-        ];
-
-        // Renombrar el mimetype para que todos sean tratados como mp4
-        if (allowedMimeTypes.includes(file.mimetype)) {
-          // Forzar el mimetype a video/mp4 para todos los tipos de video
-          file.mimetype = 'video/mp4';
-
-          // Cambiar la extensión a .mp4 en el nombre del archivo
-          const nameParts = file.originalname.split('.');
-          if (nameParts.length > 1) {
-            nameParts.pop(); // Eliminar la extensión existente
-          }
-          file.originalname = `${nameParts.join('.')}.mp4`;
-
-          callback(null, true);
-          return;
-        }
-
-        callback(
-          new BadRequestException(
-            `Formato de archivo no soportado: ${file.mimetype}. Se admiten solamente archivos de video.`,
-          ),
-          false,
-        );
-      },
+      fileFilter: videoFileFilter,
     }),
   )
   async update(

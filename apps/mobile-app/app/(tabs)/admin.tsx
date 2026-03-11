@@ -12,6 +12,21 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiClient } from '@/services/apiClient';
 import { useAuth } from '@/contexts/AuthContext';
+import { SeatPolicyCapabilities } from '@/services/apiClient';
+
+const DEFAULT_CAPABILITIES: SeatPolicyCapabilities = {
+  canViewSeatManagementModule: false,
+  canOpenEnrollFlow: false,
+  canAssignCourseSeatPermit: false,
+  canSetOwnerQuota: false,
+  canReadOwnerQuota: false,
+  canSetOwnerQuotaForTarget: false,
+  canReadOwnerQuotaForTarget: false,
+  canEnrollStudentInCourse: false,
+  canUnenrollStudentFromCourse: false,
+  canAddStudentToCourse: false,
+  canRemoveStudentFromCourse: false,
+};
 
 interface StatCard {
   label: string;
@@ -53,6 +68,9 @@ export default function AdminPanelScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [stats, setStats] = useState<Record<string, any>>({});
+  const [seatCapabilities, setSeatCapabilities] = useState<SeatPolicyCapabilities>(
+    DEFAULT_CAPABILITIES,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -71,6 +89,18 @@ export default function AdminPanelScreen() {
   useEffect(() => {
     loadStats();
   }, [loadStats]);
+
+  useEffect(() => {
+    const loadPolicy = async () => {
+      try {
+        const policy = await apiClient.getSeatPolicy();
+        setSeatCapabilities(policy.capabilities || DEFAULT_CAPABILITIES);
+      } catch {
+        setSeatCapabilities(DEFAULT_CAPABILITIES);
+      }
+    };
+    loadPolicy();
+  }, []);
 
   const onRefresh = () => {
     setIsRefreshing(true);
@@ -184,6 +214,14 @@ export default function AdminPanelScreen() {
           color="#3b82f6"
           onPress={() => router.push('/manage/users')}
         />
+        {seatCapabilities.canViewSeatManagementModule && (
+          <QuickAction
+            label="Gestión de cupos"
+            icon="speedometer-outline"
+            color="#0ea5e9"
+            onPress={() => router.push('/manage/seats' as any)}
+          />
+        )}
         <QuickAction
           label="Moderar denuncias"
           icon="flag-outline"

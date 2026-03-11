@@ -1,5 +1,17 @@
 const path = require('path');
 
+const normalizeDomain = (value) =>
+  String(value || '')
+    .replace(/^https?:\/\//, '')
+    .replace(/\/$/, '');
+
+const ASSET_DOMAIN = normalizeDomain(
+  process.env.NEXT_PUBLIC_ASSET_DOMAIN || process.env.R2_PUBLIC_DOMAIN,
+);
+const LEGACY_CLOUDFRONT_DOMAIN = normalizeDomain(
+  process.env.AWS_CLOUDFRONT_DOMAIN || 'digooy7d0nfl3.cloudfront.net',
+);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -10,7 +22,11 @@ const nextConfig = {
     APP_URL: process.env.APP_URL || 'https://intihubs.com',
   },
   images: {
-    domains: ['img.youtube.com', 'digooy7d0nfl3.cloudfront.net'],
+    domains: [
+      'img.youtube.com',
+      ...(ASSET_DOMAIN ? [ASSET_DOMAIN] : []),
+      ...(LEGACY_CLOUDFRONT_DOMAIN ? [LEGACY_CLOUDFRONT_DOMAIN] : []),
+    ],
   },
   async rewrites() {
     // Obtener la URL del backend desde la variable de entorno
@@ -19,11 +35,12 @@ const nextConfig = {
     // Solo aplicar rewrites en desarrollo
     if (process.env.NODE_ENV !== 'production') {
       console.log('Using API URL for rewrites:', apiUrl);
+      const imageProxyTarget = ASSET_DOMAIN || LEGACY_CLOUDFRONT_DOMAIN;
       return [
         // Proxy for CloudFront images in development to avoid CORS
         {
           source: '/images/:path*',
-          destination: 'https://digooy7d0nfl3.cloudfront.net/images/:path*',
+          destination: `https://${imageProxyTarget}/images/:path*`,
         },
         // Ruta específica para admin-stats/overview
         {

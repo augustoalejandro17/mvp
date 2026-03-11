@@ -1,8 +1,11 @@
+import { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text } from 'react-native';
+import { TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@inti/shared-types';
+import { apiClient } from '@/services/apiClient';
 
 const ADMIN_ROLES: UserRole[] = [
   UserRole.SUPER_ADMIN,
@@ -16,21 +19,51 @@ function TabIcon({ name, color, size }: { name: string; color: string; size: num
 
 export default function TabsLayout() {
   const { user } = useAuth();
-  const isAdmin = user?.role && ADMIN_ROLES.includes(user.role as UserRole);
+  const [canViewSeatManagementModule, setCanViewSeatManagementModule] =
+    useState(false);
+  const isAdminByRole =
+    !!user?.role && ADMIN_ROLES.includes(user.role as UserRole);
+  const isAdmin = isAdminByRole || canViewSeatManagementModule;
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 8);
+  const tabBarHeight = 54 + bottomInset;
+
+  useEffect(() => {
+    const loadPolicy = async () => {
+      try {
+        const policy = await apiClient.getSeatPolicy();
+        setCanViewSeatManagementModule(
+          policy?.capabilities?.canViewSeatManagementModule === true,
+        );
+      } catch {
+        setCanViewSeatManagementModule(false);
+      }
+    };
+    loadPolicy();
+  }, []);
 
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#b45309',
         tabBarInactiveTintColor: '#9ca3af',
+        tabBarHideOnKeyboard: true,
+        tabBarButton: (props) => (
+          <TouchableOpacity
+            {...(props as any)}
+            activeOpacity={0.75}
+            hitSlop={{ top: 6, bottom: 8, left: 8, right: 8 }}
+          />
+        ),
         tabBarStyle: {
           backgroundColor: '#ffffff',
           borderTopColor: '#fde68a',
           borderTopWidth: 1,
-          paddingBottom: 10,
-          paddingTop: 8,
-          height: 68,
+          paddingBottom: bottomInset,
+          paddingTop: 6,
+          height: tabBarHeight,
         },
+        tabBarItemStyle: { minHeight: 44 },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
         headerStyle: { backgroundColor: '#f59e0b' },
         headerTintColor: '#1f2937',

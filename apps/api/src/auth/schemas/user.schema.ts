@@ -69,6 +69,57 @@ export class UserSchoolRole {
 export const UserSchoolRoleSchema =
   SchemaFactory.createForClass(UserSchoolRole);
 
+@Schema({ _id: false })
+export class OwnerSeatQuota {
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true })
+  schoolId: mongoose.Types.ObjectId;
+
+  @Prop({ required: true, min: 0, default: 0 })
+  totalSeats: number;
+
+  @Prop({ default: Date.now })
+  updatedAt: Date;
+}
+
+export const OwnerSeatQuotaSchema =
+  SchemaFactory.createForClass(OwnerSeatQuota);
+
+@Schema({ _id: false })
+export class CourseSeatGrant {
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true })
+  schoolId: mongoose.Types.ObjectId;
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true })
+  courseId: mongoose.Types.ObjectId;
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
+  assignedBy: mongoose.Types.ObjectId;
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false })
+  quotaOwnerId?: mongoose.Types.ObjectId;
+
+  @Prop({ default: true })
+  isActive: boolean;
+
+  @Prop({ default: false })
+  isConsumed: boolean;
+
+  @Prop({ default: Date.now })
+  assignedAt: Date;
+
+  @Prop({ required: false })
+  consumedAt?: Date;
+
+  @Prop({ required: false })
+  releasedAt?: Date;
+
+  @Prop({ required: false })
+  revokedAt?: Date;
+}
+
+export const CourseSeatGrantSchema =
+  SchemaFactory.createForClass(CourseSeatGrant);
+
 // OAuth provider enum
 export enum AuthProvider {
   LOCAL = 'local',
@@ -80,7 +131,7 @@ export class User {
   @Prop({ unique: true, sparse: true })
   email: string;
 
-  @Prop({ required: false }) // Make password optional for OAuth users
+  @Prop({ required: false, select: false }) // Make password optional for OAuth users
   password?: string;
 
   @Prop({ required: true })
@@ -177,16 +228,16 @@ export class User {
   age?: number;
 
   // Session management — supports multiple concurrent devices
-  @Prop({ required: false })
+  @Prop({ required: false, select: false })
   currentSessionId?: string; // kept for backwards compat, not used for validation
 
-  @Prop({ type: [String], default: [] })
+  @Prop({ type: [String], default: [], select: false })
   activeSessions?: string[];
 
   @Prop({ required: false })
   lastLoginAt?: Date;
 
-  @Prop({ required: false })
+  @Prop({ required: false, select: false })
   sessionExpiredAt?: Date;
 
   // UGC creator terms acceptance (required before uploading/managing UGC)
@@ -195,6 +246,12 @@ export class User {
 
   @Prop({ required: false })
   creatorTermsVersion?: string;
+
+  @Prop({ type: [OwnerSeatQuotaSchema], default: [] })
+  ownerSeatQuotas: OwnerSeatQuota[];
+
+  @Prop({ type: [CourseSeatGrantSchema], default: [] })
+  courseSeatGrants: CourseSeatGrant[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

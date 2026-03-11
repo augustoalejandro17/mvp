@@ -27,6 +27,25 @@ class RegisterUnregisteredUserDto {
   };
 }
 
+interface AssignCourseSeatDto {
+  schoolId: string;
+  courseId: string;
+  ownerId?: string;
+}
+
+interface OwnerSeatQuotaResult {
+  ownerId: string;
+  schoolId: string;
+  totalSeats: number;
+  usedSeats: number;
+  availableSeats: number;
+}
+
+interface OwnerSeatQuotaReportRow extends OwnerSeatQuotaResult {
+  ownerName: string;
+  ownerEmail: string;
+}
+
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
@@ -118,7 +137,7 @@ export class UsersService {
   }
 
   async findOne(id: string): Promise<User> {
-    const user = await this.userModel.findById(id).exec();
+    const user = await this.userModel.findById(id).select('-password').exec();
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
@@ -404,7 +423,7 @@ export class UsersService {
   }
 
   async deleteSelf(userId: string): Promise<void> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userModel.findById(userId).select('+password');
     if (!user) {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
@@ -422,18 +441,27 @@ export class UsersService {
     if (user.schools && user.schools.length > 0) {
       await this.schoolModel.updateMany(
         { _id: { $in: user.schools } },
-        { $pull: { students: userId, teachers: userId, administratives: userId } },
+        {
+          $pull: {
+            students: userId,
+            teachers: userId,
+            administratives: userId,
+          },
+        },
       );
     }
 
     // 3. Anonimizar o eliminar registros de asistencia (opcional, depende de requerimientos legales)
     // En este caso, eliminamos los registros donde el usuario es el estudiante
     await this.classAttendanceModel.deleteMany({ student: userId });
-    await this.courseAttendanceModel.deleteMany({ student: userId, studentModel: 'User' });
+    await this.courseAttendanceModel.deleteMany({
+      student: userId,
+      studentModel: 'User',
+    });
 
     // 4. Eliminar el usuario permanentemente
     await this.userModel.findByIdAndDelete(userId);
-    
+
     this.logger.log(`User ${userId} deleted their own account`);
   }
 
@@ -716,6 +744,553 @@ export class UsersService {
     return false;
   }
 
+  private async getOwnerUsedSeats(
+    ownerId: string,
+    schoolId: string,
+  ): Promise<number> {
+    const result = await this.userModel.aggregate([
+      { $unwind: '$courseSeatGrants' },
+      {
+        $match: {
+          'courseSeatGrants.schoolId': new Types.ObjectId(schoolId),
+          'courseSeatGrants.isActive': true,
+          'courseSeatGrants.isConsumed': true,
+          $or: [
+            { 'courseSeatGrants.quotaOwnerId': new Types.ObjectId(ownerId) },
+            {
+              'courseSeatGrants.quotaOwnerId': { $exists: false },
+              'courseSeatGrants.assignedBy': new Types.ObjectId(ownerId),
+            },
+          ],
+        },
+      },
+      { $count: 'count' },
+    ]);
+
+    return result?.[0]?.count || 0;
+  }
+
+  private async isOwnerForSchool(
+    owner: User,
+    schoolId: string,
+  ): Promise<boolean> {
+    const inOwnedSchools =
+      owner.ownedSchools?.some((id) => id.toString() === schoolId) || false;
+    if (inOwnedSchools) return true;
+
+    const inSchoolRoles =
+      owner.schoolRoles?.some(
+        (role) =>
+          role.schoolId?.toString() === schoolId &&
+          String(role.role).toLowerCase() === UserRole.SCHOOL_OWNER,
+      ) || false;
+    return inSchoolRoles;
+  }
+
+  private async listSchoolOwners(schoolId: string): Promise<User[]> {
+    return this.userModel
+      .find({
+        $or: [
+          {
+            role: UserRole.SCHOOL_OWNER,
+            $or: [
+              { ownedSchools: new Types.ObjectId(schoolId) },
+              {
+                schoolRoles: {
+                  $elemMatch: {
+                    schoolId: new Types.ObjectId(schoolId),
+                    role: UserRole.SCHOOL_OWNER,
+                  },
+                },
+              },
+            ],
+          },
+          {
+            schoolRoles: {
+              $elemMatch: {
+                schoolId: new Types.ObjectId(schoolId),
+                role: UserRole.SCHOOL_OWNER,
+              },
+            },
+          },
+        ],
+      })
+      .exec();
+  }
+
+  private async resolveQuotaOwnerId(
+    schoolId: string,
+    assigner: User,
+    normalizedRole: string,
+    requestedOwnerId?: string,
+  ): Promise<string> {
+    if (normalizedRole === UserRole.SCHOOL_OWNER) {
+      const ownerHasSchool = await this.isOwnerForSchool(assigner, schoolId);
+      if (!ownerHasSchool) {
+        throw new ForbiddenException(
+          'School owner can only assign seats in owned schools',
+        );
+      }
+      return (assigner as any)._id.toString();
+    }
+
+    if (requestedOwnerId) {
+      if (!Types.ObjectId.isValid(requestedOwnerId)) {
+        throw new BadRequestException('Invalid ownerId');
+      }
+      const targetOwner = await this.userModel
+        .findById(requestedOwnerId)
+        .exec();
+      if (!targetOwner) {
+        throw new NotFoundException(
+          `Owner with ID ${requestedOwnerId} not found`,
+        );
+      }
+      const ownerHasSchool = await this.isOwnerForSchool(targetOwner, schoolId);
+      if (!ownerHasSchool) {
+        throw new BadRequestException(
+          'Target owner does not belong to this school',
+        );
+      }
+      return requestedOwnerId;
+    }
+
+    const owners = await this.listSchoolOwners(schoolId);
+    if (!owners.length) {
+      throw new BadRequestException(
+        'No school_owner found for this school. Set an owner before assigning seats.',
+      );
+    }
+
+    if (owners.length === 1) {
+      return (owners[0] as any)._id.toString();
+    }
+
+    const quotaRows = await Promise.all(
+      owners.map(async (owner) => {
+        const ownerDoc = owner as any;
+        const quota = await this.getOwnerSeatQuota(
+          ownerDoc._id.toString(),
+          schoolId,
+        );
+        return {
+          ownerId: ownerDoc._id.toString(),
+          availableSeats: quota.availableSeats,
+        };
+      }),
+    );
+
+    quotaRows.sort((a, b) => b.availableSeats - a.availableSeats);
+    return quotaRows[0].ownerId;
+  }
+
+  async setOwnerSeatQuota(
+    ownerId: string,
+    schoolId: string,
+    totalSeats: number,
+  ): Promise<OwnerSeatQuotaResult> {
+    if (!Types.ObjectId.isValid(ownerId)) {
+      throw new BadRequestException('Invalid owner ID');
+    }
+    if (!Types.ObjectId.isValid(schoolId)) {
+      throw new BadRequestException('Invalid school ID');
+    }
+    if (!Number.isInteger(totalSeats) || totalSeats < 0) {
+      throw new BadRequestException('totalSeats must be an integer >= 0');
+    }
+
+    const [owner, school] = await Promise.all([
+      this.userModel.findById(ownerId),
+      this.schoolModel.findById(schoolId),
+    ]);
+
+    if (!owner) {
+      throw new NotFoundException(`Owner with ID ${ownerId} not found`);
+    }
+    if (!school) {
+      throw new NotFoundException(`School with ID ${schoolId} not found`);
+    }
+
+    const ownerHasSchool = await this.isOwnerForSchool(owner, schoolId);
+    if (!ownerHasSchool) {
+      throw new BadRequestException(
+        'Target user is not a school_owner for this school',
+      );
+    }
+
+    const ownerDoc = owner as any;
+    if (!Array.isArray(ownerDoc.ownerSeatQuotas)) {
+      ownerDoc.ownerSeatQuotas = [];
+    }
+
+    const existingIndex = ownerDoc.ownerSeatQuotas.findIndex(
+      (quota) => quota.schoolId?.toString() === schoolId,
+    );
+
+    if (existingIndex >= 0) {
+      ownerDoc.ownerSeatQuotas[existingIndex].totalSeats = totalSeats;
+      ownerDoc.ownerSeatQuotas[existingIndex].updatedAt = new Date();
+    } else {
+      ownerDoc.ownerSeatQuotas.push({
+        schoolId: new Types.ObjectId(schoolId),
+        totalSeats,
+        updatedAt: new Date(),
+      });
+    }
+
+    await owner.save();
+    return this.getOwnerSeatQuota(ownerId, schoolId);
+  }
+
+  async getOwnerSeatQuota(
+    ownerId: string,
+    schoolId: string,
+  ): Promise<OwnerSeatQuotaResult> {
+    if (!Types.ObjectId.isValid(ownerId)) {
+      throw new BadRequestException('Invalid owner ID');
+    }
+    if (!Types.ObjectId.isValid(schoolId)) {
+      throw new BadRequestException('Invalid school ID');
+    }
+
+    const owner = await this.userModel.findById(ownerId);
+    if (!owner) {
+      throw new NotFoundException(`Owner with ID ${ownerId} not found`);
+    }
+
+    const quotas = (owner as any).ownerSeatQuotas || [];
+    const quota = quotas.find((item) => item.schoolId?.toString() === schoolId);
+    const totalSeats = quota?.totalSeats || 0;
+    const usedSeats = await this.getOwnerUsedSeats(ownerId, schoolId);
+
+    return {
+      ownerId,
+      schoolId,
+      totalSeats,
+      usedSeats,
+      availableSeats: Math.max(totalSeats - usedSeats, 0),
+    };
+  }
+
+  async getOwnerSeatQuotaReportBySchool(
+    schoolId: string,
+    requestUserId: string,
+    requestUserRole: string,
+  ): Promise<{
+    schoolId: string;
+    totals: { totalSeats: number; usedSeats: number; availableSeats: number };
+    owners: OwnerSeatQuotaReportRow[];
+  }> {
+    if (!Types.ObjectId.isValid(schoolId)) {
+      throw new BadRequestException('Invalid school ID');
+    }
+
+    const canManage = await this.canManageSchool(requestUserId, schoolId);
+    if (!canManage) {
+      throw new ForbiddenException('No permission to view seat quota report');
+    }
+
+    const normalizedRole = String(requestUserRole || '').toLowerCase();
+    const owners = await this.listSchoolOwners(schoolId);
+
+    let targetOwners = owners;
+    if (normalizedRole === UserRole.SCHOOL_OWNER) {
+      targetOwners = owners.filter(
+        (owner) => (owner as any)._id.toString() === requestUserId,
+      );
+    }
+
+    const rows: OwnerSeatQuotaReportRow[] = await Promise.all(
+      targetOwners.map(async (owner) => {
+        const ownerDoc = owner as any;
+        const quota = await this.getOwnerSeatQuota(
+          ownerDoc._id.toString(),
+          schoolId,
+        );
+        return {
+          ownerId: ownerDoc._id.toString(),
+          ownerName: owner.name || 'Sin nombre',
+          ownerEmail: owner.email || 'Sin email',
+          schoolId,
+          totalSeats: quota.totalSeats,
+          usedSeats: quota.usedSeats,
+          availableSeats: quota.availableSeats,
+        };
+      }),
+    );
+
+    rows.sort((a, b) => b.totalSeats - a.totalSeats);
+
+    const totals = rows.reduce(
+      (acc, row) => {
+        acc.totalSeats += row.totalSeats;
+        acc.usedSeats += row.usedSeats;
+        acc.availableSeats += row.availableSeats;
+        return acc;
+      },
+      { totalSeats: 0, usedSeats: 0, availableSeats: 0 },
+    );
+
+    return { schoolId, totals, owners: rows };
+  }
+
+  async assignCourseSeatToUser(
+    userId: string,
+    data: AssignCourseSeatDto,
+    assignedByUserId: string,
+    assignedByRole: string,
+  ): Promise<{ success: boolean; quota?: OwnerSeatQuotaResult }> {
+    const { schoolId, courseId, ownerId } = data;
+
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user ID');
+    }
+    if (!Types.ObjectId.isValid(schoolId)) {
+      throw new BadRequestException('Invalid school ID');
+    }
+    if (!Types.ObjectId.isValid(courseId)) {
+      throw new BadRequestException('Invalid course ID');
+    }
+
+    const [targetUser, school, course, assigner] = await Promise.all([
+      this.userModel.findById(userId),
+      this.schoolModel.findById(schoolId),
+      this.courseModel.findById(courseId),
+      this.userModel.findById(assignedByUserId),
+    ]);
+
+    if (!targetUser) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+    if (!school) {
+      throw new NotFoundException(`School with ID ${schoolId} not found`);
+    }
+    if (!course) {
+      throw new NotFoundException(`Course with ID ${courseId} not found`);
+    }
+    if (!assigner) {
+      throw new NotFoundException(
+        `Assigning user with ID ${assignedByUserId} not found`,
+      );
+    }
+
+    if (course.school.toString() !== schoolId) {
+      throw new BadRequestException('Course does not belong to the school');
+    }
+
+    const normalizedRole = String(assignedByRole || '').toLowerCase();
+    const isSuperAdmin =
+      normalizedRole === UserRole.SUPER_ADMIN ||
+      normalizedRole === UserRole.ADMIN;
+    const isOwner = normalizedRole === UserRole.SCHOOL_OWNER;
+    const isAdministrative = normalizedRole === UserRole.ADMINISTRATIVE;
+
+    if (!isSuperAdmin && !isOwner && !isAdministrative) {
+      throw new ForbiddenException(
+        'Only super_admin, admin, school_owner and administrative can assign course seats',
+      );
+    }
+
+    if (isOwner || isAdministrative) {
+      const canManage = await this.canManageSchool(assignedByUserId, schoolId);
+      if (!canManage) {
+        throw new ForbiddenException('You do not have access to this school');
+      }
+    }
+
+    const quotaOwnerId = await this.resolveQuotaOwnerId(
+      schoolId,
+      assigner,
+      normalizedRole,
+      ownerId,
+    );
+
+    const targetDoc = targetUser as any;
+    if (!Array.isArray(targetDoc.courseSeatGrants)) {
+      targetDoc.courseSeatGrants = [];
+    }
+
+    const activeGrant = targetDoc.courseSeatGrants.find(
+      (grant) =>
+        grant.isActive === true &&
+        grant.schoolId?.toString() === schoolId &&
+        grant.courseId?.toString() === courseId,
+    );
+
+    if (activeGrant) {
+      activeGrant.assignedBy = new Types.ObjectId(assignedByUserId);
+      activeGrant.quotaOwnerId = new Types.ObjectId(quotaOwnerId);
+      activeGrant.assignedAt = new Date();
+      targetUser.markModified('courseSeatGrants');
+      await targetUser.save();
+
+      const response: { success: boolean; quota?: OwnerSeatQuotaResult } = {
+        success: true,
+      };
+      response.quota = await this.getOwnerSeatQuota(quotaOwnerId, schoolId);
+      return response;
+    }
+
+    targetDoc.courseSeatGrants.push({
+      schoolId: new Types.ObjectId(schoolId),
+      courseId: new Types.ObjectId(courseId),
+      assignedBy: new Types.ObjectId(assignedByUserId),
+      quotaOwnerId: new Types.ObjectId(quotaOwnerId),
+      isActive: true,
+      isConsumed: false,
+      assignedAt: new Date(),
+      consumedAt: undefined,
+      releasedAt: undefined,
+    });
+
+    if (!targetUser.schools?.some((id) => id.toString() === schoolId)) {
+      targetUser.schools = targetUser.schools || [];
+      targetUser.schools.push(new Types.ObjectId(schoolId) as any);
+    }
+
+    await targetUser.save();
+
+    const response: { success: boolean; quota?: OwnerSeatQuotaResult } = {
+      success: true,
+    };
+    response.quota = await this.getOwnerSeatQuota(quotaOwnerId, schoolId);
+
+    return response;
+  }
+
+  async revokeCourseSeatFromUser(
+    userId: string,
+    schoolId: string,
+    courseId: string,
+    revokedByUserId: string,
+    revokedByRole: string,
+  ): Promise<{ success: boolean; quota?: OwnerSeatQuotaResult }> {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user ID');
+    }
+    if (!Types.ObjectId.isValid(schoolId)) {
+      throw new BadRequestException('Invalid school ID');
+    }
+    if (!Types.ObjectId.isValid(courseId)) {
+      throw new BadRequestException('Invalid course ID');
+    }
+
+    const [targetUser, course, revoker] = await Promise.all([
+      this.userModel.findById(userId),
+      this.courseModel.findById(courseId),
+      this.userModel.findById(revokedByUserId),
+    ]);
+
+    if (!targetUser) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+    if (!course) {
+      throw new NotFoundException(`Course with ID ${courseId} not found`);
+    }
+    if (!revoker) {
+      throw new NotFoundException(
+        `Revoking user with ID ${revokedByUserId} not found`,
+      );
+    }
+    if (course.school.toString() !== schoolId) {
+      throw new BadRequestException('Course does not belong to the school');
+    }
+
+    const normalizedRole = String(revokedByRole || '').toLowerCase();
+    const isSuperAdmin =
+      normalizedRole === UserRole.SUPER_ADMIN ||
+      normalizedRole === UserRole.ADMIN;
+    const isOwner = normalizedRole === UserRole.SCHOOL_OWNER;
+    const isAdministrative = normalizedRole === UserRole.ADMINISTRATIVE;
+
+    if (!isSuperAdmin && !isOwner && !isAdministrative) {
+      throw new ForbiddenException(
+        'Only super_admin, admin, school_owner and administrative can revoke course seats',
+      );
+    }
+
+    if (isOwner || isAdministrative) {
+      const canManage = await this.canManageSchool(revokedByUserId, schoolId);
+      if (!canManage) {
+        throw new ForbiddenException('You do not have access to this school');
+      }
+    }
+
+    const targetDoc = targetUser as any;
+    if (!Array.isArray(targetDoc.courseSeatGrants)) {
+      targetDoc.courseSeatGrants = [];
+    }
+
+    const activeGrant = targetDoc.courseSeatGrants.find(
+      (grant) =>
+        grant.isActive === true &&
+        grant.schoolId?.toString() === schoolId &&
+        grant.courseId?.toString() === courseId,
+    );
+
+    if (!activeGrant) {
+      return { success: true };
+    }
+
+    const quotaOwnerId =
+      activeGrant.quotaOwnerId?.toString() ||
+      activeGrant.assignedBy?.toString() ||
+      '';
+
+    if (isOwner && quotaOwnerId && quotaOwnerId !== revokedByUserId) {
+      throw new ForbiddenException(
+        'School owners can only revoke seats from their own quota',
+      );
+    }
+
+    activeGrant.isActive = false;
+    activeGrant.revokedAt = new Date();
+    if (activeGrant.isConsumed) {
+      activeGrant.isConsumed = false;
+      activeGrant.releasedAt = new Date();
+    }
+
+    targetUser.markModified('courseSeatGrants');
+    await targetUser.save();
+
+    const response: { success: boolean; quota?: OwnerSeatQuotaResult } = {
+      success: true,
+    };
+    if (quotaOwnerId && Types.ObjectId.isValid(quotaOwnerId)) {
+      response.quota = await this.getOwnerSeatQuota(quotaOwnerId, schoolId);
+    }
+
+    return response;
+  }
+
+  async hasActiveCourseSeat(
+    userId: string,
+    schoolId: string,
+    courseId: string,
+  ): Promise<boolean> {
+    if (
+      !Types.ObjectId.isValid(userId) ||
+      !Types.ObjectId.isValid(schoolId) ||
+      !Types.ObjectId.isValid(courseId)
+    ) {
+      return false;
+    }
+
+    const user = await this.userModel
+      .findById(userId)
+      .select('courseSeatGrants')
+      .exec();
+    if (!user) return false;
+
+    const grants = (user as any).courseSeatGrants || [];
+    return grants.some(
+      (grant) =>
+        grant.isActive === true &&
+        grant.schoolId?.toString() === schoolId &&
+        grant.courseId?.toString() === courseId,
+    );
+  }
+
   async changePassword(
     userId: string,
     changePasswordDto: ChangePasswordDto,
@@ -964,6 +1539,16 @@ export class UsersService {
 
     // Update status
     (user as any).status = status;
+
+    const normalizedStatus = String(status || '').toLowerCase();
+    if (normalizedStatus === 'active') {
+      user.isActive = true;
+    } else if (
+      normalizedStatus === 'inactive' ||
+      normalizedStatus === 'suspended'
+    ) {
+      user.isActive = false;
+    }
 
     // Add to status history
     if (!(user as any).statusHistory) {

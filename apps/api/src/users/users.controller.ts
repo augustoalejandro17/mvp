@@ -57,6 +57,17 @@ class CreateUnregisteredUserDto {
   role?: string;
 }
 
+class SetOwnerSeatQuotaDto {
+  schoolId: string;
+  totalSeats: number;
+}
+
+class AssignCourseSeatDto {
+  schoolId: string;
+  courseId: string;
+  ownerId?: string;
+}
+
 @Controller('users')
 export class UsersController {
   private readonly logger = new Logger(UsersController.name);
@@ -139,7 +150,20 @@ export class UsersController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id') id: string, @Req() req: Request) {
+    const requesterId = String(req.user['sub'] || req.user['_id'] || '');
+    const requesterRole = String(req.user['role'] || '').toLowerCase();
+    const canViewAny = [
+      UserRole.SUPER_ADMIN,
+      UserRole.ADMIN,
+      UserRole.SCHOOL_OWNER,
+      UserRole.ADMINISTRATIVE,
+    ].includes(requesterRole as UserRole);
+
+    if (!canViewAny && requesterId !== id) {
+      throw new ForbiddenException('No tienes permisos para ver este usuario');
+    }
+
     return this.usersService.findOne(id);
   }
 
@@ -156,7 +180,13 @@ export class UsersController {
   }
 
   @Post('with-courses')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.SCHOOL_OWNER,
+    UserRole.ADMINISTRATIVE,
+    UserRole.ADMIN,
+  )
   async createWithCourses(
     @Body() data: { user: Partial<AuthUser>; courses: string[] },
   ): Promise<AuthUser> {
@@ -180,10 +210,10 @@ export class UsersController {
   async deleteSelf(@Req() req: Request) {
     const userId = req.user['sub'] || req.user['_id'];
     this.logger.log(`User ${userId} requested account deletion`);
-    
+
     // Llamar al servicio para eliminar la cuenta del usuario
     await this.usersService.deleteSelf(userId);
-    
+
     return {
       success: true,
       message: 'Account deleted successfully',
@@ -663,5 +693,161 @@ export class UsersController {
       this.logger.error(`Error al asignar rol: ${error.message}`, error.stack);
       throw error;
     }
+  }
+
+  @Patch(':id/owner-seat-quota')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async setOwnerSeatQuota(
+    @Param('id') ownerId: string,
+    @Body() body: SetOwnerSeatQuotaDto,
+  ): Promise<any> {
+    if (!body?.schoolId) {
+      throw new BadRequestException('schoolId is required');
+    }
+    if (body?.totalSeats === undefined || body?.totalSeats === null) {
+      throw new BadRequestException('totalSeats is required');
+    }
+
+    const result = await this.usersService.setOwnerSeatQuota(
+      ownerId,
+      body.schoolId,
+      Number(body.totalSeats),
+    );
+
+    return { success: true, quota: result };
+  }
+
+  @Get(':id/owner-seat-quota')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.SCHOOL_OWNER,
+    UserRole.ADMINISTRATIVE,
+  )
+  async getOwnerSeatQuota(
+    @Param('id') ownerId: string,
+    @Query('schoolId') schoolId: string,
+    @Req() req: Request,
+  ): Promise<any> {
+    if (!schoolId) {
+      throw new BadRequestException('schoolId query param is required');
+    }
+
+    const requesterId = req.user['sub'] || req.user['_id'];
+    const requesterRole = String(req.user['role'] || '').toLowerCase();
+    if (requesterRole === UserRole.SCHOOL_OWNER && requesterId !== ownerId) {
+      throw new ForbiddenException(
+        'School owners can only read their own quota',
+      );
+    }
+
+    const result = await this.usersService.getOwnerSeatQuota(ownerId, schoolId);
+    return { success: true, quota: result };
+  }
+
+  @Get('owner-seat-quotas/report')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.SCHOOL_OWNER,
+    UserRole.ADMINISTRATIVE,
+  )
+  async getOwnerSeatQuotaReport(
+    @Query('schoolId') schoolId: string,
+    @Req() req: Request,
+  ): Promise<any> {
+    if (!schoolId) {
+      throw new BadRequestException('schoolId query param is required');
+    }
+
+    const requesterId = req.user['sub'] || req.user['_id'];
+    const requesterRole = String(req.user['role'] || '').toLowerCase();
+
+    const result = await this.usersService.getOwnerSeatQuotaReportBySchool(
+      schoolId,
+      requesterId,
+      requesterRole,
+    );
+
+    return { success: true, ...result };
+  }
+
+  @Post(':id/course-seats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.SCHOOL_OWNER,
+    UserRole.ADMINISTRATIVE,
+  )
+  async assignCourseSeat(
+    @Param('id') userId: string,
+    @Body() body: AssignCourseSeatDto,
+    @Req() req: Request,
+  ): Promise<any> {
+    if (!body?.schoolId) {
+      throw new BadRequestException('schoolId is required');
+    }
+    if (!body?.courseId) {
+      throw new BadRequestException('courseId is required');
+    }
+
+    const assignedByUserId = req.user['sub'] || req.user['_id'];
+    const assignedByRole = req.user['role'];
+
+    const result = await this.usersService.assignCourseSeatToUser(
+      userId,
+      body,
+      assignedByUserId,
+      assignedByRole,
+    );
+
+    return {
+      success: true,
+      message: 'Course seat assigned successfully',
+      ...result,
+    };
+  }
+
+  @Delete(':id/course-seats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.SCHOOL_OWNER,
+    UserRole.ADMINISTRATIVE,
+  )
+  async revokeCourseSeat(
+    @Param('id') userId: string,
+    @Query('schoolId') schoolId: string,
+    @Query('courseId') courseId: string,
+    @Req() req: Request,
+  ): Promise<any> {
+    if (!schoolId) {
+      throw new BadRequestException('schoolId is required');
+    }
+    if (!courseId) {
+      throw new BadRequestException('courseId is required');
+    }
+
+    const revokedByUserId = req.user['sub'] || req.user['_id'];
+    const revokedByRole = req.user['role'];
+
+    const result = await this.usersService.revokeCourseSeatFromUser(
+      userId,
+      schoolId,
+      courseId,
+      revokedByUserId,
+      revokedByRole,
+    );
+
+    return {
+      success: true,
+      message: 'Course seat revoked successfully',
+      ...result,
+    };
   }
 }

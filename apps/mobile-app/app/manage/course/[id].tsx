@@ -2,12 +2,10 @@ import { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
   Alert,
-  Switch,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -15,63 +13,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiClient } from '@/services/apiClient';
 import { ICourse } from '@inti/shared-types';
-
-function FormField({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-  multiline,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (v: string) => void;
-  placeholder?: string;
-  multiline?: boolean;
-}) {
-  return (
-    <View className="mb-4">
-      <Text className="text-gray-700 font-semibold text-sm mb-1.5">{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#9ca3af"
-        multiline={multiline}
-        numberOfLines={multiline ? 4 : 1}
-        className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-gray-900 text-base"
-        style={multiline ? { minHeight: 100, textAlignVertical: 'top' } : undefined}
-      />
-    </View>
-  );
-}
-
-function ToggleField({
-  label,
-  description,
-  value,
-  onValueChange,
-}: {
-  label: string;
-  description: string;
-  value: boolean;
-  onValueChange: (v: boolean) => void;
-}) {
-  return (
-    <View className="flex-row items-center justify-between py-3 border-t border-gray-100">
-      <View className="flex-1 mr-4">
-        <Text className="text-gray-800 font-semibold text-base">{label}</Text>
-        <Text className="text-gray-500 text-xs mt-0.5">{description}</Text>
-      </View>
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={{ false: '#e5e7eb', true: '#fbbf24' }}
-        thumbColor={value ? '#f59e0b' : '#f3f4f6'}
-      />
-    </View>
-  );
-}
+import ManageFormField from '@/components/manage/ManageFormField';
+import ManageHeader from '@/components/manage/ManageHeader';
+import ManageMediaField from '@/components/manage/ManageMediaField';
+import ManageSummaryCard from '@/components/manage/ManageSummaryCard';
+import ManageToggleField from '@/components/manage/ManageToggleField';
+import { pickImageFromDevice } from '@/services/mediaPicker';
 
 export default function EditCourseScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -80,10 +27,12 @@ export default function EditCourseScreen() {
   const [course, setCourse] = useState<ICourse | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [coverImageUrl, setCoverImageUrl] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [isFeatured, setIsFeatured] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -93,6 +42,7 @@ export default function EditCourseScreen() {
         setCourse(data);
         setTitle(data.title ?? '');
         setDescription(data.description ?? '');
+        setCoverImageUrl((data as any).coverImageUrl ?? '');
         setIsPublic((data as any).isPublic ?? false);
         setIsActive((data as any).isActive ?? true);
         setIsFeatured((data as any).isFeatured ?? false);
@@ -106,6 +56,24 @@ export default function EditCourseScreen() {
     load();
   }, [id]);
 
+  const handlePickCoverImage = async () => {
+    try {
+      const file = await pickImageFromDevice();
+      if (!file) return;
+      setIsUploadingImage(true);
+      const uploadedUrl = await apiClient.uploadImage(file);
+      setCoverImageUrl(uploadedUrl);
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message ||
+        error?.message ||
+        'No se pudo subir la imagen';
+      Alert.alert('Error', Array.isArray(msg) ? msg.join('\n') : String(msg));
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!title.trim()) {
       Alert.alert('Error', 'El título es requerido');
@@ -116,6 +84,7 @@ export default function EditCourseScreen() {
       await apiClient.updateCourse(id, {
         title: title.trim(),
         description: description.trim(),
+        coverImageUrl: coverImageUrl.trim() || undefined,
         isPublic,
         isActive,
         isFeatured,
@@ -139,32 +108,81 @@ export default function EditCourseScreen() {
   }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
-      <ScrollView className="flex-1 bg-amber-50" showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View className="bg-amber-500 px-5 pt-5 pb-8 flex-row items-center">
-          <TouchableOpacity onPress={() => router.back()} className="mr-4">
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          <View className="flex-1">
-            <Text className="text-white text-xs opacity-80 mb-1">Gestión de Cursos</Text>
-            <Text className="text-white text-xl font-bold" numberOfLines={1}>
-              {course?.title ?? 'Editar Curso'}
-            </Text>
-          </View>
-        </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1 bg-amber-50"
+    >
+      <ScrollView
+        className="flex-1 bg-amber-50"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 28 }}
+      >
+        <ManageHeader
+          sectionLabel="Gestión de Cursos"
+          title="Editar Curso"
+          onBack={() => router.back()}
+        />
 
-        <View className="px-4 -mt-4">
-          <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm" style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
-            <Text className="text-gray-900 font-bold text-base mb-4">Información del Curso</Text>
+        <View className="px-4 -mt-3">
+          <ManageSummaryCard
+            icon="book-outline"
+            title={title || course?.title || 'Curso'}
+            subtitle="Actualiza la información del curso"
+          />
 
-            <FormField label="Título *" value={title} onChangeText={setTitle} placeholder="Título del curso" />
-            <FormField label="Descripción" value={description} onChangeText={setDescription} placeholder="Descripción del curso" multiline />
+          <View
+            className="bg-white rounded-2xl p-4 mb-4"
+            style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}
+          >
+            <Text className="text-gray-900 font-bold text-base mb-3">Información general</Text>
+            <ManageFormField
+              label="Título *"
+              icon="text-outline"
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Título del curso"
+            />
+            <ManageFormField
+              label="Descripción"
+              icon="chatbubble-ellipses-outline"
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Descripción del curso"
+              multiline
+            />
+            <ManageMediaField
+              label="Portada del curso"
+              helperText="JPG, PNG, WEBP o GIF (máx. 5MB)"
+              mediaType="image"
+              previewUrl={coverImageUrl || undefined}
+              selectedFileName={coverImageUrl ? 'Portada cargada' : undefined}
+              isUploading={isUploadingImage}
+              onPick={handlePickCoverImage}
+              onClear={() => setCoverImageUrl('')}
+            />
 
-            <Text className="text-gray-900 font-bold text-sm mt-2 mb-1">Configuración</Text>
-            <ToggleField label="Curso público" description="Visible para todos los usuarios" value={isPublic} onValueChange={setIsPublic} />
-            <ToggleField label="Curso activo" description="Disponible para inscripción" value={isActive} onValueChange={setIsActive} />
-            <ToggleField label="Destacado" description="Aparece en secciones especiales" value={isFeatured} onValueChange={setIsFeatured} />
+            <Text className="text-gray-900 font-bold text-base mb-3 mt-1">Configuración</Text>
+            <ManageToggleField
+              label="Curso público"
+              description="Visible para todos los usuarios"
+              value={isPublic}
+              onValueChange={setIsPublic}
+              icon="earth-outline"
+            />
+            <ManageToggleField
+              label="Curso activo"
+              description="Disponible para inscripción"
+              value={isActive}
+              onValueChange={setIsActive}
+              icon="checkmark-circle-outline"
+            />
+            <ManageToggleField
+              label="Destacado"
+              description="Aparece en secciones especiales"
+              value={isFeatured}
+              onValueChange={setIsFeatured}
+              icon="star-outline"
+            />
           </View>
 
           <TouchableOpacity
@@ -176,11 +194,12 @@ export default function EditCourseScreen() {
             {isSaving ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text className="text-white font-bold text-base">Guardar Cambios</Text>
+              <View className="flex-row items-center">
+                <Ionicons name="save-outline" size={18} color="white" />
+                <Text className="text-white font-bold text-base ml-2">Guardar Cambios</Text>
+              </View>
             )}
           </TouchableOpacity>
-
-          <View className="h-4" />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

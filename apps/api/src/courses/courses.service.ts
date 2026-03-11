@@ -40,6 +40,333 @@ export class CoursesService {
     private courseScheduleService: CourseScheduleService,
   ) {}
 
+  private hasSchoolRole(user: User, schoolId: string, role: UserRole): boolean {
+    const roleStr = String(role).toLowerCase();
+    return (
+      user.schoolRoles?.some(
+        (item) =>
+          item.schoolId?.toString() === schoolId &&
+          String(item.role || '').toLowerCase() === roleStr,
+      ) || false
+    );
+  }
+
+  private canManageCourseEnrollment(
+    requester: User,
+    course: Course,
+    schoolId: string,
+  ): boolean {
+    const requesterRole = String(requester.role || '').toLowerCase();
+    const requesterId = (requester as any)._id?.toString();
+    if (
+      requesterRole === UserRole.SUPER_ADMIN ||
+      requesterRole === UserRole.ADMIN
+    ) {
+      return true;
+    }
+
+    if (requesterRole === UserRole.TEACHER) {
+      const isMainTeacher =
+        !!requesterId && course.teacher?.toString() === requesterId;
+      const isSecondaryTeacher =
+        course.teachers?.some(
+          (teacherId) => !!requesterId && teacherId?.toString() === requesterId,
+        ) || false;
+      return isMainTeacher || isSecondaryTeacher;
+    }
+
+    if (requesterRole === UserRole.SCHOOL_OWNER) {
+      const ownsSchool =
+        requester.ownedSchools?.some((id) => id.toString() === schoolId) ||
+        false;
+      return (
+        ownsSchool ||
+        this.hasSchoolRole(requester, schoolId, UserRole.SCHOOL_OWNER)
+      );
+    }
+
+    if (requesterRole === UserRole.ADMINISTRATIVE) {
+      const administratesSchool =
+        requester.administratedSchools?.some(
+          (id) => id.toString() === schoolId,
+        ) || false;
+      return (
+        administratesSchool ||
+        this.hasSchoolRole(requester, schoolId, UserRole.ADMINISTRATIVE)
+      );
+    }
+
+    return false;
+  }
+
+  private isOwnerForSchool(requester: User, schoolId: string): boolean {
+    const ownsSchool =
+      requester.ownedSchools?.some((id) => id.toString() === schoolId) || false;
+    return (
+      ownsSchool ||
+      this.hasSchoolRole(requester, schoolId, UserRole.SCHOOL_OWNER)
+    );
+  }
+
+  private isAdministrativeForSchool(
+    requester: User,
+    schoolId: string,
+  ): boolean {
+    const administratesSchool =
+      requester.administratedSchools?.some(
+        (id) => id.toString() === schoolId,
+      ) || false;
+    return (
+      administratesSchool ||
+      this.hasSchoolRole(requester, schoolId, UserRole.ADMINISTRATIVE)
+    );
+  }
+
+  async getSeatPolicyForUser(
+    requesterId: string,
+    params: { schoolId?: string; courseId?: string; ownerId?: string },
+  ): Promise<any> {
+    const { schoolId, courseId, ownerId } = params;
+    const requester = await this.userModel.findById(requesterId).exec();
+    if (!requester) {
+      throw new NotFoundException('Requesting user not found');
+    }
+
+    const requesterRole = String(requester.role || '').toLowerCase();
+    const isSuperAdmin = requesterRole === UserRole.SUPER_ADMIN;
+    const isAdmin = requesterRole === UserRole.ADMIN;
+    const isSchoolOwner = requesterRole === UserRole.SCHOOL_OWNER;
+    const canOpenEnrollFlow =
+      isSuperAdmin ||
+      isAdmin ||
+      isSchoolOwner ||
+      requesterRole === UserRole.ADMINISTRATIVE ||
+      requesterRole === UserRole.TEACHER;
+
+    let resolvedSchoolId = schoolId || '';
+    let canManageSelectedCourseEnrollment = false;
+
+    if (courseId) {
+      const course = await this.courseModel
+        .findById(courseId)
+        .select('school teacher teachers')
+        .exec();
+      if (!course) {
+        throw new NotFoundException('Course not found');
+      }
+      resolvedSchoolId =
+        typeof course.school === 'object' && course.school !== null
+          ? (course.school as any)._id?.toString() || String(course.school)
+          : String(course.school);
+      canManageSelectedCourseEnrollment = this.canManageCourseEnrollment(
+        requester,
+        course,
+        resolvedSchoolId,
+      );
+    } else if (resolvedSchoolId) {
+      if (isSuperAdmin || isAdmin) {
+        canManageSelectedCourseEnrollment = true;
+      } else if (isSchoolOwner) {
+        canManageSelectedCourseEnrollment = this.isOwnerForSchool(
+          requester,
+          resolvedSchoolId,
+        );
+      } else if (requesterRole === UserRole.ADMINISTRATIVE) {
+        canManageSelectedCourseEnrollment = this.isAdministrativeForSchool(
+          requester,
+          resolvedSchoolId,
+        );
+      }
+    }
+
+    let canSetOwnerQuotaForTarget = false;
+    let canReadOwnerQuotaForTarget = false;
+
+    if (ownerId && resolvedSchoolId) {
+      const owner = await this.userModel.findById(ownerId).exec();
+      if (!owner) {
+        throw new NotFoundException('Owner not found');
+      }
+
+      const targetIsOwner = this.isOwnerForSchool(owner, resolvedSchoolId);
+      canSetOwnerQuotaForTarget = isSuperAdmin && targetIsOwner;
+      canReadOwnerQuotaForTarget =
+        isSuperAdmin ||
+        isAdmin ||
+        (isSchoolOwner && ownerId === requesterId && targetIsOwner);
+    }
+
+    const canAssignCourseSeatPermitBase =
+      isSuperAdmin || isAdmin || isSchoolOwner;
+    const canAssignCourseSeatPermit = resolvedSchoolId
+      ? canAssignCourseSeatPermitBase &&
+        (!isSchoolOwner || this.isOwnerForSchool(requester, resolvedSchoolId))
+      : canAssignCourseSeatPermitBase;
+
+    return {
+      userId: requesterId,
+      role: requesterRole,
+      context: {
+        schoolId: resolvedSchoolId || null,
+        courseId: courseId || null,
+        ownerId: ownerId || null,
+      },
+      capabilities: {
+        canViewSeatManagementModule: isSuperAdmin || isAdmin || isSchoolOwner,
+        canOpenEnrollFlow,
+        canAssignCourseSeatPermit,
+        canSetOwnerQuota: isSuperAdmin,
+        canReadOwnerQuota: isSuperAdmin || isAdmin || isSchoolOwner,
+        canSetOwnerQuotaForTarget,
+        canReadOwnerQuotaForTarget,
+        canEnrollStudentInCourse:
+          !!courseId && canManageSelectedCourseEnrollment,
+        canUnenrollStudentFromCourse:
+          !!courseId && canManageSelectedCourseEnrollment,
+        canAddStudentToCourse: !!courseId && canManageSelectedCourseEnrollment,
+        canRemoveStudentFromCourse:
+          !!courseId && canManageSelectedCourseEnrollment,
+      },
+    };
+  }
+
+  private async hasActiveSeatForCourse(
+    studentId: string,
+    schoolId: string,
+    courseId: string,
+  ): Promise<boolean> {
+    const student = await this.userModel
+      .findById(studentId)
+      .select('courseSeatGrants')
+      .exec();
+    if (!student) return false;
+
+    const grants = (student as any).courseSeatGrants || [];
+    return grants.some(
+      (grant) =>
+        grant.isActive === true &&
+        grant.schoolId?.toString() === schoolId &&
+        grant.courseId?.toString() === courseId,
+    );
+  }
+
+  private async consumeSeatForEnrollment(
+    studentId: string,
+    schoolId: string,
+    courseId: string,
+  ): Promise<void> {
+    const student = await this.userModel
+      .findById(studentId)
+      .select('courseSeatGrants')
+      .exec();
+    if (!student) {
+      throw new NotFoundException('Student not found');
+    }
+
+    const studentDoc = student as any;
+    const grants = studentDoc.courseSeatGrants || [];
+    const grant = grants.find(
+      (item) =>
+        item.isActive === true &&
+        item.schoolId?.toString() === schoolId &&
+        item.courseId?.toString() === courseId,
+    );
+
+    if (!grant) {
+      throw new BadRequestException(
+        'Student does not have an active seat assigned for this course',
+      );
+    }
+
+    if (grant.isConsumed === true) {
+      return;
+    }
+
+    const quotaOwnerId =
+      grant.quotaOwnerId?.toString() || grant.assignedBy?.toString();
+    if (quotaOwnerId) {
+      const owner = await this.userModel
+        .findById(quotaOwnerId)
+        .select('role ownerSeatQuotas')
+        .exec();
+
+      const ownerRole = owner?.role ? String(owner.role).toLowerCase() : '';
+      if (owner && ownerRole === UserRole.SCHOOL_OWNER) {
+        const quotas = (owner as any).ownerSeatQuotas || [];
+        const quota = quotas.find(
+          (item) => item.schoolId?.toString() === schoolId,
+        );
+        const totalSeats = Number(quota?.totalSeats || 0);
+
+        const usedAgg = await this.userModel.aggregate([
+          { $unwind: '$courseSeatGrants' },
+          {
+            $match: {
+              'courseSeatGrants.schoolId': new Types.ObjectId(schoolId),
+              'courseSeatGrants.isActive': true,
+              'courseSeatGrants.isConsumed': true,
+              $or: [
+                {
+                  'courseSeatGrants.quotaOwnerId': new Types.ObjectId(
+                    quotaOwnerId,
+                  ),
+                },
+                {
+                  'courseSeatGrants.quotaOwnerId': { $exists: false },
+                  'courseSeatGrants.assignedBy': new Types.ObjectId(
+                    quotaOwnerId,
+                  ),
+                },
+              ],
+            },
+          },
+          { $count: 'count' },
+        ]);
+        const usedSeats = usedAgg?.[0]?.count || 0;
+
+        if (usedSeats >= totalSeats) {
+          throw new BadRequestException(
+            `Seat quota reached. Total: ${totalSeats}, Used: ${usedSeats}`,
+          );
+        }
+      }
+    }
+
+    grant.isConsumed = true;
+    grant.consumedAt = new Date();
+    grant.releasedAt = undefined;
+    student.markModified('courseSeatGrants');
+    await student.save();
+  }
+
+  private async releaseSeatForEnrollment(
+    studentId: string,
+    schoolId: string,
+    courseId: string,
+  ): Promise<void> {
+    const student = await this.userModel
+      .findById(studentId)
+      .select('courseSeatGrants')
+      .exec();
+    if (!student) return;
+
+    const studentDoc = student as any;
+    const grants = studentDoc.courseSeatGrants || [];
+    const grant = grants.find(
+      (item) =>
+        item.isActive === true &&
+        item.isConsumed === true &&
+        item.schoolId?.toString() === schoolId &&
+        item.courseId?.toString() === courseId,
+    );
+    if (!grant) return;
+
+    grant.isConsumed = false;
+    grant.releasedAt = new Date();
+    student.markModified('courseSeatGrants');
+    await student.save();
+  }
+
   async create(
     createCourseDto: CreateCourseDto,
     teacherId: string,
@@ -207,9 +534,11 @@ export class CoursesService {
         // Los administradores ven todos los cursos (públicos y privados) de la escuela (si se especifica) o de todas las escuelas.
         // No se necesita query.isPublic = true ni otras condiciones de visibilidad.
       } else if (!userId || !role) {
+        query.isActive = true;
         // No autenticado o sin rol: solo cursos públicos
         query.isPublic = true;
       } else {
+        query.isActive = true;
         // Usuario autenticado (profesor, estudiante, u otro)
         const userSpecificConditions: any[] = [];
 
@@ -458,22 +787,45 @@ export class CoursesService {
         throw new NotFoundException('Curso no encontrado');
       }
 
-      // Verificar permisos (profesor del curso o admin)
-      const isTeacher = course.teacher.toString() === userId;
-
-      if (!isTeacher) {
-        const user = await this.userModel.findById(userId);
-        if (!user || !compareRole(user.role, UserRole.ADMIN)) {
-          throw new BadRequestException(
-            'No tiene permisos para modificar este curso',
-          );
-        }
+      const schoolId = course.school.toString();
+      const requester = await this.userModel.findById(userId).exec();
+      if (!requester) {
+        throw new UnauthorizedException('Usuario solicitante no encontrado');
       }
+      const hasEnrollmentPermission = this.canManageCourseEnrollment(
+        requester,
+        course,
+        schoolId,
+      );
+      if (!hasEnrollmentPermission) {
+        throw new UnauthorizedException(
+          'No tiene permisos para matricular estudiantes en este curso',
+        );
+      }
+      const requesterRole = requester?.role
+        ? String(requester.role).toLowerCase()
+        : null;
 
       // Verificar que el estudiante exista
       const student = await this.userModel.findById(studentId);
       if (!student) {
         throw new NotFoundException('Estudiante no encontrado');
+      }
+
+      const isSuperAdmin = requesterRole === UserRole.SUPER_ADMIN;
+      if (!isSuperAdmin) {
+        const hasSeat = await this.hasActiveSeatForCourse(
+          studentId,
+          schoolId,
+          courseId,
+        );
+        if (!hasSeat) {
+          throw new BadRequestException(
+            'Student does not have an active seat assigned for this course',
+          );
+        }
+
+        await this.consumeSeatForEnrollment(studentId, schoolId, courseId);
       }
 
       // Actualizar el curso
@@ -504,16 +856,23 @@ export class CoursesService {
         throw new NotFoundException('Curso no encontrado');
       }
 
-      // Verificar permisos (profesor del curso o admin)
-      const isTeacher = course.teacher.toString() === userId;
-
-      if (!isTeacher) {
-        const user = await this.userModel.findById(userId);
-        if (!user || !compareRole(user.role, UserRole.ADMIN)) {
-          throw new BadRequestException(
-            'No tiene permisos para modificar este curso',
-          );
-        }
+      const schoolId =
+        typeof course.school === 'object' && course.school !== null
+          ? (course.school as any)._id?.toString() || String(course.school)
+          : String(course.school);
+      const requester = await this.userModel.findById(userId).exec();
+      if (!requester) {
+        throw new UnauthorizedException('Usuario solicitante no encontrado');
+      }
+      const hasEnrollmentPermission = this.canManageCourseEnrollment(
+        requester,
+        course,
+        schoolId,
+      );
+      if (!hasEnrollmentPermission) {
+        throw new UnauthorizedException(
+          'No tiene permisos para desenrolar estudiantes de este curso',
+        );
       }
 
       // Actualizar el curso
@@ -525,6 +884,8 @@ export class CoursesService {
       await this.userModel.findByIdAndUpdate(studentId, {
         $pull: { enrolledCourses: courseId },
       });
+
+      await this.releaseSeatForEnrollment(studentId, schoolId, courseId);
 
       return { success: true };
     } catch (error) {
@@ -677,6 +1038,17 @@ export class CoursesService {
       throw new NotFoundException('Student not found');
     }
 
+    const requester = await this.userModel
+      .findById(userId)
+      .select('role')
+      .exec();
+    if (!requester) {
+      throw new UnauthorizedException('Usuario solicitante no encontrado');
+    }
+    const requesterRole = requester.role
+      ? String(requester.role).toLowerCase()
+      : '';
+
     // Obtener la escuela asociada al curso
     const schoolId =
       typeof course.school === 'object' && course.school !== null
@@ -688,6 +1060,31 @@ export class CoursesService {
       throw new NotFoundException('School not found');
     }
 
+    const hasEnrollmentPermission = this.canManageCourseEnrollment(
+      requester,
+      course,
+      schoolId,
+    );
+    if (!hasEnrollmentPermission) {
+      throw new UnauthorizedException(
+        'No tiene permisos para matricular estudiantes en este curso',
+      );
+    }
+
+    const isSuperAdmin = requesterRole === UserRole.SUPER_ADMIN;
+    if (!isSuperAdmin) {
+      const hasSeat = await this.hasActiveSeatForCourse(
+        studentId,
+        schoolId,
+        courseId,
+      );
+      if (!hasSeat) {
+        throw new BadRequestException(
+          'Student does not have an active seat assigned for this course',
+        );
+      }
+    }
+
     // Check if enrollment already exists
     const existingEnrollment = await this.enrollmentModel.findOne({
       course: new Types.ObjectId(courseId),
@@ -697,6 +1094,10 @@ export class CoursesService {
     if (existingEnrollment) {
       // Si el enrollment existe pero está inactivo, lo reactivamos
       if (!existingEnrollment.isActive) {
+        if (!isSuperAdmin) {
+          await this.consumeSeatForEnrollment(studentId, schoolId, courseId);
+        }
+
         existingEnrollment.isActive = true;
         existingEnrollment.updatedBy = new Types.ObjectId(userId) as any;
         await existingEnrollment.save();
@@ -744,6 +1145,10 @@ export class CoursesService {
       }
 
       throw new BadRequestException('Student already enrolled in this course');
+    }
+
+    if (!isSuperAdmin) {
+      await this.consumeSeatForEnrollment(studentId, schoolId, courseId);
     }
 
     // Crear nueva inscripción
@@ -879,6 +1284,10 @@ export class CoursesService {
     studentId: string,
     userId?: string,
   ): Promise<void> {
+    if (!userId) {
+      throw new UnauthorizedException('Usuario solicitante requerido');
+    }
+
     // Buscar la inscripción
     const enrollment = await this.enrollmentModel.findOne({
       course: new Types.ObjectId(courseId),
@@ -914,6 +1323,21 @@ export class CoursesService {
       typeof course.school === 'object' && course.school !== null
         ? (course.school as any)._id?.toString() || String(course.school)
         : String(course.school);
+
+    const requester = await this.userModel.findById(userId).exec();
+    if (!requester) {
+      throw new UnauthorizedException('Usuario solicitante no encontrado');
+    }
+    const hasEnrollmentPermission = this.canManageCourseEnrollment(
+      requester,
+      course,
+      schoolId,
+    );
+    if (!hasEnrollmentPermission) {
+      throw new UnauthorizedException(
+        'No tiene permisos para desenrolar estudiantes de este curso',
+      );
+    }
 
     // Iniciar actualización de referencias en paralelo para mayor eficiencia
     const updatePromises = [];
@@ -966,6 +1390,8 @@ export class CoursesService {
       );
       // No lanzar error para no interrumpir el flujo, el enrollment ya se marcó como inactivo
     }
+
+    await this.releaseSeatForEnrollment(studentId, schoolId, courseId);
   }
 
   async getAllEnrollments(userId: string): Promise<Enrollment[]> {
@@ -1338,6 +1764,7 @@ export class CoursesService {
       const courses = await this.courseModel
         .find({
           _id: { $in: courseIds },
+          isActive: true,
         })
         .populate('school', 'name')
         .populate('teacher', 'name email')
@@ -1413,13 +1840,22 @@ export class CoursesService {
         'administrative',
         'admin',
       ];
+
+      if (!course.isActive && !(normalizedRole && adminRoles.includes(normalizedRole))) {
+        throw new UnauthorizedException(
+          'No tienes permiso para ver este curso o requiere autenticación.',
+        );
+      }
+
+      const activeClasses = Array.isArray(course.classes)
+        ? (course.classes as any[]).filter((c) => c && c.isActive !== false)
+        : [];
+
       if (normalizedRole && adminRoles.includes(normalizedRole)) {
         return {
           ...course,
           schedule,
-          classes: Array.isArray(course.classes)
-            ? (course.classes as any[]).map((c) => ({ ...c, isVisible: true }))
-            : [],
+          classes: activeClasses.map((c) => ({ ...c, isVisible: true })),
         };
       }
 
@@ -1442,9 +1878,7 @@ export class CoursesService {
         return {
           ...course,
           schedule,
-          classes: Array.isArray(course.classes)
-            ? (course.classes as any[]).map((c) => ({ ...c, isVisible: true }))
-            : [],
+          classes: activeClasses.map((c) => ({ ...c, isVisible: true })),
         };
       }
 
@@ -1456,9 +1890,7 @@ export class CoursesService {
         return {
           ...course,
           schedule,
-          classes: Array.isArray(course.classes)
-            ? (course.classes as any[]).map((c) => ({ ...c, isVisible: true }))
-            : [],
+          classes: activeClasses.map((c) => ({ ...c, isVisible: true })),
         };
       }
 
@@ -1467,13 +1899,11 @@ export class CoursesService {
         return {
           ...course,
           schedule,
-          classes: Array.isArray(course.classes)
-            ? (course.classes as any[]).map((c, index) => ({
+          classes: activeClasses.map((c, index) => ({
                 ...c,
                 isVisible:
                   allClassVisible || index === 0 || (c && c.isPublic === true),
-              }))
-            : [],
+              })),
         };
       }
 

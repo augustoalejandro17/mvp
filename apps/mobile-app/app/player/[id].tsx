@@ -3,13 +3,13 @@ import {
   View,
   Text,
   ActivityIndicator,
-  Dimensions,
   ScrollView,
   TouchableOpacity,
   TouchableWithoutFeedback,
   StatusBar,
   Animated,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack, useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +18,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { IClass, VideoStatus } from '@inti/shared-types';
 import { apiClient } from '@/services/apiClient';
 
-const SCREEN = Dimensions.get('window');
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const CONTROLS_HIDE_MS = 3500;
 const DOUBLE_TAP_MS = 300;
@@ -55,9 +54,11 @@ function SeekBar({
 }: SeekBarProps) {
   const widthRef = useRef(0);
   const scrubbing = isScrubbing?.current ?? false;
+  const barHeight = 44;
+  const trackHeight = 4;
   const thumbSize = scrubbing ? 18 : 14;
   const thumbOffset = scrubbing ? -9 : -7;
-  const thumbTop = scrubbing ? 7 : 9;
+  const thumbTop = (barHeight - thumbSize) / 2;
   const commitSeek = (targetMs: number) => {
     setScrubPositionMs(targetMs);
     void (async () => {
@@ -73,7 +74,7 @@ function SeekBar({
   return (
     <View
       onLayout={(e) => { widthRef.current = e.nativeEvent.layout.width; }}
-      style={{ width: '100%', height: 32, justifyContent: 'center' }}
+      style={{ width: '100%', height: barHeight, justifyContent: 'center' }}
       onStartShouldSetResponder={() => true}
       onMoveShouldSetResponder={() => true}
       onResponderTerminationRequest={() => false}
@@ -122,7 +123,14 @@ function SeekBar({
         commitSeek(fallbackPos);
       }}
     >
-      <View pointerEvents="none" style={{ height: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 2 }}>
+      <View
+        pointerEvents="none"
+        style={{
+          height: trackHeight,
+          backgroundColor: 'rgba(255,255,255,0.15)',
+          borderRadius: trackHeight / 2,
+        }}
+      >
         <View style={{ height: '100%', width: `${progressRatio * 100}%`, backgroundColor: '#f59e0b', borderRadius: 2 }} />
       </View>
       <View
@@ -165,7 +173,7 @@ function SkipFeedback({
         top: 0,
         bottom: 0,
         [isLeft ? 'left' : 'right']: 0,
-        width: SCREEN.width * 0.42,
+        width: '42%',
         justifyContent: 'center',
         alignItems: 'center',
         opacity,
@@ -197,6 +205,7 @@ export default function PlayerScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const videoRef = useRef<Video>(null);
 
   // Hide the stack header immediately and on every render
@@ -225,6 +234,7 @@ export default function PlayerScreen() {
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [skipFeedback, setSkipFeedback] = useState<{ side: 'left' | 'right'; count: number } | null>(null);
   const [hasEnded, setHasEnded] = useState(false);
+  const [isMarkedComplete, setIsMarkedComplete] = useState(false);
   const [scrubPositionMs, setScrubPositionMs] = useState<number | null>(null);
   const isScrubbing = useRef(false);
 
@@ -293,6 +303,10 @@ export default function PlayerScreen() {
   useEffect(() => {
     if (id) load(id);
   }, [id, load]);
+
+  useEffect(() => {
+    setIsMarkedComplete(false);
+  }, [id]);
 
   // ── Controls visibility ───────────────────────────────────────────────────
   const revealControls = useCallback(() => {
@@ -428,7 +442,7 @@ export default function PlayerScreen() {
       return;
     }
     const { locationX } = evt.nativeEvent;
-    const side: 'left' | 'right' = locationX < SCREEN.width / 2 ? 'left' : 'right';
+    const side: 'left' | 'right' = locationX < screenWidth / 2 ? 'left' : 'right';
     const now = Date.now();
     const isDoubleTap = now - lastTapTime.current < DOUBLE_TAP_MS && lastTapSide.current === side;
 
@@ -531,8 +545,35 @@ export default function PlayerScreen() {
     Alert.alert('Opciones', 'Selecciona una acción', buttons);
   };
 
+  const handleMarkAsCompleted = async () => {
+    if (isMarkedComplete) return;
+
+    if (!id || Array.isArray(id)) {
+      Alert.alert('Error', 'No se pudo identificar la clase.');
+      return;
+    }
+
+    try {
+      await apiClient.markClassCompleted(id);
+      setIsMarkedComplete(true);
+      Alert.alert(
+        'Clase completada',
+        nextClass
+          ? 'Buen trabajo. Puedes continuar con la siguiente clase.'
+          : 'Buen trabajo. Has completado esta clase.',
+      );
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'No se pudo registrar el progreso.';
+      Alert.alert('Error', Array.isArray(message) ? message.join('\n') : String(message));
+    }
+  };
+
   // ── Layout values ─────────────────────────────────────────────────────────
-  const videoHeight = isFullscreen ? SCREEN.height : SCREEN.width * (9 / 16);
+  const videoHeight = isFullscreen ? screenHeight : screenWidth * (9 / 16);
+  const fullscreenSeekBottomOffset = Math.max(insets.bottom, 12) + 10;
   const displayPositionMs = scrubPositionMs ?? positionMs;
   const progressRatio = durationMs > 0 ? displayPositionMs / durationMs : 0;
 
@@ -670,10 +711,12 @@ export default function PlayerScreen() {
       ══════════════════════════════════════════════════════════════════════ */}
       <View
         style={{
-          width: SCREEN.width,
+          width: screenWidth,
           height: videoHeight,
           backgroundColor: '#000',
-          ...(isFullscreen ? { position: 'absolute', top: 0, left: 0, zIndex: 20 } : {}),
+          ...(isFullscreen
+            ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20 }
+            : {}),
         }}
       >
 
@@ -682,9 +725,9 @@ export default function PlayerScreen() {
             ref={videoRef}
             source={{ uri: streamUrl }}
             style={{
-              width: SCREEN.width,
+              width: screenWidth,
               height: videoHeight,
-              ...(isFullscreen ? { position: 'absolute', top: 0, left: 0 } : {}),
+              ...(isFullscreen ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 } : {}),
             }}
             resizeMode={ResizeMode.CONTAIN}
             isMuted={isMuted}
@@ -714,7 +757,14 @@ export default function PlayerScreen() {
         {/* Gesture layer — only for double-tap detection + center overlay */}
         {streamUrl && (
           <View
-            style={{ position: 'absolute', top: 0, left: 0, width: SCREEN.width, height: videoHeight, zIndex: 10 }}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: screenWidth,
+              height: videoHeight,
+              zIndex: 10,
+            }}
             onStartShouldSetResponder={() => true}
             onResponderRelease={handleVideoPress}
           >
@@ -820,13 +870,19 @@ export default function PlayerScreen() {
         {isFullscreen && streamUrl && (
           <Animated.View
             style={{
-              position: 'absolute', bottom: 0, left: 0, right: 0,
-              backgroundColor: 'rgba(0,0,0,0.6)',
-              paddingHorizontal: 16, paddingTop: 10, paddingBottom: insets.bottom + 20,
+              position: 'absolute',
+              bottom: fullscreenSeekBottomOffset,
+              left: 10,
+              right: 10,
+              borderRadius: 14,
+              backgroundColor: 'rgba(0,0,0,0.68)',
+              paddingHorizontal: 12,
+              paddingTop: 10,
+              paddingBottom: 10,
               opacity: controlsOpacity,
               zIndex: 21,
             }}
-            pointerEvents={showControls ? 'box-none' : 'none'}
+            pointerEvents={showControls ? 'auto' : 'none'}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <Text style={{ color: '#d1d5db', fontSize: 11, fontWeight: '500', minWidth: 38 }}>
@@ -933,10 +989,23 @@ export default function PlayerScreen() {
           ) : null}
 
           <TouchableOpacity
-            style={{ marginTop: 24, backgroundColor: '#f59e0b', borderRadius: 16, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
+            onPress={handleMarkAsCompleted}
+            disabled={isMarkedComplete}
+            style={{
+              marginTop: 24,
+              backgroundColor: isMarkedComplete ? '#16a34a' : '#f59e0b',
+              borderRadius: 16,
+              paddingVertical: 16,
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'center',
+              opacity: isMarkedComplete ? 0.9 : 1,
+            }}
           >
             <Ionicons name="checkmark-circle-outline" size={20} color="white" />
-            <Text style={{ color: '#fff', fontWeight: '700', marginLeft: 8, fontSize: 15 }}>Marcar como completado</Text>
+            <Text style={{ color: '#fff', fontWeight: '700', marginLeft: 8, fontSize: 15 }}>
+              {isMarkedComplete ? 'Clase completada' : 'Marcar como completado'}
+            </Text>
           </TouchableOpacity>
 
           {courseClasses.length > 1 && (

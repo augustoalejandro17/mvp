@@ -5,9 +5,7 @@ export default {
     name: 'Inti',
     slug: 'inti-mobile',
     version: '1.0.0',
-    runtimeVersion: {
-      policy: 'appVersion',
-    },
+    runtimeVersion: '1.0.0',
     orientation: 'portrait',
     icon: './assets/icon.png',
     userInterfaceStyle: 'automatic',
@@ -52,7 +50,13 @@ export default {
       typedRoutes: true
     },
     scheme: 'inti',
+    updates: {
+      url: 'https://u.expo.dev/c71fd270-4c2d-43bb-89eb-523ea49d3633',
+    },
     extra: {
+      eas: {
+        projectId: 'c71fd270-4c2d-43bb-89eb-523ea49d3633',
+      },
       // Override locally with API_URL or EXPO_PUBLIC_API_URL when needed.
       apiUrl:
         process.env.API_URL ||
@@ -61,6 +65,9 @@ export default {
       privacyPolicyUrl:
         process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ||
         'https://intihubs.com/privacy-policy',
+      termsConditionsUrl:
+        process.env.EXPO_PUBLIC_TERMS_CONDITIONS_URL ||
+        'https://intihubs.com/terms-and-conditions',
       supportUrl:
         process.env.EXPO_PUBLIC_SUPPORT_URL ||
         'https://intihubs.com/contact',

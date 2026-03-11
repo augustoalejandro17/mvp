@@ -131,13 +131,22 @@ export class AuthService {
 
     try {
       this.logger.log(`Intento de inicio de sesión para: ${email}`);
-      const user = await this.userModel.findOne({ email });
+      const user = await this.userModel.findOne({ email }).select('+password');
 
       if (!user) {
         this.logger.warn(
           `Intento de inicio de sesión fallido: usuario no encontrado ${email}`,
         );
         throw new UnauthorizedException('Credenciales inválidas');
+      }
+
+      if (!user.isActive) {
+        this.logger.warn(
+          `Intento de inicio de sesión bloqueado para cuenta inactiva: ${email}`,
+        );
+        throw new UnauthorizedException(
+          'Tu cuenta está desactivada. Contacta a soporte.',
+        );
       }
 
       if (!user.password) {
@@ -234,6 +243,12 @@ export class AuthService {
     try {
       const { user, isNewUser } =
         await this.googleOAuthService.googleLogin(googleLoginDto);
+
+      if (!user.isActive) {
+        throw new UnauthorizedException(
+          'Tu cuenta está desactivada. Contacta a soporte.',
+        );
+      }
 
       this.logger.log(
         `Google login ${isNewUser ? 'created new user' : 'for existing user'}: ${user.email}`,

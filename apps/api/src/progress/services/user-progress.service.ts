@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -144,6 +144,45 @@ export class UserProgressService {
       this.logger.error(`Error updating class progress: ${error.message}`);
       throw error;
     }
+  }
+
+  /**
+   * Explicitly mark a class as completed for a user.
+   */
+  async markClassCompleted(
+    userId: string,
+    classId: string,
+  ): Promise<UserClassProgressDocument> {
+    const classItem = await this.classModel.findById(classId).select('course');
+    if (!classItem) {
+      throw new NotFoundException('Class not found');
+    }
+
+    const courseId = classItem.course?.toString();
+    if (!courseId) {
+      throw new NotFoundException('Class has no associated course');
+    }
+
+    const course = await this.courseModel.findById(courseId).select('school');
+    if (!course || !course.school) {
+      throw new NotFoundException('Course has no associated school');
+    }
+
+    const schoolId =
+      typeof course.school === 'object' &&
+      course.school !== null &&
+      '_id' in course.school
+        ? (course.school as any)._id.toString()
+        : course.school.toString();
+
+    return this.updateClassProgress({
+      userId,
+      classId,
+      courseId,
+      schoolId,
+      videoWatchPercentage: 100,
+      metadata: { manuallyCompleted: true },
+    });
   }
 
   /**
