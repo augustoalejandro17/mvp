@@ -22,6 +22,7 @@ import { pickImageFromDevice } from '@/services/mediaPicker';
 export default function NewCourseScreen() {
   const { schoolId } = useLocalSearchParams<{ schoolId?: string }>();
   const router = useRouter();
+  const normalizedSchoolId = Array.isArray(schoolId) ? schoolId[0] : schoolId;
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -56,7 +57,7 @@ export default function NewCourseScreen() {
       Alert.alert('Error', 'El título es requerido');
       return;
     }
-    if (!schoolId) {
+    if (!normalizedSchoolId) {
       Alert.alert('Error', 'No se pudo identificar la escuela. Vuelve atrás e intenta desde una escuela.');
       return;
     }
@@ -65,7 +66,7 @@ export default function NewCourseScreen() {
       await apiClient.createCourse({
         title: title.trim(),
         description: description.trim(),
-        schoolId,
+        schoolId: normalizedSchoolId,
         coverImageUrl: coverImageUrl || undefined,
         isPublic,
       });

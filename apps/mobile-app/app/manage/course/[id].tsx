@@ -23,6 +23,7 @@ import { pickImageFromDevice } from '@/services/mediaPicker';
 export default function EditCourseScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const courseId = Array.isArray(id) ? id[0] : id;
 
   const [course, setCourse] = useState<ICourse | null>(null);
   const [title, setTitle] = useState('');
@@ -37,8 +38,14 @@ export default function EditCourseScreen() {
 
   useEffect(() => {
     const load = async () => {
+      if (!courseId) {
+        Alert.alert('Error', 'No se pudo identificar el curso.');
+        router.back();
+        setIsLoading(false);
+        return;
+      }
       try {
-        const data = await apiClient.getCourseById(id);
+        const data = await apiClient.getCourseById(courseId);
         setCourse(data);
         setTitle(data.title ?? '');
         setDescription(data.description ?? '');
@@ -56,7 +63,7 @@ export default function EditCourseScreen() {
       }
     };
     load();
-  }, [id]);
+  }, [courseId, router]);
 
   const handlePickCoverImage = async () => {
     try {
@@ -80,6 +87,10 @@ export default function EditCourseScreen() {
   };
 
   const handleSave = async () => {
+    if (!courseId) {
+      Alert.alert('Error', 'No se pudo identificar el curso.');
+      return;
+    }
     if (!title.trim()) {
       Alert.alert('Error', 'El título es requerido');
       return;
@@ -88,7 +99,7 @@ export default function EditCourseScreen() {
     try {
       const safeCoverImageUrl =
         typeof coverImageUrl === 'string' ? coverImageUrl.trim() : '';
-      await apiClient.updateCourse(id, {
+      await apiClient.updateCourse(courseId, {
         title: title.trim(),
         description: description.trim(),
         coverImageUrl: safeCoverImageUrl || undefined,

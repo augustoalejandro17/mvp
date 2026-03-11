@@ -10,6 +10,7 @@ import { apiClient } from '@/services/apiClient';
 export default function NewPlaylistScreen() {
   const { courseId } = useLocalSearchParams<{ courseId?: string }>();
   const router = useRouter();
+  const normalizedCourseId = Array.isArray(courseId) ? courseId[0] : courseId;
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -18,10 +19,10 @@ export default function NewPlaylistScreen() {
 
   const handleCreate = async () => {
     if (!name.trim()) { Alert.alert('Error', 'El nombre es requerido'); return; }
-    if (!courseId) { Alert.alert('Error', 'No se pudo identificar el curso.'); return; }
+    if (!normalizedCourseId) { Alert.alert('Error', 'No se pudo identificar el curso.'); return; }
     setIsSaving(true);
     try {
-      await apiClient.createPlaylist({ name: name.trim(), description: description.trim() || undefined, course: courseId, isPublic });
+      await apiClient.createPlaylist({ name: name.trim(), description: description.trim() || undefined, course: normalizedCourseId, isPublic });
       Alert.alert('Creada', 'Lista de reproducción creada', [{ text: 'OK', onPress: () => router.back() }]);
     } catch (e: any) {
       Alert.alert('Error', e?.response?.data?.message ?? 'No se pudo crear');

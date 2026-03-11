@@ -43,6 +43,27 @@ const DEFAULT_CAPABILITIES: SeatPolicyCapabilities = {
   canRemoveStudentFromCourse: false,
 };
 
+const normalizeList = <T,>(value: unknown): T[] => {
+  if (Array.isArray(value)) {
+    return value as T[];
+  }
+  if (value && typeof value === 'object') {
+    const candidates = [
+      (value as any).items,
+      (value as any).data,
+      (value as any).results,
+      (value as any).schools,
+      (value as any).users,
+    ];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) {
+        return candidate as T[];
+      }
+    }
+  }
+  return [];
+};
+
 export default function SeatsManagementScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -70,15 +91,14 @@ export default function SeatsManagementScreen() {
         apiClient.getAllSchools(),
         apiClient.getUsers(),
       ]);
-      const normalizedUsers = Array.isArray(usersData)
-        ? (usersData as ExtendedUser[])
-        : ((usersData as any)?.users || []);
+      const normalizedSchools = normalizeList<ISchool>(schoolsData);
+      const normalizedUsers = normalizeList<ExtendedUser>(usersData);
 
-      setSchools(schoolsData || []);
+      setSchools(normalizedSchools);
       setUsers(normalizedUsers);
 
-      if ((schoolsData || []).length > 0 && !selectedSchoolId) {
-        setSelectedSchoolId(String((schoolsData[0] as any)._id || ''));
+      if (normalizedSchools.length > 0 && !selectedSchoolId) {
+        setSelectedSchoolId(String((normalizedSchools[0] as any)._id || ''));
       }
     } catch {
       Alert.alert('Error', 'No se pudo cargar el módulo de cupos');

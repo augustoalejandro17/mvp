@@ -11,6 +11,7 @@ import { IClass } from '@inti/shared-types';
 export default function EditPlaylistScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const playlistId = Array.isArray(id) ? id[0] : id;
 
   const [playlist, setPlaylist] = useState<any>(null);
   const [name, setName] = useState('');
@@ -22,8 +23,14 @@ export default function EditPlaylistScreen() {
 
   useEffect(() => {
     const load = async () => {
+      if (!playlistId) {
+        Alert.alert('Error', 'No se pudo identificar la lista.');
+        router.back();
+        setIsLoading(false);
+        return;
+      }
       try {
-        const data = await apiClient.getPlaylistById(id);
+        const data = await apiClient.getPlaylistById(playlistId);
         setPlaylist(data);
         setName(data.name ?? '');
         setDescription(data.description ?? '');
@@ -36,13 +43,14 @@ export default function EditPlaylistScreen() {
       }
     };
     load();
-  }, [id]);
+  }, [playlistId, router]);
 
   const handleSave = async () => {
+    if (!playlistId) { Alert.alert('Error', 'No se pudo identificar la lista.'); return; }
     if (!name.trim()) { Alert.alert('Error', 'El nombre es requerido'); return; }
     setIsSaving(true);
     try {
-      await apiClient.updatePlaylist(id, { name: name.trim(), description: description.trim() || undefined, isPublic });
+      await apiClient.updatePlaylist(playlistId, { name: name.trim(), description: description.trim() || undefined, isPublic });
       Alert.alert('Guardado', 'Lista actualizada', [{ text: 'OK', onPress: () => router.back() }]);
     } catch (e: any) {
       Alert.alert('Error', e?.response?.data?.message ?? 'No se pudo guardar');
@@ -52,6 +60,10 @@ export default function EditPlaylistScreen() {
   };
 
   const handleDelete = () => {
+    if (!playlistId) {
+      Alert.alert('Error', 'No se pudo identificar la lista.');
+      return;
+    }
     Alert.alert('Eliminar Lista', `¿Eliminar "${name}"? Las clases no se eliminarán.`, [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -59,7 +71,7 @@ export default function EditPlaylistScreen() {
         onPress: async () => {
           setIsDeleting(true);
           try {
-            await apiClient.deletePlaylist(id);
+            await apiClient.deletePlaylist(playlistId);
             router.back();
           } catch {
             Alert.alert('Error', 'No se pudo eliminar');
@@ -71,16 +83,22 @@ export default function EditPlaylistScreen() {
   };
 
   const handleRemoveClass = (classItem: IClass) => {
+    if (!playlistId) {
+      Alert.alert('Error', 'No se pudo identificar la lista.');
+      return;
+    }
     Alert.alert('Quitar Clase', `¿Quitar "${classItem.title}" de esta lista?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Quitar',
         onPress: async () => {
           try {
-            await apiClient.removeClassFromPlaylist(id, classItem._id!);
+            await apiClient.removeClassFromPlaylist(playlistId, classItem._id!);
             setPlaylist((prev: any) => ({
               ...prev,
-              classes: prev.classes.filter((c: IClass) => c._id !== classItem._id),
+              classes: Array.isArray(prev?.classes)
+                ? prev.classes.filter((c: IClass) => c._id !== classItem._id)
+                : [],
             }));
           } catch {
             Alert.alert('Error', 'No se pudo quitar la clase');

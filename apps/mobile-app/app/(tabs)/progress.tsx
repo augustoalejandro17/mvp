@@ -14,6 +14,27 @@ import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
+const normalizeList = <T,>(value: unknown): T[] => {
+  if (Array.isArray(value)) {
+    return value as T[];
+  }
+  if (value && typeof value === 'object') {
+    const candidates = [
+      (value as any).items,
+      (value as any).data,
+      (value as any).results,
+      (value as any).progress,
+      (value as any).courses,
+    ];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) {
+        return candidate as T[];
+      }
+    }
+  }
+  return [];
+};
+
 function ProgressBar({ percentage, color = '#d97706' }: { percentage: number; color?: string }) {
   const barWidth = (width - 64) * Math.min(percentage / 100, 1);
   return (
@@ -54,9 +75,9 @@ export default function ProgressScreen() {
         apiClient.getUserCoursesProgress(userId),
         apiClient.getEnrolledCourses(),
       ]);
-      setProgress(progressData);
+      setProgress(normalizeList<CourseProgressSummary>(progressData));
       const map: Record<string, ICourse> = {};
-      enrolledCourses.forEach((c) => {
+      normalizeList<ICourse>(enrolledCourses).forEach((c) => {
         if (c._id) map[c._id] = c;
       });
       setCoursesMap(map);

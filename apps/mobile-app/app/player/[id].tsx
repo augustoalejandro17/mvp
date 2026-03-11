@@ -202,6 +202,8 @@ function SkipFeedback({
 // ─────────────────────────────────────────────────────────────────────────────
 export default function PlayerScreen() {
   const { id, courseId } = useLocalSearchParams<{ id: string; courseId?: string }>();
+  const normalizedClassId = Array.isArray(id) ? id[0] : id;
+  const normalizedCourseId = Array.isArray(courseId) ? courseId[0] : courseId;
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -250,7 +252,7 @@ export default function PlayerScreen() {
   const suppressVideoTapUntil = useRef(0);
 
   // ── Navigation ────────────────────────────────────────────────────────────
-  const currentIndex = courseClasses.findIndex((c) => c._id === id);
+  const currentIndex = courseClasses.findIndex((c) => c._id === normalizedClassId);
   const prevClass = currentIndex > 0 ? courseClasses[currentIndex - 1] : null;
   const nextClass =
     currentIndex >= 0 && currentIndex < courseClasses.length - 1
@@ -297,16 +299,38 @@ export default function PlayerScreen() {
   }, []);
 
   useEffect(() => {
-    if (courseId) apiClient.getClassesByCourse(courseId).then(setCourseClasses).catch(() => {});
-  }, [courseId]);
+    if (!normalizedCourseId) {
+      setCourseClasses([]);
+      return;
+    }
+
+    apiClient
+      .getClassesByCourse(normalizedCourseId)
+      .then((value) => {
+        if (Array.isArray(value)) {
+          setCourseClasses(value);
+          return;
+        }
+        const fallback = (value as any)?.classes;
+        setCourseClasses(Array.isArray(fallback) ? fallback : []);
+      })
+      .catch(() => setCourseClasses([]));
+  }, [normalizedCourseId]);
 
   useEffect(() => {
-    if (id) load(id);
-  }, [id, load]);
+    if (!normalizedClassId) {
+      setClassItem(null);
+      setStreamUrl(null);
+      setStreamError('No se pudo identificar la clase.');
+      setIsLoading(false);
+      return;
+    }
+    load(normalizedClassId);
+  }, [normalizedClassId, load]);
 
   useEffect(() => {
     setIsMarkedComplete(false);
-  }, [id]);
+  }, [normalizedClassId]);
 
   // ── Controls visibility ───────────────────────────────────────────────────
   const revealControls = useCallback(() => {
@@ -488,14 +512,14 @@ export default function PlayerScreen() {
 
   // ── Navigate ──────────────────────────────────────────────────────────────
   const navigateTo = (classId: string) =>
-    router.replace(`/player/${classId}?courseId=${courseId ?? ''}`);
+    router.replace(`/player/${classId}?courseId=${normalizedCourseId ?? ''}`);
 
   const handleReportContent = () => {
     router.push({
       pathname: '/report-content',
       params: {
         contentType: 'class',
-        contentId: id,
+        contentId: normalizedClassId ?? '',
         contentTitle: classItem?.title ?? 'Clase',
       },
     });
@@ -548,13 +572,13 @@ export default function PlayerScreen() {
   const handleMarkAsCompleted = async () => {
     if (isMarkedComplete) return;
 
-    if (!id || Array.isArray(id)) {
+    if (!normalizedClassId) {
       Alert.alert('Error', 'No se pudo identificar la clase.');
       return;
     }
 
     try {
-      await apiClient.markClassCompleted(id);
+      await apiClient.markClassCompleted(normalizedClassId);
       setIsMarkedComplete(true);
       Alert.alert(
         'Clase completada',
@@ -613,7 +637,7 @@ export default function PlayerScreen() {
         </Text>
         <View style={{ flexDirection: 'row', gap: 12, marginTop: 28 }}>
           <TouchableOpacity
-            onPress={() => id && load(id)}
+            onPress={() => normalizedClassId && load(normalizedClassId)}
             style={{ paddingHorizontal: 24, paddingVertical: 12, backgroundColor: '#f59e0b', borderRadius: 24 }}
           >
             <Text style={{ color: '#fff', fontWeight: '700' }}>Reintentar</Text>

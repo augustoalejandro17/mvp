@@ -24,6 +24,29 @@ type ViewLevel = 'schools' | 'courses' | 'classes';
 
 const ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SCHOOL_OWNER];
 
+const normalizeList = <T,>(value: unknown): T[] => {
+  if (Array.isArray(value)) {
+    return value as T[];
+  }
+  if (value && typeof value === 'object') {
+    const candidates = [
+      (value as any).items,
+      (value as any).data,
+      (value as any).results,
+      (value as any).schools,
+      (value as any).courses,
+      (value as any).classes,
+      (value as any).playlists,
+    ];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) {
+        return candidate as T[];
+      }
+    }
+  }
+  return [];
+};
+
 // ─── School Card ──────────────────────────────────────────────────────────────
 function SchoolCard({
   school,
@@ -269,8 +292,8 @@ export default function HomeScreen() {
         isAdmin ? apiClient.getAllSchools() : apiClient.getPublicSchools(),
         apiClient.getEnrolledCourses().catch(() => [] as ICourse[]),
       ]);
-      setSchools(schoolsData);
-      setEnrolledCourses(enrolledData);
+      setSchools(normalizeList<ISchool>(schoolsData));
+      setEnrolledCourses(normalizeList<ICourse>(enrolledData));
     } catch (e: any) {
       setError(e?.message || 'No se pudo conectar al servidor');
     } finally {
@@ -358,7 +381,7 @@ export default function HomeScreen() {
     setIsLoadingCourses(true);
     try {
       const data = await apiClient.getCoursesBySchool(school._id!);
-      setCourses(data);
+      setCourses(normalizeList<ICourse>(data));
     } catch {
       setCourses([]);
     } finally {
@@ -367,6 +390,11 @@ export default function HomeScreen() {
   };
 
   const handleSelectCourse = async (course: ICourse) => {
+    const courseId = String(course?._id || '');
+    if (!courseId) {
+      Alert.alert('Error', 'No se pudo identificar el curso seleccionado');
+      return;
+    }
     setSelectedCourse(course);
     setLevel('classes');
     setIsLoadingClasses(true);
@@ -374,10 +402,13 @@ export default function HomeScreen() {
     setUnorganizedClasses([]);
     setExpandedPlaylists({});
     try {
-      const [playlistData, unorganized] = await Promise.all([
-        apiClient.getPlaylists(course._id!),
-        apiClient.getUnorganizedClasses(course._id!),
+      const [playlistDataRaw, unorganizedRaw] = await Promise.all([
+        apiClient.getPlaylists(courseId),
+        apiClient.getUnorganizedClasses(courseId),
       ]);
+      const playlistData = normalizeList<any>(playlistDataRaw);
+      const unorganized = normalizeList<IClass>(unorganizedRaw);
+
       setPlaylists(playlistData);
       setUnorganizedClasses(unorganized);
       // Expand all playlists + unorganized by default
@@ -386,15 +417,15 @@ export default function HomeScreen() {
       setExpandedPlaylists(expanded);
       // Still set flat list for backwards compat
       const allClasses = [
-        ...playlistData.flatMap((p: any) => p.classes ?? []),
+        ...playlistData.flatMap((p: any) => normalizeList<IClass>(p?.classes)),
         ...unorganized,
       ];
       setClasses(allClasses);
     } catch {
       // Fallback to flat list
       try {
-        const data = await apiClient.getClassesByCourse(course._id!);
-        setClasses(data);
+        const data = await apiClient.getClassesByCourse(courseId);
+        setClasses(normalizeList<IClass>(data));
       } catch {
         setClasses([]);
       }
@@ -408,6 +439,11 @@ export default function HomeScreen() {
   };
 
   const movePlaylist = async (index: number, direction: 'up' | 'down') => {
+    const selectedCourseId = String(selectedCourse?._id || '');
+    if (!selectedCourseId) {
+      Alert.alert('Error', 'No se pudo identificar el curso para reordenar listas');
+      return;
+    }
     const swapIndex = direction === 'up' ? index - 1 : index + 1;
     if (swapIndex < 0 || swapIndex >= playlists.length) return;
     const prev = [...playlists];
@@ -415,7 +451,7 @@ export default function HomeScreen() {
     [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
     setPlaylists(next);
     try {
-      await apiClient.reorderPlaylistsInCourse(selectedCourse!._id!, next.map((p) => p._id));
+      await apiClient.reorderPlaylistsInCourse(selectedCourseId, next.map((p) => p._id));
     } catch {
       setPlaylists(prev);
       Alert.alert('Error', 'No se pudo reordenar las listas');
@@ -424,6 +460,11 @@ export default function HomeScreen() {
 
   const handleMoveClass = async (targetPlaylistId: string) => {
     if (!moveModalClass) return;
+    const selectedCourseId = String(selectedCourse?._id || '');
+    if (!selectedCourseId) {
+      Alert.alert('Error', 'No se pudo identificar el curso para mover la clase');
+      return;
+    }
     const classItem = moveModalClass;
     const fromPlaylist = moveModalFromPlaylist;
     setMoveModalClass(null);
@@ -442,11 +483,14 @@ export default function HomeScreen() {
       try {
         await apiClient.removeClassFromPlaylist(fromPlaylist, classItem._id!);
         await apiClient.addClassToPlaylist(targetPlaylistId, classItem._id!);
-        const updated = await apiClient.getPlaylists(selectedCourse!._id!);
-        setPlaylists(updated);
+        const updated = await apiClient.getPlaylists(selectedCourseId);
+        setPlaylists(normalizeList<any>(updated));
       } catch {
         Alert.alert('Error', 'No se pudo mover la clase');
-        const reverted = await apiClient.getPlaylists(selectedCourse!._id!).catch(() => playlists);
+        const reverted = await apiClient
+          .getPlaylists(selectedCourseId)
+          .then((value) => normalizeList<any>(value))
+          .catch(() => playlists);
         setPlaylists(reverted);
       }
     } else {
@@ -458,16 +502,22 @@ export default function HomeScreen() {
       try {
         await apiClient.addClassToPlaylist(targetPlaylistId, classItem._id!);
         const [updated, updatedUnorganized] = await Promise.all([
-          apiClient.getPlaylists(selectedCourse!._id!),
-          apiClient.getUnorganizedClasses(selectedCourse!._id!),
+          apiClient.getPlaylists(selectedCourseId),
+          apiClient.getUnorganizedClasses(selectedCourseId),
         ]);
-        setPlaylists(updated);
-        setUnorganizedClasses(updatedUnorganized);
+        setPlaylists(normalizeList<any>(updated));
+        setUnorganizedClasses(normalizeList<IClass>(updatedUnorganized));
       } catch {
         Alert.alert('Error', 'No se pudo mover la clase');
         const [reverted, revertedUnorg] = await Promise.all([
-          apiClient.getPlaylists(selectedCourse!._id!).catch(() => playlists),
-          apiClient.getUnorganizedClasses(selectedCourse!._id!).catch(() => unorganizedClasses),
+          apiClient
+            .getPlaylists(selectedCourseId)
+            .then((value) => normalizeList<any>(value))
+            .catch(() => playlists),
+          apiClient
+            .getUnorganizedClasses(selectedCourseId)
+            .then((value) => normalizeList<IClass>(value))
+            .catch(() => unorganizedClasses),
         ]);
         setPlaylists(reverted);
         setUnorganizedClasses(revertedUnorg);

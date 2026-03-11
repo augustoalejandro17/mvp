@@ -23,6 +23,7 @@ import { pickImageFromDevice } from '@/services/mediaPicker';
 export default function EditSchoolScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const schoolId = Array.isArray(id) ? id[0] : id;
 
   const [school, setSchool] = useState<ISchool | null>(null);
   const [name, setName] = useState('');
@@ -38,8 +39,14 @@ export default function EditSchoolScreen() {
 
   useEffect(() => {
     const load = async () => {
+      if (!schoolId) {
+        Alert.alert('Error', 'No se pudo identificar la escuela.');
+        router.back();
+        setIsLoading(false);
+        return;
+      }
       try {
-        const data = await apiClient.getSchoolById(id);
+        const data = await apiClient.getSchoolById(schoolId);
         setSchool(data);
         setName(data.name ?? '');
         setDescription(data.description ?? '');
@@ -56,7 +63,7 @@ export default function EditSchoolScreen() {
       }
     };
     load();
-  }, [id]);
+  }, [schoolId, router]);
 
   const handlePickLogo = async () => {
     try {
@@ -80,6 +87,10 @@ export default function EditSchoolScreen() {
   };
 
   const handleSave = async () => {
+    if (!schoolId) {
+      Alert.alert('Error', 'No se pudo identificar la escuela.');
+      return;
+    }
     if (!name.trim()) {
       Alert.alert('Error', 'El nombre es requerido');
       return;
@@ -87,7 +98,7 @@ export default function EditSchoolScreen() {
     setIsSaving(true);
     try {
       const safeLogoUrl = typeof logoUrl === 'string' ? logoUrl.trim() : '';
-      await apiClient.updateSchool(id, {
+      await apiClient.updateSchool(schoolId, {
         name: name.trim(),
         description: description.trim(),
         logoUrl: safeLogoUrl || undefined,
