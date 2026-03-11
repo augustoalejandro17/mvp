@@ -42,7 +42,9 @@ export default function EditCourseScreen() {
         setCourse(data);
         setTitle(data.title ?? '');
         setDescription(data.description ?? '');
-        setCoverImageUrl((data as any).coverImageUrl ?? '');
+        setCoverImageUrl(
+          typeof (data as any).coverImageUrl === 'string' ? (data as any).coverImageUrl : '',
+        );
         setIsPublic((data as any).isPublic ?? false);
         setIsActive((data as any).isActive ?? true);
         setIsFeatured((data as any).isFeatured ?? false);
@@ -62,6 +64,9 @@ export default function EditCourseScreen() {
       if (!file) return;
       setIsUploadingImage(true);
       const uploadedUrl = await apiClient.uploadImage(file);
+      if (!uploadedUrl || typeof uploadedUrl !== 'string') {
+        throw new Error('No se pudo obtener la URL de la imagen subida.');
+      }
       setCoverImageUrl(uploadedUrl);
     } catch (error: any) {
       const msg =
@@ -81,10 +86,12 @@ export default function EditCourseScreen() {
     }
     setIsSaving(true);
     try {
+      const safeCoverImageUrl =
+        typeof coverImageUrl === 'string' ? coverImageUrl.trim() : '';
       await apiClient.updateCourse(id, {
         title: title.trim(),
         description: description.trim(),
-        coverImageUrl: coverImageUrl.trim() || undefined,
+        coverImageUrl: safeCoverImageUrl || undefined,
         isPublic,
         isActive,
         isFeatured,
@@ -93,7 +100,11 @@ export default function EditCourseScreen() {
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.message ?? 'No se pudo guardar');
+      const message =
+        e?.response?.data?.message ||
+        e?.message ||
+        'No se pudo guardar';
+      Alert.alert('Error', Array.isArray(message) ? message.join('\n') : String(message));
     } finally {
       setIsSaving(false);
     }

@@ -36,6 +36,9 @@ export default function NewCourseScreen() {
       if (!file) return;
       setIsUploadingImage(true);
       const uploadedUrl = await apiClient.uploadImage(file);
+      if (!uploadedUrl || typeof uploadedUrl !== 'string') {
+        throw new Error('No se pudo obtener la URL de la imagen subida.');
+      }
       setCoverImageUrl(uploadedUrl);
     } catch (error: any) {
       const msg =
@@ -70,7 +73,11 @@ export default function NewCourseScreen() {
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.message ?? 'No se pudo crear el curso');
+      const message =
+        e?.response?.data?.message ||
+        e?.message ||
+        'No se pudo crear el curso';
+      Alert.alert('Error', Array.isArray(message) ? message.join('\n') : String(message));
     } finally {
       setIsSaving(false);
     }

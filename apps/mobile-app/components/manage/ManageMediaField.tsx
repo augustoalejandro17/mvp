@@ -22,7 +22,8 @@ export default function ManageMediaField({
   onPick,
   onClear,
 }: ManageMediaFieldProps) {
-  const hasContent = Boolean(previewUrl || selectedFileName);
+  const normalizedPreviewUrl = typeof previewUrl === 'string' ? previewUrl.trim() : '';
+  const hasContent = Boolean(normalizedPreviewUrl || selectedFileName);
   const iconName = mediaType === 'image' ? 'image-outline' : 'videocam-outline';
   const buttonLabel = mediaType === 'image' ? 'Seleccionar imagen' : 'Seleccionar video';
 
@@ -54,9 +55,9 @@ export default function ManageMediaField({
           ) : null}
         </View>
 
-        {mediaType === 'image' && previewUrl ? (
+        {mediaType === 'image' && normalizedPreviewUrl ? (
           <Image
-            source={{ uri: previewUrl }}
+            source={{ uri: normalizedPreviewUrl }}
             className="w-full h-40 rounded-lg mt-3"
             resizeMode="cover"
           />

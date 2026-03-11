@@ -158,6 +158,7 @@ export interface NativeUploadFile {
   uri: string;
   name: string;
   type: string;
+  size?: number;
 }
 
 export interface CreatorTermsStatus {
@@ -266,6 +267,94 @@ const getBaseURL = () => {
 
 const BASE_URL = getBaseURL();
 export const API_BASE_URL = BASE_URL;
+
+const buildApiErrorMessage = (
+  data: any,
+  fallback: string,
+): string => {
+  if (typeof data === 'string' && data.trim().length > 0) {
+    return data;
+  }
+
+  const rawMessage = data?.message;
+  if (Array.isArray(rawMessage)) {
+    return rawMessage.join('\n');
+  }
+  if (typeof rawMessage === 'string' && rawMessage.trim().length > 0) {
+    return rawMessage;
+  }
+  if (typeof data?.error === 'string' && data.error.trim().length > 0) {
+    return data.error;
+  }
+  return fallback;
+};
+
+const isValidLocalFileUri = (uri: string): boolean =>
+  typeof uri === 'string' &&
+  (uri.startsWith('file://') || uri.startsWith('content://'));
+
+const MAX_IMAGE_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_VIDEO_UPLOAD_SIZE_BYTES = 200 * 1024 * 1024;
+
+const VIDEO_MIME_BY_EXT: Record<string, string> = {
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+  mov: 'video/quicktime',
+  avi: 'video/x-msvideo',
+  mpeg: 'video/mpeg',
+  mpg: 'video/mpeg',
+  mkv: 'video/x-matroska',
+  '3gp': 'video/3gpp',
+  ogv: 'video/ogg',
+  m4v: 'video/x-m4v',
+};
+
+const getFileExtension = (fileName: string): string => {
+  const parts = String(fileName || '').toLowerCase().split('.');
+  return parts.length > 1 ? parts[parts.length - 1] : '';
+};
+
+const normalizeUploadImageName = (fileName: string | undefined): string => {
+  const raw = typeof fileName === 'string' ? fileName.trim() : '';
+  if (!raw) {
+    return `image-${Date.now()}.jpg`;
+  }
+  return raw;
+};
+
+const normalizeUploadVideoName = (fileName: string | undefined): string => {
+  const raw = typeof fileName === 'string' ? fileName.trim() : '';
+  if (!raw) {
+    return `video-${Date.now()}.mp4`;
+  }
+  return raw;
+};
+
+const normalizeUploadVideoMimeType = (
+  fileName: string,
+  mimeType: string | undefined,
+): string => {
+  if (
+    typeof mimeType === 'string' &&
+    mimeType.toLowerCase().startsWith('video/')
+  ) {
+    return mimeType.toLowerCase().split(';')[0].trim();
+  }
+  const ext = getFileExtension(fileName);
+  return VIDEO_MIME_BY_EXT[ext] || 'video/mp4';
+};
+
+const parseResponseBody = async (response: Response): Promise<any> => {
+  const text = await response.text().catch(() => '');
+  if (!text) {
+    return {};
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { message: text };
+  }
+};
 
 class ApiClient {
   private client: AxiosInstance;
@@ -565,6 +654,21 @@ class ApiClient {
     },
     video: NativeUploadFile,
   ): Promise<IClass> {
+    if (!video?.uri || !isValidLocalFileUri(video.uri)) {
+      throw new Error('Archivo de video inválido. No se pudo resolver la ruta local.');
+    }
+    if (
+      typeof video.size === 'number' &&
+      video.size > MAX_VIDEO_UPLOAD_SIZE_BYTES
+    ) {
+      throw new Error('El video supera el límite permitido de 200MB.');
+    }
+    const safeVideoName = normalizeUploadVideoName(video.name);
+    const safeVideoMimeType = normalizeUploadVideoMimeType(
+      safeVideoName,
+      video.type,
+    );
+
     const formData = new FormData();
     formData.append('title', dto.title);
     formData.append('description', dto.description);
@@ -575,12 +679,27 @@ class ApiClient {
     if (dto.isPublic != null) {
       formData.append('isPublic', String(dto.isPublic));
     }
-    formData.append('video', video as any);
-
-    const { data } = await this.client.post<IClass>('/classes', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    formData.append('video', {
+      uri: video.uri,
+      name: safeVideoName,
+      type: safeVideoMimeType,
+    } as any);
+    const token = await SecureStore.getItemAsync(STORAGE_KEYS.AUTH_TOKEN);
+    const response = await fetch(`${BASE_URL}/classes`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
     });
-    return data;
+    const data = await parseResponseBody(response);
+    if (!response.ok) {
+      if (response.status === 413) {
+        throw new Error('El video supera el límite permitido de 200MB.');
+      }
+      throw new Error(buildApiErrorMessage(data, 'No se pudo crear la clase con video'));
+    }
+    return data as IClass;
   }
 
   async updateClass(id: string, dto: Partial<{ title: string; description: string; order: number; isPublic: boolean }>): Promise<IClass> {
@@ -599,6 +718,21 @@ class ApiClient {
     }>,
     video: NativeUploadFile,
   ): Promise<IClass> {
+    if (!video?.uri || !isValidLocalFileUri(video.uri)) {
+      throw new Error('Archivo de video inválido. No se pudo resolver la ruta local.');
+    }
+    if (
+      typeof video.size === 'number' &&
+      video.size > MAX_VIDEO_UPLOAD_SIZE_BYTES
+    ) {
+      throw new Error('El video supera el límite permitido de 200MB.');
+    }
+    const safeVideoName = normalizeUploadVideoName(video.name);
+    const safeVideoMimeType = normalizeUploadVideoMimeType(
+      safeVideoName,
+      video.type,
+    );
+
     const formData = new FormData();
     if (dto.title != null) {
       formData.append('title', dto.title);
@@ -615,12 +749,27 @@ class ApiClient {
     if (dto.isPublic != null) {
       formData.append('isPublic', String(dto.isPublic));
     }
-    formData.append('video', video as any);
-
-    const { data } = await this.client.put<IClass>(`/classes/${id}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    formData.append('video', {
+      uri: video.uri,
+      name: safeVideoName,
+      type: safeVideoMimeType,
+    } as any);
+    const token = await SecureStore.getItemAsync(STORAGE_KEYS.AUTH_TOKEN);
+    const response = await fetch(`${BASE_URL}/classes/${id}`, {
+      method: 'PUT',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
     });
-    return data;
+    const data = await parseResponseBody(response);
+    if (!response.ok) {
+      if (response.status === 413) {
+        throw new Error('El video supera el límite permitido de 200MB.');
+      }
+      throw new Error(buildApiErrorMessage(data, 'No se pudo actualizar la clase con video'));
+    }
+    return data as IClass;
   }
 
   async deleteClass(id: string): Promise<void> {
@@ -727,16 +876,58 @@ class ApiClient {
   }
 
   async uploadImage(file: NativeUploadFile): Promise<string> {
+    if (!file?.uri || !isValidLocalFileUri(file.uri)) {
+      throw new Error('Archivo inválido. No se pudo resolver la ruta de la imagen.');
+    }
+    if (
+      typeof file.size === 'number' &&
+      file.size > MAX_IMAGE_UPLOAD_SIZE_BYTES
+    ) {
+      throw new Error('La imagen supera el límite permitido de 5MB.');
+    }
+
+    const safeFileName = normalizeUploadImageName(file.name);
+    const safeMimeType =
+      typeof file.type === 'string' &&
+      file.type.toLowerCase().startsWith('image/')
+        ? file.type.toLowerCase().split(';')[0].trim()
+        : 'image/jpeg';
+
     const formData = new FormData();
-    formData.append('image', file as any);
-    const { data } = await this.client.post<{ imageUrl: string }>(
-      '/upload/image',
-      formData,
-      {
-        headers: { 'Content-Type': 'multipart/form-data' },
+    formData.append('image', {
+      uri: file.uri,
+      name: safeFileName,
+      type: safeMimeType,
+    } as any);
+
+    const token = await SecureStore.getItemAsync(STORAGE_KEYS.AUTH_TOKEN);
+    const response = await fetch(`${BASE_URL}/upload/image`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-    );
-    return data.imageUrl;
+      body: formData,
+    });
+    const data = await parseResponseBody(response);
+    if (!response.ok) {
+      if (response.status === 413) {
+        throw new Error('La imagen supera el límite permitido de 5MB.');
+      }
+      throw new Error(buildApiErrorMessage(data, 'No se pudo subir la imagen'));
+    }
+
+    const imageUrl =
+      typeof (data as any)?.imageUrl === 'string'
+        ? (data as any).imageUrl
+        : typeof (data as any)?.url === 'string'
+          ? (data as any).url
+          : '';
+
+    if (!imageUrl) {
+      throw new Error('La API no devolvió la URL de la imagen subida.');
+    }
+
+    return imageUrl;
   }
 
   async getCreatorTermsStatus(): Promise<CreatorTermsStatus> {

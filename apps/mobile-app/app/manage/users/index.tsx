@@ -52,6 +52,70 @@ const ROLE_CHOICES = [
   { value: 'admin', label: 'Admin' },
 ];
 
+const normalizeList = <T,>(value: unknown): T[] => {
+  if (Array.isArray(value)) {
+    return value as T[];
+  }
+  if (
+    value &&
+    typeof value === 'object' &&
+    Array.isArray((value as any).items)
+  ) {
+    return (value as any).items as T[];
+  }
+  if (
+    value &&
+    typeof value === 'object' &&
+    Array.isArray((value as any).data)
+  ) {
+    return (value as any).data as T[];
+  }
+  return [];
+};
+
+const getEntityId = (entity: any): string => {
+  if (!entity) return '';
+
+  const raw = entity?._id ?? entity?.id;
+  if (typeof raw === 'string') {
+    return raw;
+  }
+  if (raw && typeof raw === 'object') {
+    if (typeof raw.$oid === 'string') {
+      return raw.$oid;
+    }
+    if (typeof raw.toString === 'function') {
+      const value = String(raw.toString());
+      return value === '[object Object]' ? '' : value;
+    }
+  }
+  return '';
+};
+
+const toAlertMessage = (value: any, fallback: string): string => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item)).join('\n');
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value;
+  }
+  if (value && typeof value === 'object') {
+    const nested = (value as any).message;
+    if (Array.isArray(nested)) {
+      return nested.map((item) => String(item)).join('\n');
+    }
+    if (typeof nested === 'string' && nested.trim().length > 0) {
+      return nested;
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+};
+
 function UserRow({
   user,
   canOpenEnrollFlow,
@@ -177,10 +241,13 @@ export default function UsersScreen() {
         apiClient.getSeatPolicy().catch(() => null),
         apiClient.getAllSchools().catch(() => [] as ISchool[]),
       ]);
-      const list = Array.isArray(data) ? data : (data as any).users ?? [];
+      const list = normalizeList<IUser>(
+        Array.isArray(data) ? data : (data as any).users ?? data,
+      );
+      const normalizedSchools = normalizeList<ISchool>(schoolsData);
       setUsers(list);
       setFiltered(list);
-      setSchools(schoolsData || []);
+      setSchools(normalizedSchools);
       if (policy?.capabilities) {
         setSeatCapabilities(policy.capabilities);
       }
@@ -205,9 +272,15 @@ export default function UsersScreen() {
     setFiltered(
       users.filter(
         (u) =>
-          u.name?.toLowerCase().includes(q) ||
-          u.email?.toLowerCase().includes(q) ||
-          u.role?.toLowerCase().includes(q),
+          String(u.name || '')
+            .toLowerCase()
+            .includes(q) ||
+          String(u.email || '')
+            .toLowerCase()
+            .includes(q) ||
+          String(u.role || '')
+            .toLowerCase()
+            .includes(q),
       ),
     );
   }, [search, users]);
@@ -221,7 +294,10 @@ export default function UsersScreen() {
       setIsLoadingCourses(true);
       try {
         const data = await apiClient.getCoursesBySchool(selectedSchoolId);
-        setSchoolCourses(data || []);
+        const courses = normalizeList<ICourse>(data).filter(
+          (course) => getEntityId(course).length > 0,
+        );
+        setSchoolCourses(courses);
       } catch {
         setSchoolCourses([]);
       } finally {
@@ -235,9 +311,17 @@ export default function UsersScreen() {
     setSelectedUser(target);
     setSelectedCourseId('');
     setSchoolCourses([]);
-    const firstSchoolId = String((schools[0] as any)?._id || '');
+    const firstSchoolId = getEntityId(schools[0]);
     setSelectedSchoolId(firstSchoolId);
     setShowEnrollModal(true);
+  };
+
+  const closeEnrollModal = () => {
+    setShowEnrollModal(false);
+    setSelectedUser(null);
+    setSelectedSchoolId('');
+    setSelectedCourseId('');
+    setSchoolCourses([]);
   };
 
   const openManageModal = (target: IUser) => {
@@ -248,7 +332,7 @@ export default function UsersScreen() {
   const applyUserPatch = (updated: IUser) => {
     setUsers((prev) =>
       prev.map((item) =>
-        item._id === updated._id ? { ...item, ...updated } : item,
+        getEntityId(item) === getEntityId(updated) ? { ...item, ...updated } : item,
       ),
     );
   };
@@ -257,8 +341,9 @@ export default function UsersScreen() {
     status: 'active' | 'inactive' | 'suspended',
   ) => {
     const target = manageUserTarget;
-    if (!target?._id) return;
-    if (target._id === currentUserId) {
+    const targetId = getEntityId(target);
+    if (!targetId) return;
+    if (targetId === currentUserId) {
       Alert.alert(
         'Acción no permitida',
         'No puedes modificar tu propio estado desde esta pantalla.',
@@ -267,7 +352,7 @@ export default function UsersScreen() {
     }
     setIsUpdatingUser(true);
     try {
-      const updated = await apiClient.updateUserStatus(target._id, status);
+      const updated = await apiClient.updateUserStatus(targetId, status);
       applyUserPatch(updated);
       Alert.alert('Listo', `Estado actualizado a ${status}.`);
       setShowManageUserModal(false);
@@ -275,9 +360,10 @@ export default function UsersScreen() {
     } catch (error: any) {
       Alert.alert(
         'Error',
-        error?.response?.data?.message ||
-          error?.message ||
+        toAlertMessage(
+          error?.response?.data?.message || error?.message,
           'No se pudo actualizar el estado',
+        ),
       );
     } finally {
       setIsUpdatingUser(false);
@@ -286,8 +372,9 @@ export default function UsersScreen() {
 
   const handleChangeUserRole = async (role: string) => {
     const target = manageUserTarget;
-    if (!target?._id) return;
-    if (target._id === currentUserId) {
+    const targetId = getEntityId(target);
+    if (!targetId) return;
+    if (targetId === currentUserId) {
       Alert.alert(
         'Acción no permitida',
         'No puedes modificar tu propio rol desde esta pantalla.',
@@ -296,7 +383,7 @@ export default function UsersScreen() {
     }
     setIsUpdatingUser(true);
     try {
-      const updated = await apiClient.updateUserRole(target._id, role);
+      const updated = await apiClient.updateUserRole(targetId, role);
       applyUserPatch(updated);
       Alert.alert('Listo', `Rol actualizado a ${role}.`);
       setShowManageUserModal(false);
@@ -304,9 +391,10 @@ export default function UsersScreen() {
     } catch (error: any) {
       Alert.alert(
         'Error',
-        error?.response?.data?.message ||
-          error?.message ||
+        toAlertMessage(
+          error?.response?.data?.message || error?.message,
           'No se pudo actualizar el rol',
+        ),
       );
     } finally {
       setIsUpdatingUser(false);
@@ -314,17 +402,34 @@ export default function UsersScreen() {
   };
 
   const handleEnroll = async () => {
-    const studentId = selectedUser?._id;
-    if (!studentId || !selectedSchoolId || !selectedCourseId) {
+    const studentId = getEntityId(selectedUser);
+    const safeSchoolId = String(selectedSchoolId || '').trim();
+    const safeCourseId = String(selectedCourseId || '').trim();
+
+    if (!studentId || !safeSchoolId || !safeCourseId) {
       Alert.alert('Error', 'Selecciona escuela y curso');
+      return;
+    }
+
+    const selectedSchoolExists = schools.some(
+      (school) => getEntityId(school) === safeSchoolId,
+    );
+    const selectedCourseExists = schoolCourses.some(
+      (course) => getEntityId(course) === safeCourseId,
+    );
+    if (!selectedSchoolExists || !selectedCourseExists) {
+      Alert.alert(
+        'Error',
+        'La escuela o el curso seleccionado no es válido. Vuelve a seleccionarlos.',
+      );
       return;
     }
 
     setIsEnrolling(true);
     try {
       const policy = await apiClient.getSeatPolicy({
-        schoolId: selectedSchoolId,
-        courseId: selectedCourseId,
+        schoolId: safeSchoolId,
+        courseId: safeCourseId,
       });
       if (!policy.capabilities?.canEnrollStudentInCourse) {
         throw new Error('No tienes permisos para matricular en este curso');
@@ -333,21 +438,21 @@ export default function UsersScreen() {
       if (policy.capabilities?.canAssignCourseSeatPermit) {
         await apiClient.assignCourseSeatPermit(
           studentId,
-          selectedSchoolId,
-          selectedCourseId,
+          safeSchoolId,
+          safeCourseId,
         );
       }
 
-      await apiClient.enrollStudentInCourse(selectedCourseId, studentId);
+      await apiClient.enrollStudentInCourse(safeCourseId, studentId);
 
       try {
         const updatedCourses = await apiClient.getEnrolledCoursesByUser(studentId);
-        const updatedCourseIds = updatedCourses
-          .map((course) => String(course._id || ''))
+        const updatedCourseIds = normalizeList<ICourse>(updatedCourses)
+          .map((course) => getEntityId(course))
           .filter(Boolean);
         setUsers((prev) =>
           prev.map((row) =>
-            row._id === studentId
+            getEntityId(row) === studentId
               ? {
                   ...row,
                   enrolledCourses: updatedCourseIds,
@@ -364,7 +469,7 @@ export default function UsersScreen() {
         try {
           const ownerQuota = await apiClient.getOwnerSeatQuota(
             currentUserId,
-            selectedSchoolId,
+            safeSchoolId,
           );
           successMessage = `${successMessage} Cupos disponibles: ${ownerQuota.availableSeats}.`;
         } catch {
@@ -373,12 +478,14 @@ export default function UsersScreen() {
       }
 
       Alert.alert('Listo', successMessage);
-      setShowEnrollModal(false);
-      setSelectedUser(null);
+      closeEnrollModal();
     } catch (error: any) {
       Alert.alert(
         'Error',
-        error?.response?.data?.message || error?.message || 'No se pudo matricular',
+        toAlertMessage(
+          error?.response?.data?.message || error?.message,
+          'No se pudo matricular',
+        ),
       );
     } finally {
       setIsEnrolling(false);
@@ -442,7 +549,9 @@ export default function UsersScreen() {
       ) : (
         <FlatList
           data={filtered}
-          keyExtractor={(u) => u._id ?? u.email ?? Math.random().toString()}
+          keyExtractor={(u, index) =>
+            getEntityId(u) || String(u.email || `${u.name || 'user'}-${index}`)
+          }
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
           renderItem={({ item }) => (
             <UserRow
@@ -478,11 +587,11 @@ export default function UsersScreen() {
         visible={showEnrollModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowEnrollModal(false)}
+        onRequestClose={closeEnrollModal}
       >
         <Pressable
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}
-          onPress={() => setShowEnrollModal(false)}
+          onPress={closeEnrollModal}
         >
           <Pressable onPress={(e) => e.stopPropagation()}>
             <View className="bg-white rounded-t-3xl px-5 pt-5 pb-10">
@@ -495,7 +604,8 @@ export default function UsersScreen() {
               <Text className="text-gray-700 font-semibold text-sm mb-2">Escuela</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
                 {schools.map((school) => {
-                  const schoolId = String((school as any)._id || '');
+                  const schoolId = getEntityId(school);
+                  if (!schoolId) return null;
                   const active = selectedSchoolId === schoolId;
                   return (
                     <TouchableOpacity
@@ -523,7 +633,8 @@ export default function UsersScreen() {
               ) : (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
                   {schoolCourses.map((course) => {
-                    const courseId = String(course._id || '');
+                    const courseId = getEntityId(course);
+                    if (!courseId) return null;
                     const active = selectedCourseId === courseId;
                     return (
                       <TouchableOpacity
@@ -563,7 +674,7 @@ export default function UsersScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => setShowEnrollModal(false)}
+                onPress={closeEnrollModal}
                 className="mt-3 py-3 bg-gray-100 rounded-xl items-center"
               >
                 <Text className="text-gray-600 font-semibold">Cancelar</Text>

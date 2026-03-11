@@ -24,6 +24,25 @@ import ManageSummaryCard from '@/components/manage/ManageSummaryCard';
 import ManageToggleField from '@/components/manage/ManageToggleField';
 import { pickVideoFromDevice } from '@/services/mediaPicker';
 
+const toAlertMessage = (value: any, fallback: string): string => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item)).join('\n');
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value;
+  }
+  if (value && typeof value === 'object') {
+    const nested = (value as any).message;
+    if (Array.isArray(nested)) {
+      return nested.map((item) => String(item)).join('\n');
+    }
+    if (typeof nested === 'string' && nested.trim().length > 0) {
+      return nested;
+    }
+  }
+  return fallback;
+};
+
 const VIDEO_STATUS_CONFIG: Record<
   VideoStatus,
   { label: string; icon: string; color: string; bg: string }
@@ -37,6 +56,7 @@ const VIDEO_STATUS_CONFIG: Record<
 export default function EditClassScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const classId = Array.isArray(id) ? id[0] : id;
 
   const [classItem, setClassItem] = useState<IClass | null>(null);
   const [title, setTitle] = useState('');
@@ -55,8 +75,13 @@ export default function EditClassScreen() {
 
   useEffect(() => {
     const load = async () => {
+      if (!classId) {
+        Alert.alert('Error', 'No se pudo identificar la clase.');
+        router.back();
+        return;
+      }
       try {
-        const data = await apiClient.getClassById(id);
+        const data = await apiClient.getClassById(classId);
         setClassItem(data);
         setTitle(data.title ?? '');
         setDescription(data.description ?? '');
@@ -70,7 +95,7 @@ export default function EditClassScreen() {
       }
     };
     load();
-  }, [id]);
+  }, [classId]);
 
   useEffect(() => {
     let mounted = true;
@@ -105,6 +130,13 @@ export default function EditClassScreen() {
   };
 
   const handleSave = async () => {
+    if (isSaving) {
+      return;
+    }
+    if (!classId) {
+      Alert.alert('Error', 'No se pudo identificar la clase.');
+      return;
+    }
     if (!title.trim()) {
       Alert.alert('Error', 'El título es requerido');
       return;
@@ -120,6 +152,14 @@ export default function EditClassScreen() {
       );
       return;
     }
+
+    const rawOrder = String(order || '').trim();
+    const parsedOrder = rawOrder ? Number.parseInt(rawOrder, 10) : undefined;
+    if (rawOrder && (!Number.isInteger(parsedOrder) || Number(parsedOrder) < 1)) {
+      Alert.alert('Error', 'El orden debe ser un número entero mayor o igual a 1.');
+      return;
+    }
+
     setIsSaving(true);
     try {
       if (selectedVideo) {
@@ -131,20 +171,20 @@ export default function EditClassScreen() {
         }
 
         await apiClient.updateClassWithVideo(
-          id,
+          classId,
           {
             title: title.trim(),
             description: description.trim(),
-            order: order ? parseInt(order, 10) : undefined,
+            order: parsedOrder,
             isPublic,
           },
           selectedVideo,
         );
       } else {
-        await apiClient.updateClass(id, {
+        await apiClient.updateClass(classId, {
           title: title.trim(),
           description: description.trim(),
-          order: order ? parseInt(order, 10) : undefined,
+          order: parsedOrder,
           isPublic,
         });
       }
@@ -152,7 +192,13 @@ export default function EditClassScreen() {
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.message ?? 'No se pudo guardar');
+      Alert.alert(
+        'Error',
+        toAlertMessage(
+          e?.response?.data?.message || e?.message,
+          'No se pudo guardar',
+        ),
+      );
     } finally {
       setIsSaving(false);
     }
@@ -166,8 +212,11 @@ export default function EditClassScreen() {
     );
   }
 
-  const videoStatus = classItem?.videoStatus ?? VideoStatus.UPLOADING;
-  const statusConfig = VIDEO_STATUS_CONFIG[videoStatus];
+  const rawVideoStatus = String(
+    classItem?.videoStatus ?? VideoStatus.UPLOADING,
+  ) as VideoStatus;
+  const statusConfig =
+    VIDEO_STATUS_CONFIG[rawVideoStatus] ?? VIDEO_STATUS_CONFIG[VideoStatus.UPLOADING];
 
   return (
     <KeyboardAvoidingView
@@ -243,7 +292,7 @@ export default function EditClassScreen() {
             />
             <ManageMediaField
               label="Reemplazar video"
-              helperText="Selecciona un archivo para reemplazar el video actual"
+              helperText="MP4, MOV, WEBM, AVI, MKV, M4V, MPEG, MPG, 3GP, OGV (máx. 200MB)"
               mediaType="video"
               selectedFileName={selectedVideo?.name}
               onPick={handlePickVideo}

@@ -23,9 +23,29 @@ import ManageSummaryCard from '@/components/manage/ManageSummaryCard';
 import ManageToggleField from '@/components/manage/ManageToggleField';
 import { pickVideoFromDevice } from '@/services/mediaPicker';
 
+const toAlertMessage = (value: any, fallback: string): string => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item)).join('\n');
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value;
+  }
+  if (value && typeof value === 'object') {
+    const nested = (value as any).message;
+    if (Array.isArray(nested)) {
+      return nested.map((item) => String(item)).join('\n');
+    }
+    if (typeof nested === 'string' && nested.trim().length > 0) {
+      return nested;
+    }
+  }
+  return fallback;
+};
+
 export default function NewClassScreen() {
   const { courseId } = useLocalSearchParams<{ courseId?: string }>();
   const router = useRouter();
+  const normalizedCourseId = Array.isArray(courseId) ? courseId[0] : courseId;
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -73,6 +93,9 @@ export default function NewClassScreen() {
   };
 
   const handleCreate = async () => {
+    if (isSaving) {
+      return;
+    }
     if (!title.trim()) {
       Alert.alert('Error', 'El título es requerido');
       return;
@@ -81,7 +104,7 @@ export default function NewClassScreen() {
       Alert.alert('Error', 'La descripción debe tener al menos 10 caracteres');
       return;
     }
-    if (!courseId) {
+    if (!normalizedCourseId) {
       Alert.alert('Error', 'No se pudo identificar el curso. Vuelve atrás e intenta desde un curso.');
       return;
     }
@@ -92,6 +115,14 @@ export default function NewClassScreen() {
       );
       return;
     }
+
+    const rawOrder = String(order || '').trim();
+    const parsedOrder = rawOrder ? Number.parseInt(rawOrder, 10) : undefined;
+    if (rawOrder && (!Number.isInteger(parsedOrder) || Number(parsedOrder) < 1)) {
+      Alert.alert('Error', 'El orden debe ser un número entero mayor o igual a 1.');
+      return;
+    }
+
     setIsSaving(true);
     try {
       if (selectedVideo) {
@@ -106,8 +137,8 @@ export default function NewClassScreen() {
           {
             title: title.trim(),
             description: description.trim(),
-            courseId,
-            order: order ? parseInt(order, 10) : undefined,
+            courseId: normalizedCourseId,
+            order: parsedOrder,
             isPublic,
           },
           selectedVideo,
@@ -116,8 +147,8 @@ export default function NewClassScreen() {
         await apiClient.createClass({
           title: title.trim(),
           description: description.trim(),
-          courseId,
-          order: order ? parseInt(order, 10) : undefined,
+          courseId: normalizedCourseId,
+          order: parsedOrder,
           isPublic,
         });
       }
@@ -125,8 +156,13 @@ export default function NewClassScreen() {
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (e: any) {
-      const msg = e?.response?.data?.message;
-      Alert.alert('Error', Array.isArray(msg) ? msg.join('\n') : (msg ?? 'No se pudo crear la clase'));
+      Alert.alert(
+        'Error',
+        toAlertMessage(
+          e?.response?.data?.message || e?.message,
+          'No se pudo crear la clase',
+        ),
+      );
     } finally {
       setIsSaving(false);
     }
@@ -193,7 +229,7 @@ export default function NewClassScreen() {
             />
             <ManageMediaField
               label="Video de la clase"
-              helperText="MP4, MOV, WEBM, AVI, MKV (máx. 200MB)"
+              helperText="MP4, MOV, WEBM, AVI, MKV, M4V, MPEG, MPG, 3GP, OGV (máx. 200MB)"
               mediaType="video"
               selectedFileName={selectedVideo?.name}
               onPick={handlePickVideo}

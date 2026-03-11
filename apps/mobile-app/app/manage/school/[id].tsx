@@ -43,7 +43,7 @@ export default function EditSchoolScreen() {
         setSchool(data);
         setName(data.name ?? '');
         setDescription(data.description ?? '');
-        setLogoUrl((data as any).logoUrl ?? '');
+        setLogoUrl(typeof (data as any).logoUrl === 'string' ? (data as any).logoUrl : '');
         setAddress(data.address ?? '');
         setPhone((data as any).phone ?? '');
         setWebsite((data as any).website ?? '');
@@ -64,6 +64,9 @@ export default function EditSchoolScreen() {
       if (!file) return;
       setIsUploadingImage(true);
       const uploadedUrl = await apiClient.uploadImage(file);
+      if (!uploadedUrl || typeof uploadedUrl !== 'string') {
+        throw new Error('No se pudo obtener la URL de la imagen subida.');
+      }
       setLogoUrl(uploadedUrl);
     } catch (error: any) {
       const msg =
@@ -83,10 +86,11 @@ export default function EditSchoolScreen() {
     }
     setIsSaving(true);
     try {
+      const safeLogoUrl = typeof logoUrl === 'string' ? logoUrl.trim() : '';
       await apiClient.updateSchool(id, {
         name: name.trim(),
         description: description.trim(),
-        logoUrl: logoUrl.trim() || undefined,
+        logoUrl: safeLogoUrl || undefined,
         address: address.trim(),
         phone: phone.trim(),
         website: website.trim(),
@@ -96,7 +100,11 @@ export default function EditSchoolScreen() {
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.message ?? 'No se pudo guardar');
+      const message =
+        e?.response?.data?.message ||
+        e?.message ||
+        'No se pudo guardar';
+      Alert.alert('Error', Array.isArray(message) ? message.join('\n') : String(message));
     } finally {
       setIsSaving(false);
     }

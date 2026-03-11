@@ -38,6 +38,9 @@ export default function NewSchoolScreen() {
       if (!file) return;
       setIsUploadingImage(true);
       const uploadedUrl = await apiClient.uploadImage(file);
+      if (!uploadedUrl || typeof uploadedUrl !== 'string') {
+        throw new Error('No se pudo obtener la URL de la imagen subida.');
+      }
       setLogoUrl(uploadedUrl);
     } catch (error: any) {
       const msg =
@@ -74,7 +77,11 @@ export default function NewSchoolScreen() {
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.message ?? 'No se pudo crear la escuela');
+      const message =
+        e?.response?.data?.message ||
+        e?.message ||
+        'No se pudo crear la escuela';
+      Alert.alert('Error', Array.isArray(message) ? message.join('\n') : String(message));
     } finally {
       setIsSaving(false);
     }
