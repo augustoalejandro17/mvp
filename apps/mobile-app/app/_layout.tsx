@@ -35,8 +35,9 @@ export default function RootLayout() {
         <Stack.Screen 
           name="player/[id]" 
           options={{ 
-            title: 'Reproducir Video',
-            presentation: 'modal'
+            headerShown: false,
+            presentation: 'fullScreenModal',
+            animation: 'slide_from_right',
           }} 
         />
         <Stack.Screen
