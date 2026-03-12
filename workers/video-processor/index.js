@@ -4,6 +4,7 @@ const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const { pipeline } = require("stream/promises");
 require("dotenv").config();
 
 // Configure ffmpeg
@@ -58,6 +59,7 @@ class VideoProcessor {
 
     this.apiUrl = process.env.API_URL;
     this.workerSecret = process.env.VIDEO_WORKER_SECRET;
+    this.ffmpegThreads = Number(process.env.FFMPEG_THREADS || 1);
     if (!this.apiUrl) {
       throw new Error("API_URL is required");
     }
@@ -277,11 +279,7 @@ class VideoProcessor {
     let tempOutputPath = null;
 
     try {
-      // 1. Download video from temp bucket
-      console.log("⬇️ Downloading video from temp bucket...");
-      const videoBuffer = await this.downloadFromS3(this.tempBucket, key);
-
-      // 2. Save to temporary file
+      // 1. Build temp paths
       const tempDir = os.tmpdir();
       tempInputPath = path.join(
         tempDir,
@@ -292,8 +290,10 @@ class VideoProcessor {
         `output-${Date.now()}-${Math.random().toString(36).substring(7)}.mp4`,
       );
 
-      fs.writeFileSync(tempInputPath, videoBuffer);
-      console.log(`💾 Saved to temp file: ${tempInputPath}`);
+      // 2. Download video from temp bucket directly to file
+      console.log("⬇️ Downloading video from temp bucket...");
+      await this.downloadFromS3ToFile(this.tempBucket, key, tempInputPath);
+      console.log(`💾 Saved input to temp file: ${tempInputPath}`);
 
       // 3. Process video with ffmpeg
       console.log("⚙️ Processing video with ffmpeg...");
@@ -301,9 +301,8 @@ class VideoProcessor {
 
       // 4. Upload processed video to final bucket
       console.log("⬆️ Uploading processed video to final bucket...");
-      const processedBuffer = fs.readFileSync(tempOutputPath);
       const finalVideoUrl = await this.uploadToFinalBucket(
-        processedBuffer,
+        tempOutputPath,
         schoolId,
         classId,
         filename,
@@ -352,6 +351,17 @@ class VideoProcessor {
   }
 
   /**
+   * Download file from S3 to local path using streaming.
+   * This avoids loading full videos in memory.
+   */
+  async downloadFromS3ToFile(bucket, key, targetPath) {
+    const params = { Bucket: bucket, Key: key };
+    const readStream = this.s3.getObject(params).createReadStream();
+    const writeStream = fs.createWriteStream(targetPath);
+    await pipeline(readStream, writeStream);
+  }
+
+  /**
    * Process video with ffmpeg
    */
   async processWithFFmpeg(inputPath, outputPath) {
@@ -361,6 +371,7 @@ class VideoProcessor {
           "-c:v libx264", // H.264 codec
           "-preset fast", // Balance speed/quality
           "-crf 23", // Quality setting
+          `-threads ${Math.max(1, this.ffmpegThreads)}`, // Reduce memory pressure
           "-metadata:s:v rotate=0", // Reset rotation metadata
           "-acodec aac", // AAC audio codec
           "-b:a 128k", // Audio bitrate
@@ -392,13 +403,15 @@ class VideoProcessor {
   /**
    * Upload processed video to final bucket
    */
-  async uploadToFinalBucket(buffer, schoolId, classId, originalFilename) {
+  async uploadToFinalBucket(input, schoolId, classId, originalFilename) {
     const key = `videos/${schoolId}/${classId}/final.mp4`;
+    const body =
+      typeof input === "string" ? fs.createReadStream(input) : input;
 
     const params = {
       Bucket: this.finalBucket,
       Key: key,
-      Body: buffer,
+      Body: body,
       ContentType: "video/mp4",
       Metadata: {
         "x-amz-meta-orientation": "normal",
