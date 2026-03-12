@@ -575,6 +575,123 @@ export class UsersService {
     return user;
   }
 
+  async removeRoleInSchool(
+    userId: string,
+    schoolId: string,
+    role: string,
+  ): Promise<User> {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user ID');
+    }
+    if (!Types.ObjectId.isValid(schoolId)) {
+      throw new BadRequestException('Invalid school ID');
+    }
+
+    const normalizedRole = String(role || '').toLowerCase().trim();
+    const validRoles = [
+      UserRole.SCHOOL_OWNER,
+      UserRole.ADMIN,
+      UserRole.ADMINISTRATIVE,
+      UserRole.TEACHER,
+      UserRole.STUDENT,
+      UserRole.UNREGISTERED,
+    ];
+    if (!validRoles.includes(normalizedRole as UserRole)) {
+      throw new BadRequestException(
+        `Invalid role. Allowed: ${validRoles.join(', ')}`,
+      );
+    }
+
+    const [user, school] = await Promise.all([
+      this.userModel.findById(userId),
+      this.schoolModel.findById(schoolId),
+    ]);
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+    if (!school) {
+      throw new NotFoundException(`School with ID ${schoolId} not found`);
+    }
+
+    const hasContextRole = user.schoolRoles?.some(
+      (item) =>
+        item.schoolId?.toString() === schoolId &&
+        String(item.role || '').toLowerCase() === normalizedRole,
+    );
+
+    const hasLegacyOwner =
+      normalizedRole === UserRole.SCHOOL_OWNER &&
+      user.ownedSchools?.some((id) => id.toString() === schoolId);
+    const hasLegacyAdminOrAdministrative =
+      (normalizedRole === UserRole.ADMIN ||
+        normalizedRole === UserRole.ADMINISTRATIVE) &&
+      user.administratedSchools?.some((id) => id.toString() === schoolId);
+
+    if (!hasContextRole && !hasLegacyOwner && !hasLegacyAdminOrAdministrative) {
+      throw new BadRequestException(
+        'User does not have this role in the selected school',
+      );
+    }
+
+    const isCurrentMainOwner = school.admin?.toString() === userId;
+    if (normalizedRole === UserRole.SCHOOL_OWNER && isCurrentMainOwner) {
+      throw new BadRequestException(
+        'Cannot remove the active school owner. Transfer ownership first.',
+      );
+    }
+
+    user.schoolRoles = (user.schoolRoles || []).filter(
+      (item) =>
+        !(
+          item.schoolId?.toString() === schoolId &&
+          String(item.role || '').toLowerCase() === normalizedRole
+        ),
+    );
+
+    if (
+      normalizedRole === UserRole.ADMIN ||
+      normalizedRole === UserRole.ADMINISTRATIVE
+    ) {
+      user.administratedSchools = (user.administratedSchools || []).filter(
+        (id) => id.toString() !== schoolId,
+      );
+      await this.schoolModel.findByIdAndUpdate(schoolId, {
+        $pull: { administratives: new Types.ObjectId(userId) },
+      });
+    }
+
+    if (normalizedRole === UserRole.SCHOOL_OWNER) {
+      user.ownedSchools = (user.ownedSchools || []).filter(
+        (id) => id.toString() !== schoolId,
+      );
+    }
+
+    if (normalizedRole === UserRole.TEACHER) {
+      await this.schoolModel.findByIdAndUpdate(schoolId, {
+        $pull: { teachers: new Types.ObjectId(userId) },
+      });
+    }
+
+    if (normalizedRole === UserRole.STUDENT || normalizedRole === UserRole.UNREGISTERED) {
+      await this.schoolModel.findByIdAndUpdate(schoolId, {
+        $pull: { students: new Types.ObjectId(userId) },
+      });
+    }
+
+    const stillHasAnyRoleInSchool =
+      user.schoolRoles?.some((item) => item.schoolId?.toString() === schoolId) ||
+      user.ownedSchools?.some((id) => id.toString() === schoolId) ||
+      user.administratedSchools?.some((id) => id.toString() === schoolId);
+
+    if (!stillHasAnyRoleInSchool) {
+      user.schools = (user.schools || []).filter((id) => id.toString() !== schoolId);
+    }
+
+    await user.save();
+    return user;
+  }
+
   async findByRole(role: UserRole): Promise<User[]> {
     this.logger.log(`Buscando usuarios con rol: ${role}`);
 

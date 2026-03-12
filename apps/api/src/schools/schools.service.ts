@@ -676,6 +676,13 @@ export class SchoolsService {
 
   async assignOwner(schoolId: string, userId: string) {
     try {
+      if (!Types.ObjectId.isValid(schoolId)) {
+        throw new BadRequestException(`Invalid school ID ${schoolId}`);
+      }
+      if (!Types.ObjectId.isValid(userId)) {
+        throw new BadRequestException(`Invalid user ID ${userId}`);
+      }
+
       // Check if school exists
       const school = await this.schoolModel.findById(schoolId);
       if (!school) {
@@ -688,27 +695,69 @@ export class SchoolsService {
         throw new NotFoundException(`User with ID ${userId} not found`);
       }
 
-      // Assign user as the school owner
-      // Update user's role to SCHOOL_OWNER if not already an admin or higher
-      if (user.role === UserRole.TEACHER || user.role === UserRole.STUDENT) {
-        await this.userModel.findByIdAndUpdate(userId, {
-          role: UserRole.SCHOOL_OWNER,
-          $addToSet: {
-            schools: schoolId,
-            ownedSchools: schoolId,
-          },
-        });
-      } else {
-        // Just add the school to their owned schools
-        await this.userModel.findByIdAndUpdate(userId, {
-          $addToSet: {
-            schools: schoolId,
-            ownedSchools: schoolId,
-          },
-        });
+      const previousOwnerId = school.admin?.toString();
+
+      // No-op if owner is already assigned
+      if (previousOwnerId === userId) {
+        return this.schoolModel
+          .findById(schoolId)
+          .populate('admin', 'name email');
       }
 
-      // Update the school
+      // Remove ownership from previous owner if present
+      if (previousOwnerId && Types.ObjectId.isValid(previousOwnerId)) {
+        const previousOwner = await this.userModel.findById(previousOwnerId);
+        if (previousOwner) {
+          previousOwner.ownedSchools = (previousOwner.ownedSchools || []).filter(
+            (id) => id.toString() !== schoolId,
+          );
+          previousOwner.schoolRoles = (previousOwner.schoolRoles || []).filter(
+            (role) =>
+              !(
+                role.schoolId?.toString() === schoolId &&
+                String(role.role || '').toLowerCase() === UserRole.SCHOOL_OWNER
+              ),
+          );
+          await previousOwner.save();
+        }
+      }
+
+      // Ensure target user has owner context in this school
+      if (
+        user.role === UserRole.TEACHER ||
+        user.role === UserRole.STUDENT ||
+        user.role === UserRole.UNREGISTERED ||
+        user.role === UserRole.ADMINISTRATIVE
+      ) {
+        user.role = UserRole.SCHOOL_OWNER;
+      }
+
+      if (!user.schools?.some((id) => id.toString() === schoolId)) {
+        user.schools = user.schools || [];
+        user.schools.push(new Types.ObjectId(schoolId));
+      }
+
+      if (!user.ownedSchools?.some((id) => id.toString() === schoolId)) {
+        user.ownedSchools = user.ownedSchools || [];
+        user.ownedSchools.push(new Types.ObjectId(schoolId));
+      }
+
+      const existingRoleIndex = (user.schoolRoles || []).findIndex(
+        (role) => role.schoolId?.toString() === schoolId,
+      );
+      if (existingRoleIndex >= 0) {
+        user.schoolRoles[existingRoleIndex].role = UserRole.SCHOOL_OWNER;
+      } else {
+        user.schoolRoles = user.schoolRoles || [];
+        user.schoolRoles.push({
+          schoolId: new Types.ObjectId(schoolId),
+          role: UserRole.SCHOOL_OWNER,
+        } as any);
+      }
+
+      await user.save();
+
+      // Update school owner reference
       const updatedSchool = await this.schoolModel
         .findByIdAndUpdate(schoolId, { admin: userId }, { new: true })
         .populate('admin', 'name email');

@@ -10,13 +10,17 @@ interface AdminNavigationProps {
 export default function AdminNavigation({ userRole }: AdminNavigationProps) {
   const router = useRouter();
   const currentPath = router.pathname;
+  const normalizedRole = String(userRole || '').toLowerCase();
 
   const isActive = (path: string) => currentPath === path;
 
   // Check user roles
-  const isSuperAdmin = userRole?.toLowerCase().includes('super_admin');
-  const isSchoolOwner = userRole?.toLowerCase().includes('school_owner');
-  const isAdministrative = userRole?.toLowerCase().includes('administrative');
+  const isSuperAdmin = normalizedRole.includes('super_admin');
+  const isSchoolOwner = normalizedRole.includes('school_owner');
+  const isAdministrative = normalizedRole.includes('administrative');
+  const isAdmin =
+    normalizedRole === 'admin' ||
+    normalizedRole.split(/[\s,]+/).includes('admin');
 
   const baseMenuItems = [
     { href: '/', label: 'Inicio' },
@@ -37,6 +41,8 @@ export default function AdminNavigation({ userRole }: AdminNavigationProps) {
     { href: '/admin/subscriptions', label: 'Suscripciones' },
   ];
 
+  const platformItems = [{ href: '/admin/platform', label: 'Plataforma' }];
+
   // Usage tracking and analytics available for all admin roles
   const usageTrackingItems = [
     { href: '/admin/usage', label: 'Uso de Recursos' },
@@ -53,6 +59,7 @@ export default function AdminNavigation({ userRole }: AdminNavigationProps) {
     ...baseMenuItems,
     ...(isSuperAdmin || isSchoolOwner || isAdministrative ? schoolManagementItems : []),
     ...(isSuperAdmin ? superAdminItems : []),
+    ...(isSuperAdmin || isAdmin ? platformItems : []),
     ...usageTrackingItems,
     ...commonEndItems
   ];

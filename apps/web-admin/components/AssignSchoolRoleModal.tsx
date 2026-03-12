@@ -174,6 +174,44 @@ const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({
     }
   };
 
+  const handleRemoveRole = async () => {
+    if (!selectedSchool || !selectedRole || !user?._id) {
+      setError('Debes seleccionar escuela y rol');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const token = Cookies.get('token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+      await axios.delete(`${apiUrl}/api/users/${user._id}/school-role`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { schoolId: selectedSchool, role: selectedRole },
+      });
+
+      setSuccess('Rol removido correctamente');
+      setTimeout(() => {
+        if (onSuccess) onSuccess();
+        if (onRoleAssigned) onRoleAssigned();
+        onClose();
+      }, 1200);
+    } catch (error: any) {
+      if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else if (error.response?.status === 403) {
+        setError('No tienes permisos para remover este rol');
+      } else {
+        setError(error.message || 'Error al remover rol');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Determinar qué roles mostrar según el rol del usuario actual
   const getRoleOptions = () => {
     // Log the current role to debug
@@ -293,6 +331,14 @@ const AssignSchoolRoleModal: React.FC<AssignSchoolRoleModalProps> = ({
                 disabled={loading}
               >
                 Cancelar
+              </button>
+              <button
+                type="button"
+                className={styles.cancelButton}
+                onClick={handleRemoveRole}
+                disabled={loading || !selectedSchool}
+              >
+                {loading ? 'Procesando...' : 'Quitar Rol'}
               </button>
               <button
                 type="submit"

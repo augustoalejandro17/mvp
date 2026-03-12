@@ -905,6 +905,41 @@ class ApiClient {
     return data.user;
   }
 
+  async assignRoleInSchool(
+    userId: string,
+    schoolId: string,
+    role: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const { data } = await this.client.post<{ success: boolean; message: string }>(
+      `/users/${userId}/assign-role-in-school`,
+      { schoolId, role },
+    );
+    return data;
+  }
+
+  async removeRoleInSchool(
+    userId: string,
+    schoolId: string,
+    role: string,
+  ): Promise<{ success: boolean; message: string; user: IUser }> {
+    const { data } = await this.client.delete<{
+      success: boolean;
+      message: string;
+      user: IUser;
+    }>(`/users/${userId}/school-role`, {
+      params: { schoolId, role },
+    });
+    return data;
+  }
+
+  async assignSchoolOwner(schoolId: string, userId: string): Promise<ISchool> {
+    const { data } = await this.client.post<ISchool>(
+      `/schools/${schoolId}/owner/${userId}`,
+      {},
+    );
+    return data;
+  }
+
   async uploadImage(file: NativeUploadFile): Promise<string> {
     if (!file?.uri || !isValidLocalFileUri(file.uri)) {
       throw new Error('Archivo inválido. No se pudo resolver la ruta de la imagen.');
@@ -1011,10 +1046,22 @@ class ApiClient {
     userId: string,
     schoolId: string,
     courseId: string,
+    ownerId?: string,
   ): Promise<void> {
     await this.client.post(`/users/${userId}/course-seats`, {
       schoolId,
       courseId,
+      ownerId,
+    });
+  }
+
+  async revokeCourseSeatPermit(
+    userId: string,
+    schoolId: string,
+    courseId: string,
+  ): Promise<void> {
+    await this.client.delete(`/users/${userId}/course-seats`, {
+      params: { schoolId, courseId },
     });
   }
 

@@ -214,6 +214,15 @@ export default function AdminPanelScreen() {
           color="#3b82f6"
           onPress={() => router.push('/manage/users')}
         />
+        {(String(user?.role || '').toLowerCase() === 'super_admin' ||
+          String(user?.role || '').toLowerCase() === 'admin') && (
+          <QuickAction
+            label="Control de plataforma"
+            icon="shield-checkmark-outline"
+            color="#334155"
+            onPress={() => router.push('/manage/platform' as any)}
+          />
+        )}
         {seatCapabilities.canViewSeatManagementModule && (
           <QuickAction
             label="Gestión de cupos"

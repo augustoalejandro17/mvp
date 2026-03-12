@@ -695,6 +695,53 @@ export class UsersController {
     }
   }
 
+  @Delete(':id/school-role')
+  @UseGuards(JwtAuthGuard)
+  async removeRoleInSchool(
+    @Param('id') userId: string,
+    @Query('schoolId') schoolId: string,
+    @Query('role') role: string,
+    @Req() req: Request,
+  ): Promise<{ success: boolean; message: string; user: AuthUser }> {
+    if (!schoolId) {
+      throw new BadRequestException('schoolId is required');
+    }
+    if (!role) {
+      throw new BadRequestException('role is required');
+    }
+
+    const requestUserId = req.user['sub'] || req.user['_id'];
+    const requestUserRole = String(req.user['role'] || '').toLowerCase();
+
+    if (
+      requestUserRole !== UserRole.SUPER_ADMIN &&
+      requestUserRole !== UserRole.ADMIN
+    ) {
+      const canManage = await this.authorizationService.canManageUserInSchool(
+        requestUserId,
+        userId,
+        schoolId,
+      );
+      if (!canManage) {
+        throw new ForbiddenException(
+          'No tiene permisos para quitar roles en esta escuela',
+        );
+      }
+    }
+
+    const updatedUser = await this.usersService.removeRoleInSchool(
+      userId,
+      schoolId,
+      role,
+    );
+
+    return {
+      success: true,
+      message: `Rol ${role} removido de la escuela`,
+      user: updatedUser,
+    };
+  }
+
   @Patch(':id/owner-seat-quota')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)

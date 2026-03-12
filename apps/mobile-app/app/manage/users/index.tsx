@@ -233,6 +233,7 @@ export default function UsersScreen() {
   const currentRole = String((authUser as any)?.role || '').toLowerCase();
   const canManageUsers = ['super_admin', 'admin', 'school_owner', 'administrative'].includes(currentRole);
   const canChangeRoles = currentRole === 'super_admin';
+  const canOpenPlatformModule = currentRole === 'super_admin' || currentRole === 'admin';
 
   const loadUsers = useCallback(async () => {
     try {
@@ -517,6 +518,20 @@ export default function UsersScreen() {
             <Ionicons name="speedometer-outline" size={18} color="#0284c7" />
             <Text className="ml-2 text-gray-800 font-semibold flex-1">
               Gestión de Cupos
+            </Text>
+            <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+          </TouchableOpacity>
+        )}
+
+        {canOpenPlatformModule && (
+          <TouchableOpacity
+            onPress={() => router.push('/manage/platform' as any)}
+            className="bg-white rounded-2xl px-4 py-3 mb-3 flex-row items-center"
+            style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}
+          >
+            <Ionicons name="shield-checkmark-outline" size={18} color="#334155" />
+            <Text className="ml-2 text-gray-800 font-semibold flex-1">
+              Control de plataforma
             </Text>
             <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
           </TouchableOpacity>

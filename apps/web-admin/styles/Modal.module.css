@@ -123,6 +123,14 @@
   margin-top: 1.5rem;
 }
 
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
 .cancelButton, .submitButton {
   padding: 0.625rem 1.25rem;
   border-radius: 0.375rem;
