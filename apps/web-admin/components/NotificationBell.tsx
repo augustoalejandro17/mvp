@@ -41,7 +41,7 @@ const NotificationBell: React.FC = () => {
   const [isVisible, setIsVisible] = useState(true);
   const [pollInterval, setPollInterval] = useState(60000);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const router = useRouter();
 
   // Visibility optimization

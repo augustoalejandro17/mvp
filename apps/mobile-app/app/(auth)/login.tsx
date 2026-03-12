@@ -167,6 +167,12 @@ export default function LoginScreen() {
             <Text className="text-amber-600 font-medium">¿Olvidaste tu contraseña?</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity className="mt-4 items-center" onPress={() => router.push('/(auth)/register')}>
+            <Text className="text-gray-700">
+              ¿No tienes cuenta? <Text className="text-amber-600 font-semibold">Regístrate</Text>
+            </Text>
+          </TouchableOpacity>
+
           <View className="mt-7 items-center">
             <Text className="text-gray-400 text-xs text-center">
               Al continuar aceptas nuestros términos y política de privacidad.

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { IUser, LoginDto, LoginResponse } from '@inti/shared-types';
+import { IUser, LoginDto, LoginResponse, RegisterDto } from '@inti/shared-types';
 import { apiClient, STORAGE_KEYS, API_BASE_URL } from '@/services/apiClient';
 
 type AuthUser = LoginResponse['user'] | IUser;
@@ -9,6 +9,7 @@ interface AuthContextType {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  register: (payload: RegisterDto) => Promise<void>;
   login: (credentials: LoginDto) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -69,6 +70,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const register = async (payload: RegisterDto) => {
+    try {
+      const response = await apiClient.register(payload);
+      setUser(response.user);
+      await persistUser(response.user);
+    } catch (error: any) {
+      const apiMessage = error?.response?.data?.message;
+      const networkLike =
+        !error?.response ||
+        error?.code === 'ECONNABORTED' ||
+        String(error?.message || '').toLowerCase().includes('network');
+
+      if (networkLike) {
+        throw new Error(
+          `No se pudo conectar al servidor (${API_BASE_URL}). Verifica internet y que el backend esté activo.`,
+        );
+      }
+
+      throw new Error(apiMessage || 'Error al crear la cuenta');
+    }
+  };
+
   const logout = async () => {
     await apiClient.logout();
     setUser(null);
@@ -87,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const Provider = AuthContext.Provider as any;
 
   return (
-    <Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout, refreshUser }}>
+    <Provider value={{ user, isAuthenticated: !!user, isLoading, register, login, logout, refreshUser }}>
       {children}
     </Provider>
   );

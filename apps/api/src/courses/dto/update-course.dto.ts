@@ -75,6 +75,10 @@ export class UpdateCourseDto {
   isPublic?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
   @IsNumber()
   @Min(1, { message: 'El orden de promoción debe ser un número positivo' })
   @Max(999, { message: 'El orden de promoción no puede ser mayor a 999' })

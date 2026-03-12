@@ -109,7 +109,7 @@ const SimpleVideoPlayer: React.FC<SimpleVideoPlayerProps> = ({
 
     // Mobile touch controls
     let lastTap = 0;
-    let tapTimeout: NodeJS.Timeout | null = null;
+    let tapTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const handleTouchEnd = (e: TouchEvent) => {
       e.preventDefault();

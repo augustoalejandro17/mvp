@@ -597,7 +597,8 @@ export default function PlayerScreen() {
 
   // ── Layout values ─────────────────────────────────────────────────────────
   const videoHeight = isFullscreen ? screenHeight : screenWidth * (9 / 16);
-  const fullscreenSeekBottomOffset = Math.max(insets.bottom, 12) + 10;
+  // Keep controls well above iOS home indicator so seek interactions are reliable.
+  const fullscreenSeekBottomOffset = Math.max(insets.bottom + 14, 64);
   const displayPositionMs = scrubPositionMs ?? positionMs;
   const progressRatio = durationMs > 0 ? displayPositionMs / durationMs : 0;
 
@@ -896,13 +897,13 @@ export default function PlayerScreen() {
             style={{
               position: 'absolute',
               bottom: fullscreenSeekBottomOffset,
-              left: 10,
-              right: 10,
+              left: 12,
+              right: 12,
               borderRadius: 14,
               backgroundColor: 'rgba(0,0,0,0.68)',
               paddingHorizontal: 12,
               paddingTop: 10,
-              paddingBottom: 10,
+              paddingBottom: 12,
               opacity: controlsOpacity,
               zIndex: 21,
             }}

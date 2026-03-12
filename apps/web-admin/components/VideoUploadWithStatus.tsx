@@ -32,7 +32,7 @@ const VideoUploadWithStatus: React.FC<VideoUploadWithStatusProps> = ({
   const [error, setError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const statusCheckInterval = useRef<NodeJS.Timeout | null>(null);
+  const statusCheckInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Poll for video status updates
   const checkVideoStatus = useCallback(async () => {

@@ -2,9 +2,11 @@ import { Alert, ScrollView, Text, TouchableOpacity, View, Linking } from 'react-
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function PrivacyPolicyScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const appExtra = Constants.expoConfig?.extra as Record<string, string> | undefined;
   const privacyPolicyUrl = appExtra?.privacyPolicyUrl;
   const supportEmail = appExtra?.supportEmail || 'support@intihubs.com';
@@ -29,9 +31,13 @@ export default function PrivacyPolicyScreen() {
 
   return (
     <View className="flex-1 bg-amber-50">
-      <View className="bg-amber-500 px-5 pt-6 pb-8">
+      <View className="bg-amber-500 px-5 pb-8" style={{ paddingTop: insets.top + 8 }}>
         <View className="flex-row items-center">
-          <TouchableOpacity onPress={() => router.back()} className="mr-3">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="mr-3 p-1"
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
             <Ionicons name="arrow-back" size={24} color="white" />
           </TouchableOpacity>
           <View className="flex-1">

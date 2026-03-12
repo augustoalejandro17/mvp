@@ -337,7 +337,7 @@ const VideoJSPlayer: React.FC<VideoJSPlayerProps> = ({
   // Mobile-specific control setup
   const setupMobileControls = (player: any) => {
     let lastTap = 0;
-    let tapTimeout: NodeJS.Timeout | null = null;
+    let tapTimeout: ReturnType<typeof setTimeout> | null = null;
 
     // Get the video element for touch events
     const videoElement = player.el().querySelector('video');

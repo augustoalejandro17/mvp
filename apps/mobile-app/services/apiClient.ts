@@ -7,6 +7,7 @@ import {
   IClass,
   ISchool,
   IUser,
+  RegisterDto,
   LoginDto,
   LoginResponse,
 } from '@inti/shared-types';
@@ -405,6 +406,14 @@ class ApiClient {
 
   async login(credentials: LoginDto): Promise<LoginResponse> {
     const { data } = await this.client.post<LoginResponse>('/auth/login', credentials);
+    if (data.token) {
+      await this.setToken(data.token);
+    }
+    return data;
+  }
+
+  async register(payload: RegisterDto): Promise<LoginResponse> {
+    const { data } = await this.client.post<LoginResponse>('/auth/register', payload);
     if (data.token) {
       await this.setToken(data.token);
     }
@@ -844,8 +853,29 @@ class ApiClient {
       isFeatured: boolean;
     }>,
   ): Promise<ICourse> {
-    const { data } = await this.client.put<ICourse>(`/courses/${id}`, dto);
-    return data;
+    try {
+      const { data } = await this.client.put<ICourse>(`/courses/${id}`, dto);
+      return data;
+    } catch (error: any) {
+      const message = buildApiErrorMessage(
+        error?.response?.data,
+        error?.message || 'No se pudo actualizar el curso',
+      );
+
+      // Backward compatibility for older API deployments that still reject isActive in update payload.
+      if (
+        dto &&
+        Object.prototype.hasOwnProperty.call(dto, 'isActive') &&
+        message.toLowerCase().includes('isactive should not exist')
+      ) {
+        const fallbackDto = { ...dto } as any;
+        delete fallbackDto.isActive;
+        const { data } = await this.client.put<ICourse>(`/courses/${id}`, fallbackDto);
+        return data;
+      }
+
+      throw error;
+    }
   }
 
   async deleteCourse(id: string): Promise<void> {

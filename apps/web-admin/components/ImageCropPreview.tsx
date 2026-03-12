@@ -104,7 +104,7 @@ const ImageCropPreview: React.FC<ImageCropPreviewProps> = ({
           <div 
             ref={containerRef}
             className={styles.cropContainer}
-            style={{ aspectRatio }}
+            style={{ aspectRatio: String(aspectRatio) }}
           >
             <img
               ref={imageRef}

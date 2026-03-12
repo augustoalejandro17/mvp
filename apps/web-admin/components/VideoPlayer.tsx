@@ -41,7 +41,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [showKeyboardHint, setShowKeyboardHint] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxRetries = 2;
 
   // Load saved preferences from localStorage
