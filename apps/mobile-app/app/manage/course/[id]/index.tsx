@@ -149,8 +149,25 @@ export default function EditCourseScreen() {
           <ManageSummaryCard
             icon="book-outline"
             title={title || course?.title || 'Curso'}
-            subtitle="Actualiza la información del curso"
+            subtitle="Actualiza la información general del curso"
           />
+
+          <TouchableOpacity
+            onPress={() => router.push(`/manage/course/${courseId}/students`)}
+            className="bg-white rounded-2xl px-4 py-4 mb-4 flex-row items-center"
+            style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}
+          >
+            <View className="w-11 h-11 rounded-2xl bg-sky-50 items-center justify-center mr-3">
+              <Ionicons name="people-outline" size={20} color="#0284c7" />
+            </View>
+            <View className="flex-1 pr-3">
+              <Text className="text-gray-900 font-bold text-base">Gestionar alumnos</Text>
+              <Text className="text-gray-500 text-xs mt-1">
+                Matricula o retira usuarios sin entrar al formulario del curso.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+          </TouchableOpacity>
 
           <View
             className="bg-white rounded-2xl p-4 mb-4"

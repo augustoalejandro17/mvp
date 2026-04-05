@@ -122,24 +122,9 @@ export default function PlatformManagementScreen() {
     return getEntityId(adminValue);
   }, [selectedSchool]);
 
-  const schoolUsers = useMemo(() => {
-    if (!selectedSchoolId) return [];
-    return users.filter((row) => {
-      const inSchools = row.schools?.some((id: any) => String(id) === selectedSchoolId);
-      const inRoles = row.schoolRoles?.some(
-        (item: any) => String(item.schoolId) === selectedSchoolId,
-      );
-      const asOwner = row.ownedSchools?.some((id: any) => String(id) === selectedSchoolId);
-      const asAdmin = row.administratedSchools?.some(
-        (id: any) => String(id) === selectedSchoolId,
-      );
-      return !!(inSchools || inRoles || asOwner || asAdmin);
-    });
-  }, [users, selectedSchoolId]);
-
   const searchableUsers = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const base = schoolUsers.length > 0 ? schoolUsers : users;
+    const base = users;
     if (!term) return base;
     return base.filter((row) => {
       const name = String(row.name || '').toLowerCase();
@@ -147,7 +132,7 @@ export default function PlatformManagementScreen() {
       const role = String(row.role || '').toLowerCase();
       return name.includes(term) || email.includes(term) || role.includes(term);
     });
-  }, [users, schoolUsers, search]);
+  }, [users, search]);
 
   const ownerCandidates = useMemo(
     () => searchableUsers.filter((row) => String(row.role || '') !== 'unregistered'),
@@ -347,6 +332,10 @@ export default function PlatformManagementScreen() {
               {users.find((row) => getEntityId(row) === currentOwnerId)?.name || 'Sin owner'}
             </Text>
           </Text>
+          <Text className="text-xs text-gray-500 mb-3">
+            Puedes seleccionar cualquier usuario del sistema. Si no pertenece a esta escuela,
+            se vinculara automaticamente al transferir la propiedad.
+          </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
             {ownerCandidates.map((row) => {
               const id = getEntityId(row);
@@ -378,6 +367,9 @@ export default function PlatformManagementScreen() {
         <View className="bg-white rounded-2xl p-4 mb-4">
           <Text className="text-gray-900 font-bold text-base mb-2">
             Asignar / Quitar Rol por Escuela
+          </Text>
+          <Text className="text-xs text-gray-500 mb-3">
+            La asignacion agrega al usuario a la escuela si todavia no pertenece a ella.
           </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
             {searchableUsers.map((row) => {

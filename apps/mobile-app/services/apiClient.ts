@@ -547,6 +547,11 @@ class ApiClient {
     return data;
   }
 
+  async getTeachingCourses(): Promise<ICourse[]> {
+    const { data } = await this.client.get<ICourse[]>('/courses/teaching');
+    return data;
+  }
+
   async getCourseById(id: string): Promise<ICourse> {
     const { data } = await this.client.get<ICourse>(`/courses/${id}`);
     return data;
@@ -885,6 +890,16 @@ class ApiClient {
   // ─── Admin: Users ─────────────────────────────────────────────────────────
   async getUsers(): Promise<IUser[]> {
     const { data } = await this.client.get<IUser[]>('/users');
+    return data;
+  }
+
+  async searchUsersByEmail(
+    email: string,
+    schoolId?: string,
+  ): Promise<IUser[]> {
+    const { data } = await this.client.get<IUser[]>('/users/search-by-email', {
+      params: { email, schoolId },
+    });
     return data;
   }
 

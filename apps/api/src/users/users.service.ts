@@ -776,6 +776,7 @@ export class UsersService {
     const isAdmin = requestingUserRole === UserRole.ADMIN;
     const isSchoolOwner = requestingUserRole === UserRole.SCHOOL_OWNER;
     const isAdministrative = requestingUserRole === UserRole.ADMINISTRATIVE;
+    const isTeacher = requestingUserRole === UserRole.TEACHER;
 
     // Super admin y admin pueden hacer búsquedas globales sin restricciones
     if (isSuperAdmin || isAdmin) {
@@ -822,6 +823,24 @@ export class UsersService {
       }
       // Si no se especifica escuela, no filtramos por escuela - permitiendo búsqueda global
       // pero mantenemos la información de las escuelas que puede gestionar para la lógica de asignación
+    } else if (isTeacher) {
+      if (!schoolId) {
+        throw new ForbiddenException(
+          'Los profesores deben buscar usuarios dentro de una escuela específica',
+        );
+      }
+
+      const canSearchInSchool = await this.canTeacherSearchUsersInSchool(
+        requestingUserId,
+        schoolId,
+      );
+      if (!canSearchInSchool) {
+        throw new ForbiddenException(
+          'No tienes permiso para buscar usuarios en esta escuela',
+        );
+      }
+
+      query.schools = schoolId;
     } else {
       // Otros roles como teacher o student solo pueden buscar en su propia escuela
       throw new ForbiddenException('No tienes permisos para buscar usuarios');
@@ -859,6 +878,47 @@ export class UsersService {
     }
 
     return false;
+  }
+
+  private async canTeacherSearchUsersInSchool(
+    userId: string,
+    schoolId: string,
+  ): Promise<boolean> {
+    const user = await this.userModel
+      .findById(userId)
+      .select('schools schoolRoles')
+      .exec();
+    if (!user) return false;
+
+    const belongsToSchool =
+      user.schools?.some((id) => id.toString() === schoolId) || false;
+    if (belongsToSchool) {
+      return true;
+    }
+
+    const hasTeacherSchoolRole =
+      user.schoolRoles?.some(
+        (role) =>
+          role.schoolId?.toString() === schoolId &&
+          String(role.role || '').toLowerCase() === UserRole.TEACHER,
+      ) || false;
+    if (hasTeacherSchoolRole) {
+      return true;
+    }
+
+    if (!Types.ObjectId.isValid(userId) || !Types.ObjectId.isValid(schoolId)) {
+      return false;
+    }
+
+    const teachesInSchool = await this.courseModel.exists({
+      school: new Types.ObjectId(schoolId),
+      $or: [
+        { teacher: new Types.ObjectId(userId) },
+        { teachers: new Types.ObjectId(userId) },
+      ],
+    });
+
+    return !!teachesInSchool;
   }
 
   private async getOwnerUsedSeats(

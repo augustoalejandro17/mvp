@@ -1,7 +1,7 @@
 export default {
   expo: {
     sdkVersion: '54.0.0',
-    newArchEnabled: false,
+    newArchEnabled: true,
     name: 'Inti',
     slug: 'inti-mobile',
     version: '1.0.0',

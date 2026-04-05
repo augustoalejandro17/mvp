@@ -116,6 +116,30 @@ const toAlertMessage = (value: any, fallback: string): string => {
   return fallback;
 };
 
+const resolvePreferredSchoolId = (
+  target: IUser | null,
+  availableSchools: ISchool[],
+): string => {
+  const schoolIds = new Set(
+    availableSchools.map((school) => getEntityId(school)).filter(Boolean),
+  );
+  const candidates = [
+    ...((target as any)?.schools || []),
+    ...((target as any)?.ownedSchools || []),
+    ...((target as any)?.administratedSchools || []),
+    ...(((target as any)?.schoolRoles || []).map((item: any) => item?.schoolId) || []),
+  ]
+    .map((value) => getEntityId({ _id: value }))
+    .filter(Boolean);
+
+  const preferred = candidates.find((id) => schoolIds.has(id));
+  if (preferred) {
+    return preferred;
+  }
+
+  return getEntityId(availableSchools[0]);
+};
+
 function UserRow({
   user,
   canOpenEnrollFlow,
@@ -166,11 +190,14 @@ function UserRow({
       {canOpenEnrollFlow && isRegistered && (
         <TouchableOpacity
           onPress={() => onOpenEnroll(user)}
-          className="p-2.5 rounded-xl mr-2"
+          className="px-3 py-2 rounded-xl mr-2 flex-row items-center"
           style={{ backgroundColor: '#dbeafe' }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Ionicons name="person-add-outline" size={16} color="#1d4ed8" />
+          <Text className="ml-1.5 text-xs font-semibold" style={{ color: '#1d4ed8' }}>
+            Matricular
+          </Text>
         </TouchableOpacity>
       )}
       {canOpenManageFlow && (
@@ -312,8 +339,7 @@ export default function UsersScreen() {
     setSelectedUser(target);
     setSelectedCourseId('');
     setSchoolCourses([]);
-    const firstSchoolId = getEntityId(schools[0]);
-    setSelectedSchoolId(firstSchoolId);
+    setSelectedSchoolId(resolvePreferredSchoolId(target, schools));
     setShowEnrollModal(true);
   };
 
@@ -614,6 +640,9 @@ export default function UsersScreen() {
               <Text className="text-base font-bold text-gray-900 mb-1">Matricular Usuario</Text>
               <Text className="text-xs text-gray-500 mb-4" numberOfLines={1}>
                 {selectedUser?.name || selectedUser?.email}
+              </Text>
+              <Text className="text-xs text-gray-500 mb-4">
+                El seat se asigna automaticamente usando el owner actual de la escuela.
               </Text>
 
               <Text className="text-gray-700 font-semibold text-sm mb-2">Escuela</Text>

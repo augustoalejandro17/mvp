@@ -33,17 +33,34 @@ import { Types } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { School } from '../schools/schemas/school.schema';
+import {
+  IsEmail,
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 // DTO para la asignación de roles contextuales
 class AssignSchoolRoleDto {
+  @IsString()
   schoolId: string;
+
+  @IsString()
+  @IsIn(['teacher', 'administrative', 'student'])
   role: string;
 }
 
 // DTO para registrar un usuario no registrado
 class RegisterUnregisteredUserDto {
+  @IsEmail()
   email: string;
+
+  @IsString()
   password: string;
+
+  @IsOptional()
   additionalInfo?: {
     [key: string]: any;
   };
@@ -51,20 +68,40 @@ class RegisterUnregisteredUserDto {
 
 // DTO para crear un usuario no registrado
 class CreateUnregisteredUserDto {
+  @IsString()
   name: string;
+
+  @IsOptional()
+  @IsString()
   schoolId?: string;
+
+  @IsOptional()
+  @IsString()
   courseId?: string;
+
+  @IsOptional()
+  @IsString()
   role?: string;
 }
 
 class SetOwnerSeatQuotaDto {
+  @IsString()
   schoolId: string;
+
+  @IsNumber()
+  @Min(0)
   totalSeats: number;
 }
 
 class AssignCourseSeatDto {
+  @IsString()
   schoolId: string;
+
+  @IsString()
   courseId: string;
+
+  @IsOptional()
+  @IsString()
   ownerId?: string;
 }
 

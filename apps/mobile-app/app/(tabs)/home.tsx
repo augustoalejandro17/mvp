@@ -47,6 +47,70 @@ const normalizeList = <T,>(value: unknown): T[] => {
   return [];
 };
 
+const getEntityId = (entity: any): string => {
+  const raw = entity?._id ?? entity?.id;
+  if (typeof raw === 'string') return raw;
+  if (raw && typeof raw === 'object' && typeof raw.toString === 'function') {
+    const value = String(raw.toString());
+    return value === '[object Object]' ? '' : value;
+  }
+  return '';
+};
+
+const getCourseSchoolId = (course: ICourse | null | undefined): string => {
+  if (!course) return '';
+  const rawSchool = (course as any).school;
+  if (typeof rawSchool === 'string') return rawSchool;
+  return getEntityId(rawSchool);
+};
+
+const mergeUniqueById = <T extends { _id?: string; id?: string }>(
+  left: T[],
+  right: T[],
+): T[] => {
+  const seen = new Set<string>();
+  const merged: T[] = [];
+
+  for (const item of [...left, ...right]) {
+    const id = getEntityId(item);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    merged.push(item);
+  }
+
+  return merged;
+};
+
+const isCourseManagedByUser = (
+  course: ICourse,
+  userId: string,
+  isSchoolAdmin: boolean,
+): boolean => {
+  if (isSchoolAdmin) return true;
+  if (!userId) return false;
+
+  const teacher = (course as any).teacher;
+  if (teacher) {
+    if (typeof teacher === 'string' && teacher === userId) {
+      return true;
+    }
+    if (typeof teacher === 'object' && getEntityId(teacher) === userId) {
+      return true;
+    }
+  }
+
+  if (Array.isArray((course as any).teachers)) {
+    return (course as any).teachers.some((teacherItem: any) => {
+      if (typeof teacherItem === 'string') {
+        return teacherItem === userId;
+      }
+      return getEntityId(teacherItem) === userId;
+    });
+  }
+
+  return false;
+};
+
 // ─── School Card ──────────────────────────────────────────────────────────────
 function SchoolCard({
   school,
@@ -128,15 +192,19 @@ function SchoolCard({
 function CourseCard({
   course,
   isEnrolled,
-  isAdmin,
+  canManageCourse,
+  canDeleteCourse,
   onPress,
+  onManageStudents,
   onEdit,
   onDelete,
 }: {
   course: ICourse;
   isEnrolled: boolean;
-  isAdmin?: boolean;
+  canManageCourse?: boolean;
+  canDeleteCourse?: boolean;
   onPress: () => void;
+  onManageStudents?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
@@ -201,14 +269,23 @@ function CourseCard({
             </>
           )}
           <View className="flex-1" />
-          {isAdmin ? (
+          {canManageCourse || canDeleteCourse ? (
             <View className="flex-row items-center">
-              <TouchableOpacity onPress={onEdit} className="p-1.5 mr-1 bg-amber-50 rounded-lg" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="create-outline" size={16} color="#d97706" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={onDelete} className="p-1.5 bg-red-50 rounded-lg" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="trash-outline" size={16} color="#dc2626" />
-              </TouchableOpacity>
+              {canManageCourse && (
+                <>
+                  <TouchableOpacity onPress={onManageStudents} className="p-1.5 mr-1 bg-sky-50 rounded-lg" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="people-outline" size={16} color="#0284c7" />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={onEdit} className="p-1.5 mr-1 bg-amber-50 rounded-lg" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="create-outline" size={16} color="#d97706" />
+                  </TouchableOpacity>
+                </>
+              )}
+              {canDeleteCourse && (
+                <TouchableOpacity onPress={onDelete} className="p-1.5 bg-red-50 rounded-lg" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="trash-outline" size={16} color="#dc2626" />
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <Ionicons name="chevron-forward" size={14} color="#d97706" />
@@ -225,11 +302,16 @@ export default function HomeScreen() {
   const { user } = useAuth();
 
   const isAdmin = user?.role && ADMIN_ROLES.includes(user.role as UserRole);
+  const isTeacher = user?.role === UserRole.TEACHER;
+  const currentUserId = String(
+    (user as any)?._id || (user as any)?.id || (user as any)?.sub || '',
+  );
 
   const [level, setLevel] = useState<ViewLevel>('schools');
   const [schools, setSchools] = useState<ISchool[]>([]);
   const [enrolledCourses, setEnrolledCourses] = useState<ICourse[]>([]);
   const [courses, setCourses] = useState<ICourse[]>([]);
+  const [teachingCourses, setTeachingCourses] = useState<ICourse[]>([]);
   const [classes, setClasses] = useState<IClass[]>([]);
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [unorganizedClasses, setUnorganizedClasses] = useState<IClass[]>([]);
@@ -245,6 +327,9 @@ export default function HomeScreen() {
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
   const [isLoadingClasses, setIsLoadingClasses] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canManageSelectedCourse =
+    !!selectedCourse &&
+    isCourseManagedByUser(selectedCourse, currentUserId, !!isAdmin);
 
   const filteredSchools = useMemo(() => {
     const q = schoolSearch.trim().toLowerCase();
@@ -288,19 +373,31 @@ export default function HomeScreen() {
   const loadSchools = useCallback(async () => {
     setError(null);
     try {
-      const [schoolsData, enrolledData] = await Promise.all([
+      const [schoolsData, enrolledData, teachingData] = await Promise.all([
         isAdmin ? apiClient.getAllSchools() : apiClient.getPublicSchools(),
         apiClient.getEnrolledCourses().catch(() => [] as ICourse[]),
+        isTeacher ? apiClient.getTeachingCourses().catch(() => [] as ICourse[]) : [],
       ]);
-      setSchools(normalizeList<ISchool>(schoolsData));
+      const publicSchools = normalizeList<ISchool>(schoolsData);
+      const normalizedTeachingCourses = normalizeList<ICourse>(teachingData);
+      const teacherSchools = normalizedTeachingCourses
+        .map((course) => ((course as any).school && typeof (course as any).school === 'object'
+          ? ((course as any).school as ISchool)
+          : null))
+        .filter((school): school is ISchool => !!school && !!getEntityId(school));
+
+      setSchools(
+        isTeacher ? mergeUniqueById(publicSchools, teacherSchools) : publicSchools,
+      );
       setEnrolledCourses(normalizeList<ICourse>(enrolledData));
+      setTeachingCourses(normalizedTeachingCourses);
     } catch (e: any) {
       setError(e?.message || 'No se pudo conectar al servidor');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [isAdmin]);
+  }, [isAdmin, isTeacher]);
 
   const handleDeleteSchool = (school: ISchool) => {
     Alert.alert(
@@ -380,10 +477,23 @@ export default function HomeScreen() {
     setLevel('courses');
     setIsLoadingCourses(true);
     try {
-      const data = await apiClient.getCoursesBySchool(school._id!);
-      setCourses(normalizeList<ICourse>(data));
+      const schoolId = getEntityId(school);
+      const data = await apiClient.getCoursesBySchool(schoolId);
+      const visibleCourses = normalizeList<ICourse>(data);
+      const teacherCoursesForSchool = teachingCourses.filter(
+        (course) => getCourseSchoolId(course) === schoolId,
+      );
+      setCourses(
+        isTeacher
+          ? mergeUniqueById(visibleCourses, teacherCoursesForSchool)
+          : visibleCourses,
+      );
     } catch {
-      setCourses([]);
+      const schoolId = getEntityId(school);
+      const teacherCoursesForSchool = teachingCourses.filter(
+        (course) => getCourseSchoolId(course) === schoolId,
+      );
+      setCourses(isTeacher ? teacherCoursesForSchool : []);
     } finally {
       setIsLoadingCourses(false);
     }
@@ -811,8 +921,10 @@ export default function HomeScreen() {
                 <CourseCard
                   course={course}
                   isEnrolled={enrolledCourses.some((e) => e._id === course._id)}
-                  isAdmin={!!isAdmin}
+                  canManageCourse={isCourseManagedByUser(course, currentUserId, !!isAdmin)}
+                  canDeleteCourse={!!isAdmin}
                   onPress={() => handleSelectCourse(course)}
+                  onManageStudents={() => router.push(`/manage/course/${course._id}/students`)}
                   onEdit={() => router.push(`/manage/course/${course._id}`)}
                   onDelete={() => handleDeleteCourse(course)}
                 />
@@ -837,15 +949,26 @@ export default function HomeScreen() {
                   </Text>
                 ) : null}
               </View>
-              {isAdmin && (
-                <TouchableOpacity
-                  onPress={() => router.push(`/manage/class/new?courseId=${selectedCourse?._id}`)}
-                  className="flex-row items-center bg-amber-500 px-3 py-2 rounded-xl"
-                >
-                  <Ionicons name="add" size={16} color="white" />
-                  <Text className="text-white text-xs font-semibold ml-1">Nueva Clase</Text>
-                </TouchableOpacity>
-              )}
+              <View className="items-end">
+                {canManageSelectedCourse && (
+                  <TouchableOpacity
+                    onPress={() => router.push(`/manage/course/${selectedCourse?._id}/students`)}
+                    className="flex-row items-center bg-sky-600 px-3 py-2 rounded-xl mb-2"
+                  >
+                    <Ionicons name="people-outline" size={16} color="white" />
+                    <Text className="text-white text-xs font-semibold ml-1">Alumnos</Text>
+                  </TouchableOpacity>
+                )}
+                {isAdmin && (
+                  <TouchableOpacity
+                    onPress={() => router.push(`/manage/class/new?courseId=${selectedCourse?._id}`)}
+                    className="flex-row items-center bg-amber-500 px-3 py-2 rounded-xl"
+                  >
+                    <Ionicons name="add" size={16} color="white" />
+                    <Text className="text-white text-xs font-semibold ml-1">Nueva Clase</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           </View>
 
