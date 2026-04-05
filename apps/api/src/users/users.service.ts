@@ -961,11 +961,21 @@ export class UsersService {
           role.schoolId?.toString() === schoolId &&
           String(role.role).toLowerCase() === UserRole.SCHOOL_OWNER,
       ) || false;
-    return inSchoolRoles;
+    if (inSchoolRoles) return true;
+
+    const school = await this.schoolModel.findById(schoolId).select('admin').lean();
+    const schoolAdminId =
+      school?.admin && typeof school.admin === 'object'
+        ? String((school.admin as any)._id || school.admin)
+        : school?.admin
+          ? String(school.admin)
+          : '';
+
+    return schoolAdminId === String((owner as any)._id);
   }
 
   private async listSchoolOwners(schoolId: string): Promise<User[]> {
-    return this.userModel
+    const owners = await this.userModel
       .find({
         $or: [
           {
@@ -993,6 +1003,28 @@ export class UsersService {
         ],
       })
       .exec();
+
+    const school = await this.schoolModel.findById(schoolId).select('admin').lean();
+    const schoolAdminId =
+      school?.admin && typeof school.admin === 'object'
+        ? String((school.admin as any)._id || school.admin)
+        : school?.admin
+          ? String(school.admin)
+          : '';
+
+    if (!schoolAdminId || !Types.ObjectId.isValid(schoolAdminId)) {
+      return owners;
+    }
+
+    const alreadyIncluded = owners.some(
+      (owner) => String((owner as any)._id) === schoolAdminId,
+    );
+    if (alreadyIncluded) {
+      return owners;
+    }
+
+    const schoolAdmin = await this.userModel.findById(schoolAdminId).exec();
+    return schoolAdmin ? [schoolAdmin, ...owners] : owners;
   }
 
   private async resolveQuotaOwnerId(
