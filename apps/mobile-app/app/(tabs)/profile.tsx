@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,12 +21,16 @@ function MenuItem({
   subtitle,
   onPress,
   danger,
+  trailingIcon,
+  hideChevron,
 }: {
   icon: string;
   label: string;
   subtitle?: string;
   onPress?: () => void;
   danger?: boolean;
+  trailingIcon?: string;
+  hideChevron?: boolean;
 }) {
   return (
     <TouchableOpacity
@@ -45,7 +50,9 @@ function MenuItem({
         </Text>
         {subtitle ? <Text className="text-gray-400 text-xs mt-0.5">{subtitle}</Text> : null}
       </View>
-      {!danger && <Ionicons name="chevron-forward" size={16} color="#d1d5db" />}
+      {!danger && !hideChevron ? (
+        <Ionicons name={(trailingIcon || 'chevron-forward') as any} size={16} color="#d1d5db" />
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -59,6 +66,7 @@ export default function ProfileScreen() {
   const supportEmail = appExtra?.supportEmail;
   const accountDeletionUrl = appExtra?.accountDeletionUrl;
   const appVersion = Constants.expoConfig?.version || '1.0.0';
+  const [isAppMenuOpen, setIsAppMenuOpen] = useState(false);
 
   const handleLogout = () => {
     Alert.alert('Cerrar Sesión', '¿Estás seguro?', [
@@ -198,47 +206,58 @@ export default function ProfileScreen() {
         </Text>
         <View className="bg-white rounded-xl mb-4 overflow-hidden border border-gray-100">
           <MenuItem
-            icon="help-circle-outline"
-            label="Centro de Ayuda"
-            subtitle="FAQs y soporte"
-            onPress={() => openLink(supportUrl || (supportEmail ? `mailto:${supportEmail}` : undefined))}
+            icon="apps-outline"
+            label="Ayuda, legal y soporte"
+            subtitle="Centro de ayuda, políticas, reportes e información"
+            onPress={() => setIsAppMenuOpen((prev) => !prev)}
+            trailingIcon={isAppMenuOpen ? 'chevron-up' : 'chevron-down'}
           />
-          <MenuItem
-            icon="information-circle-outline"
-            label="Acerca de Inti"
-            subtitle={`Versión ${appVersion}`}
-            onPress={() => router.push('/about' as any)}
-          />
-          <MenuItem
-            icon="shield-checkmark-outline"
-            label="Política de Privacidad"
-            subtitle="Cómo protegemos tus datos"
-            onPress={() => router.push('/privacy-policy')}
-          />
-          <MenuItem
-            icon="document-outline"
-            label="Términos y Condiciones"
-            subtitle="Reglas de uso de la plataforma"
-            onPress={() => router.push('/terms-and-conditions' as any)}
-          />
-          <MenuItem
-            icon="document-text-outline"
-            label="Normas de Contenido"
-            subtitle="Reglas de contenido permitido"
-            onPress={() => router.push('/community-guidelines')}
-          />
-          <MenuItem
-            icon="flag-outline"
-            label="Mis denuncias"
-            subtitle="Revisa el estado de tus reportes"
-            onPress={() => router.push('/my-reports' as any)}
-          />
-          <MenuItem
-            icon="trash-bin-outline"
-            label="Página de eliminación de cuenta"
-            subtitle="Información pública para baja de cuenta"
-            onPress={() => openLink(accountDeletionUrl)}
-          />
+          {isAppMenuOpen ? (
+            <View className="border-t border-gray-50 bg-amber-50/40">
+              <MenuItem
+                icon="help-circle-outline"
+                label="Centro de Ayuda"
+                subtitle="FAQs y soporte"
+                onPress={() => openLink(supportUrl || (supportEmail ? `mailto:${supportEmail}` : undefined))}
+              />
+              <MenuItem
+                icon="information-circle-outline"
+                label="Acerca de Inti"
+                subtitle={`Versión ${appVersion}`}
+                onPress={() => router.push('/about' as any)}
+              />
+              <MenuItem
+                icon="shield-checkmark-outline"
+                label="Política de Privacidad"
+                subtitle="Cómo protegemos tus datos"
+                onPress={() => router.push('/privacy-policy')}
+              />
+              <MenuItem
+                icon="document-outline"
+                label="Términos y Condiciones"
+                subtitle="Reglas de uso de la plataforma"
+                onPress={() => router.push('/terms-and-conditions' as any)}
+              />
+              <MenuItem
+                icon="document-text-outline"
+                label="Normas de Contenido"
+                subtitle="Reglas de contenido permitido"
+                onPress={() => router.push('/community-guidelines')}
+              />
+              <MenuItem
+                icon="flag-outline"
+                label="Mis denuncias"
+                subtitle="Revisa el estado de tus reportes"
+                onPress={() => router.push('/my-reports' as any)}
+              />
+              <MenuItem
+                icon="trash-bin-outline"
+                label="Página de eliminación de cuenta"
+                subtitle="Información pública para baja de cuenta"
+                onPress={() => openLink(accountDeletionUrl)}
+              />
+            </View>
+          ) : null}
         </View>
 
         {/* Logout */}

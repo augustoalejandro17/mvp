@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StyleSheet,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -107,15 +108,20 @@ export default function LoginScreen() {
           {/* Email */}
           <View className="mb-4">
             <Text className="text-sm font-semibold text-gray-700 mb-1.5">Correo electrónico</Text>
-            <View className="flex-row items-center border border-gray-200 rounded-xl bg-gray-50 px-4">
+            <View className="h-14 flex-row items-center border border-gray-200 rounded-xl bg-gray-50 px-4">
               <Ionicons name="mail-outline" size={18} color="#9ca3af" />
               <TextInput
-                className="flex-1 py-3.5 pl-3 text-base text-gray-900"
+                className="flex-1 pl-3 text-base text-gray-900"
+                style={styles.input}
                 placeholder="tu@email.com"
                 placeholderTextColor="#9ca3af"
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
                 autoComplete="email"
+                textContentType="emailAddress"
+                returnKeyType="next"
                 value={formData.email}
                 onChangeText={(text) => setFormData({ ...formData, email: text })}
               />
@@ -125,13 +131,19 @@ export default function LoginScreen() {
           {/* Password */}
           <View className="mb-6">
             <Text className="text-sm font-semibold text-gray-700 mb-1.5">Contraseña</Text>
-            <View className="flex-row items-center border border-gray-200 rounded-xl bg-gray-50 px-4">
+            <View className="h-14 flex-row items-center border border-gray-200 rounded-xl bg-gray-50 px-4">
               <Ionicons name="lock-closed-outline" size={18} color="#9ca3af" />
               <TextInput
-                className="flex-1 py-3.5 pl-3 text-base text-gray-900"
+                className="flex-1 pl-3 text-base text-gray-900"
+                style={styles.input}
                 placeholder="••••••••"
                 placeholderTextColor="#9ca3af"
                 secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="current-password"
+                textContentType="password"
+                returnKeyType="done"
                 value={formData.password}
                 onChangeText={(text) => setFormData({ ...formData, password: text })}
               />
@@ -192,3 +204,12 @@ export default function LoginScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  input: {
+    minHeight: 22,
+    lineHeight: 22,
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+});
