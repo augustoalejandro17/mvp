@@ -909,13 +909,28 @@ export class UsersService {
       { $unwind: '$courseSeatGrants' },
       {
         $match: {
+          $or: [
+            { role: UserRole.STUDENT },
+            {
+              schoolRoles: {
+                $elemMatch: {
+                  schoolId: new Types.ObjectId(schoolId),
+                  role: UserRole.STUDENT,
+                },
+              },
+            },
+          ],
           'courseSeatGrants.schoolId': new Types.ObjectId(schoolId),
           'courseSeatGrants.isActive': true,
-          $or: [
-            { 'courseSeatGrants.quotaOwnerId': new Types.ObjectId(ownerId) },
+          $and: [
             {
-              'courseSeatGrants.quotaOwnerId': { $exists: false },
-              'courseSeatGrants.assignedBy': new Types.ObjectId(ownerId),
+              $or: [
+                { 'courseSeatGrants.quotaOwnerId': new Types.ObjectId(ownerId) },
+                {
+                  'courseSeatGrants.quotaOwnerId': { $exists: false },
+                  'courseSeatGrants.assignedBy': new Types.ObjectId(ownerId),
+                },
+              ],
             },
           ],
         },

@@ -304,6 +304,21 @@ export class CoursesService {
           { $unwind: '$courseSeatGrants' },
           {
             $match: {
+              $and: [
+                {
+                  $or: [
+                    { role: UserRole.STUDENT },
+                    {
+                      schoolRoles: {
+                        $elemMatch: {
+                          schoolId: new Types.ObjectId(schoolId),
+                          role: UserRole.STUDENT,
+                        },
+                      },
+                    },
+                  ],
+                },
+              ],
               'courseSeatGrants.schoolId': new Types.ObjectId(schoolId),
               'courseSeatGrants.isActive': true,
               'courseSeatGrants.isConsumed': true,

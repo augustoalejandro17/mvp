@@ -789,9 +789,6 @@ export default function HomeScreen() {
                 <Text className="text-amber-700 mt-1 font-medium">
                   {BRAND.slogan}
                 </Text>
-                <Text className="text-gray-500 mt-0.5 text-sm">
-                  Explora las escuelas disponibles
-                </Text>
               </View>
 
               {enrolledCourses.length > 0 && (

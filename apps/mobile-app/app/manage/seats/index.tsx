@@ -242,6 +242,18 @@ export default function SeatsManagementScreen() {
   const distributionRows = useMemo(() => {
     if (!selectedSchoolId || !selectedOwnerId) return [];
     return users
+      .filter((target) => {
+        const role = String(target.role || '').toLowerCase();
+        if (role === 'student') return true;
+
+        return (
+          target.schoolRoles?.some(
+            (item) =>
+              String(item.schoolId || '') === selectedSchoolId &&
+              String(item.role || '').toLowerCase() === 'student',
+          ) || false
+        );
+      })
       .map((target) => {
         const grants = (target.courseSeatGrants || []).filter(
           (grant) =>
