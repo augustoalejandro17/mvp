@@ -17,6 +17,7 @@ import { School } from '../schools/schemas/school.schema';
 import { Enrollment } from '../enrollments/schemas/enrollment.schema';
 import { SchoolsService } from '../schools/schools.service';
 import { CourseScheduleService } from './course-schedule.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import * as crypto from 'crypto';
 
 // Función de utilidad para comparar roles
@@ -38,6 +39,7 @@ export class CoursesService {
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
     private schoolsService: SchoolsService,
     private courseScheduleService: CourseScheduleService,
+    private notificationsService: NotificationsService,
   ) {}
 
   private hasSchoolRole(user: User, schoolId: string, role: UserRole): boolean {
@@ -505,6 +507,17 @@ export class CoursesService {
         );
         // Don't fail course creation if schedule fails
       }
+    }
+
+    try {
+      await this.notificationsService.notifyTeacherPublishedNewCourse(
+        String(result._id),
+        String(teacher),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo crear la notificacion de nuevo curso ${result._id}: ${error.message}`,
+      );
     }
 
     return result;
@@ -1141,6 +1154,18 @@ export class CoursesService {
 
         await student.save();
 
+        try {
+          await this.notificationsService.notifyStudentAddedToCourse(
+            studentId,
+            courseId,
+            userId,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `No se pudo crear la notificacion de reinscripcion para ${studentId} en ${courseId}: ${error.message}`,
+          );
+        }
+
         return existingEnrollment;
       }
 
@@ -1223,6 +1248,18 @@ export class CoursesService {
         error.stack,
       );
       // No lanzar error para no interrumpir el flujo, el enrollment ya se guardó
+    }
+
+    try {
+      await this.notificationsService.notifyStudentAddedToCourse(
+        studentId,
+        courseId,
+        userId,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo crear la notificacion de matricula para ${studentId} en ${courseId}: ${error.message}`,
+      );
     }
 
     return savedEnrollment;

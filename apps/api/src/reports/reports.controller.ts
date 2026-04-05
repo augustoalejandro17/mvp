@@ -5,51 +5,21 @@ import {
   UseGuards,
   Req,
   Res,
-  Logger,
-  BadRequestException,
 } from '@nestjs/common';
-import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard, Permission } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import {
   MonthlyAttendanceReport,
-  ExportResult,
   MonthlyPaymentReport,
 } from './types/report.types';
+import { ReportsFacade } from './services/reports.facade';
 
 @Controller('reports')
 export class ReportsController {
-  private readonly logger = new Logger(ReportsController.name);
-
-  constructor(private readonly reportsService: ReportsService) {}
-
-  private resolveReportPeriod(month?: string, year?: string) {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const reportMonth = month ? Number.parseInt(month, 10) : now.getMonth() + 1;
-    const reportYear = year ? Number.parseInt(year, 10) : currentYear;
-
-    if (!Number.isInteger(reportMonth) || reportMonth < 1 || reportMonth > 12) {
-      throw new BadRequestException('Month must be between 1 and 12');
-    }
-
-    if (
-      !Number.isInteger(reportYear) ||
-      reportYear < 2020 ||
-      reportYear > currentYear + 1
-    ) {
-      throw new BadRequestException('Invalid year provided');
-    }
-
-    return { reportMonth, reportYear };
-  }
-
-  private validateExportFormat(format: string) {
-    if (!['csv', 'excel'].includes(format)) {
-      throw new BadRequestException('format must be csv or excel');
-    }
-  }
+  constructor(
+    private readonly reportsFacade: ReportsFacade,
+  ) {}
 
   @Get('attendance/monthly')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -61,31 +31,13 @@ export class ReportsController {
     @Query('courseId') courseId?: string,
     @Req() req?: any,
   ): Promise<MonthlyAttendanceReport> {
-    try {
-      const userId = req.user.sub || req.user._id;
-      const userRole = req.user.role;
-
-      this.logger.log(
-        `Monthly attendance report requested by user ${userId} (${userRole})`,
-      );
-
-      const { reportMonth, reportYear } = this.resolveReportPeriod(month, year);
-
-      return await this.reportsService.getMonthlyAttendanceReport({
-        userId,
-        userRole,
-        schoolId,
-        month: reportMonth,
-        year: reportYear,
-        courseId,
-      });
-    } catch (error) {
-      this.logger.error(
-        `Error generating monthly attendance report: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.reportsFacade.getMonthlyAttendanceReport(
+      req,
+      schoolId,
+      month,
+      year,
+      courseId,
+    );
   }
 
   @Get('attendance/export')
@@ -100,46 +52,21 @@ export class ReportsController {
     @Req() req?: any,
     @Res() res?: any,
   ): Promise<void> {
-    try {
-      const userId = req.user.sub || req.user._id;
-      const userRole = req.user.role;
+    const result = await this.reportsFacade.exportMonthlyAttendanceReport(
+      req,
+      schoolId,
+      month,
+      year,
+      courseId,
+      format,
+    );
 
-      this.logger.log(
-        `Attendance export requested by user ${userId} in ${format} format`,
-      );
-
-      this.validateExportFormat(format);
-      const { reportMonth, reportYear } = this.resolveReportPeriod(month, year);
-
-      const result = await this.reportsService.exportMonthlyAttendanceReport({
-        userId,
-        userRole,
-        schoolId,
-        month: reportMonth,
-        year: reportYear,
-        courseId,
-        format,
-      });
-
-      // Set proper headers for file download
-      res.setHeader('Content-Type', result.contentType);
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="${result.filename}"`,
-      );
-
-      if (format === 'excel') {
-        res.send(result.data);
-      } else {
-        res.send(result.data);
-      }
-    } catch (error) {
-      this.logger.error(
-        `Error exporting attendance report: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    res.setHeader('Content-Type', result.contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${result.filename}"`,
+    );
+    res.send(result.data);
   }
 
   @Get('payments/monthly')
@@ -152,31 +79,13 @@ export class ReportsController {
     @Query('courseId') courseId?: string,
     @Req() req?: any,
   ): Promise<MonthlyPaymentReport> {
-    try {
-      const userId = req.user.sub || req.user._id;
-      const userRole = req.user.role;
-
-      this.logger.log(
-        `Monthly payment report requested by user ${userId} (${userRole})`,
-      );
-
-      const { reportMonth, reportYear } = this.resolveReportPeriod(month, year);
-
-      return await this.reportsService.getMonthlyPaymentReport({
-        userId,
-        userRole,
-        schoolId,
-        month: reportMonth,
-        year: reportYear,
-        courseId,
-      });
-    } catch (error) {
-      this.logger.error(
-        `Error generating monthly payment report: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.reportsFacade.getMonthlyPaymentReport(
+      req,
+      schoolId,
+      month,
+      year,
+      courseId,
+    );
   }
 
   @Get('payments/export')
@@ -191,45 +100,20 @@ export class ReportsController {
     @Req() req?: any,
     @Res() res?: any,
   ): Promise<void> {
-    try {
-      const userId = req.user.sub || req.user._id;
-      const userRole = req.user.role;
+    const result = await this.reportsFacade.exportMonthlyPaymentReport(
+      req,
+      schoolId,
+      month,
+      year,
+      courseId,
+      format,
+    );
 
-      this.logger.log(
-        `Payment export requested by user ${userId} in ${format} format`,
-      );
-
-      this.validateExportFormat(format);
-      const { reportMonth, reportYear } = this.resolveReportPeriod(month, year);
-
-      const result = await this.reportsService.exportMonthlyPaymentReport({
-        userId,
-        userRole,
-        schoolId,
-        month: reportMonth,
-        year: reportYear,
-        courseId,
-        format,
-      });
-
-      // Set proper headers for file download
-      res.setHeader('Content-Type', result.contentType);
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="${result.filename}"`,
-      );
-
-      if (format === 'excel') {
-        res.send(result.data);
-      } else {
-        res.send(result.data);
-      }
-    } catch (error) {
-      this.logger.error(
-        `Error exporting payment report: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    res.setHeader('Content-Type', result.contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${result.filename}"`,
+    );
+    res.send(result.data);
   }
 }

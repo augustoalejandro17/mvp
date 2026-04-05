@@ -8,9 +8,8 @@ import {
   Delete,
   UseGuards,
   Query,
-  Request,
 } from '@nestjs/common';
-import { SubscriptionsService } from './subscriptions.service';
+import { SubscriptionsFacade } from './services/subscriptions.facade';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -20,32 +19,32 @@ import { UserRole } from '../auth/schemas/user.schema';
 
 @Controller('subscriptions')
 export class SubscriptionsController {
-  constructor(private readonly subscriptionsService: SubscriptionsService) {}
+  constructor(private readonly subscriptionsFacade: SubscriptionsFacade) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   create(@Body() createSubscriptionDto: CreateSubscriptionDto) {
-    return this.subscriptionsService.create(createSubscriptionDto);
+    return this.subscriptionsFacade.create(createSubscriptionDto);
   }
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   findAll() {
-    return this.subscriptionsService.findAll();
+    return this.subscriptionsFacade.findAll();
   }
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string) {
-    return this.subscriptionsService.findOne(id);
+    return this.subscriptionsFacade.findOne(id);
   }
 
   @Get('school/:id')
   @UseGuards(JwtAuthGuard)
   findBySchool(@Param('id') id: string) {
-    return this.subscriptionsService.findBySchool(id);
+    return this.subscriptionsFacade.findBySchool(id);
   }
 
   @Patch(':id')
@@ -55,20 +54,20 @@ export class SubscriptionsController {
     @Param('id') id: string,
     @Body() updateSubscriptionDto: UpdateSubscriptionDto,
   ) {
-    return this.subscriptionsService.update(id, updateSubscriptionDto);
+    return this.subscriptionsFacade.update(id, updateSubscriptionDto);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   remove(@Param('id') id: string) {
-    return this.subscriptionsService.remove(id);
+    return this.subscriptionsFacade.remove(id);
   }
 
   @Get('validate/user-limit')
   @UseGuards(JwtAuthGuard)
   validateUserLimit(@Query('schoolId') schoolId: string) {
-    return this.subscriptionsService.canAddUserToSchool(schoolId);
+    return this.subscriptionsFacade.validateUserLimit(schoolId);
   }
 
   @Get('validate/enrollment')
@@ -77,7 +76,10 @@ export class SubscriptionsController {
     @Query('userId') userId: string,
     @Query('courseId') courseId: string,
   ) {
-    return this.subscriptionsService.canEnrollUserToCourse(userId, courseId);
+    return this.subscriptionsFacade.validateEnrollment(
+      userId,
+      courseId,
+    );
   }
 
   @Get('validate/storage')
@@ -86,6 +88,9 @@ export class SubscriptionsController {
     @Query('schoolId') schoolId: string,
     @Query('requiredGb') requiredGb: number,
   ) {
-    return this.subscriptionsService.hasAvailableStorage(schoolId, requiredGb);
+    return this.subscriptionsFacade.validateStorage(
+      schoolId,
+      requiredGb,
+    );
   }
 }

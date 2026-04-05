@@ -10,58 +10,31 @@ import {
   Query,
   Req,
   UseGuards,
-  BadRequestException,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '../auth/schemas/user.schema';
-import { ContentReportsService } from './content-reports.service';
 import { CreateContentReportDto } from './dto/create-content-report.dto';
 import { UpdateContentReportStatusDto } from './dto/update-content-report-status.dto';
 import {
   ReportContentType,
   ReportStatus,
 } from './schemas/content-report.schema';
+import { ContentReportsFacade } from './services/content-reports.facade';
 
 @Controller('content-reports')
 export class ContentReportsController {
-  constructor(private readonly contentReportsService: ContentReportsService) {}
-
-  private parsePagination(
-    page: string,
-    limit: string,
-  ): { pageNum: number; limitNum: number } {
-    const pageNum = Number.parseInt(page, 10);
-    const limitNum = Number.parseInt(limit, 10);
-
-    if (!Number.isInteger(pageNum) || pageNum < 1) {
-      throw new BadRequestException('page debe ser un entero >= 1');
-    }
-
-    if (!Number.isInteger(limitNum) || limitNum < 1 || limitNum > 100) {
-      throw new BadRequestException('limit debe ser un entero entre 1 y 100');
-    }
-
-    return { pageNum, limitNum };
-  }
+  constructor(
+    private readonly contentReportsFacade: ContentReportsFacade,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   async createReport(@Req() req: Request, @Body() dto: CreateContentReportDto) {
-    const reporterId = req.user['sub'] || req.user['_id'];
-    const report = await this.contentReportsService.createReport(
-      reporterId,
-      dto,
-    );
-
-    return {
-      success: true,
-      message: 'Denuncia enviada. Nuestro equipo la revisará pronto.',
-      report,
-    };
+    return this.contentReportsFacade.createReport(req, dto);
   }
 
   @Get('mine')
@@ -71,20 +44,7 @@ export class ContentReportsController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '20',
   ) {
-    const reporterId = req.user['sub'] || req.user['_id'];
-    const { pageNum, limitNum } = this.parsePagination(page, limit);
-    const { reports, total } = await this.contentReportsService.getMyReports(
-      reporterId,
-      pageNum,
-      limitNum,
-    );
-
-    return {
-      reports,
-      total,
-      currentPage: pageNum,
-      totalPages: Math.ceil(total / Math.max(limitNum, 1)),
-    };
+    return this.contentReportsFacade.getMyReports(req, page, limit);
   }
 
   @Get()
@@ -96,20 +56,12 @@ export class ContentReportsController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '20',
   ) {
-    const { pageNum, limitNum } = this.parsePagination(page, limit);
-    const { reports, total } = await this.contentReportsService.getAllReports({
+    return this.contentReportsFacade.getAllReports(
       status,
       contentType,
-      page: pageNum,
-      limit: limitNum,
-    });
-
-    return {
-      reports,
-      total,
-      currentPage: pageNum,
-      totalPages: Math.ceil(total / Math.max(limitNum, 1)),
-    };
+      page,
+      limit,
+    );
   }
 
   @Patch(':id/status')
@@ -120,17 +72,10 @@ export class ContentReportsController {
     @Param('id') reportId: string,
     @Body() dto: UpdateContentReportStatusDto,
   ) {
-    const reviewerId = req.user['sub'] || req.user['_id'];
-    const report = await this.contentReportsService.updateReportStatus(
+    return this.contentReportsFacade.updateReportStatus(
+      req,
       reportId,
-      reviewerId,
       dto,
     );
-
-    return {
-      success: true,
-      message: 'Estado de denuncia actualizado',
-      report,
-    };
   }
 }

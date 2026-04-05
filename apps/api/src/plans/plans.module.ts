@@ -3,9 +3,12 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { PlansService } from './plans.service';
 import { PlansController } from './plans.controller';
 import { SubscriptionsService } from './subscriptions.service';
+import { SubscriptionsFacade } from './services/subscriptions.facade';
 import { SubscriptionsController as UserSubscriptionsController } from './subscriptions.controller';
 import { SubscriptionsController } from './controllers/subscriptions.controller';
 import { AdminPlanController } from './controllers/admin-plan.controller';
+import { AdminSubscriptionsFacade } from './services/admin-subscriptions.facade';
+import { AdminPlanFacade } from './services/admin-plan.facade';
 import { Plan, PlanSchema } from './schemas/plan.schema';
 import {
   Subscription,
@@ -38,7 +41,19 @@ import {
     SubscriptionsController,
     AdminPlanController,
   ],
-  providers: [PlansService, SubscriptionsService],
-  exports: [PlansService, SubscriptionsService],
+  providers: [
+    PlansService,
+    SubscriptionsService,
+    SubscriptionsFacade,
+    AdminSubscriptionsFacade,
+    AdminPlanFacade,
+  ],
+  exports: [
+    PlansService,
+    SubscriptionsService,
+    SubscriptionsFacade,
+    AdminSubscriptionsFacade,
+    AdminPlanFacade,
+  ],
 })
 export class PlansModule {}

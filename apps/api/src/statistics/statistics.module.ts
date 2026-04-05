@@ -4,6 +4,7 @@ import { StatisticsController } from './statistics.controller';
 
 import { StatisticsService } from './services/statistics.service';
 import { SnapshotService } from './services/snapshot.service';
+import { StatisticsFacade } from './services/statistics.facade';
 import {
   DailySnapshot,
   DailySnapshotSchema,
@@ -37,7 +38,7 @@ import {
     ]),
   ],
   controllers: [StatisticsController],
-  providers: [StatisticsService, SnapshotService],
+  providers: [StatisticsService, SnapshotService, StatisticsFacade],
   exports: [StatisticsService, SnapshotService],
 })
 export class StatisticsModule {}

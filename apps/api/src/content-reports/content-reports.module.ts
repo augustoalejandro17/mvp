@@ -5,6 +5,7 @@ import { Class, ClassSchema } from '../classes/schemas/class.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
 import { School, SchoolSchema } from '../schools/schemas/school.schema';
 import { ContentReportsController } from './content-reports.controller';
+import { ContentReportsFacade } from './services/content-reports.facade';
 import { ContentReportsService } from './content-reports.service';
 import {
   ContentReport,
@@ -22,7 +23,7 @@ import {
     forwardRef(() => AuthModule),
   ],
   controllers: [ContentReportsController],
-  providers: [ContentReportsService],
-  exports: [ContentReportsService],
+  providers: [ContentReportsService, ContentReportsFacade],
+  exports: [ContentReportsService, ContentReportsFacade],
 })
 export class ContentReportsModule {}

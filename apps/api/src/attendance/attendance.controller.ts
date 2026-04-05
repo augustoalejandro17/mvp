@@ -9,10 +9,8 @@ import {
   UseGuards,
   Query,
   Req,
-  Logger,
-  BadRequestException,
 } from '@nestjs/common';
-import { AttendanceService } from './attendance.service';
+import { AttendanceFacade } from './services/attendance.facade';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { BulkAttendanceDto } from './dto/bulk-attendance.dto';
@@ -25,37 +23,33 @@ import {
 
 @Controller('attendance')
 export class AttendanceController {
-  private readonly logger = new Logger(AttendanceController.name);
-
-  constructor(private readonly attendanceService: AttendanceService) {}
+  constructor(private readonly attendanceFacade: AttendanceFacade) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(Permission.TAKE_ATTENDANCE)
   async create(@Body() createAttendanceDto: CreateAttendanceDto, @Req() req) {
-    const teacherId = req.user.sub || req.user._id;
-    return this.attendanceService.create(createAttendanceDto, teacherId);
+    return this.attendanceFacade.create(createAttendanceDto, req);
   }
 
   @Post('bulk')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(Permission.TAKE_ATTENDANCE)
   async createBulk(@Body() bulkAttendanceDto: BulkAttendanceDto, @Req() req) {
-    const teacherId = req.user.sub || req.user._id;
-    return this.attendanceService.createBulk(bulkAttendanceDto, teacherId);
+    return this.attendanceFacade.createBulk(bulkAttendanceDto, req);
   }
 
   @Get('records')
   @UseGuards(JwtAuthGuard)
   async getAllRecords() {
-    return this.attendanceService.findAllRecords();
+    return this.attendanceFacade.getAllRecords();
   }
 
   @Get('all-records-admin')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(Permission.VIEW_ATTENDANCE)
   async getAllRecordsAdmin() {
-    return this.attendanceService.findAllRecords();
+    return this.attendanceFacade.getAllRecords();
   }
 
   @Get('course/:courseId')
@@ -65,23 +59,14 @@ export class AttendanceController {
     @Param('courseId') courseId: string,
     @Query('date') dateStr: string,
   ) {
-    // Parse the date directly without timezone conversion
-    // The frontend should send the correct UTC date string
-    const date = dateStr ? new Date(dateStr) : new Date();
-    if (Number.isNaN(date.getTime())) {
-      throw new BadRequestException(
-        'El parámetro date no tiene formato válido',
-      );
-    }
-
-    return this.attendanceService.findByCourseAndDate(courseId, date);
+    return this.attendanceFacade.findByCourse(courseId, dateStr);
   }
 
   @Get('stats/course/:courseId')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(Permission.VIEW_ATTENDANCE)
   async getStatsByCourse(@Param('courseId') courseId: string) {
-    return this.attendanceService.getStatsByCourse(courseId);
+    return this.attendanceFacade.getStatsByCourse(courseId);
   }
 
   @Get('stats/student/:courseId/:studentId')
@@ -91,13 +76,13 @@ export class AttendanceController {
     @Param('courseId') courseId: string,
     @Param('studentId') studentId: string,
   ) {
-    return this.attendanceService.getStatsByStudent(courseId, studentId);
+    return this.attendanceFacade.getStatsByStudent(courseId, studentId);
   }
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string) {
-    return this.attendanceService.findOne(id);
+    return this.attendanceFacade.findOne(id);
   }
 
   @Patch(':id')
@@ -107,14 +92,14 @@ export class AttendanceController {
     @Param('id') id: string,
     @Body() updateAttendanceDto: UpdateAttendanceDto,
   ) {
-    return this.attendanceService.update(id, updateAttendanceDto);
+    return this.attendanceFacade.update(id, updateAttendanceDto);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(Permission.TAKE_ATTENDANCE)
   async remove(@Param('id') id: string) {
-    return this.attendanceService.remove(id);
+    return this.attendanceFacade.remove(id);
   }
 
   @Post('link-user')
@@ -122,16 +107,7 @@ export class AttendanceController {
   async linkUserAttendances(
     @Body() linkData: { unregisteredName: string; userId: string },
   ) {
-    const updatedCount =
-      await this.attendanceService.linkAttendancesToRegisteredUser(
-        linkData.unregisteredName,
-        linkData.userId,
-      );
-    return {
-      success: true,
-      message: `Se vincularon ${updatedCount} registros de asistencia al usuario`,
-      updatedCount,
-    };
+    return this.attendanceFacade.linkUserAttendances(linkData);
   }
 
   @Get('course/:courseId/month')
@@ -143,37 +119,11 @@ export class AttendanceController {
     @Query('month') monthStr: string,
     @Query('referenceDate') referenceDateStr: string,
   ) {
-    let year: number;
-    let month: number;
-
-    // Si se proporciona una fecha de referencia, extraer el año y mes de ella
-    if (referenceDateStr) {
-      const referenceDate = new Date(referenceDateStr);
-      if (Number.isNaN(referenceDate.getTime())) {
-        throw new BadRequestException(
-          'El parámetro referenceDate no tiene formato válido',
-        );
-      }
-      year = referenceDate.getFullYear();
-      month = referenceDate.getMonth() + 1; // getMonth() devuelve 0-11
-    }
-    // De lo contrario, usar los parámetros de año y mes proporcionados
-    else if (yearStr && monthStr) {
-      year = parseInt(yearStr, 10);
-      month = parseInt(monthStr, 10);
-    }
-    // Si no se proporciona ningún parámetro, usar el mes actual
-    else {
-      const currentDate = new Date();
-      year = currentDate.getFullYear();
-      month = currentDate.getMonth() + 1;
-    }
-
-    if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
-      this.logger.error(`Valores de año (${year}) o mes (${month}) inválidos`);
-      throw new BadRequestException('Valores de año o mes inválidos');
-    }
-
-    return this.attendanceService.findByCourseAndMonth(courseId, year, month);
+    return this.attendanceFacade.findByCourseAndMonth(
+      courseId,
+      yearStr,
+      monthStr,
+      referenceDateStr,
+    );
   }
 }

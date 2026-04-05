@@ -10,6 +10,7 @@ import {
 } from './schemas/user-course-progress.schema';
 import { UserProgressService } from './services/user-progress.service';
 import { ProgressController } from './progress.controller';
+import { ProgressFacade } from './services/progress.facade';
 
 // Import schemas from other modules
 import { Class, ClassSchema } from '../classes/schemas/class.schema';
@@ -27,7 +28,7 @@ import { Playlist, PlaylistSchema } from '../classes/schemas/playlist.schema';
     ]),
   ],
   controllers: [ProgressController],
-  providers: [UserProgressService],
-  exports: [UserProgressService],
+  providers: [UserProgressService, ProgressFacade],
+  exports: [UserProgressService, ProgressFacade],
 })
 export class ProgressModule {}

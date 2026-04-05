@@ -33,6 +33,7 @@ import {
 import { UsageHooksService } from '../usage/hooks/usage-hooks.service';
 import { VideoStatus } from './schemas/class.schema';
 import { getUserIdFromRequest } from '../utils/token-handler';
+import { NotificationsService } from '../notifications/notifications.service';
 
 // Función de utilidad para comparar roles
 const compareRole = (userRole: any, enumRole: UserRole): boolean => {
@@ -70,6 +71,7 @@ export class ClassesService {
     private storageIntegrationService: StorageIntegrationService,
     private usageHooksService: UsageHooksService,
     private authService: AuthService,
+    private notificationsService: NotificationsService,
   ) {}
 
   // Add permission check method
@@ -94,6 +96,14 @@ export class ClassesService {
         'You are not authorized to update this class',
       );
     }
+  }
+
+  private isVideoDeletionPermissionError(error: any): boolean {
+    return Boolean(
+      error?.message?.includes('not authorized to perform: s3:DeleteObject') ||
+        error?.message?.includes('identity-based policy') ||
+        error?.code === 'AccessDenied',
+    );
   }
 
   async create(
@@ -209,6 +219,19 @@ export class ClassesService {
           } catch (trackingError) {
             this.logger.warn(
               `Failed to track storage usage for class ${savedClass._id}: ${trackingError.message}`,
+            );
+          }
+
+          try {
+            await this.notificationsService.notifyNewClassInCourse(
+              createClassDto.courseId,
+              String(savedClass._id),
+              savedClass.title,
+              teacherId,
+            );
+          } catch (notificationError) {
+            this.logger.warn(
+              `Failed to notify new class ${savedClass._id}: ${notificationError.message}`,
             );
           }
 
@@ -527,6 +550,86 @@ export class ClassesService {
       );
       throw error;
     }
+  }
+
+  async createForRequest(
+    createClassDto: CreateClassDto,
+    userId: string,
+    file: Express.Multer.File,
+  ) {
+    try {
+      return await this.createWithWorkerProcessing(createClassDto, userId, file);
+    } catch (error) {
+      this.logger.error(
+        `Error al crear la clase: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async updateForRequest(
+    id: string,
+    updateClassDto: UpdateClassDto,
+    userId: string,
+    file?: Express.Multer.File,
+  ) {
+    try {
+      if (file) {
+        return await this.updateWithVideo(id, updateClassDto, userId, file);
+      }
+
+      return await this.update(id, updateClassDto, userId);
+    } catch (error) {
+      this.logger.error(
+        `Error al actualizar clase: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async removeForRequest(id: string, userId: string) {
+    try {
+      const result = await this.remove(id, userId);
+      return {
+        ...result,
+        status: 'success',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error al eliminar clase: ${error.message}`,
+        error.stack,
+      );
+
+      if (this.isVideoDeletionPermissionError(error)) {
+        throw new InternalServerErrorException({
+          message:
+            'La clase se eliminó de la base de datos, pero el video podría permanecer en el servidor debido a permisos insuficientes. Esto no afecta el funcionamiento del sistema.',
+          status: 'partial_success',
+          details:
+            'Contacta al administrador si necesitas eliminar también el archivo de video.',
+        });
+      }
+
+      throw error;
+    }
+  }
+
+  async getStudentAttendanceForRequester(
+    classId: string,
+    studentId: string,
+    requesterId: string,
+    requesterRole: UserRole,
+  ) {
+    if (requesterRole === UserRole.STUDENT && requesterId !== studentId) {
+      throw new UnauthorizedException(
+        'You can only view your own attendance records',
+      );
+    }
+
+    return this.getStudentAttendance(classId, studentId);
   }
 
   async remove(id: string, userId: string) {

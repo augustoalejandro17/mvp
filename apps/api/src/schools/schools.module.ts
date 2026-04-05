@@ -6,7 +6,12 @@ import {
 } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SchoolsController } from './schools.controller';
+import {
+  UserAdministeredSchoolsController,
+  UserOwnedSchoolsController,
+} from './schools.controller';
 import { SchoolsService } from './schools.service';
+import { SchoolsFacade } from './services/schools.facade';
 import { School, SchoolSchema } from './schemas/school.schema';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
@@ -24,8 +29,12 @@ import { PlanLimitsMiddleware } from './middleware/plan-limits.middleware';
     UsersModule,
     PlansModule,
   ],
-  controllers: [SchoolsController],
-  providers: [SchoolsService],
+  controllers: [
+    SchoolsController,
+    UserOwnedSchoolsController,
+    UserAdministeredSchoolsController,
+  ],
+  providers: [SchoolsService, SchoolsFacade],
   exports: [SchoolsService],
 })
 export class SchoolsModule {

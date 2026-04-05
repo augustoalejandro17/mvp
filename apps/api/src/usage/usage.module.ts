@@ -10,6 +10,7 @@ import { StorageIntegrationService } from './integration/storage-integration.ser
 import { StreamingIntegrationService } from './integration/streaming-integration.service';
 import { UsageHooksService } from './hooks/usage-hooks.service';
 import { UsageInitializationService } from './usage-initialization.service';
+import { UsageFacade } from './services/usage.facade';
 import { GamificationModule } from '../gamification/gamification.module';
 
 // Import other schemas needed for the service
@@ -43,6 +44,7 @@ import {
     StreamingIntegrationService,
     UsageHooksService,
     UsageInitializationService,
+    UsageFacade,
   ],
   exports: [
     UsageTrackingService,

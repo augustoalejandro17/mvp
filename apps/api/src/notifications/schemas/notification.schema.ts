@@ -8,6 +8,12 @@ export type NotificationDocument = Notification & Document;
 export enum NotificationType {
   CLASS_REMINDER = 'class_reminder',
   ENROLLMENT = 'enrollment',
+  NEW_CLASS = 'new_class',
+  TEACHER_NEW_COURSE = 'teacher_new_course',
+  ANNOUNCEMENT = 'announcement',
+  FEEDBACK_SUBMISSION = 'feedback_submission',
+  FEEDBACK_REVIEW = 'feedback_review',
+  COURSE_ACCESS = 'course_access',
   PAYMENT_DUE = 'payment_due',
   GENERAL = 'general',
   SYSTEM = 'system',

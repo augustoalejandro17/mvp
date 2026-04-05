@@ -8,14 +8,31 @@ import {
   NotificationPriority,
 } from './schemas/notification.schema';
 import { CreateNotificationDto } from './dto/create-notification.dto';
+import { Course } from '../courses/schemas/course.schema';
+import { User } from '../auth/schemas/user.schema';
 
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
+  private readonly mvpVisibleTypes: NotificationType[] = [
+    NotificationType.ENROLLMENT,
+    NotificationType.NEW_CLASS,
+    NotificationType.TEACHER_NEW_COURSE,
+    NotificationType.ANNOUNCEMENT,
+    NotificationType.FEEDBACK_SUBMISSION,
+    NotificationType.FEEDBACK_REVIEW,
+    NotificationType.COURSE_ACCESS,
+    NotificationType.GENERAL,
+    NotificationType.SYSTEM,
+  ];
 
   constructor(
     @InjectModel(Notification.name)
     private notificationModel: Model<NotificationDocument>,
+    @InjectModel(Course.name)
+    private courseModel: Model<Course>,
+    @InjectModel(User.name)
+    private userModel: Model<User>,
   ) {}
 
   async create(
@@ -51,6 +68,147 @@ export class NotificationsService {
     return notification.save();
   }
 
+  async notifyStudentAddedToCourse(
+    recipientId: string,
+    courseId: string,
+    senderId?: string,
+  ): Promise<Notification | null> {
+    const course = await this.courseModel.findById(courseId).select('title').lean();
+    if (!course) {
+      this.logger.warn(
+        `Skipping enrollment notification because course ${courseId} was not found`,
+      );
+      return null;
+    }
+
+    const notification = new this.notificationModel({
+      title: 'Te agregaron a un nuevo curso',
+      message: `Ya tienes acceso a "${course.title}".`,
+      type: NotificationType.ENROLLMENT,
+      priority: NotificationPriority.HIGH,
+      recipient: recipientId,
+      sender: senderId,
+      relatedCourse: courseId,
+      metadata: {
+        courseId,
+        actionUrl: `/course/${courseId}`,
+      },
+    });
+
+    return notification.save();
+  }
+
+  async notifyNewClassInCourse(
+    courseId: string,
+    classId: string,
+    classTitle: string,
+    senderId?: string,
+  ): Promise<void> {
+    const course = await this.courseModel
+      .findById(courseId)
+      .select('title students')
+      .lean();
+
+    if (!course) {
+      this.logger.warn(
+        `Skipping new-class notifications because course ${courseId} was not found`,
+      );
+      return;
+    }
+
+    const recipientIds = Array.isArray(course.students)
+      ? course.students
+          .map((studentId: any) => studentId?.toString?.() || String(studentId))
+          .filter((studentId: string) => !!studentId && studentId !== senderId)
+      : [];
+
+    if (recipientIds.length === 0) {
+      return;
+    }
+
+    await this.createBulkNotifications(
+      recipientIds.map((recipient) => ({
+        title: 'Nueva clase disponible',
+        message: `Se agrego "${classTitle}" en ${course.title}.`,
+        type: NotificationType.NEW_CLASS,
+        priority: NotificationPriority.HIGH,
+        recipient,
+        sender: senderId,
+        relatedCourse: courseId,
+        metadata: {
+          courseId,
+          classId,
+          classTitle,
+          actionUrl: `/player/${classId}?courseId=${courseId}`,
+        },
+      })),
+    );
+  }
+
+  async notifyTeacherPublishedNewCourse(
+    courseId: string,
+    teacherId: string,
+  ): Promise<void> {
+    const [course, teacher] = await Promise.all([
+      this.courseModel.findById(courseId).select('title').lean(),
+      this.userModel
+        .findById(teacherId)
+        .select('name teachingCourses role')
+        .lean(),
+    ]);
+
+    if (!course || !teacher) {
+      this.logger.warn(
+        `Skipping teacher-course notifications because course ${courseId} or teacher ${teacherId} was not found`,
+      );
+      return;
+    }
+
+    const followedCourseIds = Array.isArray((teacher as any).teachingCourses)
+      ? (teacher as any).teachingCourses
+          .map((id: any) => id?.toString?.() || String(id))
+          .filter((id: string) => !!id && id !== courseId)
+      : [];
+
+    if (followedCourseIds.length === 0) {
+      return;
+    }
+
+    const recipientIds = await this.userModel.distinct('_id', {
+      role: 'student',
+      isActive: true,
+      enrolledCourses: {
+        $in: followedCourseIds.map((id) => new Types.ObjectId(id)),
+      },
+    });
+
+    const filteredRecipientIds = recipientIds
+      .map((recipientId) => recipientId.toString())
+      .filter((recipientId) => recipientId !== teacherId);
+
+    if (filteredRecipientIds.length === 0) {
+      return;
+    }
+
+    await this.createBulkNotifications(
+      filteredRecipientIds.map((recipient) => ({
+        title: 'Tu profesor publico un nuevo curso',
+        message: `${teacher.name} publico "${course.title}".`,
+        type: NotificationType.TEACHER_NEW_COURSE,
+        priority: NotificationPriority.MEDIUM,
+        recipient,
+        sender: teacherId,
+        relatedCourse: courseId,
+        metadata: {
+          courseId,
+          teacherId,
+          teacherName: teacher.name,
+          actionUrl: `/course/${courseId}`,
+        },
+      })),
+    );
+  }
+
   async findUserNotifications(
     userId: string,
     page: number = 1,
@@ -66,6 +224,7 @@ export class NotificationsService {
       recipient: userId,
       isDeleted: false,
       isActive: true,
+      type: { $in: this.mvpVisibleTypes },
     };
 
     if (unreadOnly) {
@@ -170,6 +329,9 @@ export class NotificationsService {
 
   // Method to send bulk notifications
   async createBulkNotifications(notifications: CreateNotificationDto[]) {
+    if (!notifications.length) {
+      return [];
+    }
     return this.notificationModel.insertMany(notifications);
   }
 

@@ -5,8 +5,10 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { AuthFacade } from './services/auth.facade';
 import { AuthorizationService } from './services/authorization.service';
 import { OnboardingService } from './services/onboarding.service';
+import { OnboardingFacade } from './services/onboarding.facade';
 import { GoogleOAuthService } from './services/google-oauth.service';
 import { OnboardingController } from './controllers/onboarding.controller';
 import { User, UserSchema } from './schemas/user.schema';
@@ -56,15 +58,19 @@ const logger = new Logger('AuthModule');
   controllers: [AuthController, OnboardingController],
   providers: [
     AuthService,
+    AuthFacade,
     JwtStrategy,
     AuthorizationService,
     OnboardingService,
+    OnboardingFacade,
     GoogleOAuthService,
   ],
   exports: [
     AuthService,
+    AuthFacade,
     AuthorizationService,
     OnboardingService,
+    OnboardingFacade,
     GoogleOAuthService,
   ],
 })

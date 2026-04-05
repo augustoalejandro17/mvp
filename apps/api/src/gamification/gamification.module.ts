@@ -17,6 +17,9 @@ import { BadgeService } from './services/badge.service';
 import { PointsService } from './services/points.service';
 import { LeaderboardService } from './services/leaderboard.service';
 import { GamificationIntegrationService } from './services/gamification-integration.service';
+import { BadgeFacade } from './services/badge.facade';
+import { PointsFacade } from './services/points.facade';
+import { LeaderboardFacade } from './services/leaderboard.facade';
 
 // Controllers
 import { BadgeController } from './controllers/badge.controller';
@@ -64,6 +67,9 @@ import { Class, ClassSchema } from '../classes/schemas/class.schema';
     BadgeService,
     PointsService,
     LeaderboardService,
+    BadgeFacade,
+    PointsFacade,
+    LeaderboardFacade,
     GamificationIntegrationService,
   ],
 
@@ -71,6 +77,9 @@ import { Class, ClassSchema } from '../classes/schemas/class.schema';
     BadgeService,
     PointsService,
     LeaderboardService,
+    BadgeFacade,
+    PointsFacade,
+    LeaderboardFacade,
     GamificationIntegrationService,
   ],
 })

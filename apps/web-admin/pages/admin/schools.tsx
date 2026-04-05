@@ -131,25 +131,6 @@ export default function SchoolsManager() {
     }
   };
 
-  if (loading) {
-    return <div className={styles.loading}>Cargando escuelas...</div>;
-  }
-
-  if (error) {
-    return (
-      <div className={styles.container}>
-        <h1>Error</h1>
-        <p className={styles.error}>{error}</p>
-        <button 
-          onClick={refreshSchools}
-          className={styles.refreshButton}
-        >
-          Reintentar
-        </button>
-      </div>
-    );
-  }
-
   const isSuperAdmin = userRole?.toLowerCase().includes('super_admin');
   const isSchoolOwner = userRole?.toLowerCase().includes('school_owner');
   const isAdministrative = userRole?.toLowerCase().includes('administrative');
@@ -170,6 +151,25 @@ export default function SchoolsManager() {
       return matchesSearch && matchesVisibility;
     });
   }, [schools, filterSearch, filterVisibility]);
+
+  if (loading) {
+    return <div className={styles.loading}>Cargando escuelas...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className={styles.container}>
+        <h1>Error</h1>
+        <p className={styles.error}>{error}</p>
+        <button 
+          onClick={refreshSchools}
+          className={styles.refreshButton}
+        >
+          Reintentar
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>

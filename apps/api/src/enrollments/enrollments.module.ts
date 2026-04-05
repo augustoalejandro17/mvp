@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { EnrollmentsController } from './enrollments.controller';
+import { EnrollmentsFacade } from './services/enrollments.facade';
 import { EnrollmentsService } from './enrollments.service';
 import { Enrollment, EnrollmentSchema } from './schemas/enrollment.schema';
 import { GamificationModule } from '../gamification/gamification.module';
@@ -19,7 +20,7 @@ import { User, UserSchema } from '../auth/schemas/user.schema';
     ProgressModule,
   ],
   controllers: [EnrollmentsController],
-  providers: [EnrollmentsService],
-  exports: [EnrollmentsService],
+  providers: [EnrollmentsService, EnrollmentsFacade],
+  exports: [EnrollmentsService, EnrollmentsFacade],
 })
 export class EnrollmentsModule {}

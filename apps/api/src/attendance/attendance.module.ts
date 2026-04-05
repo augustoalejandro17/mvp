@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AttendanceService } from './attendance.service';
 import { AttendanceController } from './attendance.controller';
+import { AttendanceFacade } from './services/attendance.facade';
 import { Attendance, AttendanceSchema } from './schemas/attendance.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Course, CourseSchema } from '../courses/schemas/course.schema';
@@ -22,7 +23,15 @@ import { GamificationModule } from '../gamification/gamification.module';
     GamificationModule,
   ],
   controllers: [AttendanceController],
-  providers: [AttendanceService, RemoveClassFieldMigration],
-  exports: [AttendanceService, RemoveClassFieldMigration],
+  providers: [
+    AttendanceService,
+    AttendanceFacade,
+    RemoveClassFieldMigration,
+  ],
+  exports: [
+    AttendanceService,
+    AttendanceFacade,
+    RemoveClassFieldMigration,
+  ],
 })
 export class AttendanceModule {}

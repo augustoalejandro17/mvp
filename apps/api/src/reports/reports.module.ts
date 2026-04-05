@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
+import { ReportsFacade } from './services/reports.facade';
 import { AuthModule } from '../auth/auth.module';
 import {
   Attendance,
@@ -27,7 +28,7 @@ import {
     AuthModule,
   ],
   controllers: [ReportsController],
-  providers: [ReportsService],
-  exports: [ReportsService],
+  providers: [ReportsService, ReportsFacade],
+  exports: [ReportsService, ReportsFacade],
 })
 export class ReportsModule {}

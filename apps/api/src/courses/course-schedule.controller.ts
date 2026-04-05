@@ -8,23 +8,18 @@ import {
   Param,
   UseGuards,
   Request,
-  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CourseScheduleService } from './course-schedule.service';
+import { CourseScheduleFacade } from './services/course-schedule.facade';
 import {
   CreateCourseScheduleDto,
   UpdateCourseScheduleDto,
 } from './dto/course-schedule.dto';
-import { CoursesService } from './courses.service';
 
 @Controller('courses/:courseId/schedule')
 @UseGuards(JwtAuthGuard)
 export class CourseScheduleController {
-  constructor(
-    private readonly courseScheduleService: CourseScheduleService,
-    private readonly coursesService: CoursesService,
-  ) {}
+  constructor(private readonly courseScheduleFacade: CourseScheduleFacade) {}
 
   @Post()
   async createSchedule(
@@ -32,30 +27,16 @@ export class CourseScheduleController {
     @Body() createScheduleDto: CreateCourseScheduleDto,
     @Request() req,
   ) {
-    // Verify user has permission to modify this course
-    const course = await this.coursesService.findOne(courseId);
-    const userId = req.user.id;
-
-    // Check if user is the teacher or has admin permissions
-    const isTeacher =
-      (course.teacher as any)._id.toString() === userId ||
-      course.teachers.some((t) => t.toString() === userId);
-
-    if (!isTeacher && req.user.role !== 'admin') {
-      throw new BadRequestException(
-        'No tienes permisos para configurar el horario de este curso',
-      );
-    }
-
-    return this.courseScheduleService.createSchedule(
+    return this.courseScheduleFacade.createSchedule(
       courseId,
       createScheduleDto,
+      req.user,
     );
   }
 
   @Get()
   async getSchedule(@Param('courseId') courseId: string) {
-    return this.courseScheduleService.getSchedule(courseId);
+    return this.courseScheduleFacade.getSchedule(courseId);
   }
 
   @Put()
@@ -64,43 +45,18 @@ export class CourseScheduleController {
     @Body() updateScheduleDto: UpdateCourseScheduleDto,
     @Request() req,
   ) {
-    // Verify user has permission to modify this course
-    const course = await this.coursesService.findOne(courseId);
-    const userId = req.user.id;
-
-    const isTeacher =
-      (course.teacher as any)._id.toString() === userId ||
-      course.teachers.some((t) => t.toString() === userId);
-
-    if (!isTeacher && req.user.role !== 'admin') {
-      throw new BadRequestException(
-        'No tienes permisos para configurar el horario de este curso',
-      );
-    }
-
-    return this.courseScheduleService.updateSchedule(
+    return this.courseScheduleFacade.updateSchedule(
       courseId,
       updateScheduleDto,
+      req.user,
     );
   }
 
   @Delete()
   async deleteSchedule(@Param('courseId') courseId: string, @Request() req) {
-    // Verify user has permission to modify this course
-    const course = await this.coursesService.findOne(courseId);
-    const userId = req.user.id;
-
-    const isTeacher =
-      (course.teacher as any)._id.toString() === userId ||
-      course.teachers.some((t) => t.toString() === userId);
-
-    if (!isTeacher && req.user.role !== 'admin') {
-      throw new BadRequestException(
-        'No tienes permisos para configurar el horario de este curso',
-      );
-    }
-
-    await this.courseScheduleService.deleteSchedule(courseId);
-    return { message: 'Horario eliminado correctamente' };
+    return this.courseScheduleFacade.deleteSchedule(
+      courseId,
+      req.user,
+    );
   }
 }

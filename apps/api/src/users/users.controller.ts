@@ -7,14 +7,11 @@ import {
   Param,
   Delete,
   UseGuards,
-  Logger,
   Req,
-  ForbiddenException,
-  BadRequestException,
   Query,
-  NotFoundException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
+import { UsersFacade } from './services/users.facade';
 import { User as AuthUser } from '../auth/schemas/user.schema';
 import { UserRole } from '../auth/enums/user-role.enum';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -22,97 +19,23 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ChangeRoleDto } from './dto/change-role.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { AssignSchoolRoleDto } from './dto/assign-school-role.dto';
+import { RegisterUnregisteredUserDto } from './dto/register-unregistered-user.dto';
+import { CreateUnregisteredUserDto } from './dto/create-unregistered-user.dto';
+import { SetOwnerSeatQuotaDto } from './dto/set-owner-seat-quota.dto';
+import { AssignCourseSeatDto } from './dto/assign-course-seat.dto';
 import { Request } from 'express';
-import { AuthorizationService } from '../auth/services/authorization.service';
 import {
   Permission,
   RequirePermissions,
   PermissionsGuard,
 } from '../auth/guards/permissions.guard';
-import { Types } from 'mongoose';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { School } from '../schools/schemas/school.schema';
-import {
-  IsEmail,
-  IsIn,
-  IsNumber,
-  IsOptional,
-  IsString,
-  Min,
-} from 'class-validator';
-
-// DTO para la asignación de roles contextuales
-class AssignSchoolRoleDto {
-  @IsString()
-  schoolId: string;
-
-  @IsString()
-  @IsIn(['teacher', 'administrative', 'student'])
-  role: string;
-}
-
-// DTO para registrar un usuario no registrado
-class RegisterUnregisteredUserDto {
-  @IsEmail()
-  email: string;
-
-  @IsString()
-  password: string;
-
-  @IsOptional()
-  additionalInfo?: {
-    [key: string]: any;
-  };
-}
-
-// DTO para crear un usuario no registrado
-class CreateUnregisteredUserDto {
-  @IsString()
-  name: string;
-
-  @IsOptional()
-  @IsString()
-  schoolId?: string;
-
-  @IsOptional()
-  @IsString()
-  courseId?: string;
-
-  @IsOptional()
-  @IsString()
-  role?: string;
-}
-
-class SetOwnerSeatQuotaDto {
-  @IsString()
-  schoolId: string;
-
-  @IsNumber()
-  @Min(0)
-  totalSeats: number;
-}
-
-class AssignCourseSeatDto {
-  @IsString()
-  schoolId: string;
-
-  @IsString()
-  courseId: string;
-
-  @IsOptional()
-  @IsString()
-  ownerId?: string;
-}
 
 @Controller('users')
 export class UsersController {
-  private readonly logger = new Logger(UsersController.name);
-
   constructor(
     private readonly usersService: UsersService,
-    private readonly authorizationService: AuthorizationService,
-    @InjectModel(School.name) private readonly schoolModel: Model<School>,
+    private readonly usersFacade: UsersFacade,
   ) {}
 
   @Get()
@@ -124,12 +47,7 @@ export class UsersController {
     UserRole.ADMIN,
   )
   findAll(@Req() req: Request) {
-    const userId = req.user['sub'] || req.user['_id'];
-    const userRole = req.user['role'];
-    this.logger.log(
-      `User ${userId} with role ${userRole} is requesting all users`,
-    );
-    return this.usersService.findAll(userId, userRole);
+    return this.usersFacade.findAll(req);
   }
 
   @Get('search-by-email')
@@ -139,16 +57,7 @@ export class UsersController {
     @Req() req: Request,
     @Query('schoolId') schoolId?: string,
   ) {
-    this.logger.log(`Buscando usuarios con email similar a: ${email}`);
-    const userId = req.user['sub'] || req.user['_id'];
-    const userRole = req.user['role'];
-
-    return this.usersService.searchUsersByEmail(
-      email,
-      userId,
-      userRole,
-      schoolId,
-    );
+    return this.usersFacade.searchUsersByEmail(req, email, schoolId);
   }
 
   @Get('by-role/:role')
@@ -160,7 +69,6 @@ export class UsersController {
     UserRole.ADMINISTRATIVE,
   )
   async findByRole(@Param('role') role: UserRole) {
-    this.logger.log(`Buscando usuarios con rol: ${role}`);
     return this.usersService.findByRole(role);
   }
 
@@ -173,35 +81,19 @@ export class UsersController {
     UserRole.ADMINISTRATIVE,
   )
   async findUnregistered(@Req() req: Request) {
-    const userId = req.user['sub'] || req.user['_id'];
-    const userRole = req.user['role'];
-    return this.usersService.findUnregistered(userId, userRole);
+    return this.usersFacade.findUnregistered(req);
   }
 
   @Get('teachers-by-school/:schoolId')
   @UseGuards(JwtAuthGuard)
   async findTeachersBySchool(@Param('schoolId') schoolId: string) {
-    this.logger.log(`Buscando profesores para la escuela: ${schoolId}`);
     return this.usersService.findTeachersBySchool(schoolId);
   }
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string, @Req() req: Request) {
-    const requesterId = String(req.user['sub'] || req.user['_id'] || '');
-    const requesterRole = String(req.user['role'] || '').toLowerCase();
-    const canViewAny = [
-      UserRole.SUPER_ADMIN,
-      UserRole.ADMIN,
-      UserRole.SCHOOL_OWNER,
-      UserRole.ADMINISTRATIVE,
-    ].includes(requesterRole as UserRole);
-
-    if (!canViewAny && requesterId !== id) {
-      throw new ForbiddenException('No tienes permisos para ver este usuario');
-    }
-
-    return this.usersService.findOne(id);
+    return this.usersFacade.findOne(id, req);
   }
 
   @Post()
@@ -245,16 +137,7 @@ export class UsersController {
   @Delete('me')
   @UseGuards(JwtAuthGuard)
   async deleteSelf(@Req() req: Request) {
-    const userId = req.user['sub'] || req.user['_id'];
-    this.logger.log(`User ${userId} requested account deletion`);
-
-    // Llamar al servicio para eliminar la cuenta del usuario
-    await this.usersService.deleteSelf(userId);
-
-    return {
-      success: true,
-      message: 'Account deleted successfully',
-    };
+    return this.usersFacade.deleteSelf(req);
   }
 
   @Delete(':id')
@@ -286,14 +169,7 @@ export class UsersController {
     @Body() changePasswordDto: ChangePasswordDto,
     @Req() req: Request,
   ): Promise<{ message: string }> {
-    // Ensure users can only change their own password
-    const userId = req.user['sub'];
-    if (id !== userId) {
-      throw new ForbiddenException('You can only change your own password');
-    }
-
-    await this.usersService.changePassword(id, changePasswordDto);
-    return { message: 'Password changed successfully' };
+    return this.usersFacade.changePassword(id, changePasswordDto, req);
   }
 
   @Patch(':id/admin-password')
@@ -309,15 +185,7 @@ export class UsersController {
     @Body() changePasswordDto: ChangePasswordDto,
     @Req() req: Request,
   ): Promise<{ message: string }> {
-    this.logger.log(`Admin changing password for user: ${id}`);
-    // Ensure we have a password field in the DTO
-    if (!changePasswordDto.password && !changePasswordDto.newPassword) {
-      throw new BadRequestException(
-        'Either password or newPassword must be provided',
-      );
-    }
-    await this.usersService.changePassword(id, changePasswordDto);
-    return { message: 'Password changed successfully by admin' };
+    return this.usersFacade.adminChangePassword(id, changePasswordDto);
   }
 
   @Patch(':id/status')
@@ -333,16 +201,7 @@ export class UsersController {
     @Body() body: { status: string; reason?: string },
     @Req() req: Request,
   ) {
-    const changedBy = req.user['sub'] || req.user['_id'];
-    const { status, reason } = body;
-
-    const user = await this.usersService.updateUserStatus(
-      id,
-      status,
-      changedBy,
-      reason,
-    );
-    return { success: true, user };
+    return this.usersFacade.updateUserStatus(id, body, req);
   }
 
   @Get('stats/overview')
@@ -364,18 +223,7 @@ export class UsersController {
     @Req() req: Request,
     @Query('includeInactive') includeInactive?: string,
   ) {
-    const userId = req.user['sub'] || req.user['_id'];
-    const userRole = req.user['role'];
-    const includeInactiveBoolean = includeInactive === 'true';
-
-    this.logger.log(
-      `User ${userId} with role ${userRole} is requesting all users with status filter`,
-    );
-    return this.usersService.findAllWithStatus(
-      includeInactiveBoolean,
-      userId,
-      userRole,
-    );
+    return this.usersFacade.findAllWithStatus(req, includeInactive);
   }
 
   /**
@@ -393,60 +241,11 @@ export class UsersController {
     @Body() assignRoleDto: AssignSchoolRoleDto,
     @Req() req: Request,
   ): Promise<{ success: boolean; message: string }> {
-    this.logger.log(
-      `Intentando asignar rol en escuela: ${JSON.stringify(assignRoleDto)}`,
-    );
-
-    // Validación básica de datos
-    if (!assignRoleDto.schoolId) {
-      throw new BadRequestException('El ID de la escuela es obligatorio');
-    }
-
-    if (!assignRoleDto.role) {
-      throw new BadRequestException('El rol es obligatorio');
-    }
-
-    // Validar que el rol sea uno de los permitidos
-    const allowedRoles = ['teacher', 'administrative', 'student'];
-    if (!allowedRoles.includes(assignRoleDto.role)) {
-      throw new BadRequestException(
-        `Rol inválido. Los roles permitidos son: ${allowedRoles.join(', ')}`,
-      );
-    }
-
-    const authUserId = req.user['sub'] || req.user['_id'];
-    const schoolId = assignRoleDto.schoolId;
-
-    // Verificar que el usuario tenga permisos para gestionar este tipo de rol en la escuela
-    const canManage = await this.authorizationService.canManageUserInSchool(
-      authUserId,
+    return this.usersFacade.assignSchoolRole(
       userId,
-      schoolId,
+      assignRoleDto,
+      req,
     );
-
-    if (!canManage) {
-      throw new ForbiddenException(
-        'No tiene permisos para asignar este rol en esta escuela',
-      );
-    }
-
-    // Pasar el rol como string al servicio
-    const success = await this.authorizationService.assignRoleInSchool(
-      userId,
-      schoolId,
-      assignRoleDto.role, // esto ahora es un string, no un UserRole
-    );
-
-    if (success) {
-      return {
-        success: true,
-        message: `Rol ${assignRoleDto.role} asignado correctamente al usuario en la escuela`,
-      };
-    } else {
-      throw new ForbiddenException(
-        'No se pudo asignar el rol al usuario en la escuela',
-      );
-    }
   }
 
   /**
@@ -460,28 +259,7 @@ export class UsersController {
     @Body() registerDto: RegisterUnregisteredUserDto,
     @Req() req: Request,
   ): Promise<{ success: boolean; message: string; user: AuthUser }> {
-    const authUserId = req.user['sub'] || req.user['_id'];
-
-    // Verificar que el usuario tenga permisos para realizar esta acción
-    // Aquí deberías implementar alguna validación adicional si es necesario
-
-    try {
-      const user = await this.usersService.convertUnregisteredToRegistered(
-        userId,
-        registerDto,
-      );
-
-      return {
-        success: true,
-        message: 'Usuario registrado correctamente',
-        user,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Error al registrar usuario no registrado: ${error.message}`,
-      );
-      throw error;
-    }
+    return this.usersFacade.registerUnregisteredUser(userId, registerDto);
   }
 
   /**
@@ -494,39 +272,7 @@ export class UsersController {
     @Body() createDto: CreateUnregisteredUserDto,
     @Req() req: Request,
   ): Promise<any> {
-    // Log detallado para depurar
-
-    // Validar datos mínimos
-    if (!createDto.name) {
-      this.logger.error('Error: Nombre es requerido para crear un asistente');
-      throw new BadRequestException(
-        'El nombre es requerido para crear un asistente',
-      );
-    }
-
-    try {
-      // Extraer cada campo individualmente para mayor claridad
-      const name = createDto.name;
-      const courseId = createDto.courseId || undefined;
-      const schoolId = createDto.schoolId || undefined;
-
-      // Crear directamente un usuario con rol UNREGISTERED
-      const user = await this.usersService.createUnregisteredUser(
-        name,
-        courseId,
-        schoolId,
-      );
-
-      return user;
-    } catch (error) {
-      this.logger.error(
-        `Error al crear asistente: ${error.message}`,
-        error.stack,
-      );
-      throw new BadRequestException(
-        `Error al crear asistente: ${error.message}`,
-      );
-    }
+    return this.usersFacade.createUnregisteredUser(createDto);
   }
 
   /**
@@ -539,46 +285,7 @@ export class UsersController {
     @Body() body: any,
     @Req() req: Request,
   ): Promise<any> {
-    try {
-      // Acceso directo a la colección de MongoDB sin Mongoose
-      const userCollection = this.usersService['userModel'].collection;
-
-      // Generar un email único para cada asistente usando timestamp
-      const timestamp = Date.now();
-      const uniqueEmail = `asistente.${timestamp}@temp.local`;
-
-      // Documento con email único
-      const userDocument: any = {
-        name: body.name || 'Test Assistant',
-        email: uniqueEmail, // Asignar email único para evitar duplicados
-        role: 'unregistered',
-        isActive: true,
-        enrolledCourses: [],
-        schools: [],
-        schoolRoles: [],
-        createdAt: new Date(),
-      };
-
-      // Insertar directamente en MongoDB
-      const result = await userCollection.insertOne(userDocument);
-
-      return {
-        success: true,
-        message: 'Test asistente creado exitosamente',
-        id: result.insertedId,
-        document: userDocument,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Error en prueba de creación: ${error.message}`,
-        error.stack,
-      );
-      return {
-        success: false,
-        error: error.message,
-        stack: error.stack,
-      };
-    }
+    return this.usersFacade.testCreateAssistant(body);
   }
 
   /**
@@ -591,29 +298,7 @@ export class UsersController {
     @Req() req: Request,
     @Body() rawData: any,
   ): Promise<any> {
-    try {
-      const name = rawData.name;
-      const courseId = rawData.courseId;
-      const schoolId = rawData.schoolId;
-
-      if (!name) {
-        throw new BadRequestException('El nombre es obligatorio');
-      }
-
-      // Usar el servicio directamente
-      const user = await this.usersService.createUnregisteredUser(
-        name,
-        courseId,
-        schoolId,
-      );
-
-      return user;
-    } catch (error) {
-      this.logger.error(`Error bypass: ${error.message}`, error.stack);
-      throw new BadRequestException(
-        `Error al crear asistente: ${error.message}`,
-      );
-    }
+    return this.usersFacade.createAssistantBypass(rawData);
   }
 
   /**
@@ -626,110 +311,11 @@ export class UsersController {
     @Body() body: { schoolId: string; role: string },
     @Req() req: Request,
   ): Promise<{ success: boolean; message: string }> {
-    this.logger.log(
-      `Asignando rol ${body.role} en escuela ${body.schoolId} al usuario ${userId}`,
+    return this.usersFacade.assignRoleInSchool(
+      userId,
+      body,
+      req,
     );
-
-    try {
-      // Validar el ID del usuario
-      if (!Types.ObjectId.isValid(userId)) {
-        throw new BadRequestException('ID de usuario inválido');
-      }
-
-      // Validar el ID de la escuela
-      if (!Types.ObjectId.isValid(body.schoolId)) {
-        throw new BadRequestException('ID de escuela inválido');
-      }
-
-      // Verificar que el rol es válido
-      const validRoles = [
-        'super_admin',
-        'admin',
-        'school_owner',
-        'teacher',
-        'student',
-        'administrative',
-        'unregistered',
-      ];
-
-      // Normalizar el rol a minúsculas para la comparación
-      const normalizedRole = body.role.toLowerCase();
-
-      if (!validRoles.includes(normalizedRole)) {
-        throw new BadRequestException(
-          `Rol inválido. Roles permitidos: ${validRoles.join(', ')}`,
-        );
-      }
-
-      // Obtener el ID del usuario que hace la solicitud
-      const requestUserId = req.user['sub'] || req.user['_id'];
-      const requestUserRole = String(req.user['role']).toLowerCase();
-
-      this.logger.log(
-        `Usuario solicitante: ${requestUserId}, rol: ${requestUserRole}`,
-      );
-
-      // Solo super_admin puede asignar roles super_admin y admin
-      if (
-        ['super_admin', 'admin'].includes(normalizedRole) &&
-        requestUserRole !== 'super_admin'
-      ) {
-        throw new ForbiddenException(
-          'Solo super administradores pueden asignar estos roles',
-        );
-      }
-
-      // School_owner solo puede ser asignado por super_admin, admin, o school_owner de la misma escuela
-      if (normalizedRole === 'school_owner') {
-        // Super admin y admin pueden asignar school_owner a cualquier escuela
-        if (!['super_admin', 'admin'].includes(requestUserRole)) {
-          // Si no es super_admin ni admin, verificar si es school_owner de esta escuela
-          const isSchoolOwner = await this.authorizationService.isSchoolOwner(
-            requestUserId,
-            body.schoolId,
-          );
-          if (!isSchoolOwner) {
-            throw new ForbiddenException(
-              'Solo administradores o dueños de escuela pueden asignar este rol',
-            );
-          }
-        }
-      }
-
-      // Verificar que el usuario tiene permisos para gestionar esta escuela
-      const canManage = await this.authorizationService.canManageUserInSchool(
-        requestUserId,
-        userId,
-        body.schoolId,
-      );
-
-      if (!canManage && requestUserRole !== 'super_admin') {
-        throw new ForbiddenException(
-          'No tiene permisos para asignar roles en esta escuela',
-        );
-      }
-
-      // Asignar el rol
-      const success = await this.authorizationService.assignRoleInSchool(
-        userId,
-        body.schoolId,
-        body.role,
-      );
-
-      if (success) {
-        return {
-          success: true,
-          message: `Rol ${body.role} asignado correctamente en la escuela`,
-        };
-      } else {
-        throw new BadRequestException(
-          'No se pudo asignar el rol en la escuela',
-        );
-      }
-    } catch (error) {
-      this.logger.error(`Error al asignar rol: ${error.message}`, error.stack);
-      throw error;
-    }
   }
 
   @Delete(':id/school-role')
@@ -740,43 +326,12 @@ export class UsersController {
     @Query('role') role: string,
     @Req() req: Request,
   ): Promise<{ success: boolean; message: string; user: AuthUser }> {
-    if (!schoolId) {
-      throw new BadRequestException('schoolId is required');
-    }
-    if (!role) {
-      throw new BadRequestException('role is required');
-    }
-
-    const requestUserId = req.user['sub'] || req.user['_id'];
-    const requestUserRole = String(req.user['role'] || '').toLowerCase();
-
-    if (
-      requestUserRole !== UserRole.SUPER_ADMIN &&
-      requestUserRole !== UserRole.ADMIN
-    ) {
-      const canManage = await this.authorizationService.canManageUserInSchool(
-        requestUserId,
-        userId,
-        schoolId,
-      );
-      if (!canManage) {
-        throw new ForbiddenException(
-          'No tiene permisos para quitar roles en esta escuela',
-        );
-      }
-    }
-
-    const updatedUser = await this.usersService.removeRoleInSchool(
+    return this.usersFacade.removeRoleInSchool(
       userId,
       schoolId,
       role,
+      req,
     );
-
-    return {
-      success: true,
-      message: `Rol ${role} removido de la escuela`,
-      user: updatedUser,
-    };
   }
 
   @Patch(':id/owner-seat-quota')
@@ -786,20 +341,7 @@ export class UsersController {
     @Param('id') ownerId: string,
     @Body() body: SetOwnerSeatQuotaDto,
   ): Promise<any> {
-    if (!body?.schoolId) {
-      throw new BadRequestException('schoolId is required');
-    }
-    if (body?.totalSeats === undefined || body?.totalSeats === null) {
-      throw new BadRequestException('totalSeats is required');
-    }
-
-    const result = await this.usersService.setOwnerSeatQuota(
-      ownerId,
-      body.schoolId,
-      Number(body.totalSeats),
-    );
-
-    return { success: true, quota: result };
+    return this.usersFacade.setOwnerSeatQuota(ownerId, body);
   }
 
   @Get(':id/owner-seat-quota')
@@ -815,20 +357,7 @@ export class UsersController {
     @Query('schoolId') schoolId: string,
     @Req() req: Request,
   ): Promise<any> {
-    if (!schoolId) {
-      throw new BadRequestException('schoolId query param is required');
-    }
-
-    const requesterId = req.user['sub'] || req.user['_id'];
-    const requesterRole = String(req.user['role'] || '').toLowerCase();
-    if (requesterRole === UserRole.SCHOOL_OWNER && requesterId !== ownerId) {
-      throw new ForbiddenException(
-        'School owners can only read their own quota',
-      );
-    }
-
-    const result = await this.usersService.getOwnerSeatQuota(ownerId, schoolId);
-    return { success: true, quota: result };
+    return this.usersFacade.getOwnerSeatQuota(ownerId, schoolId, req);
   }
 
   @Get('owner-seat-quotas/report')
@@ -843,20 +372,7 @@ export class UsersController {
     @Query('schoolId') schoolId: string,
     @Req() req: Request,
   ): Promise<any> {
-    if (!schoolId) {
-      throw new BadRequestException('schoolId query param is required');
-    }
-
-    const requesterId = req.user['sub'] || req.user['_id'];
-    const requesterRole = String(req.user['role'] || '').toLowerCase();
-
-    const result = await this.usersService.getOwnerSeatQuotaReportBySchool(
-      schoolId,
-      requesterId,
-      requesterRole,
-    );
-
-    return { success: true, ...result };
+    return this.usersFacade.getOwnerSeatQuotaReport(schoolId, req);
   }
 
   @Post(':id/course-seats')
@@ -872,28 +388,7 @@ export class UsersController {
     @Body() body: AssignCourseSeatDto,
     @Req() req: Request,
   ): Promise<any> {
-    if (!body?.schoolId) {
-      throw new BadRequestException('schoolId is required');
-    }
-    if (!body?.courseId) {
-      throw new BadRequestException('courseId is required');
-    }
-
-    const assignedByUserId = req.user['sub'] || req.user['_id'];
-    const assignedByRole = req.user['role'];
-
-    const result = await this.usersService.assignCourseSeatToUser(
-      userId,
-      body,
-      assignedByUserId,
-      assignedByRole,
-    );
-
-    return {
-      success: true,
-      message: 'Course seat assigned successfully',
-      ...result,
-    };
+    return this.usersFacade.assignCourseSeat(userId, body, req);
   }
 
   @Delete(':id/course-seats')
@@ -910,28 +405,11 @@ export class UsersController {
     @Query('courseId') courseId: string,
     @Req() req: Request,
   ): Promise<any> {
-    if (!schoolId) {
-      throw new BadRequestException('schoolId is required');
-    }
-    if (!courseId) {
-      throw new BadRequestException('courseId is required');
-    }
-
-    const revokedByUserId = req.user['sub'] || req.user['_id'];
-    const revokedByRole = req.user['role'];
-
-    const result = await this.usersService.revokeCourseSeatFromUser(
+    return this.usersFacade.revokeCourseSeat(
       userId,
       schoolId,
       courseId,
-      revokedByUserId,
-      revokedByRole,
+      req,
     );
-
-    return {
-      success: true,
-      message: 'Course seat revoked successfully',
-      ...result,
-    };
   }
 }

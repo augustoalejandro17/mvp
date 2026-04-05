@@ -16,24 +16,8 @@ export class NotificationSchedulerService {
 
   @Cron('* * * * *') // Run every minute
   async checkForUpcomingClasses() {
-    await this.executeWithRetry(async () => {
-      const now = new Date();
-
-      // Look for classes that need notifications in the next 30 minutes
-      // We'll filter by each course's specific notification timing later
-      const windowStart = new Date(now.getTime() + 4 * 60000); // 4 minutes from now
-      const windowEnd = new Date(now.getTime() + 31 * 60000); // 31 minutes from now
-
-      const upcomingClasses =
-        await this.courseScheduleService.getUpcomingClasses({
-          start: windowStart,
-          end: windowEnd,
-        });
-
-      if (upcomingClasses.length > 0) {
-        await this.sendClassReminders(upcomingClasses, now);
-      }
-    }, 'notification scheduler');
+    // MVP: el producto es asincrono, asi que desactivamos recordatorios de clase.
+    return;
   }
 
   private async sendClassReminders(upcomingClasses: any[], currentTime: Date) {

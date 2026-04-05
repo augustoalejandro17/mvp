@@ -1,45 +1,23 @@
 import {
   Controller,
-  ForbiddenException,
   Get,
   Post,
   Param,
   Query,
   UseGuards,
-  Logger,
   Req,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { UserRole } from '../auth/schemas/user.schema';
 import {
-  UserProgressService,
   CourseProgressSummary,
 } from './services/user-progress.service';
 import { UserClassProgressDocument } from './schemas/user-class-progress.schema';
+import { ProgressFacade } from './services/progress.facade';
 
 @Controller('progress')
 export class ProgressController {
-  private readonly logger = new Logger(ProgressController.name);
-
-  constructor(private readonly userProgressService: UserProgressService) {}
-
-  private ensureCanAccessUserProgress(req: Request, targetUserId: string): void {
-    const requesterId = String(req.user['sub'] || req.user['_id'] || '');
-    const requesterRole = String(req.user['role'] || '').toLowerCase();
-    const canViewAny = [
-      UserRole.SUPER_ADMIN,
-      UserRole.ADMIN,
-      UserRole.SCHOOL_OWNER,
-      UserRole.ADMINISTRATIVE,
-    ].includes(requesterRole as UserRole);
-
-    if (!canViewAny && requesterId !== targetUserId) {
-      throw new ForbiddenException(
-        'No tienes permisos para consultar el progreso de otro usuario',
-      );
-    }
-  }
+  constructor(private readonly progressFacade: ProgressFacade) {}
 
   /**
    * Get user's progress for a specific course
@@ -51,16 +29,11 @@ export class ProgressController {
     @Param('userId') userId: string,
     @Req() req: Request,
   ): Promise<CourseProgressSummary | null> {
-    try {
-      this.ensureCanAccessUserProgress(req, userId);
-      return await this.userProgressService.getUserCourseProgress(
-        userId,
-        courseId,
-      );
-    } catch (error) {
-      this.logger.error(`Error getting user course progress: ${error.message}`);
-      throw error;
-    }
+    return this.progressFacade.getUserCourseProgress(
+      req,
+      userId,
+      courseId,
+    );
   }
 
   /**
@@ -73,18 +46,11 @@ export class ProgressController {
     @Req() req: Request,
     @Query('schoolId') schoolId?: string,
   ): Promise<CourseProgressSummary[]> {
-    try {
-      this.ensureCanAccessUserProgress(req, userId);
-      return await this.userProgressService.getUserCoursesProgress(
-        userId,
-        schoolId,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Error getting user courses progress: ${error.message}`,
-      );
-      throw error;
-    }
+    return this.progressFacade.getUserCoursesProgress(
+      req,
+      userId,
+      schoolId,
+    );
   }
 
   /**
@@ -97,16 +63,11 @@ export class ProgressController {
     @Param('userId') userId: string,
     @Req() req: Request,
   ): Promise<UserClassProgressDocument[]> {
-    try {
-      this.ensureCanAccessUserProgress(req, userId);
-      return await this.userProgressService.getUserClassProgressInCourse(
-        userId,
-        courseId,
-      );
-    } catch (error) {
-      this.logger.error(`Error getting user class progress: ${error.message}`);
-      throw error;
-    }
+    return this.progressFacade.getUserClassProgressInCourse(
+      req,
+      userId,
+      courseId,
+    );
   }
 
   @Post('class/:classId/complete')
@@ -115,18 +76,7 @@ export class ProgressController {
     @Param('classId') classId: string,
     @Req() req: Request,
   ) {
-    const userId = req.user['sub'] || req.user['_id'];
-    const classProgress = await this.userProgressService.markClassCompleted(
-      userId,
-      classId,
-    );
-
-    return {
-      success: true,
-      completed: classProgress.completed,
-      completedAt: classProgress.completedAt,
-      classProgress,
-    };
+    return this.progressFacade.markClassCompleted(req, classId);
   }
 
   /**
@@ -137,20 +87,10 @@ export class ProgressController {
     @Param('courseId') courseId: string,
     @Param('userId') userId: string,
   ): Promise<CourseProgressSummary | null> {
-    try {
-      if (process.env.ENABLE_PUBLIC_PROGRESS !== 'true') {
-        throw new ForbiddenException('Public progress endpoint is disabled');
-      }
-      return await this.userProgressService.getUserCourseProgress(
-        userId,
-        courseId,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Error getting public user course progress: ${error.message}`,
-      );
-      throw error;
-    }
+    return this.progressFacade.getPublicUserCourseProgress(
+      userId,
+      courseId,
+    );
   }
 
   /**
@@ -161,19 +101,9 @@ export class ProgressController {
     @Param('userId') userId: string,
     @Query('schoolId') schoolId?: string,
   ): Promise<CourseProgressSummary[]> {
-    try {
-      if (process.env.ENABLE_PUBLIC_PROGRESS !== 'true') {
-        throw new ForbiddenException('Public progress endpoint is disabled');
-      }
-      return await this.userProgressService.getUserCoursesProgress(
-        userId,
-        schoolId,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Error getting public user courses progress: ${error.message}`,
-      );
-      throw error;
-    }
+    return this.progressFacade.getPublicUserCoursesProgress(
+      userId,
+      schoolId,
+    );
   }
 }

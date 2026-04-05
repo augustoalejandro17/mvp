@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
+import { NotificationsFacade } from './services/notifications.facade';
 import { NotificationSchedulerService } from './notification-scheduler.service';
 import {
   Notification,
@@ -23,7 +24,15 @@ import { CoursesModule } from '../courses/courses.module';
     forwardRef(() => CoursesModule),
   ],
   controllers: [NotificationsController],
-  providers: [NotificationsService, NotificationSchedulerService],
-  exports: [NotificationsService, NotificationSchedulerService],
+  providers: [
+    NotificationsService,
+    NotificationsFacade,
+    NotificationSchedulerService,
+  ],
+  exports: [
+    NotificationsService,
+    NotificationsFacade,
+    NotificationSchedulerService,
+  ],
 })
 export class NotificationsModule {}

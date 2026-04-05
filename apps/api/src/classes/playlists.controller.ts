@@ -10,7 +10,7 @@ import {
   Request,
   Query,
 } from '@nestjs/common';
-import { PlaylistsService } from './playlists.service';
+import { PlaylistsFacade } from './services/playlists.facade';
 import {
   CreatePlaylistDto,
   UpdatePlaylistDto,
@@ -22,43 +22,30 @@ import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 
 @Controller('playlists')
 export class PlaylistsController {
-  constructor(private readonly playlistsService: PlaylistsService) {}
+  constructor(private readonly playlistsFacade: PlaylistsFacade) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
   create(@Body() createPlaylistDto: CreatePlaylistDto, @Request() req) {
-    const userId = req.user.sub || req.user._id?.toString();
-    return this.playlistsService.create(
-      createPlaylistDto,
-      userId,
-      req.user.role,
-    );
+    return this.playlistsFacade.create(createPlaylistDto, req);
   }
 
   @Get()
   @UseGuards(OptionalJwtAuthGuard)
   findByCourse(@Query('courseId') courseId: string, @Request() req) {
-    const userId = req.user?.sub || req.user?._id?.toString();
-    const userRole = req.user?.role;
-    return this.playlistsService.findByCourse(courseId, userId, userRole);
+    return this.playlistsFacade.findByCourse(courseId, req);
   }
 
   @Get('unorganized')
   @UseGuards(OptionalJwtAuthGuard)
   getUnorganizedClasses(@Query('courseId') courseId: string, @Request() req) {
-    const userId = req.user?.sub || req.user?._id?.toString();
-    const userRole = req.user?.role;
-    return this.playlistsService.getUnorganizedClasses(
-      courseId,
-      userId,
-      userRole,
-    );
+    return this.playlistsFacade.getUnorganizedClasses(courseId, req);
   }
 
   @Get(':id')
   @UseGuards(OptionalJwtAuthGuard)
   findOne(@Param('id') id: string) {
-    return this.playlistsService.findOne(id);
+    return this.playlistsFacade.findOne(id);
   }
 
   @Patch(':id')
@@ -68,20 +55,13 @@ export class PlaylistsController {
     @Body() updatePlaylistDto: UpdatePlaylistDto,
     @Request() req,
   ) {
-    const userId = req.user.sub || req.user._id?.toString();
-    return this.playlistsService.update(
-      id,
-      updatePlaylistDto,
-      userId,
-      req.user.role,
-    );
+    return this.playlistsFacade.update(id, updatePlaylistDto, req);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   remove(@Param('id') id: string, @Request() req) {
-    const userId = req.user.sub || req.user._id?.toString();
-    return this.playlistsService.remove(id, userId, req.user.role);
+    return this.playlistsFacade.remove(id, req);
   }
 
   @Post(':id/add-class')
@@ -91,12 +71,10 @@ export class PlaylistsController {
     @Body() addClassDto: AddClassToPlaylistDto,
     @Request() req,
   ) {
-    const userId = req.user.sub || req.user._id?.toString();
-    return this.playlistsService.addClassToPlaylist(
+    return this.playlistsFacade.addClassToPlaylist(
       id,
       addClassDto,
-      userId,
-      req.user.role,
+      req,
     );
   }
 
@@ -107,20 +85,20 @@ export class PlaylistsController {
     @Body() removeClassDto: RemoveClassFromPlaylistDto,
     @Request() req,
   ) {
-    const userId = req.user.sub || req.user._id?.toString();
-    return this.playlistsService.removeClassFromPlaylist(
+    return this.playlistsFacade.removeClassFromPlaylist(
       id,
       removeClassDto,
-      userId,
-      req.user.role,
+      req,
     );
   }
 
   @Post('default')
   @UseGuards(JwtAuthGuard)
   createDefaultPlaylist(@Body() body: { courseId: string }, @Request() req) {
-    const userId = req.user.sub || req.user._id?.toString();
-    return this.playlistsService.createDefaultPlaylist(body.courseId, userId);
+    return this.playlistsFacade.createDefaultPlaylist(
+      body.courseId,
+      req,
+    );
   }
 
   @Post('reorder-course')
@@ -129,12 +107,10 @@ export class PlaylistsController {
     @Body() body: { courseId: string; playlistIds: string[] },
     @Request() req,
   ) {
-    const userId = req.user.sub || req.user._id?.toString();
-    return this.playlistsService.reorderPlaylistsInCourse(
+    return this.playlistsFacade.reorderPlaylistsInCourse(
       body.courseId,
       body.playlistIds,
-      userId,
-      req.user.role,
+      req,
     );
   }
 
@@ -145,12 +121,10 @@ export class PlaylistsController {
     @Body() body: { classIds: string[] },
     @Request() req,
   ) {
-    const userId = req.user.sub || req.user._id?.toString();
-    return this.playlistsService.reorderClassesInPlaylist(
+    return this.playlistsFacade.reorderClasses(
       id,
       body.classIds,
-      userId,
-      req.user.role,
+      req,
     );
   }
 }

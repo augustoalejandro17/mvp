@@ -7,41 +7,19 @@ import {
   Query,
   UseGuards,
   Req,
-  Logger,
-  BadRequestException,
-  InternalServerErrorException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../auth/enums/user-role.enum';
-import { UsageTrackingService, UsageSummary } from './usage-tracking.service';
-import { StreamingIntegrationService } from './integration/streaming-integration.service';
+import { UsageSummary } from './usage-tracking.service';
+import { UsageFacade } from './services/usage.facade';
 @Controller('usage')
 @UseGuards(JwtAuthGuard)
 export class UsageTrackingController {
-  private readonly logger = new Logger(UsageTrackingController.name);
-
   constructor(
-    private readonly usageTrackingService: UsageTrackingService,
-    private readonly streamingIntegrationService: StreamingIntegrationService,
+    private readonly usageFacade: UsageFacade,
   ) {}
-
-  private parseOptionalIntInRange(
-    value: string | undefined,
-    fieldName: string,
-    min: number,
-    max: number,
-  ): number | undefined {
-    if (value === undefined) return undefined;
-    const parsed = Number.parseInt(value, 10);
-    if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
-      throw new BadRequestException(
-        `${fieldName} debe ser un entero entre ${min} y ${max}`,
-      );
-    }
-    return parsed;
-  }
 
   // ========================================
   // USAGE SUMMARY ENDPOINTS
@@ -61,22 +39,11 @@ export class UsageTrackingController {
     @Query('year') year: string | undefined,
     @Req() req: any,
   ): Promise<UsageSummary> {
-    try {
-      const monthNum = this.parseOptionalIntInRange(month, 'month', 1, 12);
-      const yearNum = this.parseOptionalIntInRange(year, 'year', 2020, 2100);
-
-      return await this.usageTrackingService.getUsageSummary(
-        schoolId,
-        monthNum,
-        yearNum,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Error getting usage summary for school ${schoolId}: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.usageFacade.getSchoolUsageSummary(
+      schoolId,
+      month,
+      year,
+    );
   }
 
   @Get('schools/overages')
@@ -91,21 +58,7 @@ export class UsageTrackingController {
     @Query('month') month: string | undefined,
     @Query('year') year: string | undefined,
   ): Promise<any[]> {
-    try {
-      const monthNum = this.parseOptionalIntInRange(month, 'month', 1, 12);
-      const yearNum = this.parseOptionalIntInRange(year, 'year', 2020, 2100);
-
-      return await this.usageTrackingService.getSchoolsWithOverages(
-        monthNum,
-        yearNum,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Error getting schools with overages: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.usageFacade.getSchoolsWithOverages(month, year);
   }
 
   // ========================================
@@ -125,28 +78,8 @@ export class UsageTrackingController {
     },
     @Req() req: any,
   ): Promise<{ sessionId: string }> {
-    try {
-      const userId = req.user.sub || req.user._id;
-
-      const sessionId =
-        await this.streamingIntegrationService.startVideoStreaming(
-          userId,
-          body.assetId,
-          body.schoolId,
-          body.relatedCourse,
-          body.relatedClass,
-          body.quality,
-          body.deviceType,
-        );
-
-      return { sessionId };
-    } catch (error) {
-      this.logger.error(
-        `Error starting streaming session: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    const userId = req.user.sub || req.user._id;
+    return this.usageFacade.startStreamingSession(userId, body);
   }
 
   @Post('streaming/end/:sessionId')
@@ -155,20 +88,10 @@ export class UsageTrackingController {
     @Body() body: { bytesTransferred?: number },
     @Req() req: any,
   ): Promise<{ success: boolean }> {
-    try {
-      await this.streamingIntegrationService.endVideoStreaming(
-        sessionId,
-        body.bytesTransferred,
-      );
-
-      return { success: true };
-    } catch (error) {
-      this.logger.error(
-        `Error ending streaming session: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.usageFacade.endStreamingSession(
+      sessionId,
+      body.bytesTransferred,
+    );
   }
 
   @Post('streaming/end/:sessionId/completion')
@@ -183,20 +106,10 @@ export class UsageTrackingController {
     },
     @Req() req: any,
   ): Promise<{ success: boolean }> {
-    try {
-      await this.streamingIntegrationService.endVideoStreamingWithCompletion(
-        sessionId,
-        body,
-      );
-
-      return { success: true };
-    } catch (error) {
-      this.logger.error(
-        `Error ending streaming session with completion: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.usageFacade.endStreamingSessionWithCompletion(
+      sessionId,
+      body,
+    );
   }
 
   @Post('streaming/track-video-streak')
@@ -210,47 +123,16 @@ export class UsageTrackingController {
     },
     @Req() req: any,
   ): Promise<{ success: boolean }> {
-    try {
-      const userId = req.user.sub || req.user._id;
-
-      await this.streamingIntegrationService.trackVideoCompletionStreak(
-        userId,
-        body.schoolId,
-        body.courseId,
-        body.classId,
-        body.consecutiveVideosCompleted,
-      );
-
-      return { success: true };
-    } catch (error) {
-      this.logger.error(
-        `Error tracking video completion streak: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    const userId = req.user.sub || req.user._id;
+    return this.usageFacade.trackVideoCompletionStreak(userId, body);
   }
 
   @Post('streaming/end-user-sessions')
   async endAllUserSessions(
     @Req() req: any,
   ): Promise<{ success: boolean; message: string }> {
-    try {
-      const userId = req.user.sub || req.user._id;
-
-      await this.streamingIntegrationService.endAllSessionsForUser(userId);
-
-      return {
-        success: true,
-        message: 'All streaming sessions ended for user',
-      };
-    } catch (error) {
-      this.logger.error(
-        `Error ending user sessions: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    const userId = req.user.sub || req.user._id;
+    return this.usageFacade.endAllUserSessions(userId);
   }
 
   @Get('streaming/active/:schoolId')
@@ -265,15 +147,7 @@ export class UsageTrackingController {
     @Param('schoolId') schoolId: string,
     @Req() req: any,
   ): Promise<any[]> {
-    try {
-      return [];
-    } catch (error) {
-      this.logger.error(
-        `Error getting active streaming sessions for school ${schoolId}: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.usageFacade.getActiveStreamingSessions(schoolId);
   }
 
   @Get('streaming/history/:schoolId')
@@ -291,22 +165,12 @@ export class UsageTrackingController {
     @Query('endDate') endDate?: string,
     @Query('limit') limit?: string,
   ): Promise<any[]> {
-    try {
-      const limitNum =
-        this.parseOptionalIntInRange(limit, 'limit', 1, 200) ?? 50;
-      return await this.usageTrackingService.getStreamingHistory(
-        schoolId,
-        startDate,
-        endDate,
-        limitNum,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Error getting streaming history for school ${schoolId}: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.usageFacade.getStreamingHistory(
+      schoolId,
+      startDate,
+      endDate,
+      limit,
+    );
   }
 
   // ========================================
@@ -319,23 +183,7 @@ export class UsageTrackingController {
   async finalizeMonthlyUsage(
     @Body() body: { month: number; year: number },
   ): Promise<{ success: boolean; message: string }> {
-    try {
-      await this.usageTrackingService.finalizeMonthlyUsage(
-        body.month,
-        body.year,
-      );
-
-      return {
-        success: true,
-        message: `Monthly usage finalized for ${body.month}/${body.year}`,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Error finalizing monthly usage: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.usageFacade.finalizeMonthlyUsage(body);
   }
 
   @Post('admin/backfill-storage')
@@ -347,23 +195,7 @@ export class UsageTrackingController {
     errors: number;
     message: string;
   }> {
-    try {
-      const result =
-        await this.usageTrackingService.backfillStorageUsageWithRealSizes();
-
-      return {
-        success: true,
-        processed: result.processed,
-        errors: result.errors,
-        message: `Backfill completed with REAL file sizes. Processed: ${result.processed}, Errors: ${result.errors}`,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Error during storage backfill: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.usageFacade.backfillStorageUsage();
   }
 
   @Post('admin/reset-storage-tracking')
@@ -374,21 +206,7 @@ export class UsageTrackingController {
     processed: number;
     message: string;
   }> {
-    try {
-      const result = await this.usageTrackingService.resetStorageTracking();
-
-      return {
-        success: true,
-        processed: result.processed,
-        message: `Storage tracking reset. Processed: ${result.processed} videos with corrected sizes`,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Error resetting storage tracking: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.usageFacade.resetStorageTracking();
   }
 
   @Post('admin/cleanup-stale-sessions')
@@ -397,22 +215,7 @@ export class UsageTrackingController {
   async cleanupStaleSessions(
     @Body() body: { maxAgeMinutes?: number },
   ): Promise<{ success: boolean; message: string }> {
-    try {
-      await this.streamingIntegrationService.cleanupStaleSessions(
-        body.maxAgeMinutes,
-      );
-
-      return {
-        success: true,
-        message: 'Stale streaming sessions cleaned up',
-      };
-    } catch (error) {
-      this.logger.error(
-        `Error cleaning up stale sessions: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.usageFacade.cleanupStaleSessions(body);
   }
 
   @Get('admin/active-sessions')
@@ -422,51 +225,14 @@ export class UsageTrackingController {
     totalActiveSessions: number;
     sessionsBySchool: { schoolId: string; count: number }[];
   }> {
-    try {
-      const totalActiveSessions =
-        this.streamingIntegrationService.getActiveSessionsCount();
-
-      // You could enhance this to group by school
-      const sessionsBySchool: { schoolId: string; count: number }[] = [];
-
-      return {
-        totalActiveSessions,
-        sessionsBySchool,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Error getting active sessions stats: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.usageFacade.getActiveSessionsStats();
   }
 
   @Post('admin/fix-storage-total')
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
   async fixStorageTotal(@Body() body: { schoolId: string; totalMB: number }) {
-    try {
-      const { schoolId, totalMB } = body;
-      const totalBytes = totalMB * 1024 * 1024; // Convert MB to bytes
-      const totalGB = totalMB / 1024; // Convert MB to GB
-
-      // Update all usage documents for this school to have the correct total
-      await this.usageTrackingService.fixStorageTotal(
-        schoolId,
-        totalBytes,
-        totalGB,
-      );
-
-      return {
-        success: true,
-        message: `Storage total updated to ${totalMB} MB (${totalGB.toFixed(3)} GB) for school ${schoolId}`,
-      };
-    } catch (error) {
-      throw new InternalServerErrorException(
-        `Error fixing storage total: ${error.message}`,
-      );
-    }
+    return this.usageFacade.fixStorageTotal(body);
   }
 
   // ========================================

@@ -2,6 +2,9 @@ import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CoursesController } from './courses.controller';
 import { CoursesService } from './courses.service';
+import { CoursesFacade } from './services/courses.facade';
+import { CourseScheduleFacade } from './services/course-schedule.facade';
+import { CourseEnrollmentsFacade } from './services/enrollments.facade';
 import { Course, CourseSchema } from './schemas/course.schema';
 import {
   CourseSchedule,
@@ -16,6 +19,7 @@ import { User, UserSchema } from '../auth/schemas/user.schema';
 import { School, SchoolSchema } from '../schools/schemas/school.schema';
 import { Enrollment, EnrollmentSchema } from './schemas/enrollment.schema';
 import { EnrollmentsController } from './enrollments.controller';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -27,6 +31,7 @@ import { EnrollmentsController } from './enrollments.controller';
       { name: Enrollment.name, schema: EnrollmentSchema },
     ]),
     forwardRef(() => AuthModule),
+    forwardRef(() => NotificationsModule),
     SchoolsModule,
     UsersModule,
   ],
@@ -35,7 +40,13 @@ import { EnrollmentsController } from './enrollments.controller';
     EnrollmentsController,
     CourseScheduleController,
   ],
-  providers: [CoursesService, CourseScheduleService],
+  providers: [
+    CoursesService,
+    CoursesFacade,
+    CourseScheduleService,
+    CourseScheduleFacade,
+    CourseEnrollmentsFacade,
+  ],
   exports: [CoursesService, CourseScheduleService],
 })
 export class CoursesModule {}

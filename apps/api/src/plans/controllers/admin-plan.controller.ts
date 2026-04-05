@@ -9,20 +9,21 @@ import {
   HttpCode,
   HttpStatus,
   Request,
-  ForbiddenException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { UserRole } from '../../auth/schemas/user.schema';
-import { PlansService } from '../plans.service';
 import { AssignPlanDto, GrantExtraResourcesDto } from '../dto/admin-plan.dto';
+import { AdminPlanFacade } from '../services/admin-plan.facade';
 
 @Controller('admin/academies')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.SUPER_ADMIN, UserRole.SCHOOL_OWNER, UserRole.ADMINISTRATIVE)
 export class AdminPlanController {
-  constructor(private readonly plansService: PlansService) {}
+  constructor(
+    private readonly adminPlanFacade: AdminPlanFacade,
+  ) {}
 
   /**
    * Assign a new plan to an academy
@@ -33,22 +34,10 @@ export class AdminPlanController {
     @Body() assignPlanDto: AssignPlanDto,
     @Request() req,
   ) {
-    // Check access for non-super-admin users
-    if (req.user.role !== UserRole.SUPER_ADMIN) {
-      const hasAccess = await this.plansService.checkSchoolAccess(
-        req.user,
-        academyId,
-      );
-      if (!hasAccess) {
-        throw new ForbiddenException(
-          'No tienes permiso para gestionar esta escuela',
-        );
-      }
-    }
-
-    return this.plansService.assignPlanToAcademyById(
+    return this.adminPlanFacade.assignPlan(
+      req.user,
       academyId,
-      assignPlanDto.planId,
+      assignPlanDto,
     );
   }
 
@@ -61,20 +50,11 @@ export class AdminPlanController {
     @Body() grantResourcesDto: GrantExtraResourcesDto,
     @Request() req,
   ) {
-    // Check access for non-super-admin users
-    if (req.user.role !== UserRole.SUPER_ADMIN) {
-      const hasAccess = await this.plansService.checkSchoolAccess(
-        req.user,
-        academyId,
-      );
-      if (!hasAccess) {
-        throw new ForbiddenException(
-          'No tienes permiso para gestionar esta escuela',
-        );
-      }
-    }
-
-    return this.plansService.grantExtraResources(academyId, grantResourcesDto);
+    return this.adminPlanFacade.grantExtraResources(
+      req.user,
+      academyId,
+      grantResourcesDto,
+    );
   }
 
   /**
@@ -82,18 +62,10 @@ export class AdminPlanController {
    */
   @Get(':id/plan')
   async getAcademyPlanDetails(@Param('id') academyId: string, @Request() req) {
-    // Check access for non-super-admin users
-    if (req.user.role !== UserRole.SUPER_ADMIN) {
-      const hasAccess = await this.plansService.checkSchoolAccess(
-        req.user,
-        academyId,
-      );
-      if (!hasAccess) {
-        throw new ForbiddenException('No tienes permiso para ver esta escuela');
-      }
-    }
-
-    return this.plansService.getAcademyPlanDetails(academyId);
+    return this.adminPlanFacade.getAcademyPlanDetails(
+      req.user,
+      academyId,
+    );
   }
 
   /**
@@ -101,18 +73,10 @@ export class AdminPlanController {
    */
   @Get(':id/overages')
   async getAcademyOverages(@Param('id') academyId: string, @Request() req) {
-    // Check access for non-super-admin users
-    if (req.user.role !== UserRole.SUPER_ADMIN) {
-      const hasAccess = await this.plansService.checkSchoolAccess(
-        req.user,
-        academyId,
-      );
-      if (!hasAccess) {
-        throw new ForbiddenException('No tienes permiso para ver esta escuela');
-      }
-    }
-
-    return this.plansService.getAcademyOverages(academyId);
+    return this.adminPlanFacade.getAcademyOverages(
+      req.user,
+      academyId,
+    );
   }
 
   /**
@@ -120,7 +84,7 @@ export class AdminPlanController {
    */
   @Get('plans/available')
   async getAvailablePlans() {
-    return this.plansService.getAllPlanConfigurations();
+    return this.adminPlanFacade.getAvailablePlans();
   }
 
   /**
@@ -128,7 +92,7 @@ export class AdminPlanController {
    */
   @Post(':id/validate-limits')
   async validatePlanLimits(@Param('id') academyId: string) {
-    return this.plansService.validateAllLimits(academyId);
+    return this.adminPlanFacade.validatePlanLimits(academyId);
   }
 
   /**
@@ -137,6 +101,6 @@ export class AdminPlanController {
   @Post(':id/reset-usage')
   @HttpCode(HttpStatus.OK)
   async resetUsageCounters(@Param('id') academyId: string) {
-    return this.plansService.resetUsageCounters(academyId);
+    return this.adminPlanFacade.resetUsageCounters(academyId);
   }
 }

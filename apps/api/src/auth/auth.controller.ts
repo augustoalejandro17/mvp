@@ -4,15 +4,12 @@ import {
   Body,
   HttpStatus,
   HttpCode,
-  Logger,
   Patch,
   Param,
   UseGuards,
   Req,
   Get,
-  ConflictException,
 } from '@nestjs/common';
-import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { GoogleLoginDto } from './dto/google-auth.dto';
@@ -27,73 +24,28 @@ import {
 import { Roles } from './decorators/roles.decorator';
 import { UserRole } from './schemas/user.schema';
 import { Request } from 'express';
+import { AuthFacade } from './services/auth.facade';
 
 @Controller('auth')
 export class AuthController {
-  private readonly logger = new Logger(AuthController.name);
-
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authFacade: AuthFacade) {}
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async register(@Body() registerDto: RegisterDto) {
-    try {
-      const result = await this.authService.register(registerDto);
-
-      return result;
-    } catch (error) {
-      this.logger.error(
-        `Error durante el registro: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.authFacade.register(registerDto);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() loginDto: LoginDto) {
-    try {
-      const result = await this.authService.login(loginDto);
-
-      return result;
-    } catch (error) {
-      this.logger.error(
-        `Error durante el login: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.authFacade.login(loginDto);
   }
 
   @Post('google/login')
   @HttpCode(HttpStatus.OK)
   async googleLogin(@Body() googleLoginDto: GoogleLoginDto) {
-    try {
-      const result = await this.authService.googleLogin(googleLoginDto);
-
-      this.logger.log(
-        `Google login successful for user: ${result.user.email}, isNewUser: ${result.isNewUser}`,
-      );
-
-      return {
-        ...result,
-        message: result.isNewUser
-          ? 'Account created and logged in successfully'
-          : 'Logged in successfully',
-      };
-    } catch (error) {
-      if (error instanceof ConflictException) {
-        // Account linking required
-        this.logger.warn(
-          `Account linking required for: ${error.getResponse()['email']}`,
-        );
-        throw error;
-      }
-
-      this.logger.error(`Google login failed: ${error.message}`, error.stack);
-      throw error;
-    }
+    return this.authFacade.googleLogin(googleLoginDto);
   }
 
   @Post('google/link')
@@ -103,68 +55,20 @@ export class AuthController {
     @Body() googleLoginDto: GoogleLoginDto,
     @Req() req: Request,
   ) {
-    try {
-      const userId = req.user['sub'] || req.user['_id'];
-      const result = await this.authService.linkGoogleAccount(
-        userId,
-        googleLoginDto,
-      );
-
-      this.logger.log(
-        `Google account linked successfully for user: ${result.user.email}`,
-      );
-
-      return {
-        ...result,
-        message: 'Google account linked successfully',
-      };
-    } catch (error) {
-      this.logger.error(
-        `Google account linking failed: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.authFacade.linkGoogleAccount(googleLoginDto, req);
   }
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async logout(@Req() req: Request) {
-    try {
-      const userId = (req.user as any)._id;
-      const sessionId = (req.user as any).sessionId;
-      await this.authService.logout(userId, sessionId);
-
-      return { message: 'Sesión cerrada correctamente' };
-    } catch (error) {
-      this.logger.error(
-        `Error durante el logout: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.authFacade.logout(req);
   }
 
   @Get('profile')
   @UseGuards(JwtAuthGuard)
   async getProfile(@Req() req: Request) {
-    try {
-      const userId = req.user['sub'] || req.user['_id'];
-      const userProfile = await this.authService.getProfile(userId);
-
-      this.logger.log(
-        `Profile request for user: ${userId}, role: ${userProfile.role}`,
-      );
-
-      return userProfile;
-    } catch (error) {
-      this.logger.error(
-        `Error fetching profile: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.authFacade.getProfile(req);
   }
 
   @Patch('users/:id/role')
@@ -175,30 +79,13 @@ export class AuthController {
     @Body('role') role: UserRole,
     @Req() req,
   ) {
-    const adminId = req.user.sub || req.user._id?.toString();
-
-    try {
-      const result = await this.authService.updateUserRole(
-        userId,
-        role,
-        adminId,
-      );
-
-      return result;
-    } catch (error) {
-      this.logger.error(
-        `Error al actualizar rol: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.authFacade.updateUserRole(userId, role, req);
   }
 
   @Get('creator-terms/status')
   @UseGuards(JwtAuthGuard)
   async getCreatorTermsStatus(@Req() req: Request) {
-    const userId = req.user['sub'] || req.user['_id'];
-    return this.authService.getCreatorTermsStatus(userId);
+    return this.authFacade.getCreatorTermsStatus(req);
   }
 
   @Patch('creator-terms/accept')
@@ -207,38 +94,13 @@ export class AuthController {
     @Req() req: Request,
     @Body() body: AcceptCreatorTermsDto,
   ) {
-    const userId = req.user['sub'] || req.user['_id'];
-    return this.authService.acceptCreatorTerms(userId, body.version);
+    return this.authFacade.acceptCreatorTerms(req, body);
   }
 
   @Get('make-super-admin/:email')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
   async makeSuperAdmin(@Param('email') email: string, @Req() req: Request) {
-    try {
-      const adminId = req.user['sub'] || req.user['_id'];
-      const adminEmail = req.user['email'];
-      const result = await this.authService.makeSuperAdmin(
-        email,
-        String(adminId),
-        adminEmail,
-      );
-      return {
-        success: true,
-        message: `Usuario ${email} ahora tiene rol super_admin`,
-        user: {
-          id: result._id,
-          email: result.email,
-          name: result.name,
-          role: result.role,
-        },
-      };
-    } catch (error) {
-      this.logger.error(
-        `Error al promover a super_admin: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.authFacade.makeSuperAdmin(email, req);
   }
 }

@@ -16,6 +16,21 @@ const PRIORITY_CONFIG: Record<string, { color: string; bg: string }> = {
   low: { color: '#6b7280', bg: '#f9fafb' },
 };
 
+const TYPE_CONFIG: Record<
+  string,
+  { icon: string; label: string }
+> = {
+  enrollment: { icon: 'school-outline', label: 'Curso' },
+  new_class: { icon: 'play-circle-outline', label: 'Clase nueva' },
+  teacher_new_course: { icon: 'book-outline', label: 'Nuevo curso' },
+  announcement: { icon: 'megaphone-outline', label: 'Anuncio' },
+  feedback_submission: { icon: 'videocam-outline', label: 'Feedback' },
+  feedback_review: { icon: 'checkmark-circle-outline', label: 'Revision' },
+  course_access: { icon: 'key-outline', label: 'Acceso' },
+  general: { icon: 'notifications-outline', label: 'Aviso' },
+  system: { icon: 'settings-outline', label: 'Sistema' },
+};
+
 function NotificationItem({
   item,
   onPress,
@@ -24,6 +39,7 @@ function NotificationItem({
   onPress: () => void;
 }) {
   const priority = PRIORITY_CONFIG[item.priority] ?? PRIORITY_CONFIG.low;
+  const typeConfig = TYPE_CONFIG[item.type] ?? TYPE_CONFIG.general;
   const date = new Date(item.createdAt);
   const isToday = new Date().toDateString() === date.toDateString();
   const dateStr = isToday
@@ -39,6 +55,12 @@ function NotificationItem({
       }`}
     >
       <View className="flex-row p-4">
+        <View
+          className="w-10 h-10 rounded-full items-center justify-center mr-3"
+          style={{ backgroundColor: priority.bg }}
+        >
+          <Ionicons name={typeConfig.icon as any} size={18} color={priority.color} />
+        </View>
         {/* Indicator */}
         <View
           className="w-1 rounded-full mr-3 self-stretch"
@@ -59,12 +81,15 @@ function NotificationItem({
           <Text className="text-gray-500 text-sm mt-0.5" numberOfLines={2}>
             {item.message}
           </Text>
-          {!item.isRead && (
-            <View className="flex-row items-center mt-1.5">
-              <View className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1" />
-              <Text className="text-amber-600 text-xs font-medium">Nuevo</Text>
-            </View>
-          )}
+          <View className="flex-row items-center mt-1.5">
+            <Text className="text-gray-400 text-xs">{typeConfig.label}</Text>
+            {!item.isRead && (
+              <>
+                <View className="w-1.5 h-1.5 rounded-full bg-amber-500 mx-1.5" />
+                <Text className="text-amber-600 text-xs font-medium">Nuevo</Text>
+              </>
+            )}
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -159,7 +184,7 @@ export default function NotificationsScreen() {
             <Ionicons name="notifications-off-outline" size={56} color="#d97706" />
             <Text className="text-lg font-semibold text-gray-700 mt-4">Sin notificaciones</Text>
             <Text className="text-gray-500 mt-1 text-center">
-              Te avisaremos cuando haya novedades
+              Te avisaremos cuando haya cursos, clases o feedback nuevos
             </Text>
           </View>
         ) : (

@@ -9,13 +9,12 @@ import {
   Request,
   HttpStatus,
   HttpCode,
-  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { UserRole } from '../../auth/enums/user-role.enum';
-import { PointsService } from '../services/points.service';
+import { PointsFacade } from '../services/points.facade';
 import {
   AwardPointsDto,
   DeductPointsDto,
@@ -27,15 +26,7 @@ import {
 @Controller('gamification/points')
 @UseGuards(JwtAuthGuard)
 export class PointsController {
-  constructor(private readonly pointsService: PointsService) {}
-
-  private parseLimit(value: string): number {
-    const parsed = Number.parseInt(value, 10);
-    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
-      throw new BadRequestException('limit debe ser un entero entre 1 y 100');
-    }
-    return parsed;
-  }
+  constructor(private readonly pointsFacade: PointsFacade) {}
 
   @Get('user/:userId')
   async getUserPoints(
@@ -43,16 +34,7 @@ export class PointsController {
     @Query('schoolId') schoolId: string,
     @Request() req,
   ) {
-    // Check if user is authenticated (req.user exists)
-    if (req.user) {
-      const requestingUserId = req.user._id || req.user.sub;
-      if (userId !== requestingUserId && !this.isAuthorized(req.user.role)) {
-        userId = requestingUserId;
-      }
-    }
-    // If no authentication, allow access to the requested userId (for public access)
-
-    return this.pointsService.getUserPoints(userId, schoolId);
+    return this.pointsFacade.getUserPoints(userId, schoolId, req);
   }
 
   @Get('user/:userId/rank')
@@ -61,16 +43,7 @@ export class PointsController {
     @Query('schoolId') schoolId: string,
     @Request() req,
   ) {
-    // Check if user is authenticated (req.user exists)
-    if (req.user) {
-      const requestingUserId = req.user._id || req.user.sub;
-      if (userId !== requestingUserId && !this.isAuthorized(req.user.role)) {
-        userId = requestingUserId;
-      }
-    }
-    // If no authentication, allow access to the requested userId (for public access)
-
-    return this.pointsService.getUserRank(userId, schoolId);
+    return this.pointsFacade.getUserRank(userId, schoolId, req);
   }
 
   @Get('user/:userId/progress')
@@ -84,34 +57,16 @@ export class PointsController {
     @Query('includeTransactions') includeTransactions?: string,
     @Query('includeComparisons') includeComparisons?: string,
   ) {
-    // Check if user is authenticated (req.user exists)
-    if (req.user) {
-      const requestingUserId = req.user._id || req.user.sub;
-      if (userId !== requestingUserId && !this.isAuthorized(req.user.role)) {
-        userId = requestingUserId;
-      }
-    }
-    // If no authentication, allow access to the requested userId (for public access)
-
-    const userProgress: UserProgressDto = {
+    return this.pointsFacade.getUserProgress(
       userId,
       schoolId,
+      req,
       startDate,
       endDate,
-      includeBadges: includeBadges === 'true',
-      includeTransactions: includeTransactions === 'true',
-      includeComparisons: includeComparisons === 'true',
-    };
-
-    // This would be expanded with actual progress calculation
-    const userPoints = await this.pointsService.getUserPoints(userId, schoolId);
-    const userRank = await this.pointsService.getUserRank(userId, schoolId);
-
-    return {
-      user: userPoints,
-      rank: userRank,
-      progress: userProgress,
-    };
+      includeBadges,
+      includeTransactions,
+      includeComparisons,
+    );
   }
 
   @Get('leaderboard/school/:schoolId')
@@ -119,49 +74,35 @@ export class PointsController {
     @Param('schoolId') schoolId: string,
     @Query('limit') limit: string = '10',
   ) {
-    return this.pointsService.getTopUsers(schoolId, this.parseLimit(limit));
+    return this.pointsFacade.getSchoolTopUsers(schoolId, limit);
   }
 
   @Post('award')
   @UseGuards(RolesGuard)
   @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
   async awardPoints(@Body() awardPointsDto: AwardPointsDto) {
-    return this.pointsService.awardPoints(awardPointsDto);
+    return this.pointsFacade.awardPoints(awardPointsDto);
   }
 
   @Post('deduct')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   async deductPoints(@Body() deductPointsDto: DeductPointsDto) {
-    return this.pointsService.deductPoints(deductPointsDto);
+    return this.pointsFacade.deductPoints(deductPointsDto);
   }
 
   @Post('streak/update')
   @UseGuards(RolesGuard)
   @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
   async updateStreak(@Body() updateStreakDto: UpdateStreakDto) {
-    return this.pointsService.updateStreak(updateStreakDto);
+    return this.pointsFacade.updateStreak(updateStreakDto);
   }
 
   @Post('teacher-reward')
   @UseGuards(RolesGuard)
   @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
   async teacherReward(@Body() teacherRewardDto: TeacherRewardDto) {
-    const awardPointsDto: AwardPointsDto = {
-      userId: teacherRewardDto.studentId,
-      schoolId: teacherRewardDto.schoolId,
-      points: teacherRewardDto.points,
-      actionType: 'teacher_reward' as any,
-      description: teacherRewardDto.reason,
-      courseId: teacherRewardDto.courseId,
-      metadata: {
-        comment: teacherRewardDto.comment,
-        teacherReward: true,
-      },
-      sendNotification: teacherRewardDto.sendNotification,
-    };
-
-    return this.pointsService.awardPoints(awardPointsDto);
+    return this.pointsFacade.teacherReward(teacherRewardDto);
   }
 
   @Post('initialize')
@@ -170,16 +111,14 @@ export class PointsController {
   async initializeUserPoints(
     @Body() body: { userId: string; schoolId: string },
   ) {
-    await this.pointsService.initializeUserPoints(body.userId, body.schoolId);
-    return { message: 'User points initialized successfully' };
+    return this.pointsFacade.initializeUserPoints(body);
   }
 
   @Post('seed-levels')
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
   async seedDefaultLevels() {
-    await this.pointsService.seedDefaultLevels();
-    return { message: 'Default levels seeded successfully' };
+    return this.pointsFacade.seedDefaultLevels();
   }
 
   @Get('stats/school/:schoolId')
@@ -194,27 +133,12 @@ export class PointsController {
     @Param('schoolId') schoolId: string,
     @Query('period') period: string = 'monthly',
   ) {
-    const topUsers = await this.pointsService.getTopUsers(schoolId, 10);
-
-    return {
-      topUsers,
-      period,
-      totalUsers: topUsers.length,
-      averagePoints:
-        topUsers.length > 0
-          ? topUsers.reduce((sum, user) => sum + user.totalPoints, 0) /
-            topUsers.length
-          : 0,
-    };
+    return this.pointsFacade.getSchoolPointsStats(schoolId, period);
   }
 
   @Get('test/health')
   async testHealth() {
-    return {
-      status: 'healthy',
-      service: 'gamification-points',
-      timestamp: new Date(),
-    };
+    return this.pointsFacade.testHealth();
   }
 
   @Get('test/user/:userId')
@@ -222,28 +146,7 @@ export class PointsController {
     @Param('userId') userId: string,
     @Query('schoolId') schoolId: string,
   ) {
-    try {
-      // Try to find existing user points
-      const existingPoints = await this.pointsService.getUserPoints(
-        userId,
-        schoolId,
-      );
-      return {
-        status: 'success',
-        userId,
-        schoolId,
-        hasExistingPoints: !!existingPoints,
-        existingPoints,
-      };
-    } catch (error) {
-      return {
-        status: 'error',
-        userId,
-        schoolId,
-        error: error.message,
-        stack: error.stack,
-      };
-    }
+    return this.pointsFacade.testGetUser(userId, schoolId);
   }
 
   @Get('public/user/:userId')
@@ -251,89 +154,6 @@ export class PointsController {
     @Param('userId') userId: string,
     @Query('schoolId') schoolId?: string,
   ) {
-    try {
-      // If no school ID provided, try to find the user's school from their points records
-      if (!schoolId) {
-        const userPointsRecord =
-          await this.pointsService.findUserPointsRecord(userId);
-        if (userPointsRecord) {
-          schoolId = userPointsRecord.school.toString();
-        }
-      }
-
-      // If still no school ID, return default values
-      if (!schoolId) {
-        return {
-          userId,
-          schoolId: null,
-          points: 0,
-          level: 1,
-          streak: 0,
-          rank: 1,
-          badges: 0,
-          levelName: 'Beginner',
-          pointsToNextLevel: 100,
-        };
-      }
-
-      // Get user points
-      const userPoints = await this.pointsService.getUserPoints(
-        userId,
-        schoolId,
-      );
-
-      if (!userPoints) {
-        return {
-          userId,
-          schoolId,
-          points: 0,
-          level: 1,
-          streak: 0,
-          rank: 1,
-          badges: 0,
-          levelName: 'Beginner',
-          pointsToNextLevel: 100,
-        };
-      }
-
-      // Get user rank
-      const rankData = await this.pointsService.getUserRank(userId, schoolId);
-
-      return {
-        userId,
-        schoolId,
-        points: userPoints.totalPoints,
-        level: userPoints.level,
-        streak: userPoints.streak,
-        rank: rankData.schoolRank,
-        badges: 0, // Simplified for now
-        levelName: userPoints.levelInfo?.name || 'Beginner',
-        pointsToNextLevel: userPoints.pointsToNextLevel,
-        lastActivity: userPoints.lastActivityDate,
-      };
-    } catch (error) {
-      // Return default values if there's an error
-      return {
-        userId,
-        schoolId: schoolId || null,
-        points: 0,
-        level: 1,
-        streak: 0,
-        rank: 1,
-        badges: 0,
-        levelName: 'Beginner',
-        pointsToNextLevel: 100,
-        error: error.message,
-      };
-    }
-  }
-
-  private isAuthorized(userRole: UserRole): boolean {
-    return [
-      UserRole.SUPER_ADMIN,
-      UserRole.ADMIN,
-      UserRole.TEACHER,
-      UserRole.SCHOOL_OWNER,
-    ].includes(userRole);
+    return this.pointsFacade.getPublicUserPoints(userId, schoolId);
   }
 }

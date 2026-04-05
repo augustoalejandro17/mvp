@@ -2,8 +2,10 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ClassesController } from './classes.controller';
 import { ClassesService } from './classes.service';
+import { ClassVideoService } from './class-video.service';
 import { PlaylistsController } from './playlists.controller';
 import { PlaylistsService } from './playlists.service';
+import { PlaylistsFacade } from './services/playlists.facade';
 import { Class, ClassSchema } from './schemas/class.schema';
 import { Playlist, PlaylistSchema } from './schemas/playlist.schema';
 import {
@@ -21,6 +23,7 @@ import {
   EnrollmentSchema,
 } from '../courses/schemas/enrollment.schema';
 import { UsageModule } from '../usage/usage.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -37,9 +40,15 @@ import { UsageModule } from '../usage/usage.module';
     UsersModule,
     ServicesModule,
     UsageModule,
+    NotificationsModule,
   ],
   controllers: [ClassesController, PlaylistsController],
-  providers: [ClassesService, PlaylistsService],
+  providers: [
+    ClassesService,
+    ClassVideoService,
+    PlaylistsService,
+    PlaylistsFacade,
+  ],
   exports: [ClassesService, PlaylistsService],
 })
 export class ClassesModule {}

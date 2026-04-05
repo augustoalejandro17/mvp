@@ -5,18 +5,16 @@ import {
   UploadedFile,
   UseInterceptors,
   BadRequestException,
-  Logger,
-  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { S3Service } from '../services/s3.service';
+import { UploadFacade } from './services/upload.facade';
 
 @Controller('upload')
 export class UploadController {
-  private readonly logger = new Logger(UploadController.name);
-
-  constructor(private readonly s3Service: S3Service) {}
+  constructor(
+    private readonly uploadFacade: UploadFacade,
+  ) {}
 
   @Post('image')
   @UseGuards(JwtAuthGuard)
@@ -39,32 +37,7 @@ export class UploadController {
       },
     }),
   )
-  async uploadImage(@UploadedFile() file: Express.Multer.File, @Req() req) {
-    if (!file) {
-      throw new BadRequestException(
-        'No se ha proporcionado ningún archivo de imagen',
-      );
-    }
-
-    try {
-      const imageUrl = await this.s3Service.uploadImage(file);
-
-      // Log de la URL generada para depuración
-
-      // Añadir información adicional que puede ser útil para el cliente
-      return {
-        imageUrl,
-        originalName: file.originalname,
-        size: file.size,
-        fileType: file.mimetype,
-        timestamp: Date.now(),
-      };
-    } catch (error) {
-      this.logger.error(
-        `Error al subir la imagen: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+  async uploadImage(@UploadedFile() file: Express.Multer.File) {
+    return this.uploadFacade.uploadImage(file);
   }
 }

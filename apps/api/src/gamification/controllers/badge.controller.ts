@@ -11,13 +11,12 @@ import {
   Request,
   HttpStatus,
   HttpCode,
-  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { UserRole } from '../../auth/enums/user-role.enum';
-import { BadgeService } from '../services/badge.service';
+import { BadgeFacade } from '../services/badge.facade';
 import { CreateBadgeDto, UpdateBadgeDto } from '../dto/create-badge.dto';
 import { AchievementStatus } from '../schemas/user-achievement.schema';
 import { BadgeType } from '../schemas/badge.schema';
@@ -25,25 +24,14 @@ import { BadgeType } from '../schemas/badge.schema';
 @Controller('gamification/badges')
 @UseGuards(JwtAuthGuard)
 export class BadgeController {
-  constructor(private readonly badgeService: BadgeService) {}
-
-  private parseLimit(value: string): number {
-    const parsed = Number.parseInt(value, 10);
-    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
-      throw new BadRequestException('limit debe ser un entero entre 1 y 100');
-    }
-    return parsed;
-  }
+  constructor(private readonly badgeFacade: BadgeFacade) {}
 
   @Get()
   async getAllBadges(
     @Query('includeInactive') includeInactive: string = 'false',
     @Query('type') type?: BadgeType,
   ) {
-    if (type) {
-      return this.badgeService.getBadgesByType(type);
-    }
-    return this.badgeService.getAllBadges(includeInactive === 'true');
+    return this.badgeFacade.getAllBadges(includeInactive, type);
   }
 
   @Get('user/:userId')
@@ -53,13 +41,12 @@ export class BadgeController {
     @Request() req,
     @Query('status') status?: AchievementStatus,
   ) {
-    // Users can only view their own badges unless they're admin/teacher
-    const requestingUserId = req.user._id || req.user.sub;
-    if (userId !== requestingUserId && !this.isAuthorized(req.user.role)) {
-      userId = requestingUserId;
-    }
-
-    return this.badgeService.getUserBadges(userId, schoolId, status);
+    return this.badgeFacade.getUserBadges(
+      userId,
+      schoolId,
+      req,
+      status,
+    );
   }
 
   @Get('user/:userId/stats')
@@ -68,12 +55,11 @@ export class BadgeController {
     @Query('schoolId') schoolId: string,
     @Request() req,
   ) {
-    const requestingUserId = req.user._id || req.user.sub;
-    if (userId !== requestingUserId && !this.isAuthorized(req.user.role)) {
-      userId = requestingUserId;
-    }
-
-    return this.badgeService.getUserBadgeStats(userId, schoolId);
+    return this.badgeFacade.getUserBadgeStats(
+      userId,
+      schoolId,
+      req,
+    );
   }
 
   @Get('user/:userId/progress/:badgeId')
@@ -83,12 +69,12 @@ export class BadgeController {
     @Query('schoolId') schoolId: string,
     @Request() req,
   ) {
-    const requestingUserId = req.user._id || req.user.sub;
-    if (userId !== requestingUserId && !this.isAuthorized(req.user.role)) {
-      userId = requestingUserId;
-    }
-
-    return this.badgeService.getBadgeProgress(userId, badgeId, schoolId);
+    return this.badgeFacade.getBadgeProgress(
+      userId,
+      badgeId,
+      schoolId,
+      req,
+    );
   }
 
   @Get('leaderboard/school/:schoolId')
@@ -96,22 +82,22 @@ export class BadgeController {
     @Param('schoolId') schoolId: string,
     @Query('limit') limit: string = '10',
   ) {
-    return this.badgeService.getSchoolBadgeLeaderboard(
+    return this.badgeFacade.getSchoolBadgeLeaderboard(
       schoolId,
-      this.parseLimit(limit),
+      limit,
     );
   }
 
   @Get(':id')
   async getBadgeById(@Param('id') id: string) {
-    return this.badgeService.getBadgeById(id);
+    return this.badgeFacade.getBadgeById(id);
   }
 
   @Post()
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async createBadge(@Body() createBadgeDto: CreateBadgeDto) {
-    return this.badgeService.createBadge(createBadgeDto);
+    return this.badgeFacade.createBadge(createBadgeDto);
   }
 
   @Put(':id')
@@ -121,7 +107,7 @@ export class BadgeController {
     @Param('id') id: string,
     @Body() updateBadgeDto: UpdateBadgeDto,
   ) {
-    return this.badgeService.updateBadge(id, updateBadgeDto);
+    return this.badgeFacade.updateBadge(id, updateBadgeDto);
   }
 
   @Delete(':id')
@@ -129,7 +115,7 @@ export class BadgeController {
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteBadge(@Param('id') id: string) {
-    await this.badgeService.deleteBadge(id);
+    await this.badgeFacade.deleteBadge(id);
   }
 
   @Post('award')
@@ -145,14 +131,7 @@ export class BadgeController {
     },
     @Request() req,
   ) {
-    const teacherId = req.user._id || req.user.sub;
-    return this.badgeService.manualAwardBadge(
-      body.userId,
-      body.badgeId,
-      body.schoolId,
-      teacherId,
-      body.comment,
-    );
+    return this.badgeFacade.manualAwardBadge(body, req);
   }
 
   @Post('initialize')
@@ -161,20 +140,14 @@ export class BadgeController {
   async initializeUserBadgeProgress(
     @Body() body: { userId: string; schoolId: string; courseId?: string },
   ) {
-    await this.badgeService.initializeUserBadgeProgress(
-      body.userId,
-      body.schoolId,
-      body.courseId,
-    );
-    return { message: 'Badge progress initialized successfully' };
+    return this.badgeFacade.initializeUserBadgeProgress(body);
   }
 
   @Post('seed')
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
   async seedDefaultBadges() {
-    await this.badgeService.seedDefaultBadges();
-    return { message: 'Default badges seeded successfully' };
+    return this.badgeFacade.seedDefaultBadges();
   }
 
   @Post('progress/update')
@@ -192,29 +165,6 @@ export class BadgeController {
       metadata?: Record<string, any>;
     },
   ) {
-    const achievements = await this.badgeService.updateBadgeProgress(
-      body.userId,
-      body.schoolId,
-      body.actionType,
-      body.value,
-      body.courseId,
-      body.classId,
-      body.metadata,
-    );
-
-    return {
-      message: 'Badge progress updated successfully',
-      completedAchievements: achievements.length,
-      achievements,
-    };
-  }
-
-  private isAuthorized(userRole: UserRole): boolean {
-    return [
-      UserRole.SUPER_ADMIN,
-      UserRole.ADMIN,
-      UserRole.TEACHER,
-      UserRole.SCHOOL_OWNER,
-    ].includes(userRole);
+    return this.badgeFacade.updateBadgeProgress(body);
   }
 }

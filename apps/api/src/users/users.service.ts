@@ -17,6 +17,7 @@ import { Course } from '../courses/schemas/course.schema';
 import { School } from '../schools/schemas/school.schema';
 import { Attendance as CourseAttendance } from '../attendance/schemas/attendance.schema';
 import { Attendance as ClassAttendance } from '../attendance/schemas/attendance.schema';
+import { AuthorizationService } from '../auth/services/authorization.service';
 
 // DTOs para los nuevos métodos
 class RegisterUnregisteredUserDto {
@@ -58,6 +59,7 @@ export class UsersService {
     private courseAttendanceModel: Model<CourseAttendance>,
     @InjectModel(ClassAttendance.name)
     private classAttendanceModel: Model<ClassAttendance>,
+    private readonly authorizationService: AuthorizationService,
   ) {}
 
   async findAll(
@@ -1548,6 +1550,342 @@ export class UsersService {
     await user.save();
 
     return user;
+  }
+
+  async assignSchoolRoleForManager(
+    userId: string,
+    schoolId: string,
+    role: string,
+    authUserId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    if (!schoolId) {
+      throw new BadRequestException('El ID de la escuela es obligatorio');
+    }
+    if (!role) {
+      throw new BadRequestException('El rol es obligatorio');
+    }
+
+    const allowedRoles = [
+      UserRole.TEACHER,
+      UserRole.ADMINISTRATIVE,
+      UserRole.STUDENT,
+    ];
+    const normalizedRole = String(role).toLowerCase();
+    if (!allowedRoles.includes(normalizedRole as UserRole)) {
+      throw new BadRequestException(
+        `Rol inválido. Los roles permitidos son: ${allowedRoles.join(', ')}`,
+      );
+    }
+
+    const canManage = await this.authorizationService.canManageUserInSchool(
+      authUserId,
+      userId,
+      schoolId,
+    );
+    if (!canManage) {
+      throw new ForbiddenException(
+        'No tiene permisos para asignar este rol en esta escuela',
+      );
+    }
+
+    const success = await this.authorizationService.assignRoleInSchool(
+      userId,
+      schoolId,
+      normalizedRole,
+    );
+    if (!success) {
+      throw new ForbiddenException(
+        'No se pudo asignar el rol al usuario en la escuela',
+      );
+    }
+
+    return {
+      success: true,
+      message: `Rol ${normalizedRole} asignado correctamente al usuario en la escuela`,
+    };
+  }
+
+  async registerUnregisteredUserByManager(
+    userId: string,
+    registerData: RegisterUnregisteredUserDto,
+  ): Promise<{ success: boolean; message: string; user: User }> {
+    const user = await this.convertUnregisteredToRegistered(
+      userId,
+      registerData,
+    );
+
+    return {
+      success: true,
+      message: 'Usuario registrado correctamente',
+      user,
+    };
+  }
+
+  async createUnregisteredUserFromPayload(data: {
+    name: string;
+    courseId?: string;
+    schoolId?: string;
+  }): Promise<User> {
+    if (!data?.name) {
+      throw new BadRequestException(
+        'El nombre es requerido para crear un asistente',
+      );
+    }
+
+    return this.createUnregisteredUser(
+      data.name,
+      data.courseId || undefined,
+      data.schoolId || undefined,
+    );
+  }
+
+  async createAssistantTestRecord(body: any): Promise<any> {
+    const userCollection = this.userModel.collection;
+    const timestamp = Date.now();
+    const uniqueEmail = `asistente.${timestamp}@temp.local`;
+
+    const userDocument: any = {
+      name: body.name || 'Test Assistant',
+      email: uniqueEmail,
+      role: UserRole.UNREGISTERED,
+      isActive: true,
+      enrolledCourses: [],
+      schools: [],
+      schoolRoles: [],
+      createdAt: new Date(),
+    };
+
+    const result = await userCollection.insertOne(userDocument);
+
+    return {
+      success: true,
+      message: 'Test asistente creado exitosamente',
+      id: result.insertedId,
+      document: userDocument,
+    };
+  }
+
+  async assignRoleInSchoolForRequester(
+    userId: string,
+    schoolId: string,
+    role: string,
+    requestUserId: string,
+    requestUserRole: string,
+  ): Promise<{ success: boolean; message: string }> {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('ID de usuario inválido');
+    }
+    if (!Types.ObjectId.isValid(schoolId)) {
+      throw new BadRequestException('ID de escuela inválido');
+    }
+
+    const validRoles = [
+      UserRole.SUPER_ADMIN,
+      UserRole.ADMIN,
+      UserRole.SCHOOL_OWNER,
+      UserRole.TEACHER,
+      UserRole.STUDENT,
+      UserRole.ADMINISTRATIVE,
+      UserRole.UNREGISTERED,
+    ];
+    const normalizedRole = String(role || '').toLowerCase();
+    if (!validRoles.includes(normalizedRole as UserRole)) {
+      throw new BadRequestException(
+        `Rol inválido. Roles permitidos: ${validRoles.join(', ')}`,
+      );
+    }
+
+    const normalizedRequesterRole = String(requestUserRole || '').toLowerCase();
+
+    if (
+      [UserRole.SUPER_ADMIN, UserRole.ADMIN].includes(
+        normalizedRole as UserRole,
+      ) &&
+      normalizedRequesterRole !== UserRole.SUPER_ADMIN
+    ) {
+      throw new ForbiddenException(
+        'Solo super administradores pueden asignar estos roles',
+      );
+    }
+
+    if (normalizedRole === UserRole.SCHOOL_OWNER) {
+      if (
+        ![UserRole.SUPER_ADMIN, UserRole.ADMIN].includes(
+          normalizedRequesterRole as UserRole,
+        )
+      ) {
+        const isSchoolOwner = await this.authorizationService.isSchoolOwner(
+          requestUserId,
+          schoolId,
+        );
+        if (!isSchoolOwner) {
+          throw new ForbiddenException(
+            'Solo administradores o dueños de escuela pueden asignar este rol',
+          );
+        }
+      }
+    }
+
+    const canManage = await this.authorizationService.canManageUserInSchool(
+      requestUserId,
+      userId,
+      schoolId,
+    );
+    if (!canManage && normalizedRequesterRole !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException(
+        'No tiene permisos para asignar roles en esta escuela',
+      );
+    }
+
+    const success = await this.authorizationService.assignRoleInSchool(
+      userId,
+      schoolId,
+      normalizedRole,
+    );
+    if (!success) {
+      throw new BadRequestException(
+        'No se pudo asignar el rol en la escuela',
+      );
+    }
+
+    return {
+      success: true,
+      message: `Rol ${normalizedRole} asignado correctamente en la escuela`,
+    };
+  }
+
+  async removeRoleInSchoolForRequester(
+    userId: string,
+    schoolId: string,
+    role: string,
+    requestUserId: string,
+    requestUserRole: string,
+  ): Promise<{ success: boolean; message: string; user: User }> {
+    if (!schoolId) {
+      throw new BadRequestException('schoolId is required');
+    }
+    if (!role) {
+      throw new BadRequestException('role is required');
+    }
+
+    const normalizedRequesterRole = String(requestUserRole || '').toLowerCase();
+    if (
+      normalizedRequesterRole !== UserRole.SUPER_ADMIN &&
+      normalizedRequesterRole !== UserRole.ADMIN
+    ) {
+      const canManage = await this.authorizationService.canManageUserInSchool(
+        requestUserId,
+        userId,
+        schoolId,
+      );
+      if (!canManage) {
+        throw new ForbiddenException(
+          'No tiene permisos para quitar roles en esta escuela',
+        );
+      }
+    }
+
+    const updatedUser = await this.removeRoleInSchool(userId, schoolId, role);
+    return {
+      success: true,
+      message: `Rol ${role} removido de la escuela`,
+      user: updatedUser,
+    };
+  }
+
+  async getOwnerSeatQuotaForRequester(
+    ownerId: string,
+    schoolId: string,
+    requesterId: string,
+    requesterRole: string,
+  ): Promise<{ success: boolean; quota: OwnerSeatQuotaResult }> {
+    if (!schoolId) {
+      throw new BadRequestException('schoolId query param is required');
+    }
+
+    const normalizedRole = String(requesterRole || '').toLowerCase();
+    if (normalizedRole === UserRole.SCHOOL_OWNER && requesterId !== ownerId) {
+      throw new ForbiddenException(
+        'School owners can only read their own quota',
+      );
+    }
+
+    const quota = await this.getOwnerSeatQuota(ownerId, schoolId);
+    return { success: true, quota };
+  }
+
+  async getOwnerSeatQuotaReportForRequester(
+    schoolId: string,
+    requesterId: string,
+    requesterRole: string,
+  ): Promise<any> {
+    if (!schoolId) {
+      throw new BadRequestException('schoolId query param is required');
+    }
+
+    const result = await this.getOwnerSeatQuotaReportBySchool(
+      schoolId,
+      requesterId,
+      requesterRole,
+    );
+
+    return { success: true, ...result };
+  }
+
+  async assignCourseSeatForRequester(
+    userId: string,
+    data: AssignCourseSeatDto,
+    assignedByUserId: string,
+    assignedByRole: string,
+  ): Promise<any> {
+    if (!data?.schoolId) {
+      throw new BadRequestException('schoolId is required');
+    }
+    if (!data?.courseId) {
+      throw new BadRequestException('courseId is required');
+    }
+
+    const result = await this.assignCourseSeatToUser(
+      userId,
+      data,
+      assignedByUserId,
+      assignedByRole,
+    );
+
+    return {
+      success: true,
+      message: 'Course seat assigned successfully',
+      ...result,
+    };
+  }
+
+  async revokeCourseSeatForRequester(
+    userId: string,
+    schoolId: string,
+    courseId: string,
+    revokedByUserId: string,
+    revokedByRole: string,
+  ): Promise<any> {
+    if (!schoolId) {
+      throw new BadRequestException('schoolId is required');
+    }
+    if (!courseId) {
+      throw new BadRequestException('courseId is required');
+    }
+
+    const result = await this.revokeCourseSeatFromUser(
+      userId,
+      schoolId,
+      courseId,
+      revokedByUserId,
+      revokedByRole,
+    );
+
+    return {
+      success: true,
+      message: 'Course seat revoked successfully',
+      ...result,
+    };
   }
 
   /**

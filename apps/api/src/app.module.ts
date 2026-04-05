@@ -30,10 +30,13 @@ import { UserReportsModule } from './user-reports/user-reports.module';
 import awsConfig from './config/aws.config';
 import { S3Service } from './services/s3.service';
 import { CloudFrontService } from './services/cloudfront.service';
+import { AppFacade } from './services/app.facade';
+import { AdminStatsFacade } from './services/admin-stats.facade';
+import { ApiStatsFacade } from './services/api-stats.facade';
 import { ImagesController } from './controllers/images.controller';
-import { SubscriptionAdminController } from './controllers/subscription-admin.controller';
 import { AdminStatsController } from './controllers/admin-stats.controller';
 import { ApiStatsController } from './controllers/api-stats.controller';
+import { ImagesFacade } from './services/images.facade';
 
 import { User, UserSchema } from './auth/schemas/user.schema';
 import { School, SchoolSchema } from './schools/schemas/school.schema';
@@ -109,12 +112,20 @@ import { MigrationService } from './migrations/migration.service';
   controllers: [
     AppController,
     ImagesController,
-    SubscriptionAdminController,
     UserOwnedSchoolsController,
     UserAdministeredSchoolsController,
     AdminStatsController,
     ApiStatsController,
   ],
-  providers: [AppService, S3Service, CloudFrontService, MigrationService],
+  providers: [
+    AppService,
+    AppFacade,
+    S3Service,
+    CloudFrontService,
+    MigrationService,
+    AdminStatsFacade,
+    ApiStatsFacade,
+    ImagesFacade,
+  ],
 })
 export class AppModule {}
