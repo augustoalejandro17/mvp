@@ -1,9 +1,6 @@
-export const BRAND = {
-  name: 'IntiHubs',
-  slogan: 'Conecta. Aprende. Crece.',
-  email: 'hola@intihubs.com',
-  url: 'https://intihubs.com',
-} as const;
+import { BRAND } from '@inti/shared-types';
+
+export { BRAND };
 
 export const HERO = {
   headline: 'CRM educativo + plataforma de clases híbridas',
@@ -264,6 +261,4 @@ export const FOOTER = {
   },
   copyright: `© ${new Date().getFullYear()} ${BRAND.name}. Todos los derechos reservados.`,
 } as const;
-
-
 

@@ -202,6 +202,21 @@ export interface OwnerSeatQuota {
   availableSeats: number;
 }
 
+export interface OwnerSeatQuotaReportRow extends OwnerSeatQuota {
+  ownerName: string;
+  ownerEmail: string;
+}
+
+export interface OwnerSeatQuotaReport {
+  schoolId: string;
+  totals: {
+    totalSeats: number;
+    usedSeats: number;
+    availableSeats: number;
+  };
+  owners: OwnerSeatQuotaReportRow[];
+}
+
 export const STORAGE_KEYS = {
   AUTH_TOKEN: 'auth_token',
   USER_DATA: 'user_data',
@@ -1043,6 +1058,21 @@ class ApiClient {
       { params: { schoolId } },
     );
     return data.quota;
+  }
+
+  async getOwnerSeatQuotaReport(
+    schoolId: string,
+  ): Promise<OwnerSeatQuotaReport> {
+    const { data } = await this.client.get<
+      { success: boolean } & OwnerSeatQuotaReport
+    >('/users/owner-seat-quotas/report', {
+      params: { schoolId },
+    });
+    return {
+      schoolId: data.schoolId,
+      totals: data.totals,
+      owners: Array.isArray(data.owners) ? data.owners : [],
+    };
   }
 
   async setOwnerSeatQuota(

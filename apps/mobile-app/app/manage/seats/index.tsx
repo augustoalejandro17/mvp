@@ -10,12 +10,14 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { IUser, ISchool } from '@inti/shared-types';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   apiClient,
   OwnerSeatQuota,
+  OwnerSeatQuotaReport,
   SeatPolicyCapabilities,
 } from '@/services/apiClient';
 
@@ -77,6 +79,7 @@ export default function SeatsManagementScreen() {
   const [selectedSchoolId, setSelectedSchoolId] = useState('');
   const [selectedOwnerId, setSelectedOwnerId] = useState('');
   const [quota, setQuota] = useState<OwnerSeatQuota | null>(null);
+  const [quotaReport, setQuotaReport] = useState<OwnerSeatQuotaReport | null>(null);
   const [quotaValue, setQuotaValue] = useState('0');
   const [capabilities, setCapabilities] = useState<SeatPolicyCapabilities>(
     DEFAULT_CAPABILITIES,
@@ -126,9 +129,23 @@ export default function SeatsManagementScreen() {
     loadPolicy();
   }, [selectedSchoolId]);
 
+  useFocusEffect(
+    useCallback(() => {
+      loadBaseData();
+    }, [loadBaseData]),
+  );
+
   const ownersForSchool = useMemo(() => {
+    if (quotaReport?.owners?.length) {
+      return quotaReport.owners.map((owner) => ({
+        _id: owner.ownerId,
+        name: owner.ownerName,
+        email: owner.ownerEmail,
+      })) as ExtendedUser[];
+    }
+
     if (!selectedSchoolId) return [];
-    const list = users.filter((row) => {
+    return users.filter((row) => {
       const role = String(row.role || '').toLowerCase();
       if (role !== 'school_owner') return false;
       const inOwnedSchools =
@@ -141,8 +158,25 @@ export default function SeatsManagementScreen() {
         ) || false;
       return inOwnedSchools || inSchoolRoles;
     });
-    return list;
-  }, [users, selectedSchoolId]);
+  }, [quotaReport, users, selectedSchoolId]);
+
+  useEffect(() => {
+    const loadQuotaReport = async () => {
+      if (!selectedSchoolId || !capabilities.canReadOwnerQuota) {
+        setQuotaReport(null);
+        return;
+      }
+
+      try {
+        const data = await apiClient.getOwnerSeatQuotaReport(selectedSchoolId);
+        setQuotaReport(data);
+      } catch {
+        setQuotaReport(null);
+      }
+    };
+
+    loadQuotaReport();
+  }, [selectedSchoolId, capabilities.canReadOwnerQuota]);
 
   useEffect(() => {
     if (!selectedSchoolId) {
@@ -155,8 +189,17 @@ export default function SeatsManagementScreen() {
       return;
     }
 
-    if (!selectedOwnerId && ownersForSchool.length > 0) {
+    if (
+      selectedOwnerId &&
+      ownersForSchool.some((owner) => String(owner._id || '') === selectedOwnerId)
+    ) {
+      return;
+    }
+
+    if (ownersForSchool.length > 0) {
       setSelectedOwnerId(String(ownersForSchool[0]._id || ''));
+    } else {
+      setSelectedOwnerId('');
     }
   }, [
     currentRole,
@@ -241,6 +284,10 @@ export default function SeatsManagementScreen() {
       );
       setQuota(updated);
       setQuotaValue(String(updated.totalSeats || 0));
+      if (selectedSchoolId && capabilities.canReadOwnerQuota) {
+        const report = await apiClient.getOwnerSeatQuotaReport(selectedSchoolId);
+        setQuotaReport(report);
+      }
       Alert.alert('Listo', 'Cupos actualizados');
     } catch (error: any) {
       Alert.alert(
@@ -371,14 +418,22 @@ export default function SeatsManagementScreen() {
               Estado de Cupos
             </Text>
             <Text className="text-gray-700 mb-1">
-              Total: <Text className="font-bold">{quota?.totalSeats ?? 0}</Text>
+              Total:{' '}
+              <Text className="font-bold">
+                {quotaReport?.totals?.totalSeats ?? quota?.totalSeats ?? 0}
+              </Text>
             </Text>
             <Text className="text-gray-700 mb-1">
-              Usados: <Text className="font-bold">{quota?.usedSeats ?? 0}</Text>
+              Usados:{' '}
+              <Text className="font-bold">
+                {quotaReport?.totals?.usedSeats ?? quota?.usedSeats ?? 0}
+              </Text>
             </Text>
             <Text className="text-gray-700">
               Disponibles:{' '}
-              <Text className="font-bold">{quota?.availableSeats ?? 0}</Text>
+              <Text className="font-bold">
+                {quotaReport?.totals?.availableSeats ?? quota?.availableSeats ?? 0}
+              </Text>
             </Text>
           </View>
         )}

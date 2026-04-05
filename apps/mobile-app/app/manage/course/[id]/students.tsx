@@ -12,13 +12,14 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { ICourse, IUser } from '@inti/shared-types';
+import { ICourse, IUser, UserRole } from '@inti/shared-types';
 import {
   apiClient,
   SeatPolicyCapabilities,
 } from '@/services/apiClient';
 import ManageHeader from '@/components/manage/ManageHeader';
 import ManageSummaryCard from '@/components/manage/ManageSummaryCard';
+import { useAuth } from '@/contexts/AuthContext';
 
 const DEFAULT_CAPABILITIES: SeatPolicyCapabilities = {
   canViewSeatManagementModule: false,
@@ -105,6 +106,7 @@ const normalizeRoleLabel = (role: string | undefined): string => {
 export default function CourseStudentsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
   const courseId = Array.isArray(id) ? id[0] : id;
 
   const [course, setCourse] = useState<ICourse | null>(null);
@@ -119,6 +121,7 @@ export default function CourseStudentsScreen() {
   const [activeStudentMutationId, setActiveStudentMutationId] = useState('');
 
   const courseSchoolId = getCourseSchoolId(course);
+  const canSeeSensitiveSearchResultMeta = user?.role !== UserRole.TEACHER;
   const enrolledStudents = Array.isArray((course as any)?.students)
     ? ((course as any).students as IUser[]).filter(
         (student) => !!student && typeof student === 'object' && !!getEntityId(student),
@@ -395,12 +398,20 @@ export default function CourseStudentsScreen() {
                           <Text className="text-gray-900 font-semibold text-sm">
                             {student.name || '(sin nombre)'}
                           </Text>
-                          <Text className="text-gray-500 text-xs mt-0.5">
-                            {student.email}
-                          </Text>
-                          <Text className="text-gray-400 text-[11px] mt-1 uppercase">
-                            {normalizeRoleLabel(String(student.role || ''))}
-                          </Text>
+                          {canSeeSensitiveSearchResultMeta ? (
+                            <Text className="text-gray-500 text-xs mt-0.5">
+                              {student.email}
+                            </Text>
+                          ) : (
+                            <Text className="text-gray-400 text-xs mt-0.5">
+                              Usuario registrado
+                            </Text>
+                          )}
+                          {canSeeSensitiveSearchResultMeta ? (
+                            <Text className="text-gray-400 text-[11px] mt-1 uppercase">
+                              {normalizeRoleLabel(String(student.role || ''))}
+                            </Text>
+                          ) : null}
                         </View>
                         {alreadyEnrolled ? (
                           <View className="bg-emerald-100 px-3 py-2 rounded-xl">

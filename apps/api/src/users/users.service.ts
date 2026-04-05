@@ -911,7 +911,6 @@ export class UsersService {
         $match: {
           'courseSeatGrants.schoolId': new Types.ObjectId(schoolId),
           'courseSeatGrants.isActive': true,
-          'courseSeatGrants.isConsumed': true,
           $or: [
             { 'courseSeatGrants.quotaOwnerId': new Types.ObjectId(ownerId) },
             {
@@ -1318,6 +1317,13 @@ export class UsersService {
       };
       response.quota = await this.getOwnerSeatQuota(quotaOwnerId, schoolId);
       return response;
+    }
+
+    const ownerQuota = await this.getOwnerSeatQuota(quotaOwnerId, schoolId);
+    if (ownerQuota.availableSeats <= 0) {
+      throw new BadRequestException(
+        'Cumpliste tu cuota de cupos para esta escuela.',
+      );
     }
 
     targetDoc.courseSeatGrants.push({

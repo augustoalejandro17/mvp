@@ -29,6 +29,9 @@ export * from './plan.types';
 // Auth types
 export * from './auth.types';
 
+// Brand copy
+export * from './brand';
+
 // Common utility types
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -52,4 +55,3 @@ export interface FilterOptions {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
-

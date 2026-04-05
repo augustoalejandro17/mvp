@@ -328,7 +328,7 @@ export class CoursesService {
 
         if (usedSeats >= totalSeats) {
           throw new BadRequestException(
-            `Seat quota reached. Total: ${totalSeats}, Used: ${usedSeats}`,
+            'Cumpliste tu cuota de cupos para esta escuela.',
           );
         }
       }

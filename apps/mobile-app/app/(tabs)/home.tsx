@@ -14,7 +14,8 @@ import {
   TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ICourse, IClass, ISchool, UserRole } from '@inti/shared-types';
+import { useFocusEffect } from '@react-navigation/native';
+import { BRAND, ICourse, IClass, ISchool, UserRole } from '@inti/shared-types';
 import { apiClient } from '@/services/apiClient';
 import VideoCard from '@/components/VideoCard';
 import { useAuth } from '@/contexts/AuthContext';
@@ -456,6 +457,17 @@ export default function HomeScreen() {
             try {
               await apiClient.deleteClass(classItem._id!);
               setClasses((prev) => prev.filter((c) => c._id !== classItem._id));
+              setUnorganizedClasses((prev) =>
+                prev.filter((c) => c._id !== classItem._id),
+              );
+              setPlaylists((prev) =>
+                prev.map((playlist) => ({
+                  ...playlist,
+                  classes: normalizeList<IClass>(playlist.classes).filter(
+                    (c) => c._id !== classItem._id,
+                  ),
+                })),
+              );
             } catch {
               Alert.alert('Error', 'No se pudo eliminar la clase');
             }
@@ -469,6 +481,24 @@ export default function HomeScreen() {
     loadSchools();
   }, [loadSchools]);
 
+  const loadCoursesForSchool = useCallback(
+    async (school: ISchool) => {
+      const schoolId = getEntityId(school);
+      const data = await apiClient.getCoursesBySchool(schoolId);
+      const visibleCourses = normalizeList<ICourse>(data);
+      const teacherCoursesForSchool = teachingCourses.filter(
+        (course) => getCourseSchoolId(course) === schoolId,
+      );
+
+      setCourses(
+        isTeacher
+          ? mergeUniqueById(visibleCourses, teacherCoursesForSchool)
+          : visibleCourses,
+      );
+    },
+    [isTeacher, teachingCourses],
+  );
+
   const handleSelectSchool = async (school: ISchool) => {
     setSelectedSchool(school);
     setSelectedCourse(null);
@@ -477,17 +507,7 @@ export default function HomeScreen() {
     setLevel('courses');
     setIsLoadingCourses(true);
     try {
-      const schoolId = getEntityId(school);
-      const data = await apiClient.getCoursesBySchool(schoolId);
-      const visibleCourses = normalizeList<ICourse>(data);
-      const teacherCoursesForSchool = teachingCourses.filter(
-        (course) => getCourseSchoolId(course) === schoolId,
-      );
-      setCourses(
-        isTeacher
-          ? mergeUniqueById(visibleCourses, teacherCoursesForSchool)
-          : visibleCourses,
-      );
+      await loadCoursesForSchool(school);
     } catch {
       const schoolId = getEntityId(school);
       const teacherCoursesForSchool = teachingCourses.filter(
@@ -498,6 +518,42 @@ export default function HomeScreen() {
       setIsLoadingCourses(false);
     }
   };
+
+  const loadClassesForCourse = useCallback(async (course: ICourse) => {
+    const courseId = String(course?._id || '');
+    if (!courseId) {
+      Alert.alert('Error', 'No se pudo identificar el curso seleccionado');
+      return;
+    }
+
+    try {
+      const [playlistDataRaw, unorganizedRaw] = await Promise.all([
+        apiClient.getPlaylists(courseId),
+        apiClient.getUnorganizedClasses(courseId),
+      ]);
+      const playlistData = normalizeList<any>(playlistDataRaw);
+      const unorganized = normalizeList<IClass>(unorganizedRaw);
+
+      setPlaylists(playlistData);
+      setUnorganizedClasses(unorganized);
+      const expanded: Record<string, boolean> = { __unorganized__: true };
+      playlistData.forEach((p: any) => {
+        expanded[p._id] = true;
+      });
+      setExpandedPlaylists(expanded);
+      setClasses([
+        ...playlistData.flatMap((p: any) => normalizeList<IClass>(p?.classes)),
+        ...unorganized,
+      ]);
+    } catch {
+      try {
+        const data = await apiClient.getClassesByCourse(courseId);
+        setClasses(normalizeList<IClass>(data));
+      } catch {
+        setClasses([]);
+      }
+    }
+  }, []);
 
   const handleSelectCourse = async (course: ICourse) => {
     const courseId = String(course?._id || '');
@@ -512,33 +568,7 @@ export default function HomeScreen() {
     setUnorganizedClasses([]);
     setExpandedPlaylists({});
     try {
-      const [playlistDataRaw, unorganizedRaw] = await Promise.all([
-        apiClient.getPlaylists(courseId),
-        apiClient.getUnorganizedClasses(courseId),
-      ]);
-      const playlistData = normalizeList<any>(playlistDataRaw);
-      const unorganized = normalizeList<IClass>(unorganizedRaw);
-
-      setPlaylists(playlistData);
-      setUnorganizedClasses(unorganized);
-      // Expand all playlists + unorganized by default
-      const expanded: Record<string, boolean> = { '__unorganized__': true };
-      playlistData.forEach((p: any) => { expanded[p._id] = true; });
-      setExpandedPlaylists(expanded);
-      // Still set flat list for backwards compat
-      const allClasses = [
-        ...playlistData.flatMap((p: any) => normalizeList<IClass>(p?.classes)),
-        ...unorganized,
-      ];
-      setClasses(allClasses);
-    } catch {
-      // Fallback to flat list
-      try {
-        const data = await apiClient.getClassesByCourse(courseId);
-        setClasses(normalizeList<IClass>(data));
-      } catch {
-        setClasses([]);
-      }
+      await loadClassesForCourse(course);
     } finally {
       setIsLoadingClasses(false);
     }
@@ -674,6 +704,37 @@ export default function HomeScreen() {
     loadSchools();
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      const refreshCurrentView = async () => {
+        try {
+          if (level === 'classes' && selectedCourse) {
+            await loadClassesForCourse(selectedCourse);
+            return;
+          }
+
+          if (level === 'courses' && selectedSchool) {
+            await loadCoursesForSchool(selectedSchool);
+            return;
+          }
+
+          await loadSchools();
+        } catch {
+          // Keep the current screen state if the refresh fails.
+        }
+      };
+
+      refreshCurrentView();
+    }, [
+      level,
+      selectedCourse,
+      selectedSchool,
+      loadClassesForCourse,
+      loadCoursesForSchool,
+      loadSchools,
+    ]),
+  );
+
   if (isLoading) {
     return (
       <View className="flex-1 justify-center items-center bg-amber-50">
@@ -719,8 +780,14 @@ export default function HomeScreen() {
           ListHeaderComponent={
             <>
               <View className="bg-white rounded-xl p-4 mb-4 border border-amber-100">
+                <Text className="text-[11px] font-semibold uppercase tracking-[1.4px] text-amber-700 mb-1">
+                  {BRAND.appName}
+                </Text>
                 <Text className="text-xl font-bold text-gray-900">
                   ¡Hola, {user?.name?.split(' ')[0] || 'Estudiante'}!
+                </Text>
+                <Text className="text-amber-700 mt-1 font-medium">
+                  {BRAND.slogan}
                 </Text>
                 <Text className="text-gray-500 mt-0.5 text-sm">
                   Explora las escuelas disponibles
