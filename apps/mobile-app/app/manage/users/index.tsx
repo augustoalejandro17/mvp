@@ -163,69 +163,104 @@ function UserRow({
     (user as any).isActive !== false &&
     normalizedStatus !== 'suspended' &&
     normalizedStatus !== 'inactive';
+  const normalizedRole = String(user.role || '').toLowerCase();
   const initials = (user.name ?? user.email ?? '?')
     .split(' ')
     .map((p) => p[0])
     .join('')
     .toUpperCase()
     .slice(0, 2);
-  const isRegistered = String(user.role || '').toLowerCase() !== 'unregistered';
+  const isRegistered = normalizedRole !== 'unregistered';
+  const canEnrollUser = canOpenEnrollFlow && isRegistered && normalizedRole === 'student';
+  const enrolledCourseCount = Array.isArray((user as any).enrolledCourses)
+    ? (user as any).enrolledCourses.length
+    : 0;
 
   return (
     <View
-      className="flex-row items-center bg-white rounded-2xl p-4 mb-3"
-      style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}
+      className="bg-white rounded-3xl p-4 mb-3"
+      style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 }}
     >
-      <View className="w-11 h-11 rounded-full bg-amber-100 justify-center items-center mr-3">
-        <Text className="text-amber-700 font-bold text-base">{initials}</Text>
-      </View>
-      <View className="flex-1">
-        <Text className="text-gray-900 font-semibold text-base" numberOfLines={1}>
-          {user.name ?? '(sin nombre)'}
-        </Text>
-        <Text className="text-gray-500 text-sm" numberOfLines={1}>
-          {user.email}
-        </Text>
-      </View>
-      {canOpenEnrollFlow && isRegistered && (
-        <TouchableOpacity
-          onPress={() => onOpenEnroll(user)}
-          className="px-3 py-2 rounded-xl mr-2 flex-row items-center"
-          style={{ backgroundColor: '#dbeafe' }}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="person-add-outline" size={16} color="#1d4ed8" />
-          <Text className="ml-1.5 text-xs font-semibold" style={{ color: '#1d4ed8' }}>
-            Matricular
+      <View className="flex-row items-start">
+        <View className="w-12 h-12 rounded-full bg-amber-100 justify-center items-center mr-3">
+          <Text className="text-amber-700 font-bold text-base">{initials}</Text>
+        </View>
+        <View className="flex-1 pr-3">
+          <Text className="text-gray-900 font-semibold text-base" numberOfLines={1}>
+            {user.name ?? '(sin nombre)'}
           </Text>
-        </TouchableOpacity>
-      )}
-      {canOpenManageFlow && (
-        <TouchableOpacity
-          onPress={() => onOpenManage(user)}
-          className="p-2.5 rounded-xl mr-2"
-          style={{ backgroundColor: '#f3f4f6' }}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="ellipsis-horizontal" size={16} color="#4b5563" />
-        </TouchableOpacity>
-      )}
-      <View
-        className="px-2.5 py-1 rounded-full mr-2"
-        style={{ backgroundColor: isUserActive ? '#ecfdf5' : '#fef2f2' }}
-      >
-        <Text
-          className="text-xs font-semibold"
-          style={{ color: isUserActive ? '#15803d' : '#b91c1c' }}
-        >
-          {isUserActive ? 'Activo' : 'Suspendido'}
-        </Text>
+          <Text className="text-gray-500 text-sm mt-0.5" numberOfLines={1}>
+            {user.email}
+          </Text>
+        </View>
+        {canOpenManageFlow && (
+          <TouchableOpacity
+            onPress={() => onOpenManage(user)}
+            className="w-10 h-10 rounded-2xl items-center justify-center"
+            style={{ backgroundColor: '#f3f4f6' }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="ellipsis-horizontal" size={18} color="#4b5563" />
+          </TouchableOpacity>
+        )}
       </View>
-      <View className="px-2.5 py-1 rounded-full" style={{ backgroundColor: role.bg }}>
-        <Text className="text-xs font-semibold" style={{ color: role.color }}>
-          {role.label}
-        </Text>
+
+      <View className="flex-row flex-wrap mt-3">
+        <View
+          className="px-2.5 py-1 rounded-full mr-2 mb-2"
+          style={{ backgroundColor: isUserActive ? '#ecfdf5' : '#fef2f2' }}
+        >
+          <Text
+            className="text-xs font-semibold"
+            style={{ color: isUserActive ? '#15803d' : '#b91c1c' }}
+          >
+            {isUserActive ? 'Activo' : 'Suspendido'}
+          </Text>
+        </View>
+        <View className="px-2.5 py-1 rounded-full mr-2 mb-2" style={{ backgroundColor: role.bg }}>
+          <Text className="text-xs font-semibold" style={{ color: role.color }}>
+            {role.label}
+          </Text>
+        </View>
+        {enrolledCourseCount > 0 && (
+          <View
+            className="px-2.5 py-1 rounded-full mb-2"
+            style={{ backgroundColor: '#eff6ff' }}
+          >
+            <Text className="text-xs font-semibold" style={{ color: '#2563eb' }}>
+              {enrolledCourseCount} {enrolledCourseCount === 1 ? 'curso' : 'cursos'}
+            </Text>
+          </View>
+        )}
       </View>
+
+      {(canEnrollUser || canOpenManageFlow) && (
+        <View className="flex-row mt-2">
+          {canEnrollUser && (
+            <TouchableOpacity
+              onPress={() => onOpenEnroll(user)}
+              className="flex-1 px-4 py-3 rounded-2xl flex-row items-center justify-center mr-2"
+              style={{ backgroundColor: '#dbeafe' }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="person-add-outline" size={17} color="#1d4ed8" />
+              <Text className="ml-2 text-sm font-semibold" style={{ color: '#1d4ed8' }}>
+                Matricular
+              </Text>
+            </TouchableOpacity>
+          )}
+          {canOpenManageFlow && (
+            <TouchableOpacity
+              onPress={() => onOpenManage(user)}
+              className={canEnrollUser ? 'px-4 py-3 rounded-2xl items-center justify-center' : 'flex-1 px-4 py-3 rounded-2xl items-center justify-center'}
+              style={{ backgroundColor: '#f3f4f6' }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text className="text-sm font-semibold text-gray-700">Gestionar</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
     </View>
   );
 }

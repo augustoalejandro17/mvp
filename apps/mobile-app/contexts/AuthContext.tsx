@@ -1,4 +1,13 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  ReactNode,
+} from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { IUser, LoginDto, LoginResponse, RegisterDto } from '@inti/shared-types';
 import { apiClient, STORAGE_KEYS, API_BASE_URL } from '@/services/apiClient';
@@ -20,33 +29,75 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const appState = useRef<AppStateStatus>(AppState.currentState);
 
   const clearSession = useCallback(() => {
     setUser(null);
   }, []);
 
-  useEffect(() => {
-    apiClient.setOnUnauthorized(clearSession);
-    loadStoredAuth();
-  }, [clearSession]);
-
-  const loadStoredAuth = async () => {
-    try {
-      const token = await SecureStore.getItemAsync(STORAGE_KEYS.AUTH_TOKEN);
-      const userData = await SecureStore.getItemAsync(STORAGE_KEYS.USER_DATA);
-      if (token && userData) {
-        setUser(JSON.parse(userData));
-      }
-    } catch (error) {
-      console.error('Error loading stored auth:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const persistUser = async (userData: AuthUser) => {
     await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
   };
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const fullUser = await apiClient.getCurrentUser();
+      setUser(fullUser);
+      await persistUser(fullUser);
+    } catch (error: any) {
+      if (error?.response?.status !== 401) {
+        console.error('Error refreshing user:', error);
+      }
+    }
+  }, []);
+
+  const restoreAndValidateSession = useCallback(async () => {
+    try {
+      const token = await SecureStore.getItemAsync(STORAGE_KEYS.AUTH_TOKEN);
+      const userData = await SecureStore.getItemAsync(STORAGE_KEYS.USER_DATA);
+
+      if (!token || !userData) {
+        clearSession();
+        return;
+      }
+
+      try {
+        setUser(JSON.parse(userData));
+      } catch {
+        await apiClient.clearAuth();
+        clearSession();
+        return;
+      }
+
+      await refreshUser();
+    } catch (error) {
+      console.error('Error loading stored auth:', error);
+      clearSession();
+    } finally {
+      setIsLoading(false);
+    }
+  }, [clearSession, refreshUser]);
+
+  useEffect(() => {
+    apiClient.setOnUnauthorized(clearSession);
+    void restoreAndValidateSession();
+  }, [clearSession, restoreAndValidateSession]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      const wasBackgrounded =
+        appState.current === 'background' || appState.current === 'inactive';
+      appState.current = nextAppState;
+
+      if (wasBackgrounded && nextAppState === 'active') {
+        void restoreAndValidateSession();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [restoreAndValidateSession]);
 
   const login = async (credentials: LoginDto) => {
     try {
@@ -95,16 +146,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await apiClient.logout();
     setUser(null);
-  };
-
-  const refreshUser = async () => {
-    try {
-      const fullUser = await apiClient.getCurrentUser();
-      setUser(fullUser);
-      await persistUser(fullUser);
-    } catch (error) {
-      console.error('Error refreshing user:', error);
-    }
   };
 
   const Provider = AuthContext.Provider as any;

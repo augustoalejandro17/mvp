@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { TouchableOpacity } from 'react-native';
+import { ActivityIndicator, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@inti/shared-types';
@@ -18,7 +18,7 @@ function TabIcon({ name, color, size }: { name: string; color: string; size: num
 }
 
 export default function TabsLayout() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const [canViewSeatManagementModule, setCanViewSeatManagementModule] =
     useState(false);
   const isAdminByRole =
@@ -30,6 +30,10 @@ export default function TabsLayout() {
 
   useEffect(() => {
     const loadPolicy = async () => {
+      if (!user) {
+        setCanViewSeatManagementModule(false);
+        return;
+      }
       try {
         const policy = await apiClient.getSeatPolicy();
         setCanViewSeatManagementModule(
@@ -40,7 +44,19 @@ export default function TabsLayout() {
       }
     };
     loadPolicy();
-  }, []);
+  }, [user]);
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-white">
+        <ActivityIndicator size="large" color="#f59e0b" />
+      </View>
+    );
+  }
+
+  if (!user) {
+    return <Redirect href="/(auth)/login" />;
+  }
 
   return (
     <Tabs
@@ -84,6 +100,7 @@ export default function TabsLayout() {
         name="progress"
         options={{
           title: 'Progreso',
+          href: null,
           tabBarIcon: ({ color, size, focused }) => (
             <TabIcon name={focused ? 'stats-chart' : 'stats-chart-outline'} color={color} size={size} />
           ),

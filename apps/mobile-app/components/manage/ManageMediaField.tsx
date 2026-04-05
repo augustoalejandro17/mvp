@@ -25,7 +25,8 @@ export default function ManageMediaField({
   const normalizedPreviewUrl = typeof previewUrl === 'string' ? previewUrl.trim() : '';
   const hasContent = Boolean(normalizedPreviewUrl || selectedFileName);
   const iconName = mediaType === 'image' ? 'image-outline' : 'videocam-outline';
-  const buttonLabel = mediaType === 'image' ? 'Seleccionar imagen' : 'Seleccionar video';
+  const buttonLabel =
+    mediaType === 'image' ? 'Seleccionar y encuadrar imagen' : 'Seleccionar video';
 
   return (
     <View className="mb-4">

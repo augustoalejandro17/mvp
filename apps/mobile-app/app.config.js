@@ -21,6 +21,12 @@ export default {
       supportsTablet: false,
       bundleIdentifier: 'com.inti.app',
       buildNumber: '1',
+      infoPlist: {
+        NSPhotoLibraryUsageDescription:
+          'Permite acceso a tus fotos para seleccionar y encuadrar portadas.',
+        NSPhotoLibraryAddUsageDescription:
+          'Permite guardar temporalmente imágenes editadas para tus portadas.',
+      },
       config: {
         usesNonExemptEncryption: false,
       },
@@ -44,7 +50,13 @@ export default {
       bundler: 'metro'
     },
     plugins: [
-      'expo-router'
+      'expo-router',
+      [
+        'expo-image-picker',
+        {
+          photosPermission: 'Permite acceso a tus fotos para seleccionar y encuadrar portadas.',
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true

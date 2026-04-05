@@ -1103,8 +1103,41 @@ class ApiClient {
     [key: string]: any;
   }> {
     try {
-      const { data } = await this.client.get('/statistics/overview');
-      return data;
+      const [{ data }, visibleUsers] = await Promise.all([
+        this.client.get('/admin/stats'),
+        this.getUsers().catch(() => [] as IUser[]),
+      ]);
+      const normalizedUsers = Array.isArray(visibleUsers) ? visibleUsers : [];
+      const totalStudentsFromUsers = normalizedUsers.filter((user) => {
+        const globalRole = String(user.role || '').toLowerCase();
+        const contextualRoles = Array.isArray((user as any).schoolRoles)
+          ? (user as any).schoolRoles.map((role: any) =>
+              String(role?.role || '').toLowerCase(),
+            )
+          : [];
+        return globalRole === 'student' || contextualRoles.includes('student');
+      }).length;
+      const totalTeachersFromUsers = normalizedUsers.filter((user) => {
+        const globalRole = String(user.role || '').toLowerCase();
+        const contextualRoles = Array.isArray((user as any).schoolRoles)
+          ? (user as any).schoolRoles.map((role: any) =>
+              String(role?.role || '').toLowerCase(),
+            )
+          : [];
+        return globalRole === 'teacher' || contextualRoles.includes('teacher');
+      }).length;
+
+      return {
+        ...data,
+        totalUsers: data?.totalUsers ?? data?.users ?? normalizedUsers.length,
+        totalStudents:
+          data?.totalStudents ?? data?.students ?? totalStudentsFromUsers,
+        totalTeachers:
+          data?.totalTeachers ?? data?.teachers ?? totalTeachersFromUsers,
+        totalSchools: data?.totalSchools ?? data?.schools ?? 0,
+        totalCourses: data?.totalCourses ?? data?.courses ?? 0,
+        totalClasses: data?.totalClasses ?? data?.classes ?? 0,
+      };
     } catch {
       return {};
     }

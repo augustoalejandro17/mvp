@@ -67,6 +67,11 @@ export class AdminStatsController {
 
         // Get stats for specific school
         stats.users = await this.getUserCountForSchool(schoolId);
+        stats.students = await this.getUserCountByRoleForSchool(
+          schoolId,
+          UserRole.STUDENT,
+        );
+        stats.teachers = await this.getTeacherCountForSchool(schoolId);
         stats.schools = 1; // Just the requested school
         stats.courses = await this.getCourseCountForSchool(schoolId);
         stats.classes = await this.getClassCountForSchool(schoolId);
@@ -75,6 +80,12 @@ export class AdminStatsController {
         if (user.role === UserRole.SUPER_ADMIN) {
           // Super admin can see all stats
           stats.users = await this.userModel.countDocuments();
+          stats.students = await this.userModel.countDocuments({
+            role: UserRole.STUDENT,
+          });
+          stats.teachers = await this.userModel.countDocuments({
+            role: UserRole.TEACHER,
+          });
           stats.schools = await this.schoolModel.countDocuments();
           stats.courses = await this.courseModel.countDocuments();
           stats.classes = await this.classModel.countDocuments();
@@ -84,6 +95,11 @@ export class AdminStatsController {
           const schoolIds = ownedSchools.map((school) => school._id);
 
           stats.users = await this.getUserCountForSchools(schoolIds);
+          stats.students = await this.getUserCountByRoleForSchools(
+            schoolIds,
+            UserRole.STUDENT,
+          );
+          stats.teachers = await this.getTeacherCountForSchools(schoolIds);
           stats.schools = schoolIds.length;
           stats.courses = await this.getCourseCountForSchools(schoolIds);
           stats.classes = await this.getClassCountForSchools(schoolIds);
@@ -95,6 +111,11 @@ export class AdminStatsController {
           const schoolIds = adminSchools.map((school) => school._id);
 
           stats.users = await this.getUserCountForSchools(schoolIds);
+          stats.students = await this.getUserCountByRoleForSchools(
+            schoolIds,
+            UserRole.STUDENT,
+          );
+          stats.teachers = await this.getTeacherCountForSchools(schoolIds);
           stats.schools = schoolIds.length;
           stats.courses = await this.getCourseCountForSchools(schoolIds);
           stats.classes = await this.getClassCountForSchools(schoolIds);
@@ -112,6 +133,11 @@ export class AdminStatsController {
           });
           const schoolIds = administrativeSchools.map((school) => school._id);
           stats.users = await this.getUserCountForSchools(schoolIds);
+          stats.students = await this.getUserCountByRoleForSchools(
+            schoolIds,
+            UserRole.STUDENT,
+          );
+          stats.teachers = await this.getTeacherCountForSchools(schoolIds);
           stats.schools = schoolIds.length;
           stats.courses = await this.getCourseCountForSchools(schoolIds);
           stats.classes = await this.getClassCountForSchools(schoolIds);
@@ -368,6 +394,75 @@ export class AdminStatsController {
     return this.userModel.countDocuments({
       schools: { $in: schoolIds },
     });
+  }
+
+  private async getUserCountByRoleForSchool(
+    schoolId: string,
+    role: UserRole,
+  ): Promise<number> {
+    return this.userModel.countDocuments({
+      $and: [
+        {
+          $or: [
+            { schools: schoolId },
+            {
+              schoolRoles: {
+                $elemMatch: {
+                  schoolId,
+                },
+              },
+            },
+          ],
+        },
+        {
+          $or: [
+            { role },
+            {
+              schoolRoles: {
+                $elemMatch: {
+                  schoolId,
+                  role,
+                },
+              },
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  private async getUserCountByRoleForSchools(
+    schoolIds: any[],
+    role: UserRole,
+  ): Promise<number> {
+    return this.userModel.countDocuments({
+      $and: [
+        {
+          $or: [
+            { schools: { $in: schoolIds } },
+            {
+              'schoolRoles.schoolId': { $in: schoolIds },
+            },
+          ],
+        },
+        {
+          $or: [
+            { role },
+            {
+              'schoolRoles.role': role,
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  private async getTeacherCountForSchool(schoolId: string): Promise<number> {
+    return this.getUserCountByRoleForSchool(schoolId, UserRole.TEACHER);
+  }
+
+  private async getTeacherCountForSchools(schoolIds: any[]): Promise<number> {
+    return this.getUserCountByRoleForSchools(schoolIds, UserRole.TEACHER);
   }
 
   private async getCourseCountForSchool(schoolId: string): Promise<number> {

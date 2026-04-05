@@ -32,6 +32,7 @@ export default function RootLayout() {
       >
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="manage" options={{ headerShown: false }} />
         <Stack.Screen 
           name="player/[id]" 
           options={{ 
@@ -52,12 +53,6 @@ export default function RootLayout() {
           options={{
             headerShown: false,
             presentation: 'modal',
-          }}
-        />
-        <Stack.Screen
-          name="manage/user-reports/index"
-          options={{
-            title: 'Denuncias de usuarios',
           }}
         />
         <Stack.Screen

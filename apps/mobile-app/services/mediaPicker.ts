@@ -1,4 +1,5 @@
 import type { NativeUploadFile } from '@/services/apiClient';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 
 declare const require: (moduleName: string) => any;
 
@@ -98,17 +99,96 @@ const isSupportedVideo = (fileName: string, mimeType: string): boolean => {
 };
 
 const loadDocumentPicker = () => {
+  const hasNativeModule = !!requireOptionalNativeModule('ExpoDocumentPicker');
+  if (!hasNativeModule) {
+    return null;
+  }
   try {
     return require('expo-document-picker');
   } catch {
-    throw new Error(
-      'No se encontró expo-document-picker. Instala la dependencia en apps/mobile-app para habilitar selección de archivos en móvil.',
-    );
+    return null;
+  }
+};
+
+const loadImagePicker = () => {
+  const hasNativeModule = !!requireOptionalNativeModule('ExponentImagePicker');
+  if (!hasNativeModule) {
+    return null;
+  }
+  try {
+    return require('expo-image-picker');
+  } catch {
+    return null;
   }
 };
 
 export async function pickImageFromDevice(): Promise<NativeUploadFile | null> {
+  const ImagePicker = loadImagePicker();
+  if (ImagePicker) {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission?.granted) {
+        throw new Error(
+          'Necesitamos acceso a tu galería para seleccionar y encuadrar la imagen.',
+        );
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 1,
+        allowsMultipleSelection: false,
+        exif: false,
+      });
+
+      if (!result || result.canceled || !Array.isArray(result.assets) || !result.assets[0]) {
+        return null;
+      }
+
+      const asset = result.assets[0];
+      const name = asset.fileName || asset.name || `image-${Date.now()}.jpg`;
+      const type = resolveMimeType(name, asset.mimeType, 'image');
+      const size = typeof asset.size === 'number' ? asset.size : undefined;
+
+      if (!asset.uri || typeof asset.uri !== 'string') {
+        throw new Error('No se pudo leer el archivo de imagen seleccionado.');
+      }
+
+      if (!isSupportedImage(name, type)) {
+        throw new Error(
+          'Formato no compatible. Usa JPG, PNG, WEBP o GIF.',
+        );
+      }
+
+      if (typeof size === 'number' && size > MAX_IMAGE_SIZE_BYTES) {
+        throw new Error('La imagen supera el límite de 5MB.');
+      }
+
+      return {
+        uri: asset.uri,
+        name,
+        type,
+        size,
+      };
+    } catch (error: any) {
+      const message = String(error?.message || '');
+      const nativeModuleMissing =
+        message.includes('ExponentImagePicker') ||
+        message.includes('expo-image-picker');
+
+      if (!nativeModuleMissing) {
+        throw error;
+      }
+    }
+  }
+
   const DocumentPicker = loadDocumentPicker();
+  if (!DocumentPicker) {
+    throw new Error(
+      'Tu app nativa actual no incluye el selector de imágenes todavía. Recompila el cliente iOS/Android para habilitar encuadre, o reinstala el dev client.',
+    );
+  }
   const result = await DocumentPicker.getDocumentAsync({
     type: 'image/*',
     multiple: false,
@@ -148,6 +228,11 @@ export async function pickImageFromDevice(): Promise<NativeUploadFile | null> {
 
 export async function pickVideoFromDevice(): Promise<NativeUploadFile | null> {
   const DocumentPicker = loadDocumentPicker();
+  if (!DocumentPicker) {
+    throw new Error(
+      'Tu app nativa actual no incluye el selector de archivos todavía. Recompila el cliente iOS/Android o reinstala el dev client.',
+    );
+  }
   const result = await DocumentPicker.getDocumentAsync({
     type: 'video/*',
     multiple: false,
