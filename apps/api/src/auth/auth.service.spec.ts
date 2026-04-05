@@ -47,13 +47,20 @@ describe('AuthService', () => {
       .mockResolvedValue(undefined);
   });
 
+  const mockFindOneWithSelect = (result: unknown) => {
+    const select = jest.fn().mockResolvedValue(result);
+    userModel.findOne.mockReturnValue({ select });
+    return select;
+  };
+
   it('rechaza credenciales inválidas aunque el email sea de pruebas históricas', async () => {
     const hashedPassword = await argon2.hash('correct-password');
-    userModel.findOne.mockResolvedValue({
+    mockFindOneWithSelect({
       _id: 'user-1',
       email: 'labrador@mail.com',
       name: 'Legacy Test User',
       role: UserRole.STUDENT,
+      isActive: true,
       password: hashedPassword,
       save: jest.fn(),
     });
@@ -76,11 +83,12 @@ describe('AuthService', () => {
       email: 'legacy@mail.com',
       name: 'Legacy User',
       role: UserRole.STUDENT,
+      isActive: true,
       password: 'legacy-password',
       save: mockSave,
     };
 
-    userModel.findOne.mockResolvedValue(user);
+    mockFindOneWithSelect(user);
     userModel.findByIdAndUpdate.mockResolvedValue(undefined);
 
     const loginDto: LoginDto = {
