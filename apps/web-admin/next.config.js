@@ -90,13 +90,6 @@ const nextConfig = {
     return [];
   },
   webpack: (config, { isServer }) => {
-    // Monorepo: resolve react from root node_modules (workspace hoists deps)
-    const rootNodeModules = path.resolve(__dirname, '../../node_modules');
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      react: path.join(rootNodeModules, 'react'),
-      'react-dom': path.join(rootNodeModules, 'react-dom'),
-    };
     if (!isServer) {
       config.resolve.fallback = {
         fs: false,

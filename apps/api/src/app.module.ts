@@ -47,10 +47,6 @@ import {
   Subscription,
   SubscriptionSchema,
 } from './plans/schemas/subscription.schema';
-import {
-  UserOwnedSchoolsController,
-  UserAdministeredSchoolsController,
-} from './schools/schools.controller';
 import { MigrationService } from './migrations/migration.service';
 
 @Module({
@@ -112,8 +108,6 @@ import { MigrationService } from './migrations/migration.service';
   controllers: [
     AppController,
     ImagesController,
-    UserOwnedSchoolsController,
-    UserAdministeredSchoolsController,
     AdminStatsController,
     ApiStatsController,
   ],
