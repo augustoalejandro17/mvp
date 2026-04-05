@@ -782,33 +782,18 @@ export class UsersService {
 
     // Super admin y admin pueden hacer búsquedas globales sin restricciones
     if (isSuperAdmin || isAdmin) {
-      // No añadir restricciones adicionales - búsqueda global
-
-      // Si se especifica una escuela, filtrar por esa escuela como opción adicional
-      if (schoolId) {
-        // Filtrado opcional por escuela, pero no obligatorio para estos roles
-        query.schools = schoolId;
-      }
+      // No añadir restricciones adicionales: búsqueda global.
     }
-    // School owner y administrative pueden hacer búsquedas globales pero deben tener la información de sus escuelas
+    // School owner y administrative pueden hacer búsquedas globales, pero cuando
+    // envían schoolId lo usamos solo para validar que tienen contexto/permisos
+    // sobre esa escuela. No filtramos resultados por escuela porque el objetivo
+    // es poder encontrar usuarios registrados del sistema y luego asignarles acceso.
     else if (isSchoolOwner || isAdministrative) {
-      // Obtener las escuelas que puede gestionar el usuario solicitante
       const requestingUser = await this.userModel.findById(requestingUserId);
       if (!requestingUser) {
         throw new NotFoundException('Usuario no encontrado');
       }
 
-      // Determinar qué escuelas puede gestionar
-      let userSchoolIds = [];
-      if (isSchoolOwner) {
-        userSchoolIds =
-          requestingUser.ownedSchools?.map((id) => id.toString()) || [];
-      } else if (isAdministrative) {
-        userSchoolIds =
-          requestingUser.administratedSchools?.map((id) => id.toString()) || [];
-      }
-
-      // Si se especifica una escuela específica, verificar que tenga permisos para ella
       if (schoolId) {
         const canManageSchool = await this.canManageSchool(
           requestingUserId,
@@ -819,12 +804,7 @@ export class UsersService {
             'No tienes permiso para ver usuarios de esta escuela',
           );
         }
-
-        // Solo filtrar por esa escuela si el usuario tiene permiso
-        query.schools = schoolId;
       }
-      // Si no se especifica escuela, no filtramos por escuela - permitiendo búsqueda global
-      // pero mantenemos la información de las escuelas que puede gestionar para la lógica de asignación
     } else if (isTeacher) {
       if (!schoolId) {
         throw new ForbiddenException(
@@ -841,8 +821,6 @@ export class UsersService {
           'No tienes permiso para buscar usuarios en esta escuela',
         );
       }
-
-      query.schools = schoolId;
     } else {
       // Otros roles como teacher o student solo pueden buscar en su propia escuela
       throw new ForbiddenException('No tienes permisos para buscar usuarios');

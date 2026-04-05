@@ -217,11 +217,11 @@ function CourseCard({
     >
       {/* Cover image */}
       {(course as any).coverImageUrl ? (
-        <View style={{ height: 120, backgroundColor: '#f3f4f6' }}>
+        <View style={{ height: 120, backgroundColor: '#ffffff' }}>
           <Image
             source={{ uri: (course as any).coverImageUrl }}
             style={{ width: '100%', height: 120 }}
-            resizeMode="cover"
+            resizeMode="contain"
           />
           {isEnrolled && (
             <View className="absolute top-2 right-2 bg-green-500 px-2 py-1 rounded-full">

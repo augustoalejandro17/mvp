@@ -59,8 +59,8 @@ export default function ManageMediaField({
         {mediaType === 'image' && normalizedPreviewUrl ? (
           <Image
             source={{ uri: normalizedPreviewUrl }}
-            className="w-full h-40 rounded-lg mt-3"
-            resizeMode="cover"
+            className="w-full h-40 rounded-lg mt-3 bg-white"
+            resizeMode="contain"
           />
         ) : null}
 

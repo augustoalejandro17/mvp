@@ -320,7 +320,7 @@ export default function CourseStudentsScreen() {
               <View className="flex-1 pr-3">
                 <Text className="text-gray-900 font-bold text-base">Matrícula</Text>
                 <Text className="text-gray-500 text-xs mt-1">
-                  Busca por email para agregar usuarios a este curso.
+                  Busca cualquier usuario registrado por email para agregarlo a este curso.
                 </Text>
               </View>
               <View className="bg-amber-50 px-3 py-2 rounded-xl">
@@ -437,7 +437,7 @@ export default function CourseStudentsScreen() {
             {hasSearchedStudents && !isSearchingStudents && searchResults.length === 0 && (
               <View className="bg-gray-50 border border-dashed border-gray-300 rounded-2xl px-4 py-4 mb-4">
                 <Text className="text-gray-600 text-sm">
-                  No encontramos usuarios registrados con ese email en esta escuela.
+                  No encontramos usuarios registrados con ese email.
                 </Text>
               </View>
             )}
