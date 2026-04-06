@@ -56,5 +56,9 @@
     "eslint": "^8.50.0",
     "eslint-config-next": "14.0.0",
     "typescript": "^5.2.0"
+  },
+  "engines": {
+    "node": ">=20.19.4",
+    "npm": ">=10.0.0"
   }
 }
