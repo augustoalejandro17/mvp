@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type RefObject } from 'react';
 import {
   View,
   Text,
@@ -430,6 +430,426 @@ function SeekBar({
           shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 4, elevation: 5,
         }}
       />
+    </View>
+  );
+}
+
+interface PracticeVideoPlayerProps {
+  uri: string;
+  videoRef: RefObject<Video | null>;
+  height?: number;
+  onPositionChange?: (positionMs: number, durationMs: number) => void;
+}
+
+function PracticeVideoPlayer({
+  uri,
+  videoRef,
+  height = 220,
+  onPositionChange,
+}: PracticeVideoPlayerProps) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [positionMs, setPositionMs] = useState(0);
+  const [durationMs, setDurationMs] = useState(0);
+  const [rate, setRate] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [scrubPositionMs, setScrubPositionMs] = useState<number | null>(null);
+  const [hasEnded, setHasEnded] = useState(false);
+  const [skipFeedback, setSkipFeedback] = useState<{
+    side: 'left' | 'right';
+    count: number;
+  } | null>(null);
+  const isScrubbing = useRef(false);
+  const suppressVideoTapUntil = useRef(0);
+  const skipOpacity = useRef(new Animated.Value(0)).current;
+  const skipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTapTime = useRef(0);
+  const lastTapSide = useRef<'left' | 'right' | null>(null);
+  const doubleTapCount = useRef(0);
+  const widthRef = useRef(0);
+
+  useEffect(() => {
+    setIsPlaying(false);
+    setPositionMs(0);
+    setDurationMs(0);
+    setRate(1);
+    setIsMuted(false);
+    setShowSpeedMenu(false);
+    setScrubPositionMs(null);
+    setHasEnded(false);
+    setSkipFeedback(null);
+    onPositionChange?.(0, 0);
+  }, [uri, onPositionChange]);
+
+  useEffect(() => {
+    return () => {
+      if (skipTimer.current) {
+        clearTimeout(skipTimer.current);
+      }
+    };
+  }, []);
+
+  const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
+    if (!status.isLoaded) {
+      return;
+    }
+    if (isScrubbing.current) {
+      return;
+    }
+
+    const nextPositionMs = status.positionMillis ?? 0;
+    const nextDurationMs = status.durationMillis ?? durationMs;
+    setIsPlaying(status.isPlaying);
+    setPositionMs(nextPositionMs);
+    if (status.durationMillis) {
+      setDurationMs(status.durationMillis);
+    }
+    if (status.didJustFinish) {
+      setHasEnded(true);
+      setIsPlaying(false);
+    }
+    onPositionChange?.(nextPositionMs, nextDurationMs);
+  };
+
+  const togglePlay = async () => {
+    if (!videoRef.current) {
+      return;
+    }
+
+    if (isPlaying) {
+      await videoRef.current.pauseAsync();
+    } else {
+      setHasEnded(false);
+      await videoRef.current.playAsync();
+    }
+  };
+
+  const skip = async (seconds: number) => {
+    const nextPositionMs = Math.max(
+      0,
+      Math.min(positionMs + seconds * 1000, durationMs || positionMs + seconds * 1000),
+    );
+    await seekToPosition(nextPositionMs);
+  };
+
+  const seekToPosition = async (targetMs: number) => {
+    const player = videoRef.current;
+    if (!player || !Number.isFinite(targetMs)) {
+      return;
+    }
+
+    const bounded = Math.max(0, Math.min(Math.round(targetMs), durationMs || targetMs));
+    const shouldResume = isPlaying;
+    setPositionMs(bounded);
+    onPositionChange?.(bounded, durationMs);
+
+    try {
+      const status = shouldResume
+        ? await player.playFromPositionAsync(bounded, {
+            toleranceMillisBefore: 0,
+            toleranceMillisAfter: 0,
+          })
+        : await player.setPositionAsync(bounded, {
+            toleranceMillisBefore: 0,
+            toleranceMillisAfter: 0,
+          });
+
+      if (status.isLoaded && typeof status.positionMillis === 'number') {
+        setPositionMs(status.positionMillis);
+        onPositionChange?.(
+          status.positionMillis,
+          status.durationMillis ?? durationMs,
+        );
+      }
+    } catch {
+      // Keep inline player stable even if native seek fails.
+    } finally {
+      setScrubPositionMs(null);
+      isScrubbing.current = false;
+    }
+  };
+
+  const toggleMute = async () => {
+    suppressVideoTapUntil.current = Date.now() + 200;
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    await videoRef.current?.setStatusAsync({ isMuted: nextMuted });
+  };
+
+  const applySpeed = async (newRate: number) => {
+    suppressVideoTapUntil.current = Date.now() + 200;
+    const wasPlaying = isPlaying;
+    setRate(newRate);
+    setShowSpeedMenu(false);
+    try {
+      await videoRef.current?.setRateAsync(newRate, true);
+      if (wasPlaying) {
+        await videoRef.current?.playAsync();
+      }
+    } catch {
+      // Ignore unsupported playback-rate updates.
+    }
+  };
+
+  const openFullscreen = async () => {
+    suppressVideoTapUntil.current = Date.now() + 250;
+    try {
+      await videoRef.current?.presentFullscreenPlayer();
+    } catch {
+      // Fullscreen is best-effort on supported platforms.
+    }
+  };
+
+  const replay = async () => {
+    setHasEnded(false);
+    await seekToPosition(0);
+    await videoRef.current?.playAsync();
+  };
+
+  const triggerSkipFeedback = (side: 'left' | 'right', count: number) => {
+    setSkipFeedback({ side, count });
+    skipOpacity.setValue(1);
+    if (skipTimer.current) {
+      clearTimeout(skipTimer.current);
+    }
+    skipTimer.current = setTimeout(() => {
+      Animated.timing(skipOpacity, {
+        toValue: 0,
+        duration: 350,
+        useNativeDriver: true,
+      }).start(() => setSkipFeedback(null));
+    }, 700);
+  };
+
+  const handleVideoPress = (evt: { nativeEvent: { locationX: number } }) => {
+    if (Date.now() < suppressVideoTapUntil.current) {
+      return;
+    }
+    if (showSpeedMenu) {
+      setShowSpeedMenu(false);
+      return;
+    }
+
+    const width = widthRef.current;
+    const side: 'left' | 'right' =
+      width > 0 && evt.nativeEvent.locationX < width / 2 ? 'left' : 'right';
+    const now = Date.now();
+    const isDoubleTap =
+      now - lastTapTime.current < DOUBLE_TAP_MS &&
+      lastTapSide.current === side;
+
+    if (isDoubleTap) {
+      doubleTapCount.current += 1;
+      void skip(side === 'left' ? -SKIP_SECS : SKIP_SECS);
+      triggerSkipFeedback(side, doubleTapCount.current);
+      lastTapTime.current = now;
+      return;
+    }
+
+    doubleTapCount.current = 0;
+    lastTapTime.current = now;
+    lastTapSide.current = side;
+  };
+
+  const displayPositionMs = scrubPositionMs ?? positionMs;
+  const progressRatio = durationMs > 0 ? displayPositionMs / durationMs : 0;
+  const seekBarProps: SeekBarProps = {
+    progressRatio,
+    durationMs,
+    isScrubbing,
+    suppressVideoTapUntil,
+    scrubPositionMs,
+    positionMs,
+    setScrubPositionMs,
+    seekToPosition,
+  };
+
+  return (
+    <View
+      style={{
+        marginTop: 16,
+        borderRadius: 16,
+        overflow: 'hidden',
+        backgroundColor: '#000',
+      }}
+    >
+      <View style={{ width: '100%', height, backgroundColor: '#000' }}>
+        <Video
+          ref={videoRef}
+          source={{ uri }}
+          style={{ width: '100%', height, backgroundColor: '#000' }}
+          resizeMode={ResizeMode.CONTAIN}
+          isMuted={isMuted}
+          rate={rate}
+          progressUpdateIntervalMillis={100}
+          onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+        />
+
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+          onLayout={(event) => {
+            widthRef.current = event.nativeEvent.layout.width;
+          }}
+          onStartShouldSetResponder={() => true}
+          onResponderRelease={handleVideoPress}
+        >
+          {skipFeedback ? (
+            <SkipFeedback
+              side={skipFeedback.side}
+              count={skipFeedback.count}
+              opacity={skipOpacity}
+            />
+          ) : null}
+
+          {hasEnded ? (
+            <TouchableOpacity
+              onPress={() => void replay()}
+              style={{
+                width: 62,
+                height: 62,
+                borderRadius: 31,
+                backgroundColor: 'rgba(245,158,11,0.92)',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <Ionicons name="reload" size={28} color="white" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={() => void togglePlay()}
+              style={{
+                width: 58,
+                height: 58,
+                borderRadius: 29,
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                borderWidth: 2,
+                borderColor: 'rgba(255,255,255,0.85)',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <Ionicons
+                name={isPlaying ? 'pause' : 'play'}
+                size={24}
+                color="white"
+                style={{ marginLeft: isPlaying ? 0 : 3 }}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {showSpeedMenu ? (
+          <View
+            style={{
+              position: 'absolute',
+              top: 12,
+              right: 12,
+              zIndex: 10,
+              backgroundColor: 'rgba(15,15,15,0.96)',
+              borderRadius: 12,
+              overflow: 'hidden',
+              minWidth: 112,
+            }}
+          >
+            {SPEEDS.map((speed) => (
+              <TouchableOpacity
+                key={speed}
+                onPress={() => void applySpeed(speed)}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 11,
+                  backgroundColor:
+                    rate === speed ? 'rgba(245,158,11,0.18)' : 'transparent',
+                }}
+              >
+                <Text
+                  style={{
+                    color: rate === speed ? '#f59e0b' : '#fff',
+                    fontSize: 13,
+                    fontWeight: rate === speed ? '700' : '500',
+                  }}
+                >
+                  {speed === 1 ? 'Normal' : `${speed}×`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
+      </View>
+
+      <View
+        style={{
+          backgroundColor: '#111',
+          paddingHorizontal: 14,
+          paddingTop: 10,
+          paddingBottom: 8,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Text
+            style={{
+              color: '#d1d5db',
+              fontSize: 11,
+              fontWeight: '500',
+              minWidth: 38,
+            }}
+          >
+            {fmt(displayPositionMs)}
+          </Text>
+          <View style={{ flex: 1 }}>
+            <SeekBar {...seekBarProps} />
+          </View>
+          <Text
+            style={{
+              color: '#6b7280',
+              fontSize: 11,
+              minWidth: 38,
+              textAlign: 'right',
+            }}
+          >
+            {fmt(durationMs)}
+          </Text>
+          <TouchableOpacity onPress={() => void toggleMute()} style={{ padding: 6 }}>
+            <Ionicons
+              name={isMuted ? 'volume-mute' : 'volume-high'}
+              size={20}
+              color="white"
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setShowSpeedMenu((previous) => !previous)}
+            style={{
+              paddingVertical: 6,
+              paddingHorizontal: 10,
+              backgroundColor:
+                rate !== 1 ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.15)',
+              borderRadius: 10,
+            }}
+          >
+            <Text
+              style={{
+                color: rate !== 1 ? '#f59e0b' : '#fff',
+                fontWeight: '700',
+                fontSize: 12,
+              }}
+            >
+              {rate === 1 ? '1×' : `${rate}×`}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => void openFullscreen()} style={{ padding: 6 }}>
+            <Ionicons name="expand" size={20} color="white" />
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 }
@@ -1924,22 +2344,10 @@ export default function PlayerScreen() {
               </Text>
 
               {submission?.videoUrl && submission.videoStatus === VideoStatus.READY ? (
-                <View
-                  style={{
-                    marginTop: 16,
-                    borderRadius: 16,
-                    overflow: 'hidden',
-                    backgroundColor: '#000',
-                  }}
-                >
-                  <Video
-                    ref={submissionVideoRef}
-                    source={{ uri: submission.videoUrl }}
-                    style={{ width: '100%', height: 220, backgroundColor: '#000' }}
-                    resizeMode={ResizeMode.CONTAIN}
-                    useNativeControls
-                  />
-                </View>
+                <PracticeVideoPlayer
+                  uri={submission.videoUrl}
+                  videoRef={submissionVideoRef}
+                />
               ) : null}
 
               <View style={{ marginTop: 18 }}>
@@ -2363,31 +2771,15 @@ export default function PlayerScreen() {
 
                       {selectedReviewSubmission.videoUrl &&
                       selectedReviewSubmission.videoStatus === VideoStatus.READY ? (
-                        <View
-                          style={{
-                            marginTop: 14,
-                            borderRadius: 16,
-                            overflow: 'hidden',
-                            backgroundColor: '#000',
+                        <PracticeVideoPlayer
+                          uri={selectedReviewSubmission.videoUrl}
+                          videoRef={submissionVideoRef}
+                          height={240}
+                          onPositionChange={(nextPositionMs, nextDurationMs) => {
+                            setReviewPlayerPositionMs(nextPositionMs);
+                            setReviewPlayerDurationMs(nextDurationMs);
                           }}
-                        >
-                          <Video
-                            ref={submissionVideoRef}
-                            source={{ uri: selectedReviewSubmission.videoUrl }}
-                            style={{ width: '100%', height: 240, backgroundColor: '#000' }}
-                            resizeMode={ResizeMode.CONTAIN}
-                            useNativeControls
-                            onPlaybackStatusUpdate={(status) => {
-                              if (!status.isLoaded) {
-                                return;
-                              }
-                              setReviewPlayerPositionMs(status.positionMillis ?? 0);
-                              if (status.durationMillis) {
-                                setReviewPlayerDurationMs(status.durationMillis);
-                              }
-                            }}
-                          />
-                        </View>
+                        />
                       ) : (
                         <View
                           style={{

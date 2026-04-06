@@ -391,9 +391,10 @@ class VideoProcessor {
    * Upload processed video to final bucket
    */
   async uploadToFinalBucket(input, context) {
+    const versionSuffix = Date.now();
     const key =
       context.assetType === "submission"
-        ? `videos/submissions/${context.schoolId}/${context.classId}/${context.studentId}/${context.submissionId}/final.mp4`
+        ? `videos/submissions/${context.schoolId}/${context.classId}/${context.studentId}/${context.submissionId}/final-${versionSuffix}.mp4`
         : `videos/${context.schoolId}/${context.classId}/final.mp4`;
     const body =
       typeof input === "string" ? fs.createReadStream(input) : input;

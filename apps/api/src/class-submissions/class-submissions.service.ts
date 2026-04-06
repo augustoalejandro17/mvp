@@ -424,12 +424,21 @@ export class ClassSubmissionsService {
     videoKey?: string,
   ): Promise<void> {
     const submission = await this.getSubmissionOrFail(submissionId);
+    const previousVideoUrl = submission.videoUrl;
     submission.videoUrl = videoUrl;
     submission.videoKey = videoKey || this.s3Service.getKeyFromUrl(videoUrl);
     submission.tempVideoKey = null;
     submission.videoStatus = SubmissionVideoStatus.READY;
     submission.videoProcessingError = null;
     await submission.save();
+
+    if (previousVideoUrl && previousVideoUrl !== videoUrl) {
+      void this.s3Service.deleteVideo(previousVideoUrl).catch((error) => {
+        this.logger.warn(
+          `No se pudo eliminar el video anterior de la entrega ${submissionId}: ${error.message}`,
+        );
+      });
+    }
   }
 
   async markWorkerError(
