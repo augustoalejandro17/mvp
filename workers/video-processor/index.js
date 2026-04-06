@@ -358,11 +358,18 @@ class VideoProcessor {
           "-c:v libx264", // H.264 codec
           "-preset fast", // Balance speed/quality
           "-crf 23", // Quality setting
+          "-profile:v baseline", // Maximize device compatibility
+          "-level 3.1", // Conservative H.264 level for older decoders
+          "-pix_fmt yuv420p", // Widest color format support across mobile players
           `-threads ${Math.max(1, this.ffmpegThreads)}`, // Reduce memory pressure
           "-metadata:s:v rotate=0", // Reset rotation metadata
           "-acodec aac", // AAC audio codec
+          "-profile:a aac_low", // Use AAC-LC for better compatibility
+          "-ac 2", // Normalize to stereo
+          "-ar 44100", // Common mobile sample rate
           "-b:a 128k", // Audio bitrate
           "-movflags +faststart", // Web optimization
+          "-vf scale=trunc(iw/2)*2:trunc(ih/2)*2", // Force even dimensions for decoders
         ])
         .output(outputPath)
         .on("start", (commandLine) => {
