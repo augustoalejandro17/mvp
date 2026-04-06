@@ -239,6 +239,74 @@ export class NotificationsService {
     return notification.save();
   }
 
+  async notifyTeachersAboutSubmission(
+    recipientIds: string[],
+    courseId: string,
+    classId: string,
+    classTitle: string,
+    submissionId: string,
+    studentId: string,
+    isReplacement: boolean = false,
+  ): Promise<void> {
+    const uniqueRecipientIds = Array.from(
+      new Set(
+        recipientIds.filter(
+          (recipientId) => !!recipientId && recipientId !== studentId,
+        ),
+      ),
+    );
+
+    if (uniqueRecipientIds.length === 0) {
+      return;
+    }
+
+    const [course, student] = await Promise.all([
+      this.courseModel.findById(courseId).select('title').lean(),
+      this.userModel.findById(studentId).select('name email').lean(),
+    ]);
+
+    if (!course) {
+      this.logger.warn(
+        `Skipping teacher submission notifications because course ${courseId} was not found`,
+      );
+      return;
+    }
+
+    const studentLabel =
+      (typeof (student as any)?.name === 'string' && (student as any).name.trim()) ||
+      (typeof (student as any)?.email === 'string' && (student as any).email.trim()) ||
+      'Un alumno';
+
+    const title = isReplacement
+      ? 'Práctica actualizada para revisar'
+      : 'Nueva práctica para revisar';
+    const message = isReplacement
+      ? `${studentLabel} volvió a subir su práctica en "${classTitle}".`
+      : `${studentLabel} subió su práctica en "${classTitle}".`;
+
+    await this.createBulkNotifications(
+      uniqueRecipientIds.map((recipient) => ({
+        title,
+        message,
+        type: NotificationType.FEEDBACK_SUBMISSION,
+        priority: NotificationPriority.HIGH,
+        recipient,
+        sender: studentId,
+        relatedCourse: courseId,
+        metadata: {
+          courseId,
+          classId,
+          classTitle,
+          courseTitle: course.title,
+          submissionId,
+          studentId,
+          isReplacement,
+          actionUrl: `/player/${classId}?courseId=${courseId}`,
+        },
+      })),
+    );
+  }
+
   async notifySubmissionReviewStatus(
     recipientId: string,
     courseId: string,

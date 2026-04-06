@@ -9,11 +9,13 @@ import {
   StatusBar,
   Animated,
   Alert,
+  TextInput,
   useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack, useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import * as SecureStore from 'expo-secure-store';
 import { Ionicons } from '@expo/vector-icons';
 import {
   IClass,
@@ -29,6 +31,23 @@ const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const CONTROLS_HIDE_MS = 3500;
 const DOUBLE_TAP_MS = 300;
 const SKIP_SECS = 10;
+const REVIEW_FILTER_STORAGE_PREFIX = 'class_review_filter';
+const REVIEWER_ROLES = new Set([
+  'teacher',
+  'admin',
+  'super_admin',
+  'school_owner',
+  'administrative',
+]);
+const REVIEW_FILTERS = [
+  { key: 'ALL', label: 'Todas' },
+  { key: 'PENDING', label: 'Sin revisar' },
+  { key: 'NEEDS_RESUBMISSION', label: 'Reenvío' },
+  { key: 'REVIEWED', label: 'Revisadas' },
+  { key: 'PROCESSING', label: 'Procesando' },
+] as const;
+
+type ReviewFilterKey = (typeof REVIEW_FILTERS)[number]['key'];
 
 const fmt = (ms: number) => {
   const t = Math.floor(ms / 1000);
@@ -186,6 +205,113 @@ const getSubmissionActionCopy = (
     accentBorder: '#93c5fd',
   };
 };
+
+const getSubmissionStudentLabel = (submission?: IClassSubmission | null): string => {
+  if (!submission) {
+    return 'Alumno';
+  }
+
+  const student = (submission as any)?.student;
+  if (!student) {
+    return 'Alumno';
+  }
+  if (typeof student === 'string') {
+    return 'Alumno';
+  }
+  if (typeof student.name === 'string' && student.name.trim()) {
+    return student.name.trim();
+  }
+  if (typeof student.email === 'string' && student.email.trim()) {
+    return student.email.trim();
+  }
+
+  return 'Alumno';
+};
+
+const getSubmissionReviewMeta = (submission?: IClassSubmission | null): string => {
+  if (!submission) {
+    return 'Pendiente';
+  }
+
+  if (submission.reviewStatus === SubmissionReviewStatus.REVIEWED) {
+    return 'Revisada';
+  }
+
+  if (submission.reviewStatus === SubmissionReviewStatus.NEEDS_RESUBMISSION) {
+    return 'Reenvío solicitado';
+  }
+
+  if (submission.videoStatus === VideoStatus.PROCESSING) {
+    return 'Procesando';
+  }
+
+  if (submission.videoStatus === VideoStatus.ERROR) {
+    return 'Error';
+  }
+
+  return 'Pendiente';
+};
+
+const matchesReviewFilter = (
+  submission: IClassSubmission,
+  filter: ReviewFilterKey,
+): boolean => {
+  if (filter === 'ALL') {
+    return true;
+  }
+
+  if (filter === 'PENDING') {
+    return submission.reviewStatus === SubmissionReviewStatus.SUBMITTED;
+  }
+
+  if (filter === 'NEEDS_RESUBMISSION') {
+    return (
+      submission.reviewStatus === SubmissionReviewStatus.NEEDS_RESUBMISSION
+    );
+  }
+
+  if (filter === 'REVIEWED') {
+    return submission.reviewStatus === SubmissionReviewStatus.REVIEWED;
+  }
+
+  if (filter === 'PROCESSING') {
+    return (
+      submission.videoStatus === VideoStatus.PROCESSING ||
+      submission.videoStatus === VideoStatus.UPLOADING
+    );
+  }
+
+  return true;
+};
+
+const getReviewSortWeight = (submission: IClassSubmission): number => {
+  if (
+    submission.reviewStatus === SubmissionReviewStatus.SUBMITTED &&
+    submission.videoStatus === VideoStatus.READY
+  ) {
+    return 0;
+  }
+
+  if (submission.reviewStatus === SubmissionReviewStatus.NEEDS_RESUBMISSION) {
+    return 1;
+  }
+
+  if (
+    submission.videoStatus === VideoStatus.PROCESSING ||
+    submission.videoStatus === VideoStatus.UPLOADING
+  ) {
+    return 2;
+  }
+
+  if (submission.videoStatus === VideoStatus.ERROR) {
+    return 3;
+  }
+
+  return 4;
+};
+
+const isReviewFilterKey = (value: string): value is ReviewFilterKey =>
+  REVIEW_FILTERS.some((filterOption) => filterOption.key === value);
 
 // ── Seek bar ─────────────────────────────────────────────────────────────────
 interface SeekBarProps {
@@ -386,6 +512,27 @@ export default function PlayerScreen() {
   >([]);
   const [isSubmissionLoading, setIsSubmissionLoading] = useState(false);
   const [isSubmittingPractice, setIsSubmittingPractice] = useState(false);
+  const [reviewSubmissions, setReviewSubmissions] = useState<IClassSubmission[]>([]);
+  const [selectedReviewSubmissionId, setSelectedReviewSubmissionId] = useState<
+    string | null
+  >(null);
+  const [reviewAnnotations, setReviewAnnotations] = useState<
+    ISubmissionAnnotation[]
+  >([]);
+  const [isReviewSubmissionsLoading, setIsReviewSubmissionsLoading] =
+    useState(false);
+  const [isReviewAnnotationsLoading, setIsReviewAnnotationsLoading] =
+    useState(false);
+  const [reviewAnnotationText, setReviewAnnotationText] = useState('');
+  const [selectedReviewTimestamp, setSelectedReviewTimestamp] = useState(0);
+  const [editingReviewAnnotationId, setEditingReviewAnnotationId] = useState<
+    string | null
+  >(null);
+  const [isSavingReviewAnnotation, setIsSavingReviewAnnotation] = useState(false);
+  const [reviewPlayerPositionMs, setReviewPlayerPositionMs] = useState(0);
+  const [reviewPlayerDurationMs, setReviewPlayerDurationMs] = useState(0);
+  const [reviewSearch, setReviewSearch] = useState('');
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilterKey>('ALL');
 
   // ── Playback ──────────────────────────────────────────────────────────────
   const [isVideoReady, setIsVideoReady] = useState(false);
@@ -415,6 +562,7 @@ export default function PlayerScreen() {
   const lastTapSide = useRef<'left' | 'right' | null>(null);
   const doubleTapCount = useRef(0);
   const suppressVideoTapUntil = useRef(0);
+  const hasLoadedPersistedReviewFilter = useRef(false);
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const currentIndex = courseClasses.findIndex((c) => c._id === normalizedClassId);
@@ -496,6 +644,46 @@ export default function PlayerScreen() {
     }
   }, []);
 
+  const loadReviewSubmissions = useCallback(async (classId: string) => {
+    setIsReviewSubmissionsLoading(true);
+    try {
+      const items = await apiClient.getClassSubmissionsByClass(classId);
+      const safeItems = Array.isArray(items) ? items : [];
+      setReviewSubmissions(safeItems);
+      setSelectedReviewSubmissionId((current) => {
+        if (current && safeItems.some((item) => item._id === current)) {
+          return current;
+        }
+        return safeItems[0]?._id ?? null;
+      });
+    } catch (error: any) {
+      setReviewSubmissions([]);
+      setSelectedReviewSubmissionId(null);
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'No se pudieron cargar las prácticas de esta clase.';
+      Alert.alert(
+        'No se pudieron cargar las prácticas',
+        Array.isArray(message) ? message.join('\n') : String(message),
+      );
+    } finally {
+      setIsReviewSubmissionsLoading(false);
+    }
+  }, []);
+
+  const loadReviewAnnotations = useCallback(async (submissionId: string) => {
+    setIsReviewAnnotationsLoading(true);
+    try {
+      const items = await apiClient.getSubmissionAnnotations(submissionId);
+      setReviewAnnotations(Array.isArray(items) ? items : []);
+    } catch {
+      setReviewAnnotations([]);
+    } finally {
+      setIsReviewAnnotationsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!normalizedCourseId) {
       setCourseClasses([]);
@@ -535,6 +723,127 @@ export default function PlayerScreen() {
 
     loadSubmission(normalizedClassId);
   }, [normalizedClassId, currentUserRole, loadSubmission]);
+
+  useEffect(() => {
+    if (!normalizedClassId || !REVIEWER_ROLES.has(String(currentUserRole || ''))) {
+      setReviewSubmissions([]);
+      setSelectedReviewSubmissionId(null);
+      setReviewAnnotations([]);
+      return;
+    }
+
+    loadReviewSubmissions(normalizedClassId);
+  }, [normalizedClassId, currentUserRole, loadReviewSubmissions]);
+
+  useEffect(() => {
+    const isReviewerRole = REVIEWER_ROLES.has(String(currentUserRole || ''));
+    if (!normalizedClassId || !isReviewerRole) {
+      hasLoadedPersistedReviewFilter.current = false;
+      setReviewFilter('ALL');
+      return;
+    }
+
+    const storageKey = `${REVIEW_FILTER_STORAGE_PREFIX}:${normalizedClassId}`;
+    hasLoadedPersistedReviewFilter.current = false;
+
+    void (async () => {
+      try {
+        const storedFilter = await SecureStore.getItemAsync(storageKey);
+        if (storedFilter && isReviewFilterKey(storedFilter)) {
+          setReviewFilter(storedFilter);
+        } else {
+          setReviewFilter('ALL');
+        }
+      } catch {
+        setReviewFilter('ALL');
+      } finally {
+        hasLoadedPersistedReviewFilter.current = true;
+      }
+    })();
+  }, [normalizedClassId, currentUserRole]);
+
+  useEffect(() => {
+    const isReviewerRole = REVIEWER_ROLES.has(String(currentUserRole || ''));
+    if (
+      !normalizedClassId ||
+      !isReviewerRole ||
+      !hasLoadedPersistedReviewFilter.current
+    ) {
+      return;
+    }
+
+    const storageKey = `${REVIEW_FILTER_STORAGE_PREFIX}:${normalizedClassId}`;
+    void SecureStore.setItemAsync(storageKey, reviewFilter).catch(() => undefined);
+  }, [normalizedClassId, currentUserRole, reviewFilter]);
+
+  useEffect(() => {
+    if (!selectedReviewSubmissionId) {
+      setReviewAnnotations([]);
+      setReviewAnnotationText('');
+      setEditingReviewAnnotationId(null);
+      setSelectedReviewTimestamp(0);
+      setReviewPlayerPositionMs(0);
+      setReviewPlayerDurationMs(0);
+      return;
+    }
+
+    setReviewAnnotationText('');
+    setEditingReviewAnnotationId(null);
+    setSelectedReviewTimestamp(0);
+    setReviewPlayerPositionMs(0);
+    setReviewPlayerDurationMs(0);
+    loadReviewAnnotations(selectedReviewSubmissionId);
+  }, [selectedReviewSubmissionId, loadReviewAnnotations]);
+
+  useEffect(() => {
+    if (reviewSubmissions.length === 0) {
+      return;
+    }
+
+    const normalizedSearch = reviewSearch.trim().toLowerCase();
+    const visibleIds = reviewSubmissions
+      .filter((submissionItem) => {
+        if (!matchesReviewFilter(submissionItem, reviewFilter)) {
+          return false;
+        }
+
+        if (!normalizedSearch) {
+          return true;
+        }
+
+        const studentLabel = getSubmissionStudentLabel(submissionItem).toLowerCase();
+        return studentLabel.includes(normalizedSearch);
+      })
+      .sort((left, right) => {
+        const weightDiff =
+          getReviewSortWeight(left) - getReviewSortWeight(right);
+        if (weightDiff !== 0) {
+          return weightDiff;
+        }
+
+        const leftDate = new Date(
+          left.submittedAt || left.createdAt || 0,
+        ).getTime();
+        const rightDate = new Date(
+          right.submittedAt || right.createdAt || 0,
+        ).getTime();
+        return rightDate - leftDate;
+      })
+      .map((submissionItem) => submissionItem._id)
+      .filter((value): value is string => Boolean(value));
+
+    if (visibleIds.length === 0) {
+      setSelectedReviewSubmissionId(null);
+      return;
+    }
+
+    if (
+      !selectedReviewSubmissionId ||
+      !visibleIds.includes(selectedReviewSubmissionId)
+    ) {
+      setSelectedReviewSubmissionId(visibleIds[0]);
+    }
+  }, [reviewSubmissions, reviewSearch, reviewFilter, selectedReviewSubmissionId]);
 
   useEffect(() => {
     setIsMarkedComplete(false);
@@ -848,6 +1157,121 @@ export default function PlayerScreen() {
     }
   };
 
+  const handleCaptureReviewTimestamp = () => {
+    setSelectedReviewTimestamp(Math.max(0, Math.floor(reviewPlayerPositionMs / 1000)));
+  };
+
+  const handleSaveReviewAnnotation = async () => {
+    if (!selectedReviewSubmissionId || !reviewAnnotationText.trim()) {
+      Alert.alert(
+        'Falta información',
+        'Selecciona una práctica y escribe una anotación para guardarla.',
+      );
+      return;
+    }
+
+    try {
+      setIsSavingReviewAnnotation(true);
+      if (editingReviewAnnotationId) {
+        await apiClient.updateSubmissionAnnotation(
+          selectedReviewSubmissionId,
+          editingReviewAnnotationId,
+          {
+            timestampSeconds: selectedReviewTimestamp,
+            text: reviewAnnotationText.trim(),
+          },
+        );
+      } else {
+        await apiClient.createSubmissionAnnotation(selectedReviewSubmissionId, {
+          timestampSeconds: selectedReviewTimestamp,
+          text: reviewAnnotationText.trim(),
+        });
+      }
+
+      setReviewAnnotationText('');
+      setEditingReviewAnnotationId(null);
+      await loadReviewAnnotations(selectedReviewSubmissionId);
+      if (normalizedClassId) {
+        await loadReviewSubmissions(normalizedClassId);
+      }
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'No se pudo guardar la anotación.';
+      Alert.alert(
+        'Error',
+        Array.isArray(message) ? message.join('\n') : String(message),
+      );
+    } finally {
+      setIsSavingReviewAnnotation(false);
+    }
+  };
+
+  const handleDeleteReviewAnnotation = async (annotationId?: string) => {
+    if (!selectedReviewSubmissionId || !annotationId) {
+      return;
+    }
+
+    Alert.alert('Eliminar anotación', 'Esta acción no se puede deshacer.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await apiClient.deleteSubmissionAnnotation(
+              selectedReviewSubmissionId,
+              annotationId,
+            );
+            if (editingReviewAnnotationId === annotationId) {
+              setEditingReviewAnnotationId(null);
+              setReviewAnnotationText('');
+            }
+            await loadReviewAnnotations(selectedReviewSubmissionId);
+            if (normalizedClassId) {
+              await loadReviewSubmissions(normalizedClassId);
+            }
+          } catch (error: any) {
+            const message =
+              error?.response?.data?.message ||
+              error?.message ||
+              'No se pudo eliminar la anotación.';
+            Alert.alert(
+              'Error',
+              Array.isArray(message) ? message.join('\n') : String(message),
+            );
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleUpdateReviewStatus = async (reviewStatus: SubmissionReviewStatus) => {
+    if (!selectedReviewSubmissionId) {
+      return;
+    }
+
+    try {
+      await apiClient.updateClassSubmissionReviewStatus(
+        selectedReviewSubmissionId,
+        reviewStatus,
+      );
+      if (normalizedClassId) {
+        await loadReviewSubmissions(normalizedClassId);
+      }
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'No se pudo actualizar el estado de la práctica.';
+      Alert.alert(
+        'Error',
+        Array.isArray(message) ? message.join('\n') : String(message),
+      );
+    }
+  };
+
   // ── Layout values ─────────────────────────────────────────────────────────
   const videoHeight = isFullscreen ? screenHeight : screenWidth * (9 / 16);
   // Keep controls well above iOS home indicator so seek interactions are reliable.
@@ -855,8 +1279,90 @@ export default function PlayerScreen() {
   const displayPositionMs = scrubPositionMs ?? positionMs;
   const progressRatio = durationMs > 0 ? displayPositionMs / durationMs : 0;
   const isStudent = currentUserRole === 'student';
+  const isReviewer = REVIEWER_ROLES.has(String(currentUserRole || ''));
   const submissionStatusConfig = getSubmissionStatusConfig(submission);
   const submissionActionCopy = getSubmissionActionCopy(submission);
+  const normalizedReviewSearch = reviewSearch.trim().toLowerCase();
+  const reviewFilterCounts = REVIEW_FILTERS.reduce<Record<ReviewFilterKey, number>>(
+    (accumulator, filterOption) => {
+      accumulator[filterOption.key] = reviewSubmissions.filter((reviewSubmission) =>
+        matchesReviewFilter(reviewSubmission, filterOption.key),
+      ).length;
+      return accumulator;
+    },
+    {
+      ALL: 0,
+      PENDING: 0,
+      NEEDS_RESUBMISSION: 0,
+      REVIEWED: 0,
+      PROCESSING: 0,
+    },
+  );
+  const reviewSummaryItems = [
+    {
+      key: 'ALL' as ReviewFilterKey,
+      label: 'Entregas',
+      value: reviewSubmissions.length,
+      color: '#111827',
+      backgroundColor: '#f3f4f6',
+    },
+    {
+      key: 'PENDING' as ReviewFilterKey,
+      label: 'Sin revisar',
+      value: reviewFilterCounts.PENDING,
+      color: '#1d4ed8',
+      backgroundColor: '#eff6ff',
+    },
+    {
+      key: 'NEEDS_RESUBMISSION' as ReviewFilterKey,
+      label: 'Reenvíos',
+      value: reviewFilterCounts.NEEDS_RESUBMISSION,
+      color: '#9a3412',
+      backgroundColor: '#fff7ed',
+    },
+    {
+      key: 'REVIEWED' as ReviewFilterKey,
+      label: 'Revisadas',
+      value: reviewFilterCounts.REVIEWED,
+      color: '#166534',
+      backgroundColor: '#f0fdf4',
+    },
+  ];
+  const visibleReviewSubmissions = reviewSubmissions
+    .filter((reviewSubmission) => {
+      if (!matchesReviewFilter(reviewSubmission, reviewFilter)) {
+        return false;
+      }
+
+      if (!normalizedReviewSearch) {
+        return true;
+      }
+
+      return getSubmissionStudentLabel(reviewSubmission)
+        .toLowerCase()
+        .includes(normalizedReviewSearch);
+    })
+    .sort((left, right) => {
+      const weightDiff = getReviewSortWeight(left) - getReviewSortWeight(right);
+      if (weightDiff !== 0) {
+        return weightDiff;
+      }
+
+      const leftDate = new Date(left.submittedAt || left.createdAt || 0).getTime();
+      const rightDate = new Date(
+        right.submittedAt || right.createdAt || 0,
+      ).getTime();
+      return rightDate - leftDate;
+    });
+  const selectedReviewSubmission =
+    visibleReviewSubmissions.find(
+      (reviewSubmission) => reviewSubmission._id === selectedReviewSubmissionId,
+    ) ?? null;
+  const selectedReviewStatusConfig = getSubmissionStatusConfig(
+    selectedReviewSubmission,
+  );
+  const selectedReviewStudentName =
+    getSubmissionStudentLabel(selectedReviewSubmission);
 
   // ── Seek bar props ───────────────────────────────────────────────────────
   const seekBarProps: SeekBarProps = {
@@ -1484,6 +1990,734 @@ export default function PlayerScreen() {
                   </Text>
                 )}
               </View>
+            </View>
+          )}
+
+          {isReviewer && (
+            <View
+              style={{
+                marginTop: 24,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: '#e5e7eb',
+                backgroundColor: '#f8fafc',
+                padding: 16,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  gap: 12,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: '#111827', fontSize: 16, fontWeight: '700' }}>
+                    Prácticas para feedback
+                  </Text>
+                  <Text
+                    style={{
+                      color: '#6b7280',
+                      fontSize: 13,
+                      marginTop: 4,
+                      lineHeight: 19,
+                    }}
+                  >
+                    Cuando varios alumnos suben su video, aquí aparecen como tarjetas.
+                    Toca una para abrir su práctica, revisar el video y dejar anotaciones.
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    backgroundColor: '#111827',
+                    borderRadius: 999,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                    {reviewSubmissions.length} entrega{reviewSubmissions.length === 1 ? '' : 's'}
+                  </Text>
+                </View>
+              </View>
+
+              {isReviewSubmissionsLoading ? (
+                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                  <ActivityIndicator color="#f59e0b" />
+                </View>
+              ) : reviewSubmissions.length > 0 ? (
+                <>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 10, paddingTop: 14 }}
+                  >
+                    {reviewSummaryItems.map((summaryItem) => (
+                      <TouchableOpacity
+                        key={summaryItem.label}
+                        onPress={() => setReviewFilter(summaryItem.key)}
+                        style={{
+                          minWidth: 112,
+                          borderRadius: 16,
+                          paddingHorizontal: 14,
+                          paddingVertical: 12,
+                          backgroundColor: summaryItem.backgroundColor,
+                          borderWidth: 1.5,
+                          borderColor:
+                            reviewFilter === summaryItem.key
+                              ? summaryItem.color
+                              : '#e5e7eb',
+                          opacity: reviewFilter === summaryItem.key ? 1 : 0.92,
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <Text
+                          style={{
+                            color: summaryItem.color,
+                            fontSize: 20,
+                            fontWeight: '800',
+                          }}
+                        >
+                          {summaryItem.value}
+                        </Text>
+                        <Text
+                          style={{
+                            color: summaryItem.color,
+                            fontSize: 12,
+                            fontWeight: '600',
+                            marginTop: 4,
+                          }}
+                        >
+                          {summaryItem.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
+                  <View
+                    style={{
+                      marginTop: 14,
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      borderColor: '#e5e7eb',
+                      backgroundColor: '#fff',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 12,
+                    }}
+                  >
+                    <Ionicons name="search-outline" size={16} color="#9ca3af" />
+                    <TextInput
+                      value={reviewSearch}
+                      onChangeText={setReviewSearch}
+                      placeholder="Buscar alumno"
+                      placeholderTextColor="#9ca3af"
+                      style={{
+                        flex: 1,
+                        paddingVertical: 12,
+                        paddingLeft: 8,
+                        color: '#111827',
+                        fontSize: 14,
+                      }}
+                    />
+                    {reviewSearch.trim().length > 0 ? (
+                      <TouchableOpacity onPress={() => setReviewSearch('')}>
+                        <Ionicons
+                          name="close-circle"
+                          size={18}
+                          color="#9ca3af"
+                        />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 8, paddingTop: 12 }}
+                  >
+                    {REVIEW_FILTERS.map((filterOption) => {
+                      const isActive = reviewFilter === filterOption.key;
+                      const count = reviewFilterCounts[filterOption.key] || 0;
+                      return (
+                        <TouchableOpacity
+                          key={filterOption.key}
+                          onPress={() => setReviewFilter(filterOption.key)}
+                          style={{
+                            borderRadius: 999,
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            backgroundColor: isActive ? '#111827' : '#fff',
+                            borderWidth: 1,
+                            borderColor: isActive ? '#111827' : '#e5e7eb',
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: isActive ? '#fff' : '#374151',
+                              fontSize: 12,
+                              fontWeight: '700',
+                            }}
+                          >
+                            {filterOption.label} ({count})
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+
+                  <View
+                    style={{
+                      marginTop: 10,
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ color: '#6b7280', fontSize: 12 }}>
+                      {visibleReviewSubmissions.length} resultado
+                      {visibleReviewSubmissions.length === 1 ? '' : 's'}
+                    </Text>
+                    <Text style={{ color: '#9ca3af', fontSize: 12 }}>
+                      Orden: sin revisar primero
+                    </Text>
+                  </View>
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 10, paddingTop: 14, paddingBottom: 4 }}
+                  >
+                    {visibleReviewSubmissions.map((reviewSubmission) => {
+                      const cardStatus = getSubmissionStatusConfig(reviewSubmission);
+                      const isActive =
+                        selectedReviewSubmissionId === reviewSubmission._id;
+                      return (
+                        <TouchableOpacity
+                          key={reviewSubmission._id}
+                          onPress={() =>
+                            setSelectedReviewSubmissionId(reviewSubmission._id ?? null)
+                          }
+                          style={{
+                            width: 220,
+                            borderRadius: 16,
+                            borderWidth: 1,
+                            borderColor: isActive ? '#111827' : '#e5e7eb',
+                            backgroundColor: isActive ? '#fff' : '#f9fafb',
+                            padding: 14,
+                          }}
+                        >
+                          <View
+                            style={{
+                              flexDirection: 'row',
+                              justifyContent: 'space-between',
+                              alignItems: 'flex-start',
+                              gap: 8,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: '#111827',
+                                fontSize: 14,
+                                fontWeight: '700',
+                                flex: 1,
+                              }}
+                              numberOfLines={2}
+                            >
+                              {getSubmissionStudentLabel(reviewSubmission)}
+                            </Text>
+                            <View
+                              style={{
+                                backgroundColor: cardStatus.backgroundColor,
+                                borderRadius: 999,
+                                paddingHorizontal: 8,
+                                paddingVertical: 4,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: cardStatus.color,
+                                  fontSize: 11,
+                                  fontWeight: '700',
+                                }}
+                              >
+                                {getSubmissionReviewMeta(reviewSubmission)}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <Text
+                            style={{
+                              color: '#6b7280',
+                              fontSize: 12,
+                              marginTop: 8,
+                            }}
+                          >
+                            {reviewSubmission.submittedAt
+                              ? `Enviado ${new Date(
+                                  reviewSubmission.submittedAt,
+                                ).toLocaleDateString()}`
+                              : 'Sin fecha de envío'}
+                          </Text>
+
+                          <Text
+                            style={{
+                              color: '#374151',
+                              fontSize: 12,
+                              marginTop: 6,
+                            }}
+                          >
+                            {reviewSubmission.annotationsCount || 0} anotación
+                            {(reviewSubmission.annotationsCount || 0) === 1 ? '' : 'es'}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {visibleReviewSubmissions.length === 0 ? (
+                    <View
+                      style={{
+                        marginTop: 14,
+                        borderRadius: 14,
+                        backgroundColor: '#fff',
+                        borderWidth: 1,
+                        borderColor: '#e5e7eb',
+                        padding: 16,
+                      }}
+                    >
+                      <Text style={{ color: '#374151', fontSize: 13, lineHeight: 20 }}>
+                        No encontramos entregas que coincidan con la búsqueda o el
+                        filtro seleccionado.
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {selectedReviewSubmission ? (
+                    <View
+                      style={{
+                        marginTop: 16,
+                        borderRadius: 18,
+                        backgroundColor: '#fff',
+                        borderWidth: 1,
+                        borderColor: '#e5e7eb',
+                        padding: 14,
+                      }}
+                    >
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          gap: 10,
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={{
+                              color: '#111827',
+                              fontSize: 16,
+                              fontWeight: '700',
+                            }}
+                          >
+                            {selectedReviewStudentName}
+                          </Text>
+                          <Text
+                            style={{
+                              color: '#6b7280',
+                              fontSize: 13,
+                              marginTop: 4,
+                            }}
+                          >
+                            Selecciona un momento del video y deja una anotación puntual.
+                          </Text>
+                        </View>
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: selectedReviewStatusConfig.backgroundColor,
+                            borderRadius: 999,
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                          }}
+                        >
+                          <Ionicons
+                            name={selectedReviewStatusConfig.icon}
+                            size={13}
+                            color={selectedReviewStatusConfig.color}
+                          />
+                          <Text
+                            style={{
+                              color: selectedReviewStatusConfig.color,
+                              fontSize: 12,
+                              fontWeight: '600',
+                              marginLeft: 6,
+                            }}
+                          >
+                            {selectedReviewStatusConfig.label}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {selectedReviewSubmission.videoUrl &&
+                      selectedReviewSubmission.videoStatus === VideoStatus.READY ? (
+                        <View
+                          style={{
+                            marginTop: 14,
+                            borderRadius: 16,
+                            overflow: 'hidden',
+                            backgroundColor: '#000',
+                          }}
+                        >
+                          <Video
+                            ref={submissionVideoRef}
+                            source={{ uri: selectedReviewSubmission.videoUrl }}
+                            style={{ width: '100%', height: 240, backgroundColor: '#000' }}
+                            resizeMode={ResizeMode.CONTAIN}
+                            useNativeControls
+                            onPlaybackStatusUpdate={(status) => {
+                              if (!status.isLoaded) {
+                                return;
+                              }
+                              setReviewPlayerPositionMs(status.positionMillis ?? 0);
+                              if (status.durationMillis) {
+                                setReviewPlayerDurationMs(status.durationMillis);
+                              }
+                            }}
+                          />
+                        </View>
+                      ) : (
+                        <View
+                          style={{
+                            marginTop: 14,
+                            borderRadius: 16,
+                            backgroundColor: '#111827',
+                            padding: 14,
+                          }}
+                        >
+                          <Text style={{ color: '#f9fafb', fontSize: 13 }}>
+                            {selectedReviewSubmission.videoStatus === VideoStatus.PROCESSING
+                              ? 'La práctica todavía se está procesando.'
+                              : selectedReviewSubmission.videoProcessingError ||
+                                'El video todavía no está disponible para revisión.'}
+                          </Text>
+                        </View>
+                      )}
+
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          flexWrap: 'wrap',
+                          gap: 8,
+                          marginTop: 12,
+                        }}
+                      >
+                        <View
+                          style={{
+                            backgroundColor: '#f3f4f6',
+                            borderRadius: 999,
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                          }}
+                        >
+                          <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600' }}>
+                            Momento: {formatSeconds(selectedReviewTimestamp)}
+                          </Text>
+                        </View>
+                        <View
+                          style={{
+                            backgroundColor: '#eff6ff',
+                            borderRadius: 999,
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                          }}
+                        >
+                          <Text style={{ color: '#1d4ed8', fontSize: 12, fontWeight: '600' }}>
+                            Reproductor: {formatSeconds(Math.floor(reviewPlayerPositionMs / 1000))}
+                          </Text>
+                        </View>
+                        {reviewPlayerDurationMs > 0 && (
+                          <View
+                            style={{
+                              backgroundColor: '#f9fafb',
+                              borderRadius: 999,
+                              paddingHorizontal: 10,
+                              paddingVertical: 6,
+                            }}
+                          >
+                            <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '600' }}>
+                              Duración: {formatSeconds(Math.floor(reviewPlayerDurationMs / 1000))}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={handleCaptureReviewTimestamp}
+                        style={{
+                          marginTop: 12,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: '#cbd5e1',
+                          paddingVertical: 10,
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Text style={{ color: '#111827', fontWeight: '700' }}>
+                          Usar momento actual del video
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TextInput
+                        value={reviewAnnotationText}
+                        onChangeText={setReviewAnnotationText}
+                        placeholder="Escribe una observación para este momento del video"
+                        placeholderTextColor="#9ca3af"
+                        multiline
+                        textAlignVertical="top"
+                        style={{
+                          marginTop: 12,
+                          minHeight: 96,
+                          borderRadius: 14,
+                          borderWidth: 1,
+                          borderColor: '#d1d5db',
+                          paddingHorizontal: 14,
+                          paddingVertical: 12,
+                          color: '#111827',
+                          fontSize: 14,
+                          backgroundColor: '#fff',
+                        }}
+                      />
+
+                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                        <TouchableOpacity
+                          onPress={handleSaveReviewAnnotation}
+                          disabled={isSavingReviewAnnotation}
+                          style={{
+                            flex: 1,
+                            borderRadius: 14,
+                            backgroundColor: isSavingReviewAnnotation
+                              ? '#d1d5db'
+                              : '#111827',
+                            paddingVertical: 14,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {isSavingReviewAnnotation ? (
+                            <ActivityIndicator color="#fff" />
+                          ) : (
+                            <Text style={{ color: '#fff', fontWeight: '700' }}>
+                              {editingReviewAnnotationId
+                                ? 'Actualizar anotación'
+                                : 'Guardar anotación'}
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                        {editingReviewAnnotationId ? (
+                          <TouchableOpacity
+                            onPress={() => {
+                              setEditingReviewAnnotationId(null);
+                              setReviewAnnotationText('');
+                            }}
+                            style={{
+                              borderRadius: 14,
+                              borderWidth: 1,
+                              borderColor: '#d1d5db',
+                              paddingVertical: 14,
+                              paddingHorizontal: 16,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Text style={{ color: '#374151', fontWeight: '700' }}>
+                              Cancelar
+                            </Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+
+                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                        <TouchableOpacity
+                          onPress={() =>
+                            handleUpdateReviewStatus(SubmissionReviewStatus.REVIEWED)
+                          }
+                          style={{
+                            flex: 1,
+                            borderRadius: 14,
+                            backgroundColor: '#166534',
+                            paddingVertical: 12,
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Text style={{ color: '#fff', fontWeight: '700' }}>
+                            Marcar revisada
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() =>
+                            handleUpdateReviewStatus(
+                              SubmissionReviewStatus.NEEDS_RESUBMISSION,
+                            )
+                          }
+                          style={{
+                            flex: 1,
+                            borderRadius: 14,
+                            backgroundColor: '#9a3412',
+                            paddingVertical: 12,
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Text style={{ color: '#fff', fontWeight: '700' }}>
+                            Pedir reenvío
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={{ marginTop: 18 }}>
+                        <Text
+                          style={{
+                            color: '#111827',
+                            fontSize: 15,
+                            fontWeight: '700',
+                          }}
+                        >
+                          Anotaciones guardadas
+                        </Text>
+
+                        {isReviewAnnotationsLoading ? (
+                          <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                            <ActivityIndicator color="#f59e0b" />
+                          </View>
+                        ) : reviewAnnotations.length > 0 ? (
+                          <View style={{ marginTop: 10, gap: 10 }}>
+                            {reviewAnnotations.map((annotation) => (
+                              <View
+                                key={annotation._id}
+                                style={{
+                                  borderRadius: 14,
+                                  backgroundColor: '#f9fafb',
+                                  borderWidth: 1,
+                                  borderColor: '#e5e7eb',
+                                  padding: 12,
+                                }}
+                              >
+                                <TouchableOpacity
+                                  onPress={() =>
+                                    seekToAnnotation(annotation.timestampSeconds)
+                                  }
+                                >
+                                  <View
+                                    style={{
+                                      flexDirection: 'row',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center',
+                                    }}
+                                  >
+                                    <Text
+                                      style={{
+                                        color: '#92400e',
+                                        fontWeight: '700',
+                                        fontSize: 12,
+                                      }}
+                                    >
+                                      {formatSeconds(annotation.timestampSeconds)}
+                                    </Text>
+                                    <Ionicons
+                                      name="play-forward-outline"
+                                      size={16}
+                                      color="#9ca3af"
+                                    />
+                                  </View>
+                                  <Text
+                                    style={{
+                                      color: '#1f2937',
+                                      fontSize: 13,
+                                      lineHeight: 19,
+                                      marginTop: 6,
+                                    }}
+                                  >
+                                    {annotation.text}
+                                  </Text>
+                                </TouchableOpacity>
+
+                                <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                                  <TouchableOpacity
+                                    onPress={() => {
+                                      setEditingReviewAnnotationId(annotation._id ?? null);
+                                      setSelectedReviewTimestamp(
+                                        annotation.timestampSeconds,
+                                      );
+                                      setReviewAnnotationText(annotation.text);
+                                    }}
+                                    style={{
+                                      borderRadius: 10,
+                                      borderWidth: 1,
+                                      borderColor: '#d1d5db',
+                                      paddingVertical: 8,
+                                      paddingHorizontal: 12,
+                                    }}
+                                  >
+                                    <Text
+                                      style={{
+                                        color: '#374151',
+                                        fontSize: 12,
+                                        fontWeight: '700',
+                                      }}
+                                    >
+                                      Editar
+                                    </Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    onPress={() =>
+                                      handleDeleteReviewAnnotation(annotation._id)
+                                    }
+                                    style={{
+                                      borderRadius: 10,
+                                      borderWidth: 1,
+                                      borderColor: '#fecaca',
+                                      paddingVertical: 8,
+                                      paddingHorizontal: 12,
+                                      backgroundColor: '#fef2f2',
+                                    }}
+                                  >
+                                    <Text
+                                      style={{
+                                        color: '#b91c1c',
+                                        fontSize: 12,
+                                        fontWeight: '700',
+                                      }}
+                                    >
+                                      Eliminar
+                                    </Text>
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+                            ))}
+                          </View>
+                        ) : (
+                          <Text
+                            style={{
+                              color: '#6b7280',
+                              fontSize: 13,
+                              marginTop: 8,
+                              lineHeight: 20,
+                            }}
+                          >
+                            Todavía no hay anotaciones para esta práctica.
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  ) : null}
+                </>
+              ) : (
+                <Text style={{ color: '#6b7280', fontSize: 13, marginTop: 12, lineHeight: 20 }}>
+                  Aún no hay prácticas enviadas para esta clase.
+                </Text>
+              )}
             </View>
           )}
 

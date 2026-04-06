@@ -678,6 +678,13 @@ class ApiClient {
     return data;
   }
 
+  async getClassSubmissionsByClass(classId: string): Promise<IClassSubmission[]> {
+    const { data } = await this.client.get<IClassSubmission[]>(
+      `/class-submissions/class/${classId}`,
+    );
+    return data;
+  }
+
   async getSubmissionAnnotations(
     submissionId: string,
   ): Promise<ISubmissionAnnotation[]> {
@@ -685,6 +692,38 @@ class ApiClient {
       `/class-submissions/${submissionId}/annotations`,
     );
     return data;
+  }
+
+  async createSubmissionAnnotation(
+    submissionId: string,
+    payload: { timestampSeconds: number; text: string },
+  ): Promise<ISubmissionAnnotation> {
+    const { data } = await this.client.post<ISubmissionAnnotation>(
+      `/class-submissions/${submissionId}/annotations`,
+      payload,
+    );
+    return data;
+  }
+
+  async updateSubmissionAnnotation(
+    submissionId: string,
+    annotationId: string,
+    payload: { timestampSeconds: number; text: string },
+  ): Promise<ISubmissionAnnotation> {
+    const { data } = await this.client.patch<ISubmissionAnnotation>(
+      `/class-submissions/${submissionId}/annotations/${annotationId}`,
+      payload,
+    );
+    return data;
+  }
+
+  async deleteSubmissionAnnotation(
+    submissionId: string,
+    annotationId: string,
+  ): Promise<void> {
+    await this.client.delete(
+      `/class-submissions/${submissionId}/annotations/${annotationId}`,
+    );
   }
 
   async updateClassSubmissionReviewStatus(

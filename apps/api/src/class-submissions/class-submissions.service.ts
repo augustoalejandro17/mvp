@@ -79,11 +79,16 @@ export class ClassSubmissionsService {
 
     const schoolId = this.extractId(course.school);
     const teacherId = this.extractId(classItem.teacher ?? course.teacher);
+    const teacherRecipientIds = [
+      this.extractId(course.teacher),
+      ...(course.teachers || []).map((teacher) => this.extractId(teacher)),
+    ];
 
-    let submission = await this.classSubmissionModel.findOne({
+    const existingSubmission = await this.classSubmissionModel.findOne({
       class: classItem._id,
       student: studentId,
     });
+    let submission = existingSubmission;
 
     const now = new Date();
     if (!submission) {
@@ -147,6 +152,22 @@ export class ClassSubmissionsService {
       await this.submissionAnnotationModel.deleteMany({
         submission: submission._id,
       });
+
+      try {
+        await this.notificationsService.notifyTeachersAboutSubmission(
+          teacherRecipientIds,
+          course._id.toString(),
+          classItem._id.toString(),
+          classItem.title,
+          submission._id.toString(),
+          studentId,
+          Boolean(existingSubmission),
+        );
+      } catch (error) {
+        this.logger.warn(
+          `No se pudo crear la notificación al profesor para ${submission._id}: ${error.message}`,
+        );
+      }
 
       const plainSubmission = await this.classSubmissionModel
         .findById(submission._id)
