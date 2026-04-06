@@ -6,7 +6,7 @@ import { useRef } from 'react';
 import Link from 'next/link';
 import { Container } from './ui/Container';
 import { SectionHeading } from './ui/SectionHeading';
-import { PRICING_TIERS, PRICING_NOTE } from '@/lib/copy';
+import { CONTACT_MAILTO, PRICING_TIERS, PRICING_NOTE } from '@/lib/copy';
 import { trackPricingView, trackCTAClick } from '@/lib/analytics';
 
 const cardVariants = {
@@ -38,7 +38,7 @@ export const Pricing = () => {
         <SectionHeading
           subtitle="Precios"
           title="Planes fundadores para validar contigo"
-          description="En esta etapa buscamos profesores reales, no volumen artificial. Elige una capacidad acorde a tu momento y crece desde ahi."
+          description="En esta etapa buscamos profesores reales, no volumen artificial. Elige una capacidad acorde a tu momento y crece desde ahí."
           className="mb-16"
         />
 
@@ -116,8 +116,8 @@ export const Pricing = () => {
                   whileTap={{ scale: 0.98 }}
                   className="w-full"
                 >
-                  <Link
-                    href="/signup"
+                  <a
+                    href={CONTACT_MAILTO}
                     onClick={() => handlePricingClick(tier.name)}
                     className={`block w-full text-center py-3 px-6 rounded-lg font-semibold transition-all duration-200 ${
                       tier.popular
@@ -126,7 +126,7 @@ export const Pricing = () => {
                     }`}
                   >
                     {tier.cta}
-                  </Link>
+                  </a>
                 </motion.div>
 
                 {/* Hover Effect */}
@@ -158,17 +158,17 @@ export const Pricing = () => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <Link href="/contact" className="btn-secondary inline-block">
-                  Resolver dudas
-                </Link>
+                <a href={CONTACT_MAILTO} className="btn-secondary inline-block">
+                  Escríbenos
+                </a>
               </motion.div>
               <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <Link href="/signup" className="btn-primary inline-block">
-                  Solicitar acceso
-                </Link>
+                <a href={CONTACT_MAILTO} className="btn-primary inline-block">
+                  Contactar por correo
+                </a>
               </motion.div>
             </div>
           </div>
@@ -195,4 +195,3 @@ export const Pricing = () => {
     </section>
   );
 };
-

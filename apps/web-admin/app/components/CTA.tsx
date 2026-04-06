@@ -5,7 +5,7 @@ import { useInView } from 'framer-motion';
 import { useRef } from 'react';
 import Link from 'next/link';
 import { Container } from './ui/Container';
-import { CTA as CTA_COPY } from '@/lib/copy';
+import { CONTACT_MAILTO, CTA as CTA_COPY } from '@/lib/copy';
 import { trackCTAClick } from '@/lib/analytics';
 
 export const CTA = () => {
@@ -79,13 +79,13 @@ export const CTA = () => {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  <Link
-                    href="/signup"
+                  <a
+                    href={CONTACT_MAILTO}
                     onClick={handlePrimaryCTA}
                     className="btn-primary text-lg px-8 py-4 w-full sm:w-auto shadow-lg"
                   >
                     {CTA_COPY.primaryButton}
-                  </Link>
+                  </a>
                 </motion.div>
                 
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -123,5 +123,4 @@ export const CTA = () => {
     </section>
   );
 };
-
 

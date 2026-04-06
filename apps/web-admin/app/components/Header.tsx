@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Container } from './ui/Container';
-import { BRAND, NAVIGATION } from '@/lib/copy';
+import { CONTACT_MAILTO, LANDING_BRAND, NAVIGATION } from '@/lib/copy';
 import { trackCTAClick } from '@/lib/analytics';
 
 export const Header = () => {
@@ -18,10 +18,6 @@ export const Header = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  const handleLoginClick = () => {
-    trackCTAClick('header', NAVIGATION.login);
-  };
 
   const handleSignupClick = () => {
     trackCTAClick('header', NAVIGATION.signup);
@@ -44,13 +40,13 @@ export const Header = () => {
           <Link 
             href="/" 
             className="flex items-center space-x-2 group"
-            aria-label={`${BRAND.name} - Inicio`}
+            aria-label={`${LANDING_BRAND.name} - Inicio`}
           >
             <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-amber-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-lg">I</span>
             </div>
             <span className="text-xl font-bold text-gray-900 group-hover:text-amber-600 transition-colors">
-              {BRAND.name}
+              {LANDING_BRAND.name}
             </span>
           </Link>
 
@@ -78,24 +74,14 @@ export const Header = () => {
 
           {/* CTA Buttons */}
           <div className="flex items-center space-x-4">
-            <Link
-              href="/login"
-              onClick={handleLoginClick}
-              className="text-gray-600 hover:text-gray-900 transition-colors font-medium hidden sm:block"
-            >
-              {NAVIGATION.login}
-            </Link>
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Link
-                href="/signup"
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <a
+                href={CONTACT_MAILTO}
                 onClick={handleSignupClick}
                 className="btn-primary text-sm"
               >
                 {NAVIGATION.signup}
-              </Link>
+              </a>
             </motion.div>
           </div>
         </div>
@@ -103,6 +89,5 @@ export const Header = () => {
     </motion.header>
   );
 };
-
 
 

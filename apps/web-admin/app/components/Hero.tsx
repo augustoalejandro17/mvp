@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { Container } from './ui/Container';
-import { HERO, BRAND } from '@/lib/copy';
+import { CONTACT_MAILTO, HERO, LANDING_BRAND } from '@/lib/copy';
 import { trackCTAClick } from '@/lib/analytics';
 
 export const Hero = () => {
@@ -42,7 +42,7 @@ export const Hero = () => {
             transition={{ duration: 0.8, delay: 0.2 }}
             className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 text-balance"
           >
-            <span className="gradient-text">{BRAND.name}</span>
+            <span className="gradient-text">{LANDING_BRAND.name}</span>
             <br />
             <span className="text-gray-900">{HERO.headline}</span>
           </motion.h1>
@@ -68,13 +68,13 @@ export const Hero = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <Link
-                href="/signup"
+              <a
+                href={CONTACT_MAILTO}
                 onClick={handlePrimaryCTA}
                 className="btn-primary text-lg px-8 py-4 w-full sm:w-auto"
               >
                 {HERO.primaryCTA}
-              </Link>
+              </a>
             </motion.div>
             
             <motion.div
@@ -122,4 +122,3 @@ export const Hero = () => {
     </section>
   );
 };
-

@@ -72,25 +72,8 @@ export const SocialProof = () => {
             </motion.div>
           ))}
         </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ duration: 0.6, delay: 0.8 }}
-          className="mt-16 pt-16 border-t border-gray-200"
-        >
-          <div className="bg-white rounded-3xl border border-amber-200 p-8 text-center shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-wide text-amber-600 mb-3">
-              {SOCIAL_PROOF.noteTitle}
-            </p>
-            <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-              {SOCIAL_PROOF.noteDescription}
-            </p>
-          </div>
-        </motion.div>
       </Container>
     </section>
   );
 };
-
 

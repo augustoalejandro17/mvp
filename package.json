@@ -26,6 +26,8 @@
     "build:api": "npm --prefix apps/api run build",
     "build:web": "npm --prefix apps/web-admin run build",
     "build:mobile": "npm --prefix apps/mobile-app run build",
+    "railway:web:build": "npm run types:build && npm --prefix apps/web-admin run build",
+    "railway:web:start": "npm --prefix apps/web-admin run start",
     "docker:dev": "./rebuild.sh",
     "docker:deploy": "./deploy.sh"
   },

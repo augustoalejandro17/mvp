@@ -3,9 +3,9 @@
 import { motion } from 'framer-motion';
 import { useInView } from 'framer-motion';
 import { useRef } from 'react';
-import Link from 'next/link';
 import { Container } from './ui/Container';
 import { SectionHeading } from './ui/SectionHeading';
+import { CONTACT_MAILTO } from '@/lib/copy';
 import { FEATURES } from '@/lib/copy';
 
 const cardVariants = {
@@ -30,9 +30,9 @@ export const Features = () => {
     <section id="features" ref={ref} className="py-16 lg:py-24 bg-gray-50">
       <Container>
         <SectionHeading
-          subtitle="Caracteristicas"
+          subtitle="Características"
           title="Lo que ya puedes resolver hoy"
-          description="La landing ahora refleja lo que si esta mas trabajado y listo para vender: operacion mobile-first para profesores."
+          description="La landing ahora refleja lo que sí está más trabajado y listo para vender: operación mobile-first para profesores."
           className="mb-16"
         />
 
@@ -89,13 +89,12 @@ export const Features = () => {
             ¿Necesitas una característica específica?
           </p>
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <Link href="/contact" className="btn-secondary inline-block">
-              Hablemos
-            </Link>
+            <a href={CONTACT_MAILTO} className="btn-secondary inline-block">
+              Escríbenos
+            </a>
           </motion.div>
         </motion.div>
       </Container>
     </section>
   );
 };
-

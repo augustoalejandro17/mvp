@@ -29,9 +29,9 @@ export const Differentiators = () => {
     <section ref={ref} className="py-16 lg:py-24 bg-white">
       <Container>
         <SectionHeading
-          subtitle="Por que empezar aqui"
+          subtitle="Por qué empezar aquí"
           title="Una base simple para vender y operar mejor"
-          description="No intentamos reemplazar una gran plataforma institucional desde el dia uno. Queremos resolver primero lo que mas le duele al profesor."
+          description="Empieza con una forma más simple de publicar tus cursos, organizar tu contenido y acompañar a tus alumnos desde el celular."
           className="mb-16"
         />
 
@@ -80,5 +80,3 @@ export const Differentiators = () => {
     </section>
   );
 };
-
-

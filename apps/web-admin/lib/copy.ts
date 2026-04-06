@@ -2,12 +2,19 @@ import { BRAND } from '@inti/shared-types';
 
 export { BRAND };
 
+export const LANDING_BRAND = {
+  name: 'Inti',
+  contactEmail: 'augustoalejandro95@gmail.com',
+} as const;
+
+export const CONTACT_MAILTO = `mailto:${LANDING_BRAND.contactEmail}?subject=Quiero%20m%C3%A1s%20informaci%C3%B3n%20sobre%20Inti` as const;
+
 export const HERO = {
   headline: 'Convierte tu celular en tu academia',
   subtext:
-    'Crea cursos, sube clases, organiza tu contenido, recibe entregas y acompana a tus alumnos desde una sola app. Hecho para profesores que hoy operan con WhatsApp, Drive y herramientas sueltas.',
+    'Crea cursos, sube clases, organiza tu contenido, recibe entregas y acompaña a tus alumnos desde una sola app. Hecho para profesores que hoy operan con WhatsApp, Drive y herramientas sueltas.',
   pill: 'Beta privada para profesores fundadores',
-  primaryCTA: 'Solicitar acceso',
+  primaryCTA: 'Escríbenos',
   secondaryCTA: 'Ver planes fundadores',
   highlights: [
     {
@@ -27,9 +34,9 @@ export const HERO = {
 
 export const DIFFERENTIATORS = [
   {
-    title: 'Hecho para operar desde el movil',
+    title: 'Hecho para operar desde el móvil',
     description:
-      'No necesitas montar una operacion compleja en desktop para empezar. La experiencia principal vive en la app.',
+      'No necesitas montar una operación compleja en desktop para empezar. La experiencia principal vive en la app.',
     icon: '📱',
   },
   {
@@ -39,15 +46,15 @@ export const DIFFERENTIATORS = [
     icon: '🧭',
   },
   {
-    title: 'Contenido mas profesional',
+    title: 'Contenido más profesional',
     description:
-      'Tus clases quedan organizadas y tu material se entrega en una experiencia mas cuidada para el alumno.',
+      'Tus clases quedan organizadas y tu material se entrega en una experiencia más cuidada para el alumno.',
     icon: '🎥',
   },
   {
-    title: 'Base para crecer',
+    title: 'Empieza simple, sin verte improvisado',
     description:
-      'Empieza con profesores y microacademias. Cuando el negocio crezca, la plataforma puede crecer contigo.',
+      'Lanza tus cursos con una experiencia más ordenada y profesional, sin montar una operación complicada desde el día uno.',
     icon: '🌱',
   },
 ] as const;
@@ -55,22 +62,22 @@ export const DIFFERENTIATORS = [
 export const FEATURES = [
   {
     title: 'Crea cursos desde el celular',
-    description: 'Publica titulo, descripcion, portada y visibilidad sin salir de la app',
+    description: 'Publica título, descripción, portada y visibilidad sin salir de la app',
     icon: '🎥',
   },
   {
     title: 'Sube clases en video',
-    description: 'Carga contenido desde el movil y deja el procesamiento en segundo plano',
+    description: 'Carga contenido desde el móvil y deja el procesamiento en segundo plano',
     icon: '⬆️',
   },
   {
     title: 'Organiza el contenido',
-    description: 'Ordena clases y playlists para que el alumno encuentre todo mas facil',
+    description: 'Ordena clases y playlists para que el alumno encuentre todo más fácil',
     icon: '🗂️',
   },
   {
     title: 'Entrega privada de contenido',
-    description: 'Comparte tus videos y materiales en una experiencia mas profesional y controlada',
+    description: 'Comparte tus videos y materiales en una experiencia más profesional y controlada',
     icon: '🔒',
   },
   {
@@ -80,7 +87,7 @@ export const FEATURES = [
   },
   {
     title: 'Da feedback al alumno',
-    description: 'Revisa entregas, comenta y acompana el progreso sin procesos manuales',
+    description: 'Revisa entregas, comenta y acompaña el progreso sin procesos manuales',
     icon: '💬',
   },
   {
@@ -90,7 +97,7 @@ export const FEATURES = [
   },
   {
     title: 'Experiencia para profesor y alumno',
-    description: 'Cada quien entra a una app clara, simple y lista para usar desde el primer dia',
+    description: 'Cada quien entra a una app clara, simple y lista para usar desde el primer día',
     icon: '🤝',
   },
 ] as const;
@@ -105,18 +112,18 @@ export const PRICING_TIERS = [
       'Hasta 15 alumnos activos',
       '1 profesor',
       '10 GB de almacenamiento',
-      'Cursos y clases desde la app movil',
+      'Cursos y clases desde la app móvil',
       'Entregas, feedback y notificaciones',
       'Precio preferencial de beta',
     ],
-    cta: 'Solicitar acceso',
+    cta: 'Escríbenos',
     popular: false,
   },
   {
     name: 'Crecimiento',
     price: 99,
     period: 'mes',
-    description: 'Para profesores que ya venden y necesitan mas capacidad',
+    description: 'Para profesores que ya venden y necesitan más capacidad',
     features: [
       'Hasta 30 alumnos activos',
       '1 profesor',
@@ -125,37 +132,37 @@ export const PRICING_TIERS = [
       'Entregas, feedback y notificaciones',
       'Soporte prioritario de onboarding',
     ],
-    cta: 'Solicitar acceso',
+    cta: 'Escríbenos',
     popular: true,
   },
   {
     name: 'Pro',
     price: 179,
     period: 'mes',
-    description: 'Para profesores con operacion estable o microacademias',
+    description: 'Para profesores con operación estable o microacademias',
     features: [
       'Hasta 60 alumnos activos',
       'Hasta 2 profesores',
       '60 GB de almacenamiento',
       'Mayor capacidad para cursos y contenido',
       'Entregas, feedback y notificaciones',
-      'Acompanamiento de activacion',
+      'Acompañamiento de activación',
     ],
-    cta: 'Hablar con nosotros',
+    cta: 'Escríbenos',
     popular: false,
   },
 ] as const;
 
 export const PRICING_NOTE =
-  'Cupos limitados para profesores fundadores. El precio se mantiene mientras participes en la beta activa. Puedes sumar alumnos extra y packs de almacenamiento segun tu crecimiento.' as const;
+  'Cupos limitados para profesores fundadores. El precio se mantiene mientras participes en la beta activa. Puedes sumar alumnos extra y packs de almacenamiento según tu crecimiento.' as const;
 
 export const CTA = {
   headline: 'Empieza con tu academia desde el celular',
   subtext:
-    'Si hoy vendes cursos, clases o tutorias y sientes que todo esta disperso, aqui puedes ordenar tu operacion sin montar una plataforma gigante.',
+    'Si hoy vendes cursos, clases o tutorías y sientes que todo está disperso, aquí puedes ordenar tu operación sin montar una plataforma gigante.',
   primaryText:
     'Estamos abriendo cupos limitados para profesores fundadores con onboarding cercano y precio preferencial.',
-  primaryButton: 'Solicitar acceso',
+  primaryButton: 'Escríbenos',
   secondaryButton: 'Ver planes',
   highlights: [
     {
@@ -177,7 +184,7 @@ export const FAQ_ITEMS = [
   {
     question: '¿Esto es para profesores individuales o para academias?',
     answer:
-      'Hoy estamos enfocados primero en profesores independientes y microacademias. La idea es validar con operaciones pequenas antes de expandirnos a planes premium para academias mas complejas.',
+      'Hoy estamos enfocados primero en profesores independientes y microacademias. La idea es validar con operaciones pequeñas antes de expandirnos a planes premium para academias más complejas.',
   },
   {
     question: '¿Necesito usar la web para operar?',
@@ -187,51 +194,51 @@ export const FAQ_ITEMS = [
   {
     question: '¿Puedo vender aunque hoy cobre por transferencia o efectivo?',
     answer:
-      'Si. La plataforma no depende de pagos online para que puedas empezar a operar, publicar contenido y dar seguimiento a tus alumnos.',
+      'Sí. La plataforma no depende de pagos online para que puedas empezar a operar, publicar contenido y dar seguimiento a tus alumnos.',
   },
   {
-    question: '¿Que tan protegidos estan mis videos?',
+    question: '¿Qué tan protegidos están mis videos?',
     answer:
-      'Tus clases se suben, procesan y entregan desde una infraestructura controlada por la plataforma para dar una experiencia mas privada y profesional que compartir archivos sueltos.',
+      'Tus clases se suben, procesan y entregan desde una infraestructura controlada por la plataforma para dar una experiencia más privada y profesional que compartir archivos sueltos.',
   },
   {
     question: '¿Puedo recibir tareas o entregas de mis alumnos?',
     answer:
-      'Si. La app ya contempla entregas y revision para que puedas acompanar el avance del alumno desde el mismo flujo.',
+      'Sí. La app ya contempla entregas y revisión para que puedas acompañar el avance del alumno desde el mismo flujo.',
   },
   {
-    question: '¿Que pasa si despues crezco y necesito mas herramientas?',
+    question: '¿Qué pasa si después crezco y necesito más herramientas?',
     answer:
-      'Ese es justamente el plan. Primero resolvemos operacion mobile para profesores; despues iremos incorporando planes premium para academias con modulos mas avanzados.',
+      'Ese es justamente el plan. Primero resolvemos operación mobile para profesores; después iremos incorporando planes premium para academias con módulos más avanzados.',
   },
 ] as const;
 
 export const SOCIAL_PROOF = {
-  headline: 'Ideal para profesores que ya venden, pero todavia operan con herramientas sueltas',
+  headline: 'Ideal para profesores que quieren expandir su alcance sin perder el control de su contenido y sus alumnos',
   items: [
     {
       title: 'Profesores independientes',
       description:
-        'Si vendes cursos, clases o tutorias y quieres dejar de depender de WhatsApp, Drive y procesos manuales.',
+        'Si vendes cursos, clases o tutorías y quieres dejar de depender de WhatsApp, Drive y procesos manuales.',
     },
     {
       title: 'Microacademias',
       description:
-        'Si tu operacion todavia es pequena y necesitas una base clara para publicar contenido y acompanar alumnos.',
+        'Si tu operación todavía es pequeña y necesitas una base clara para publicar contenido y acompañar alumnos.',
     },
     {
       title: 'Creadores educativos',
       description:
-        'Si ya tienes videos y materiales, pero quieres darles una experiencia mas ordenada y profesional.',
+        'Si ya tienes videos y materiales, pero quieres darles una experiencia más ordenada y profesional.',
     },
   ],
   noteTitle: 'Estamos validando con profesores fundadores',
   noteDescription:
-    'Todavia no queremos prometer una plataforma institucional enorme. Queremos ayudarte a resolver lo esencial hoy: contenido, alumnos y operacion desde el movil.',
+    'Todavía no queremos prometer una plataforma institucional enorme. Queremos ayudarte a resolver lo esencial hoy: contenido, alumnos y operación desde el móvil.',
 } as const;
 
 export const ANALYTICS_SHOWCASE = {
-  headline: 'Menos herramientas sueltas, mas control diario',
+  headline: 'Menos herramientas sueltas, más control diario',
   subtext:
     'Lo importante en esta etapa no es tener dashboards gigantes. Es poder operar mejor cada semana.',
   metrics: [
@@ -242,8 +249,8 @@ export const ANALYTICS_SHOWCASE = {
       positive: true,
     },
     {
-      label: 'Operacion principal',
-      value: 'Movil',
+      label: 'Operación principal',
+      value: 'Móvil',
       trend: 'desde cualquier lugar',
       positive: true,
     },
@@ -255,7 +262,7 @@ export const ANALYTICS_SHOWCASE = {
     },
     {
       label: 'Seguimiento',
-      value: 'Mas claro',
+      value: 'Más claro',
       trend: 'con entregas y avisos',
       positive: true,
     },
@@ -263,8 +270,7 @@ export const ANALYTICS_SHOWCASE = {
 } as const;
 
 export const NAVIGATION = {
-  login: 'Iniciar sesion',
-  signup: 'Solicitar acceso',
+  signup: 'Escríbenos',
 } as const;
 
 export const FOOTER = {
@@ -272,20 +278,20 @@ export const FOOTER = {
     'La app para que profesores y microacademias operen cursos, clases y seguimiento desde el celular.',
   links: {
     product: [
-      { label: 'Caracteristicas', href: '#features' },
+      { label: 'Características', href: '#features' },
       { label: 'Precios', href: '#pricing' },
       { label: 'Demo', href: '#demo' },
     ],
     company: [
       { label: 'Sobre nosotros', href: '/about' },
       { label: 'Blog', href: '/blog' },
-      { label: 'Contacto', href: '/contact' },
+      { label: 'Contacto', href: CONTACT_MAILTO },
     ],
     legal: [
       { label: 'Privacidad', href: '/privacy' },
-      { label: 'Terminos', href: '/terms' },
+      { label: 'Términos', href: '/terms' },
       { label: 'Cookies', href: '/cookies' },
     ],
   },
-  copyright: `© ${new Date().getFullYear()} ${BRAND.name}. Todos los derechos reservados.`,
+  copyright: `© ${new Date().getFullYear()} ${LANDING_BRAND.name}. Todos los derechos reservados.`,
 } as const;

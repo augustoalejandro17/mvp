@@ -3,9 +3,9 @@
 import { motion } from 'framer-motion';
 import { useInView } from 'framer-motion';
 import { useRef, useState } from 'react';
-import Link from 'next/link';
 import { Container } from './ui/Container';
 import { SectionHeading } from './ui/SectionHeading';
+import { CONTACT_MAILTO } from '@/lib/copy';
 
 const mockDashboardData = [
   {
@@ -13,7 +13,7 @@ const mockDashboardData = [
     description: 'Publica la base de tu oferta desde el celular',
     metrics: [
       { label: 'Portada', value: 'Lista' },
-      { label: 'Visibilidad', value: 'Privada o publica' },
+      { label: 'Visibilidad', value: 'Privada o pública' },
       { label: 'Estado', value: 'Listo para publicar' },
     ],
   },
@@ -21,17 +21,17 @@ const mockDashboardData = [
     title: 'Sube una clase',
     description: 'Carga video y deja el procesamiento en background',
     metrics: [
-      { label: 'Video', value: 'Desde tu movil' },
-      { label: 'Procesamiento', value: 'Automatico' },
+      { label: 'Video', value: 'Desde tu móvil' },
+      { label: 'Procesamiento', value: 'Automático' },
       { label: 'Orden', value: 'Dentro del curso' },
     ],
   },
   {
     title: 'Revisa entregas',
-    description: 'Acompana alumnos sin saltar entre herramientas',
+    description: 'Acompaña alumnos sin saltar entre herramientas',
     metrics: [
       { label: 'Entregas', value: 'Recibidas en la app' },
-      { label: 'Feedback', value: 'Mas ordenado' },
+      { label: 'Feedback', value: 'Más ordenado' },
       { label: 'Avisos', value: 'Todo en un flujo' },
     ],
   },
@@ -61,8 +61,8 @@ export const MiniDemo = () => {
       <Container>
         <SectionHeading
           subtitle="Demo guiada"
-          title="Asi se ve la operacion desde la app"
-          description="Una muestra simple de los flujos que hoy si estan mas listos para salir a vender."
+          title="Así se ve la operación desde la app"
+          description="Una muestra simple de los flujos que hoy sí están más listos para salir a vender."
           className="mb-16"
         />
 
@@ -178,12 +178,12 @@ export const MiniDemo = () => {
             className="text-center mt-12"
           >
             <p className="text-gray-600 mb-6">
-              Si quieres ver como aplicaria en tu caso, te mostramos una demo guiada
+              Si quieres ver cómo aplicaría en tu caso, te mostramos una demo guiada
             </p>
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Link href="/signup" className="btn-primary inline-block">
-                Solicitar acceso
-              </Link>
+              <a href={CONTACT_MAILTO} className="btn-primary inline-block">
+                Escríbenos
+              </a>
             </motion.div>
           </motion.div>
         </div>
@@ -191,4 +191,3 @@ export const MiniDemo = () => {
     </section>
   );
 };
-

@@ -3,10 +3,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useInView } from 'framer-motion';
 import { useRef, useState } from 'react';
-import Link from 'next/link';
 import { Container } from './ui/Container';
 import { SectionHeading } from './ui/SectionHeading';
-import { FAQ_ITEMS } from '@/lib/copy';
+import { CONTACT_MAILTO, FAQ_ITEMS } from '@/lib/copy';
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
@@ -37,7 +36,7 @@ export const FAQ = () => {
         <SectionHeading
           subtitle="FAQ"
           title="Preguntas frecuentes"
-          description="Respuestas cortas para que sepas si esta beta hace sentido para tu operacion hoy."
+          description="Respuestas cortas para que sepas si esta beta hace sentido para tu operación hoy."
           className="mb-16"
         />
 
@@ -123,24 +122,24 @@ export const FAQ = () => {
               ¿No encuentras tu respuesta?
             </h3>
             <p className="text-gray-600 mb-6">
-              Si quieres validar si esto encaja con tu forma de vender y ensenar, lo vemos contigo.
+              Si quieres validar si esto encaja con tu forma de vender y enseñar, lo vemos contigo.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <Link href="/contact" className="btn-secondary inline-block">
-                  Enviar mensaje
-                </Link>
+                <a href={CONTACT_MAILTO} className="btn-secondary inline-block">
+                  Enviar correo
+                </a>
               </motion.div>
               <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <Link href="/signup" className="btn-primary inline-block">
-                  Solicitar acceso
-                </Link>
+                <a href={CONTACT_MAILTO} className="btn-primary inline-block">
+                  Escribir a Augusto
+                </a>
               </motion.div>
             </div>
           </div>
@@ -149,5 +148,3 @@ export const FAQ = () => {
     </section>
   );
 };
-
-
