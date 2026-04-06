@@ -8,6 +8,57 @@ import * as express from 'express';
 
 const logger = new Logger('Bootstrap');
 
+const normalizeOrigin = (value?: string) =>
+  String(value || '')
+    .trim()
+    .replace(/\/$/, '');
+
+const expandDomainVariants = (value?: string) => {
+  const normalized = normalizeOrigin(value);
+  if (!normalized) {
+    return [];
+  }
+
+  const variants = new Set([normalized]);
+
+  if (normalized === 'https://intihubs.com') {
+    variants.add('https://www.intihubs.com');
+  }
+
+  if (normalized === 'https://www.intihubs.com') {
+    variants.add('https://intihubs.com');
+  }
+
+  return Array.from(variants);
+};
+
+const collectAllowedOrigins = () => {
+  const rawOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.APP_URL,
+    process.env.NEXTAUTH_URL,
+    'https://intihubs.com',
+    'https://www.intihubs.com',
+  ];
+
+  const allowedOrigins = new Set<string>();
+
+  for (const rawOrigin of rawOrigins) {
+    const parts = String(rawOrigin || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    for (const part of parts) {
+      for (const variant of expandDomainVariants(part)) {
+        allowedOrigins.add(variant);
+      }
+    }
+  }
+
+  return Array.from(allowedOrigins);
+};
+
 async function bootstrap() {
   try {
     // Configurar valores por defecto para variables de entorno si no están definidas
@@ -19,17 +70,14 @@ async function bootstrap() {
     const app = await NestFactory.create(AppModule);
 
     // Habilitar CORS
-    const allowedOrigins = [
-      process.env.FRONTEND_URL,
-      'http://inti-front-431558574.us-east-1.elb.amazonaws.com',
-      'https://intihubs.com',
-    ];
+    const allowedOrigins = collectAllowedOrigins();
 
     app.enableCors({
       origin: function (origin, callback) {
+        const normalizedOrigin = normalizeOrigin(origin);
         // Allow requests with no origin (like mobile apps, curl requests)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+        if (allowedOrigins.includes(normalizedOrigin) || !origin) {
           callback(null, true);
         } else {
           logger.warn(`CORS blocked request from origin: ${origin}`);
@@ -77,6 +125,7 @@ async function bootstrap() {
 
     logger.log(`Iniciando aplicación en modo de depuración completa`);
     logger.log(`Usando FRONTEND_URL: ${process.env.FRONTEND_URL}`);
+    logger.log(`Orígenes permitidos por CORS: ${allowedOrigins.join(', ')}`);
     logger.log(
       `Usando MONGODB_URI: ${process.env.MONGODB_URI.substring(0, 10)}...`,
     );
