@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { apiClient, AppNotification } from '@/services/apiClient';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 const PRIORITY_CONFIG: Record<string, { color: string; bg: string }> = {
   high: { color: '#dc2626', bg: '#fef2f2' },
@@ -97,6 +98,7 @@ function NotificationItem({
 }
 
 export default function NotificationsScreen() {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -125,6 +127,17 @@ export default function NotificationsScreen() {
       );
     } catch (error) {
       console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const openNotification = async (item: AppNotification) => {
+    if (!item.isRead) {
+      await markAsRead(item._id);
+    }
+
+    const actionUrl = item.metadata?.actionUrl;
+    if (typeof actionUrl === 'string' && actionUrl.trim().length > 0) {
+      router.push(actionUrl as any);
     }
   };
 
@@ -192,7 +205,7 @@ export default function NotificationsScreen() {
             <NotificationItem
               key={item._id}
               item={item}
-              onPress={() => !item.isRead && markAsRead(item._id)}
+              onPress={() => void openNotification(item)}
             />
           ))
         )}

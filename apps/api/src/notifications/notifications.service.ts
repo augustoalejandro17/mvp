@@ -209,6 +209,68 @@ export class NotificationsService {
     );
   }
 
+  async notifySubmissionFeedback(
+    recipientId: string,
+    courseId: string,
+    classId: string,
+    submissionId: string,
+    timestampSeconds: number,
+    senderId?: string,
+  ): Promise<Notification> {
+    const timestampLabel = this.formatTimestamp(timestampSeconds);
+
+    const notification = new this.notificationModel({
+      title: 'Nuevo feedback en tu práctica',
+      message: `Tu profesor dejó una anotación en ${timestampLabel}.`,
+      type: NotificationType.FEEDBACK_SUBMISSION,
+      priority: NotificationPriority.HIGH,
+      recipient: recipientId,
+      sender: senderId,
+      relatedCourse: courseId,
+      metadata: {
+        courseId,
+        classId,
+        submissionId,
+        timestampSeconds,
+        actionUrl: `/player/${classId}?courseId=${courseId}`,
+      },
+    });
+
+    return notification.save();
+  }
+
+  async notifySubmissionReviewStatus(
+    recipientId: string,
+    courseId: string,
+    classId: string,
+    submissionId: string,
+    reviewStatus: 'REVIEWED' | 'NEEDS_RESUBMISSION',
+    senderId?: string,
+  ): Promise<Notification> {
+    const isReviewed = reviewStatus === 'REVIEWED';
+
+    const notification = new this.notificationModel({
+      title: isReviewed ? 'Tu práctica fue revisada' : 'Tu práctica requiere ajustes',
+      message: isReviewed
+        ? 'Ya puedes ver el feedback de tu profesor.'
+        : 'Tu profesor pidió un nuevo envío para esta práctica.',
+      type: NotificationType.FEEDBACK_REVIEW,
+      priority: NotificationPriority.HIGH,
+      recipient: recipientId,
+      sender: senderId,
+      relatedCourse: courseId,
+      metadata: {
+        courseId,
+        classId,
+        submissionId,
+        reviewStatus,
+        actionUrl: `/player/${classId}?courseId=${courseId}`,
+      },
+    });
+
+    return notification.save();
+  }
+
   async findUserNotifications(
     userId: string,
     page: number = 1,
@@ -385,5 +447,12 @@ export class NotificationsService {
         isActive: true,
       })
       .exec();
+  }
+
+  private formatTimestamp(value: number): string {
+    const safeValue = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+    const minutes = Math.floor(safeValue / 60);
+    const seconds = safeValue % 60;
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
   }
 }

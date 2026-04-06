@@ -5,11 +5,14 @@ import { Platform } from 'react-native';
 import {
   ICourse,
   IClass,
+  IClassSubmission,
+  ISubmissionAnnotation,
   ISchool,
   IUser,
   RegisterDto,
   LoginDto,
   LoginResponse,
+  SubmissionReviewStatus,
 } from '@inti/shared-types';
 
 export interface CourseProgressSummary {
@@ -36,6 +39,15 @@ export interface AppNotification {
   priority: string;
   isRead: boolean;
   createdAt: string;
+  metadata?: {
+    actionUrl?: string;
+    classId?: string;
+    courseId?: string;
+    submissionId?: string;
+    timestampSeconds?: number;
+    reviewStatus?: string;
+    [key: string]: any;
+  };
 }
 
 export interface PaginatedNotifications {
@@ -588,6 +600,91 @@ class ApiClient {
     const { data } = await this.client.get(`/classes/${classId}/stream-url`, {
       params: { direct: true },
     });
+    return data;
+  }
+
+  async submitClassSubmission(
+    classId: string,
+    video: NativeUploadFile,
+  ): Promise<IClassSubmission> {
+    if (!video?.uri || !isValidLocalFileUri(video.uri)) {
+      throw new Error('Archivo de video inválido. No se pudo resolver la ruta local.');
+    }
+    if (
+      typeof video.size === 'number' &&
+      video.size > MAX_VIDEO_UPLOAD_SIZE_BYTES
+    ) {
+      throw new Error('El video supera el límite permitido de 200MB.');
+    }
+
+    const safeVideoName = normalizeUploadVideoName(video.name);
+    const safeVideoMimeType = normalizeUploadVideoMimeType(
+      safeVideoName,
+      video.type,
+    );
+
+    const formData = new FormData();
+    formData.append('classId', classId);
+    formData.append('video', {
+      uri: video.uri,
+      name: safeVideoName,
+      type: safeVideoMimeType,
+    } as any);
+
+    const token = await SecureStore.getItemAsync(STORAGE_KEYS.AUTH_TOKEN);
+    const response = await fetch(`${BASE_URL}/class-submissions`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+    const data = await parseResponseBody(response);
+    if (!response.ok) {
+      if (response.status === 413) {
+        throw new Error('El video supera el límite permitido de 200MB.');
+      }
+      throw new Error(
+        buildApiErrorMessage(data, 'No se pudo subir la práctica de la clase'),
+      );
+    }
+    return data as IClassSubmission;
+  }
+
+  async getMyClassSubmissions(classId?: string): Promise<IClassSubmission[]> {
+    const { data } = await this.client.get<IClassSubmission[]>(
+      '/class-submissions/mine',
+      {
+        params: classId ? { classId } : undefined,
+      },
+    );
+    return data;
+  }
+
+  async getClassSubmissionById(submissionId: string): Promise<IClassSubmission> {
+    const { data } = await this.client.get<IClassSubmission>(
+      `/class-submissions/${submissionId}`,
+    );
+    return data;
+  }
+
+  async getSubmissionAnnotations(
+    submissionId: string,
+  ): Promise<ISubmissionAnnotation[]> {
+    const { data } = await this.client.get<ISubmissionAnnotation[]>(
+      `/class-submissions/${submissionId}/annotations`,
+    );
+    return data;
+  }
+
+  async updateClassSubmissionReviewStatus(
+    submissionId: string,
+    reviewStatus: SubmissionReviewStatus,
+  ): Promise<IClassSubmission> {
+    const { data } = await this.client.patch<IClassSubmission>(
+      `/class-submissions/${submissionId}/review-status`,
+      { reviewStatus },
+    );
     return data;
   }
 

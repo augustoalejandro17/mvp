@@ -15,13 +15,31 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { BRAND, ICourse, IClass, ISchool, UserRole } from '@inti/shared-types';
+import {
+  BRAND,
+  ICourse,
+  IClass,
+  IClassSubmission,
+  ISchool,
+  SubmissionReviewStatus,
+  UserRole,
+  VideoStatus,
+} from '@inti/shared-types';
 import { apiClient } from '@/services/apiClient';
 import VideoCard from '@/components/VideoCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 
 type ViewLevel = 'schools' | 'courses' | 'classes';
+
+type CourseSubmissionSummary = {
+  total: number;
+  processing: number;
+  pendingReview: number;
+  reviewed: number;
+  reviewedWithAnnotations: number;
+  needsResubmission: number;
+};
 
 const ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SCHOOL_OWNER];
 
@@ -63,6 +81,52 @@ const getCourseSchoolId = (course: ICourse | null | undefined): string => {
   const rawSchool = (course as any).school;
   if (typeof rawSchool === 'string') return rawSchool;
   return getEntityId(rawSchool);
+};
+
+const buildCourseSubmissionSummaryMap = (
+  submissions: IClassSubmission[],
+): Record<string, CourseSubmissionSummary> => {
+  return submissions.reduce<Record<string, CourseSubmissionSummary>>((acc, submission) => {
+    const rawCourse = (submission as any)?.course;
+    const courseId =
+      typeof rawCourse === 'string' ? rawCourse : getEntityId(rawCourse);
+
+    if (!courseId) {
+      return acc;
+    }
+
+    const current = acc[courseId] ?? {
+      total: 0,
+      processing: 0,
+      pendingReview: 0,
+      reviewed: 0,
+      reviewedWithAnnotations: 0,
+      needsResubmission: 0,
+    };
+
+    current.total += 1;
+
+    if (
+      submission.videoStatus === VideoStatus.PROCESSING ||
+      submission.videoStatus === VideoStatus.UPLOADING
+    ) {
+      current.processing += 1;
+    }
+
+    if (submission.reviewStatus === SubmissionReviewStatus.NEEDS_RESUBMISSION) {
+      current.needsResubmission += 1;
+    } else if (submission.reviewStatus === SubmissionReviewStatus.REVIEWED) {
+      current.reviewed += 1;
+      if ((submission.annotationsCount ?? 0) > 0) {
+        current.reviewedWithAnnotations += 1;
+      }
+    } else {
+      current.pendingReview += 1;
+    }
+
+    acc[courseId] = current;
+    return acc;
+  }, {});
 };
 
 const mergeUniqueById = <T extends { _id?: string; id?: string }>(
@@ -193,6 +257,7 @@ function SchoolCard({
 function CourseCard({
   course,
   isEnrolled,
+  submissionSummary,
   canManageCourse,
   canDeleteCourse,
   onPress,
@@ -202,6 +267,7 @@ function CourseCard({
 }: {
   course: ICourse;
   isEnrolled: boolean;
+  submissionSummary?: CourseSubmissionSummary | null;
   canManageCourse?: boolean;
   canDeleteCourse?: boolean;
   onPress: () => void;
@@ -209,6 +275,57 @@ function CourseCard({
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
+  const summaryBadges = (() => {
+    if (!submissionSummary || submissionSummary.total === 0) {
+      return [];
+    }
+
+    const badges: Array<{ icon: keyof typeof Ionicons.glyphMap; label: string; bg: string; color: string }> = [];
+
+    if (submissionSummary.needsResubmission > 0) {
+      badges.push({
+        icon: 'refresh-circle',
+        label: `${submissionSummary.needsResubmission} reenvío${submissionSummary.needsResubmission === 1 ? '' : 's'}`,
+        bg: '#fff7ed',
+        color: '#9a3412',
+      });
+    }
+
+    if (submissionSummary.reviewedWithAnnotations > 0) {
+      badges.push({
+        icon: 'chatbubble-ellipses',
+        label: `${submissionSummary.reviewedWithAnnotations} con feedback`,
+        bg: '#ecfdf5',
+        color: '#166534',
+      });
+    } else if (submissionSummary.reviewed > 0) {
+      badges.push({
+        icon: 'checkmark-circle',
+        label: `${submissionSummary.reviewed} revisada${submissionSummary.reviewed === 1 ? '' : 's'}`,
+        bg: '#f0fdf4',
+        color: '#166534',
+      });
+    }
+
+    if (submissionSummary.processing > 0) {
+      badges.push({
+        icon: 'time',
+        label: `${submissionSummary.processing} procesándose`,
+        bg: '#fffbeb',
+        color: '#b45309',
+      });
+    } else if (submissionSummary.pendingReview > 0) {
+      badges.push({
+        icon: 'videocam',
+        label: `${submissionSummary.pendingReview} enviada${submissionSummary.pendingReview === 1 ? '' : 's'}`,
+        bg: '#eff6ff',
+        color: '#1d4ed8',
+      });
+    }
+
+    return badges.slice(0, 3);
+  })();
+
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -255,6 +372,22 @@ function CourseCard({
             </View>
           )}
         </View>
+        {summaryBadges.length > 0 && (
+          <View className="flex-row flex-wrap mt-3">
+            {summaryBadges.map((badge) => (
+              <View
+                key={`${badge.icon}-${badge.label}`}
+                className="flex-row items-center px-2.5 py-1 rounded-full mr-2 mb-2"
+                style={{ backgroundColor: badge.bg }}
+              >
+                <Ionicons name={badge.icon} size={12} color={badge.color} />
+                <Text className="text-xs font-semibold ml-1.5" style={{ color: badge.color }}>
+                  {badge.label}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
         <View className="flex-row items-center mt-3 pt-3 border-t border-gray-50">
           {course.classes && course.classes.length > 0 ? (
             <>
@@ -304,6 +437,7 @@ export default function HomeScreen() {
 
   const isAdmin = user?.role && ADMIN_ROLES.includes(user.role as UserRole);
   const isTeacher = user?.role === UserRole.TEACHER;
+  const isStudent = user?.role === UserRole.STUDENT;
   const currentUserId = String(
     (user as any)?._id || (user as any)?.id || (user as any)?.sub || '',
   );
@@ -314,6 +448,12 @@ export default function HomeScreen() {
   const [courses, setCourses] = useState<ICourse[]>([]);
   const [teachingCourses, setTeachingCourses] = useState<ICourse[]>([]);
   const [classes, setClasses] = useState<IClass[]>([]);
+  const [courseSubmissionSummaries, setCourseSubmissionSummaries] = useState<
+    Record<string, CourseSubmissionSummary>
+  >({});
+  const [classSubmissionsMap, setClassSubmissionsMap] = useState<
+    Record<string, IClassSubmission>
+  >({});
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [unorganizedClasses, setUnorganizedClasses] = useState<IClass[]>([]);
   const [expandedPlaylists, setExpandedPlaylists] = useState<Record<string, boolean>>({});
@@ -331,6 +471,18 @@ export default function HomeScreen() {
   const canManageSelectedCourse =
     !!selectedCourse &&
     isCourseManagedByUser(selectedCourse, currentUserId, !!isAdmin);
+  const selectedCourseSubmissionSummary = useMemo(() => {
+    const submissions = Object.values(classSubmissionsMap);
+    if (submissions.length === 0) {
+      return null;
+    }
+
+    const summary = buildCourseSubmissionSummaryMap(submissions)[
+      String(selectedCourse?._id || '')
+    ];
+
+    return summary ?? null;
+  }, [classSubmissionsMap, selectedCourse]);
 
   const filteredSchools = useMemo(() => {
     const q = schoolSearch.trim().toLowerCase();
@@ -374,13 +526,15 @@ export default function HomeScreen() {
   const loadSchools = useCallback(async () => {
     setError(null);
     try {
-      const [schoolsData, enrolledData, teachingData] = await Promise.all([
+      const [schoolsData, enrolledData, teachingData, submissionsData] = await Promise.all([
         isAdmin ? apiClient.getAllSchools() : apiClient.getPublicSchools(),
         apiClient.getEnrolledCourses().catch(() => [] as ICourse[]),
         isTeacher ? apiClient.getTeachingCourses().catch(() => [] as ICourse[]) : [],
+        isStudent ? apiClient.getMyClassSubmissions().catch(() => [] as IClassSubmission[]) : [],
       ]);
       const publicSchools = normalizeList<ISchool>(schoolsData);
       const normalizedTeachingCourses = normalizeList<ICourse>(teachingData);
+      const normalizedSubmissions = normalizeList<IClassSubmission>(submissionsData);
       const teacherSchools = normalizedTeachingCourses
         .map((course) => ((course as any).school && typeof (course as any).school === 'object'
           ? ((course as any).school as ISchool)
@@ -392,13 +546,16 @@ export default function HomeScreen() {
       );
       setEnrolledCourses(normalizeList<ICourse>(enrolledData));
       setTeachingCourses(normalizedTeachingCourses);
+      setCourseSubmissionSummaries(
+        isStudent ? buildCourseSubmissionSummaryMap(normalizedSubmissions) : {},
+      );
     } catch (e: any) {
       setError(e?.message || 'No se pudo conectar al servidor');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [isAdmin, isTeacher]);
+  }, [isAdmin, isStudent, isTeacher]);
 
   const handleDeleteSchool = (school: ISchool) => {
     Alert.alert(
@@ -484,7 +641,12 @@ export default function HomeScreen() {
   const loadCoursesForSchool = useCallback(
     async (school: ISchool) => {
       const schoolId = getEntityId(school);
-      const data = await apiClient.getCoursesBySchool(schoolId);
+      const [data, submissionsRaw] = await Promise.all([
+        apiClient.getCoursesBySchool(schoolId),
+        isStudent
+          ? apiClient.getMyClassSubmissions().catch(() => [] as IClassSubmission[])
+          : Promise.resolve([] as IClassSubmission[]),
+      ]);
       const visibleCourses = normalizeList<ICourse>(data);
       const teacherCoursesForSchool = teachingCourses.filter(
         (course) => getCourseSchoolId(course) === schoolId,
@@ -495,8 +657,13 @@ export default function HomeScreen() {
           ? mergeUniqueById(visibleCourses, teacherCoursesForSchool)
           : visibleCourses,
       );
+      setCourseSubmissionSummaries(
+        isStudent
+          ? buildCourseSubmissionSummaryMap(normalizeList<IClassSubmission>(submissionsRaw))
+          : {},
+      );
     },
-    [isTeacher, teachingCourses],
+    [isStudent, isTeacher, teachingCourses],
   );
 
   const handleSelectSchool = async (school: ISchool) => {
@@ -527,33 +694,83 @@ export default function HomeScreen() {
     }
 
     try {
-      const [playlistDataRaw, unorganizedRaw] = await Promise.all([
+      const [playlistDataRaw, unorganizedRaw, mySubmissionsRaw] = await Promise.all([
         apiClient.getPlaylists(courseId),
         apiClient.getUnorganizedClasses(courseId),
+        isStudent ? apiClient.getMyClassSubmissions().catch(() => [] as IClassSubmission[]) : Promise.resolve([] as IClassSubmission[]),
       ]);
       const playlistData = normalizeList<any>(playlistDataRaw);
       const unorganized = normalizeList<IClass>(unorganizedRaw);
+      const mySubmissions = normalizeList<IClassSubmission>(mySubmissionsRaw);
 
       setPlaylists(playlistData);
       setUnorganizedClasses(unorganized);
+      setCourseSubmissionSummaries(
+        isStudent ? buildCourseSubmissionSummaryMap(mySubmissions) : {},
+      );
       const expanded: Record<string, boolean> = { __unorganized__: true };
       playlistData.forEach((p: any) => {
         expanded[p._id] = true;
       });
       setExpandedPlaylists(expanded);
-      setClasses([
+      const nextClasses = [
         ...playlistData.flatMap((p: any) => normalizeList<IClass>(p?.classes)),
         ...unorganized,
-      ]);
+      ];
+      setClasses(nextClasses);
+
+      const currentClassIds = new Set(
+        nextClasses.map((item) => String(item._id || '')).filter(Boolean),
+      );
+      const submissionMap: Record<string, IClassSubmission> = {};
+      mySubmissions.forEach((submission) => {
+        const classValue = (submission as any)?.class;
+        const classId =
+          typeof classValue === 'string'
+            ? classValue
+            : String(classValue?._id || '');
+        if (classId && currentClassIds.has(classId)) {
+          submissionMap[classId] = submission;
+        }
+      });
+      setClassSubmissionsMap(submissionMap);
     } catch {
       try {
         const data = await apiClient.getClassesByCourse(courseId);
-        setClasses(normalizeList<IClass>(data));
+        const nextClasses = normalizeList<IClass>(data);
+        setClasses(nextClasses);
+
+        if (isStudent) {
+          const mySubmissions = await apiClient
+            .getMyClassSubmissions()
+            .catch(() => [] as IClassSubmission[]);
+          setCourseSubmissionSummaries(buildCourseSubmissionSummaryMap(mySubmissions));
+          const currentClassIds = new Set(
+            nextClasses.map((item) => String(item._id || '')).filter(Boolean),
+          );
+          const submissionMap: Record<string, IClassSubmission> = {};
+          normalizeList<IClassSubmission>(mySubmissions).forEach((submission) => {
+            const classValue = (submission as any)?.class;
+            const classId =
+              typeof classValue === 'string'
+                ? classValue
+                : String(classValue?._id || '');
+            if (classId && currentClassIds.has(classId)) {
+              submissionMap[classId] = submission;
+            }
+          });
+          setClassSubmissionsMap(submissionMap);
+        } else {
+          setCourseSubmissionSummaries({});
+          setClassSubmissionsMap({});
+        }
       } catch {
         setClasses([]);
+        setCourseSubmissionSummaries({});
+        setClassSubmissionsMap({});
       }
     }
-  }, []);
+  }, [isStudent]);
 
   const handleSelectCourse = async (course: ICourse) => {
     const courseId = String(course?._id || '');
@@ -687,10 +904,12 @@ export default function HomeScreen() {
     if (level === 'classes') {
       setLevel('courses');
       setSelectedCourse(null);
+      setClassSubmissionsMap({});
     } else if (level === 'courses') {
       setLevel('schools');
       setCourseSearch('');
       setSelectedSchool(null);
+      setClassSubmissionsMap({});
     }
   };
 
@@ -701,6 +920,7 @@ export default function HomeScreen() {
     setLevel('schools');
     setSelectedSchool(null);
     setSelectedCourse(null);
+    setClassSubmissionsMap({});
     loadSchools();
   };
 
@@ -985,6 +1205,7 @@ export default function HomeScreen() {
                 <CourseCard
                   course={course}
                   isEnrolled={enrolledCourses.some((e) => e._id === course._id)}
+                  submissionSummary={courseSubmissionSummaries[String(course._id || '')] ?? null}
                   canManageCourse={isCourseManagedByUser(course, currentUserId, !!isAdmin)}
                   canDeleteCourse={!!isAdmin}
                   onPress={() => handleSelectCourse(course)}
@@ -1034,6 +1255,43 @@ export default function HomeScreen() {
                 )}
               </View>
             </View>
+            {isStudent && selectedCourseSubmissionSummary && (
+              <View className="flex-row flex-wrap mt-3">
+                {selectedCourseSubmissionSummary.needsResubmission > 0 && (
+                  <View
+                    className="flex-row items-center px-2.5 py-1 rounded-full mr-2 mb-2"
+                    style={{ backgroundColor: '#fff7ed' }}
+                  >
+                    <Ionicons name="refresh-circle" size={12} color="#9a3412" />
+                    <Text className="text-xs font-semibold ml-1.5" style={{ color: '#9a3412' }}>
+                      {selectedCourseSubmissionSummary.needsResubmission} reenvío{selectedCourseSubmissionSummary.needsResubmission === 1 ? '' : 's'} pendiente{selectedCourseSubmissionSummary.needsResubmission === 1 ? '' : 's'}
+                    </Text>
+                  </View>
+                )}
+                {selectedCourseSubmissionSummary.reviewedWithAnnotations > 0 && (
+                  <View
+                    className="flex-row items-center px-2.5 py-1 rounded-full mr-2 mb-2"
+                    style={{ backgroundColor: '#ecfdf5' }}
+                  >
+                    <Ionicons name="chatbubble-ellipses" size={12} color="#166534" />
+                    <Text className="text-xs font-semibold ml-1.5" style={{ color: '#166534' }}>
+                      {selectedCourseSubmissionSummary.reviewedWithAnnotations} con feedback
+                    </Text>
+                  </View>
+                )}
+                {selectedCourseSubmissionSummary.pendingReview > 0 && (
+                  <View
+                    className="flex-row items-center px-2.5 py-1 rounded-full mr-2 mb-2"
+                    style={{ backgroundColor: '#eff6ff' }}
+                  >
+                    <Ionicons name="videocam" size={12} color="#1d4ed8" />
+                    <Text className="text-xs font-semibold ml-1.5" style={{ color: '#1d4ed8' }}>
+                      {selectedCourseSubmissionSummary.pendingReview} en revisión
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
 
           {isLoadingClasses ? (
@@ -1133,6 +1391,7 @@ export default function HomeScreen() {
                         <VideoCard
                           key={classItem._id}
                           classItem={classItem}
+                          submission={classSubmissionsMap[String(classItem._id || '')] ?? null}
                           isAdmin={!!isAdmin}
                           onPress={() => router.push(`/player/${classItem._id}?courseId=${selectedCourse?._id}`)}
                           onEdit={() => router.push(`/manage/class/${classItem._id}`)}
@@ -1180,6 +1439,7 @@ export default function HomeScreen() {
                         <VideoCard
                           key={classItem._id}
                           classItem={classItem}
+                          submission={classSubmissionsMap[String(classItem._id || '')] ?? null}
                           isAdmin={!!isAdmin}
                           onPress={() => router.push(`/player/${classItem._id}?courseId=${selectedCourse?._id}`)}
                           onEdit={() => router.push(`/manage/class/${classItem._id}`)}
@@ -1213,6 +1473,7 @@ export default function HomeScreen() {
               renderItem={({ item }) => (
                 <VideoCard
                   classItem={item}
+                  submission={classSubmissionsMap[String(item._id || '')] ?? null}
                   isAdmin={!!isAdmin}
                   onPress={() => router.push(`/player/${item._id}?courseId=${selectedCourse?._id}`)}
                   onEdit={() => router.push(`/manage/class/${item._id}`)}

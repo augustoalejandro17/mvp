@@ -1,10 +1,16 @@
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { IClass, VideoStatus } from '@inti/shared-types';
+import {
+  IClass,
+  IClassSubmission,
+  SubmissionReviewStatus,
+  VideoStatus,
+} from '@inti/shared-types';
 
 interface VideoCardProps {
   classItem: IClass;
   onPress: () => void;
+  submission?: IClassSubmission | null;
   isAdmin?: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -27,10 +33,63 @@ const formatDuration = (seconds?: number): string => {
   return `${mins}:${String(secs).padStart(2, '0')}`;
 };
 
-export default function VideoCard({ classItem, onPress, isAdmin, onEdit, onDelete, onMoveUp, onMoveDown, onMoveToPlaylist }: VideoCardProps) {
+export default function VideoCard({
+  classItem,
+  onPress,
+  submission,
+  isAdmin,
+  onEdit,
+  onDelete,
+  onMoveUp,
+  onMoveDown,
+  onMoveToPlaylist,
+}: VideoCardProps) {
   const status = STATUS_CONFIG[classItem.videoStatus] ?? STATUS_CONFIG[VideoStatus.UPLOADING];
   const isReady = classItem.videoStatus === VideoStatus.READY;
   const duration = formatDuration(classItem.videoMetadata?.duration);
+
+  const submissionSummary = (() => {
+    if (!submission) {
+      return null;
+    }
+
+    if (submission.reviewStatus === SubmissionReviewStatus.NEEDS_RESUBMISSION) {
+      return {
+        icon: 'refresh-circle',
+        label: 'Reenvio solicitado',
+        color: '#9a3412',
+        bg: '#fff7ed',
+      };
+    }
+
+    if (submission.reviewStatus === SubmissionReviewStatus.REVIEWED) {
+      return {
+        icon: 'chatbubble-ellipses',
+        label:
+          submission.annotationsCount && submission.annotationsCount > 0
+            ? `${submission.annotationsCount} anotaciones`
+            : 'Revisada',
+        color: '#166534',
+        bg: '#f0fdf4',
+      };
+    }
+
+    if (submission.videoStatus === VideoStatus.PROCESSING) {
+      return {
+        icon: 'time',
+        label: 'Práctica procesándose',
+        color: '#b45309',
+        bg: '#fffbeb',
+      };
+    }
+
+    return {
+      icon: 'videocam',
+      label: 'Práctica enviada',
+      color: '#1d4ed8',
+      bg: '#eff6ff',
+    };
+  })();
 
   return (
     <TouchableOpacity
@@ -86,6 +145,25 @@ export default function VideoCard({ classItem, onPress, isAdmin, onEdit, onDelet
               </View>
             )}
           </View>
+
+          {submissionSummary && !isAdmin && (
+            <View
+              className="flex-row items-center self-start mt-2 px-2.5 py-1 rounded-full"
+              style={{ backgroundColor: submissionSummary.bg }}
+            >
+              <Ionicons
+                name={submissionSummary.icon as any}
+                size={12}
+                color={submissionSummary.color}
+              />
+              <Text
+                className="text-xs font-semibold ml-1.5"
+                style={{ color: submissionSummary.color }}
+              >
+                {submissionSummary.label}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Actions */}

@@ -15,8 +15,15 @@ import { useLocalSearchParams, useRouter, Stack, useNavigation } from 'expo-rout
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
-import { IClass, VideoStatus } from '@inti/shared-types';
+import {
+  IClass,
+  IClassSubmission,
+  ISubmissionAnnotation,
+  SubmissionReviewStatus,
+  VideoStatus,
+} from '@inti/shared-types';
 import { apiClient } from '@/services/apiClient';
+import { pickVideoFromDevice } from '@/services/mediaPicker';
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const CONTROLS_HIDE_MS = 3500;
@@ -28,6 +35,156 @@ const fmt = (ms: number) => {
   const m = Math.floor(t / 60);
   const s = t % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
+};
+
+const formatSeconds = (value: number): string => {
+  const safeValue = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+  const minutes = Math.floor(safeValue / 60);
+  const seconds = safeValue % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+};
+
+const getSubmissionStatusConfig = (
+  submission?: IClassSubmission | null,
+): { label: string; color: string; backgroundColor: string; icon: keyof typeof Ionicons.glyphMap } => {
+  if (!submission) {
+    return {
+      label: 'Sin entrega',
+      color: '#6b7280',
+      backgroundColor: '#f3f4f6',
+      icon: 'cloud-upload-outline',
+    };
+  }
+
+  if (submission.videoStatus === VideoStatus.ERROR) {
+    return {
+      label: 'Error al procesar',
+      color: '#b91c1c',
+      backgroundColor: '#fef2f2',
+      icon: 'alert-circle-outline',
+    };
+  }
+
+  if (submission.videoStatus === VideoStatus.PROCESSING) {
+    return {
+      label: 'Procesando práctica',
+      color: '#b45309',
+      backgroundColor: '#fffbeb',
+      icon: 'time-outline',
+    };
+  }
+
+  if (submission.videoStatus === VideoStatus.UPLOADING) {
+    return {
+      label: 'Subiendo práctica',
+      color: '#374151',
+      backgroundColor: '#f3f4f6',
+      icon: 'cloud-upload-outline',
+    };
+  }
+
+  if (submission.reviewStatus === SubmissionReviewStatus.REVIEWED) {
+    return {
+      label: 'Feedback listo',
+      color: '#166534',
+      backgroundColor: '#f0fdf4',
+      icon: 'checkmark-done-outline',
+    };
+  }
+
+  if (submission.reviewStatus === SubmissionReviewStatus.NEEDS_RESUBMISSION) {
+    return {
+      label: 'Requiere reenvío',
+      color: '#9a3412',
+      backgroundColor: '#fff7ed',
+      icon: 'refresh-outline',
+    };
+  }
+
+  return {
+    label: 'Enviada para revisión',
+    color: '#1d4ed8',
+    backgroundColor: '#eff6ff',
+    icon: 'videocam-outline',
+  };
+};
+
+const getSubmissionActionCopy = (
+  submission?: IClassSubmission | null,
+): {
+  title: string;
+  body: string;
+  buttonLabel: string;
+  accentColor: string;
+  accentBackground: string;
+  accentBorder: string;
+} => {
+  if (!submission) {
+    return {
+      title: 'Aun no has enviado tu práctica',
+      body: 'Cuando subas tu video, el profesor podrá revisarlo y dejarte observaciones por momento específico.',
+      buttonLabel: 'Subir práctica',
+      accentColor: '#1f2937',
+      accentBackground: '#f9fafb',
+      accentBorder: '#e5e7eb',
+    };
+  }
+
+  if (submission.videoStatus === VideoStatus.ERROR) {
+    return {
+      title: 'Hubo un problema con tu video',
+      body: 'Vuelve a subir tu práctica para que podamos procesarla correctamente.',
+      buttonLabel: 'Intentar de nuevo',
+      accentColor: '#b91c1c',
+      accentBackground: '#fef2f2',
+      accentBorder: '#fecaca',
+    };
+  }
+
+  if (
+    submission.videoStatus === VideoStatus.UPLOADING ||
+    submission.videoStatus === VideoStatus.PROCESSING
+  ) {
+    return {
+      title: 'Tu práctica se está preparando',
+      body: 'Espera un momento mientras terminamos la subida y el procesamiento del video.',
+      buttonLabel: 'Reemplazar práctica',
+      accentColor: '#92400e',
+      accentBackground: '#fffbeb',
+      accentBorder: '#fde68a',
+    };
+  }
+
+  if (submission.reviewStatus === SubmissionReviewStatus.NEEDS_RESUBMISSION) {
+    return {
+      title: 'El profesor pidió un nuevo envío',
+      body: 'Revisa las anotaciones y sube una nueva versión de tu práctica con los ajustes solicitados.',
+      buttonLabel: 'Subir nueva versión',
+      accentColor: '#9a3412',
+      accentBackground: '#fff7ed',
+      accentBorder: '#fdba74',
+    };
+  }
+
+  if (submission.reviewStatus === SubmissionReviewStatus.REVIEWED) {
+    return {
+      title: 'Tu práctica ya fue revisada',
+      body: 'Consulta las anotaciones del profesor y, si quieres mejorarla, puedes enviar una nueva versión.',
+      buttonLabel: 'Enviar nueva versión',
+      accentColor: '#166534',
+      accentBackground: '#f0fdf4',
+      accentBorder: '#86efac',
+    };
+  }
+
+  return {
+    title: 'Tu práctica está en revisión',
+    body: 'El profesor ya recibió tu video. Aquí aparecerán sus comentarios en cuanto los agregue.',
+    buttonLabel: 'Reemplazar práctica',
+    accentColor: '#1d4ed8',
+    accentBackground: '#eff6ff',
+    accentBorder: '#93c5fd',
+  };
 };
 
 // ── Seek bar ─────────────────────────────────────────────────────────────────
@@ -209,6 +366,7 @@ export default function PlayerScreen() {
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const videoRef = useRef<Video>(null);
+  const submissionVideoRef = useRef<Video>(null);
 
   // Hide the stack header immediately and on every render
   useEffect(() => {
@@ -221,6 +379,13 @@ export default function PlayerScreen() {
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [streamError, setStreamError] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [submission, setSubmission] = useState<IClassSubmission | null>(null);
+  const [submissionAnnotations, setSubmissionAnnotations] = useState<
+    ISubmissionAnnotation[]
+  >([]);
+  const [isSubmissionLoading, setIsSubmissionLoading] = useState(false);
+  const [isSubmittingPractice, setIsSubmittingPractice] = useState(false);
 
   // ── Playback ──────────────────────────────────────────────────────────────
   const [isVideoReady, setIsVideoReady] = useState(false);
@@ -299,6 +464,39 @@ export default function PlayerScreen() {
   }, []);
 
   useEffect(() => {
+    apiClient
+      .getCurrentUser()
+      .then((user) =>
+        setCurrentUserRole(String((user as any)?.role || '').toLowerCase()),
+      )
+      .catch(() => setCurrentUserRole(null));
+  }, []);
+
+  const loadSubmission = useCallback(async (classId: string) => {
+    setIsSubmissionLoading(true);
+    try {
+      const mine = await apiClient.getMyClassSubmissions(classId);
+      const currentSubmission = Array.isArray(mine) && mine.length > 0 ? mine[0] : null;
+
+      setSubmission(currentSubmission);
+
+      if (currentSubmission?._id) {
+        const annotations = await apiClient.getSubmissionAnnotations(
+          currentSubmission._id,
+        );
+        setSubmissionAnnotations(Array.isArray(annotations) ? annotations : []);
+      } else {
+        setSubmissionAnnotations([]);
+      }
+    } catch {
+      setSubmission(null);
+      setSubmissionAnnotations([]);
+    } finally {
+      setIsSubmissionLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!normalizedCourseId) {
       setCourseClasses([]);
       return;
@@ -327,6 +525,16 @@ export default function PlayerScreen() {
     }
     load(normalizedClassId);
   }, [normalizedClassId, load]);
+
+  useEffect(() => {
+    if (!normalizedClassId || currentUserRole !== 'student') {
+      setSubmission(null);
+      setSubmissionAnnotations([]);
+      return;
+    }
+
+    loadSubmission(normalizedClassId);
+  }, [normalizedClassId, currentUserRole, loadSubmission]);
 
   useEffect(() => {
     setIsMarkedComplete(false);
@@ -595,12 +803,60 @@ export default function PlayerScreen() {
     }
   };
 
+  const handlePickAndUploadPractice = async () => {
+    if (!normalizedClassId) {
+      Alert.alert('Error', 'No se pudo identificar la clase.');
+      return;
+    }
+
+    try {
+      setIsSubmittingPractice(true);
+      const pickedVideo = await pickVideoFromDevice();
+      if (!pickedVideo) {
+        return;
+      }
+
+      await apiClient.submitClassSubmission(normalizedClassId, pickedVideo);
+      await loadSubmission(normalizedClassId);
+      Alert.alert(
+        'Práctica enviada',
+        'Tu video quedó cargado y será revisado por el profesor.',
+      );
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'No se pudo subir la práctica.';
+      Alert.alert(
+        'Error',
+        Array.isArray(message) ? message.join('\n') : String(message),
+      );
+    } finally {
+      setIsSubmittingPractice(false);
+    }
+  };
+
+  const seekToAnnotation = async (timestampSeconds: number) => {
+    if (!submissionVideoRef.current) {
+      return;
+    }
+
+    try {
+      await submissionVideoRef.current.setPositionAsync(timestampSeconds * 1000);
+    } catch {
+      // Keep annotation jump best-effort for native video.
+    }
+  };
+
   // ── Layout values ─────────────────────────────────────────────────────────
   const videoHeight = isFullscreen ? screenHeight : screenWidth * (9 / 16);
   // Keep controls well above iOS home indicator so seek interactions are reliable.
   const fullscreenSeekBottomOffset = Math.max(insets.bottom + 14, 64);
   const displayPositionMs = scrubPositionMs ?? positionMs;
   const progressRatio = durationMs > 0 ? displayPositionMs / durationMs : 0;
+  const isStudent = currentUserRole === 'student';
+  const submissionStatusConfig = getSubmissionStatusConfig(submission);
+  const submissionActionCopy = getSubmissionActionCopy(submission);
 
   // ── Seek bar props ───────────────────────────────────────────────────────
   const seekBarProps: SeekBarProps = {
@@ -1012,6 +1268,224 @@ export default function PlayerScreen() {
           {classItem.description ? (
             <Text style={{ color: '#4b5563', lineHeight: 22, fontSize: 14 }}>{classItem.description}</Text>
           ) : null}
+
+          {isStudent && (
+            <View
+              style={{
+                marginTop: 24,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: '#e5e7eb',
+                backgroundColor: '#fafaf9',
+                padding: 16,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  gap: 12,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: '#111827', fontSize: 16, fontWeight: '700' }}>
+                    Tu práctica
+                  </Text>
+                  <Text style={{ color: '#6b7280', fontSize: 13, marginTop: 4, lineHeight: 19 }}>
+                    Sube un video de esta clase para recibir feedback puntual del profesor.
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: submissionStatusConfig.backgroundColor,
+                    borderRadius: 999,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                  }}
+                >
+                  <Ionicons
+                    name={submissionStatusConfig.icon}
+                    size={13}
+                    color={submissionStatusConfig.color}
+                  />
+                  <Text
+                    style={{
+                      color: submissionStatusConfig.color,
+                      fontSize: 12,
+                      fontWeight: '600',
+                      marginLeft: 6,
+                    }}
+                  >
+                    {submissionStatusConfig.label}
+                  </Text>
+                </View>
+              </View>
+
+              {submission?.submittedAt ? (
+                <Text style={{ color: '#6b7280', fontSize: 12, marginTop: 10 }}>
+                  Enviado: {new Date(submission.submittedAt).toLocaleString()}
+                </Text>
+              ) : null}
+
+              {submission?.reviewedAt ? (
+                <Text style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
+                  Revisado: {new Date(submission.reviewedAt).toLocaleString()}
+                </Text>
+              ) : null}
+
+              {submission?.videoProcessingError ? (
+                <Text style={{ color: '#b91c1c', fontSize: 12, marginTop: 8 }}>
+                  {submission.videoProcessingError}
+                </Text>
+              ) : null}
+
+              <View
+                style={{
+                  marginTop: 14,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: submissionActionCopy.accentBorder,
+                  backgroundColor: submissionActionCopy.accentBackground,
+                  padding: 14,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                  <Ionicons
+                    name={
+                      submission?.reviewStatus === SubmissionReviewStatus.NEEDS_RESUBMISSION
+                        ? 'refresh-circle-outline'
+                        : submission?.reviewStatus === SubmissionReviewStatus.REVIEWED
+                          ? 'checkmark-circle-outline'
+                          : 'information-circle-outline'
+                    }
+                    size={18}
+                    color={submissionActionCopy.accentColor}
+                    style={{ marginTop: 1 }}
+                  />
+                  <View style={{ marginLeft: 10, flex: 1 }}>
+                    <Text
+                      style={{
+                        color: submissionActionCopy.accentColor,
+                        fontSize: 14,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {submissionActionCopy.title}
+                    </Text>
+                    <Text
+                      style={{
+                        color: submissionActionCopy.accentColor,
+                        fontSize: 13,
+                        lineHeight: 19,
+                        marginTop: 4,
+                        opacity: 0.9,
+                      }}
+                    >
+                      {submissionActionCopy.body}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                onPress={handlePickAndUploadPractice}
+                disabled={isSubmittingPractice}
+                style={{
+                  marginTop: 14,
+                  backgroundColor: isSubmittingPractice ? '#d1d5db' : '#111827',
+                  borderRadius: 14,
+                  paddingVertical: 14,
+                  alignItems: 'center',
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                }}
+              >
+                {isSubmittingPractice ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Ionicons name="cloud-upload-outline" size={18} color="#fff" />
+                )}
+                <Text style={{ color: '#fff', fontWeight: '700', marginLeft: 8, fontSize: 14 }}>
+                  {submissionActionCopy.buttonLabel}
+                </Text>
+              </TouchableOpacity>
+
+              <Text style={{ color: '#6b7280', fontSize: 12, marginTop: 10 }}>
+                1 video por clase. Si vuelves a subir uno, reemplaza la entrega anterior.
+              </Text>
+
+              {submission?.videoUrl && submission.videoStatus === VideoStatus.READY ? (
+                <View
+                  style={{
+                    marginTop: 16,
+                    borderRadius: 16,
+                    overflow: 'hidden',
+                    backgroundColor: '#000',
+                  }}
+                >
+                  <Video
+                    ref={submissionVideoRef}
+                    source={{ uri: submission.videoUrl }}
+                    style={{ width: '100%', height: 220, backgroundColor: '#000' }}
+                    resizeMode={ResizeMode.CONTAIN}
+                    useNativeControls
+                  />
+                </View>
+              ) : null}
+
+              <View style={{ marginTop: 18 }}>
+                <Text style={{ color: '#111827', fontSize: 15, fontWeight: '700' }}>
+                  Feedback del profesor
+                </Text>
+                {isSubmissionLoading ? (
+                  <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                    <ActivityIndicator color="#f59e0b" />
+                  </View>
+                ) : submissionAnnotations.length > 0 ? (
+                  <View style={{ marginTop: 10, gap: 10 }}>
+                    {submissionAnnotations.map((annotation) => (
+                      <TouchableOpacity
+                        key={annotation._id}
+                        onPress={() => seekToAnnotation(annotation.timestampSeconds)}
+                        style={{
+                          borderRadius: 14,
+                          backgroundColor: '#fff',
+                          borderWidth: 1,
+                          borderColor: '#e5e7eb',
+                          padding: 12,
+                        }}
+                      >
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Text style={{ color: '#92400e', fontWeight: '700', fontSize: 12 }}>
+                            {formatSeconds(annotation.timestampSeconds)}
+                          </Text>
+                          <Ionicons name="play-forward-outline" size={16} color="#9ca3af" />
+                        </View>
+                        <Text style={{ color: '#1f2937', fontSize: 13, lineHeight: 19, marginTop: 6 }}>
+                          {annotation.text}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={{ color: '#6b7280', fontSize: 13, marginTop: 8, lineHeight: 20 }}>
+                    {submission
+                      ? 'Todavía no hay anotaciones para esta práctica.'
+                      : 'Cuando envíes tu práctica, aquí verás las anotaciones por minuto del profesor.'}
+                  </Text>
+                )}
+              </View>
+            </View>
+          )}
 
           <TouchableOpacity
             onPress={handleMarkAsCompleted}

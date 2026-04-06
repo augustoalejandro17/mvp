@@ -257,23 +257,13 @@ class VideoProcessor {
    */
   async processVideoFile(key) {
     console.log(`🎬 Starting video processing for: ${key}`);
-
-    // Extract metadata from key: temp-videos/{schoolId}/{classId}/{filename}
-    const pathParts = key.split("/");
-    if (pathParts.length < 4) {
-      throw new Error(`Invalid key format: ${key}`);
-    }
-
-    const schoolId = pathParts[1];
-    const classId = pathParts[2];
-    const filename = pathParts.slice(3).join("/");
+    const context = this.parseUploadKey(key);
 
     console.log(
-      `📋 Processing details: School=${schoolId}, Class=${classId}, File=${filename}`,
+      `📋 Processing details: Type=${context.assetType}, School=${context.schoolId}, Class=${context.classId}, File=${context.filename}`,
     );
 
-    // Update status to PROCESSING
-    await this.updateVideoStatus(classId, "PROCESSING");
+    await this.updateVideoStatus(context, "PROCESSING");
 
     let tempInputPath = null;
     let tempOutputPath = null;
@@ -301,27 +291,24 @@ class VideoProcessor {
 
       // 4. Upload processed video to final bucket
       console.log("⬆️ Uploading processed video to final bucket...");
-      const finalVideoUrl = await this.uploadToFinalBucket(
+      const uploadResult = await this.uploadToFinalBucket(
         tempOutputPath,
-        schoolId,
-        classId,
-        filename,
+        context,
       );
 
-      // 5. Update class with final video URL
-      console.log("✅ Updating class with final video URL...");
-      await this.markVideoReady(classId, finalVideoUrl);
+      console.log("✅ Updating asset with final video URL...");
+      await this.markVideoReady(context, uploadResult.videoUrl, uploadResult.key);
 
       // 6. Clean up temp bucket
       console.log("🗑️ Cleaning up temp bucket...");
       await this.deleteFromS3(this.tempBucket, key);
 
       console.log(
-        `🎉 Video processing completed successfully for class ${classId}`,
+        `🎉 Video processing completed successfully for ${context.assetType} ${context.assetId}`,
       );
     } catch (error) {
       console.error(`❌ Video processing failed for ${key}:`, error);
-      await this.markVideoError(classId, error.message);
+      await this.markVideoError(context, error.message);
       throw error;
     } finally {
       // Clean up local temp files
@@ -403,8 +390,11 @@ class VideoProcessor {
   /**
    * Upload processed video to final bucket
    */
-  async uploadToFinalBucket(input, schoolId, classId, originalFilename) {
-    const key = `videos/${schoolId}/${classId}/final.mp4`;
+  async uploadToFinalBucket(input, context) {
+    const key =
+      context.assetType === "submission"
+        ? `videos/submissions/${context.schoolId}/${context.classId}/${context.studentId}/${context.submissionId}/final.mp4`
+        : `videos/${context.schoolId}/${context.classId}/final.mp4`;
     const body =
       typeof input === "string" ? fs.createReadStream(input) : input;
 
@@ -428,9 +418,15 @@ class VideoProcessor {
 
     // Return public URL (R2 CDN or S3)
     if (this.publicDomain) {
-      return `https://${this.publicDomain}/${key}`;
+      return {
+        key,
+        videoUrl: `https://${this.publicDomain}/${key}`,
+      };
     }
-    return `https://${this.finalBucket}.s3.amazonaws.com/${key}`;
+    return {
+      key,
+      videoUrl: `https://${this.finalBucket}.s3.amazonaws.com/${key}`,
+    };
   }
 
   /**
@@ -445,18 +441,33 @@ class VideoProcessor {
   /**
    * Update video status via API
    */
-  async updateVideoStatus(classId, status) {
+  async updateVideoStatus(context, status) {
     try {
       const config = this.getApiRequestConfig();
+      if (context.assetType === "submission") {
+        await axios.post(
+          `${this.apiUrl}/api/class-submissions/worker/mark-processing`,
+          {
+            submissionId: context.submissionId,
+            status,
+          },
+          config,
+        );
+        console.log(
+          `📝 Updated video status to ${status} for submission ${context.submissionId}`,
+        );
+        return;
+      }
+
       await axios.post(
         `${this.apiUrl}/api/videos/mark-processing`,
         {
-          classId,
+          classId: context.classId,
           status,
         },
         config,
       );
-      console.log(`📝 Updated video status to ${status} for class ${classId}`);
+      console.log(`📝 Updated video status to ${status} for class ${context.classId}`);
     } catch (error) {
       console.error(`❌ Failed to update video status:`, error.message);
     }
@@ -465,18 +476,32 @@ class VideoProcessor {
   /**
    * Mark video as ready via API
    */
-  async markVideoReady(classId, videoUrl) {
+  async markVideoReady(context, videoUrl, videoKey) {
     try {
       const config = this.getApiRequestConfig();
+      if (context.assetType === "submission") {
+        await axios.post(
+          `${this.apiUrl}/api/class-submissions/worker/mark-ready`,
+          {
+            submissionId: context.submissionId,
+            videoUrl,
+            videoKey,
+          },
+          config,
+        );
+        console.log(`✅ Marked video as ready for submission ${context.submissionId}`);
+        return;
+      }
+
       await axios.post(
         `${this.apiUrl}/api/videos/mark-ready`,
         {
-          classId,
+          classId: context.classId,
           videoUrl,
         },
         config,
       );
-      console.log(`✅ Marked video as ready for class ${classId}`);
+      console.log(`✅ Marked video as ready for class ${context.classId}`);
     } catch (error) {
       console.error(`❌ Failed to mark video as ready:`, error.message);
       throw error;
@@ -486,18 +511,31 @@ class VideoProcessor {
   /**
    * Mark video processing as failed via API
    */
-  async markVideoError(classId, errorMessage) {
+  async markVideoError(context, errorMessage) {
     try {
       const config = this.getApiRequestConfig();
+      if (context.assetType === "submission") {
+        await axios.post(
+          `${this.apiUrl}/api/class-submissions/worker/mark-error`,
+          {
+            submissionId: context.submissionId,
+            error: errorMessage,
+          },
+          config,
+        );
+        console.log(`❌ Marked video as error for submission ${context.submissionId}`);
+        return;
+      }
+
       await axios.post(
         `${this.apiUrl}/api/videos/mark-error`,
         {
-          classId,
+          classId: context.classId,
           error: errorMessage,
         },
         config,
       );
-      console.log(`❌ Marked video as error for class ${classId}`);
+      console.log(`❌ Marked video as error for class ${context.classId}`);
     } catch (error) {
       console.error(`❌ Failed to mark video error:`, error.message);
     }
@@ -507,12 +545,43 @@ class VideoProcessor {
    * Notify about processing error
    */
   async notifyProcessingError(key, errorMessage) {
-    // Extract classId from key if possible
-    const pathParts = key.split("/");
-    if (pathParts.length >= 3) {
-      const classId = pathParts[2];
-      await this.markVideoError(classId, errorMessage);
+    try {
+      const context = this.parseUploadKey(key);
+      await this.markVideoError(context, errorMessage);
+    } catch (error) {
+      console.error("❌ Failed to notify processing error:", error.message);
     }
+  }
+
+  parseUploadKey(key) {
+    const pathParts = key.split("/");
+    if (pathParts.length < 4) {
+      throw new Error(`Invalid key format: ${key}`);
+    }
+
+    if (pathParts[1] === "submissions") {
+      if (pathParts.length < 7) {
+        throw new Error(`Invalid submission key format: ${key}`);
+      }
+
+      return {
+        assetType: "submission",
+        assetId: pathParts[5],
+        schoolId: pathParts[2],
+        classId: pathParts[3],
+        studentId: pathParts[4],
+        submissionId: pathParts[5],
+        filename: pathParts.slice(6).join("/"),
+      };
+    }
+
+    return {
+      assetType: "class",
+      assetId: pathParts[2],
+      schoolId: pathParts[1],
+      classId: pathParts[2],
+      filename: pathParts.slice(3).join("/"),
+    };
   }
 
   /**

@@ -314,6 +314,31 @@ export class S3Service {
     return { uploadUrl, key };
   }
 
+  async generateSubmissionPresignedUploadUrl(
+    fileName: string,
+    fileType: string,
+    schoolId: string,
+    classId: string,
+    studentId: string,
+    submissionId: string,
+  ): Promise<{ uploadUrl: string; key: string }> {
+    const fileExtension = fileName.split('.').pop() || 'mp4';
+    const sanitizedName = this.sanitizeFileName(fileName.split('.')[0]);
+    const key = `temp-videos/submissions/${schoolId}/${classId}/${studentId}/${submissionId}/${sanitizedName}-${Date.now()}.${fileExtension}`;
+
+    const uploadUrl = await this.s3.getSignedUrlPromise('putObject', {
+      Bucket: this.tempBucketName,
+      Key: key,
+      Expires: 3600,
+      ContentType: fileType,
+    });
+
+    this.logger.log(
+      `Generated submission upload URL for R2: ${submissionId} -> ${key}`,
+    );
+    return { uploadUrl, key };
+  }
+
   async moveProcessedVideo(
     tempKey: string,
     schoolId: string,

@@ -14,6 +14,9 @@ export * from './course.types';
 // Class (video lesson) types
 export * from './class.types';
 
+// Class submission types
+export * from './class-submission.types';
+
 // School types
 export * from './school.types';
 

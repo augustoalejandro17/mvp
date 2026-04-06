@@ -27,6 +27,7 @@ import { AuditModule } from './audit/audit.module';
 import { ProductAnalyticsModule } from './product-analytics/product-analytics.module';
 import { ContentReportsModule } from './content-reports/content-reports.module';
 import { UserReportsModule } from './user-reports/user-reports.module';
+import { ClassSubmissionsModule } from './class-submissions/class-submissions.module';
 import awsConfig from './config/aws.config';
 import { S3Service } from './services/s3.service';
 import { CloudFrontService } from './services/cloudfront.service';
@@ -104,6 +105,7 @@ import { MigrationService } from './migrations/migration.service';
     ProductAnalyticsModule,
     ContentReportsModule,
     UserReportsModule,
+    ClassSubmissionsModule,
   ],
   controllers: [
     AppController,
