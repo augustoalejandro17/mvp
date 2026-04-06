@@ -4,8 +4,12 @@ const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const { execFile } = require("child_process");
 const { pipeline } = require("stream/promises");
+const { promisify } = require("util");
 require("dotenv").config();
+
+const execFileAsync = promisify(execFile);
 
 // Configure ffmpeg
 try {
@@ -60,6 +64,7 @@ class VideoProcessor {
     this.apiUrl = process.env.API_URL;
     this.workerSecret = process.env.VIDEO_WORKER_SECRET;
     this.ffmpegThreads = Number(process.env.FFMPEG_THREADS || 1);
+    this.ffprobePath = process.env.FFPROBE_PATH || "ffprobe";
     if (!this.apiUrl) {
       throw new Error("API_URL is required");
     }
@@ -352,6 +357,86 @@ class VideoProcessor {
    * Process video with ffmpeg
    */
   async processWithFFmpeg(inputPath, outputPath) {
+    const metadata = await this.probeVideoMetadata(inputPath);
+    const primaryFilter = this.buildVideoFilter(metadata, true);
+
+    try {
+      await this.runFFmpegEncode(inputPath, outputPath, primaryFilter);
+    } catch (error) {
+      if (!metadata?.isHdr) {
+        throw error;
+      }
+
+      console.warn(
+        "⚠️ HDR tone mapping failed, retrying with standard SDR conversion:",
+        error.message,
+      );
+      const fallbackFilter = this.buildVideoFilter(metadata, false);
+      await this.runFFmpegEncode(inputPath, outputPath, fallbackFilter);
+    }
+  }
+
+  async probeVideoMetadata(inputPath) {
+    try {
+      const { stdout } = await execFileAsync(this.ffprobePath, [
+        "-v",
+        "error",
+        "-print_format",
+        "json",
+        "-show_streams",
+        inputPath,
+      ]);
+      const parsed = JSON.parse(stdout || "{}");
+      const videoStream = Array.isArray(parsed.streams)
+        ? parsed.streams.find((stream) => stream.codec_type === "video")
+        : null;
+
+      if (!videoStream) {
+        return null;
+      }
+
+      const colorTransfer = String(videoStream.color_transfer || "").toLowerCase();
+      const colorPrimaries = String(videoStream.color_primaries || "").toLowerCase();
+      const colorSpace = String(videoStream.color_space || "").toLowerCase();
+      const pixelFormat = String(videoStream.pix_fmt || "").toLowerCase();
+      const isHdr =
+        colorTransfer.includes("smpte2084") ||
+        colorTransfer.includes("arib-std-b67") ||
+        colorPrimaries.includes("bt2020") ||
+        colorSpace.includes("bt2020") ||
+        pixelFormat.includes("p010");
+
+      return {
+        colorTransfer,
+        colorPrimaries,
+        colorSpace,
+        pixelFormat,
+        isHdr,
+      };
+    } catch (error) {
+      console.warn("⚠️ Could not probe video metadata:", error.message);
+      return null;
+    }
+  }
+
+  buildVideoFilter(metadata, preferToneMapping) {
+    const evenScale = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
+
+    if (metadata?.isHdr && preferToneMapping) {
+      return [
+        "zscale=t=linear:npl=100",
+        "format=gbrpf32le",
+        "tonemap=hable:desat=0",
+        "zscale=p=bt709:t=bt709:m=bt709:r=tv",
+        "format=yuv420p",
+        evenScale,
+      ].join(",");
+    }
+
+    return `${evenScale},format=yuv420p`;
+  }
+
+  async runFFmpegEncode(inputPath, outputPath, videoFilter) {
     return new Promise((resolve, reject) => {
       ffmpeg(inputPath)
         .outputOptions([
@@ -368,8 +453,11 @@ class VideoProcessor {
           "-ac 2", // Normalize to stereo
           "-ar 44100", // Common mobile sample rate
           "-b:a 128k", // Audio bitrate
+          "-color_primaries bt709", // Normalize color metadata for SDR playback
+          "-color_trc bt709",
+          "-colorspace bt709",
           "-movflags +faststart", // Web optimization
-          "-vf scale=trunc(iw/2)*2:trunc(ih/2)*2", // Force even dimensions for decoders
+          `-vf ${videoFilter}`, // Tone map HDR when needed and enforce even dimensions
         ])
         .output(outputPath)
         .on("start", (commandLine) => {

@@ -467,6 +467,18 @@ function PracticeVideoPlayer({
   const lastTapSide = useRef<'left' | 'right' | null>(null);
   const doubleTapCount = useRef(0);
   const widthRef = useRef(0);
+  const onPositionChangeRef = useRef(onPositionChange);
+
+  useEffect(() => {
+    onPositionChangeRef.current = onPositionChange;
+  }, [onPositionChange]);
+
+  const emitPositionChange = useCallback(
+    (nextPositionMs: number, nextDurationMs: number) => {
+      onPositionChangeRef.current?.(nextPositionMs, nextDurationMs);
+    },
+    [],
+  );
 
   useEffect(() => {
     setIsPlaying(false);
@@ -478,8 +490,8 @@ function PracticeVideoPlayer({
     setScrubPositionMs(null);
     setHasEnded(false);
     setSkipFeedback(null);
-    onPositionChange?.(0, 0);
-  }, [uri, onPositionChange]);
+    emitPositionChange(0, 0);
+  }, [uri, emitPositionChange]);
 
   useEffect(() => {
     return () => {
@@ -508,7 +520,7 @@ function PracticeVideoPlayer({
       setHasEnded(true);
       setIsPlaying(false);
     }
-    onPositionChange?.(nextPositionMs, nextDurationMs);
+    emitPositionChange(nextPositionMs, nextDurationMs);
   };
 
   const togglePlay = async () => {
@@ -541,7 +553,7 @@ function PracticeVideoPlayer({
     const bounded = Math.max(0, Math.min(Math.round(targetMs), durationMs || targetMs));
     const shouldResume = isPlaying;
     setPositionMs(bounded);
-    onPositionChange?.(bounded, durationMs);
+    emitPositionChange(bounded, durationMs);
 
     try {
       const status = shouldResume
@@ -556,7 +568,7 @@ function PracticeVideoPlayer({
 
       if (status.isLoaded && typeof status.positionMillis === 'number') {
         setPositionMs(status.positionMillis);
-        onPositionChange?.(
+        emitPositionChange(
           status.positionMillis,
           status.durationMillis ?? durationMs,
         );
@@ -968,7 +980,6 @@ export default function PlayerScreen() {
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [skipFeedback, setSkipFeedback] = useState<{ side: 'left' | 'right'; count: number } | null>(null);
   const [hasEnded, setHasEnded] = useState(false);
-  const [isMarkedComplete, setIsMarkedComplete] = useState(false);
   const [scrubPositionMs, setScrubPositionMs] = useState<number | null>(null);
   const isScrubbing = useRef(false);
 
@@ -1265,10 +1276,6 @@ export default function PlayerScreen() {
     }
   }, [reviewSubmissions, reviewSearch, reviewFilter, selectedReviewSubmissionId]);
 
-  useEffect(() => {
-    setIsMarkedComplete(false);
-  }, [normalizedClassId]);
-
   // ── Controls visibility ───────────────────────────────────────────────────
   const revealControls = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -1504,32 +1511,6 @@ export default function PlayerScreen() {
     buttons.push({ text: 'Cancelar', style: 'cancel' });
 
     Alert.alert('Opciones', 'Selecciona una acción', buttons);
-  };
-
-  const handleMarkAsCompleted = async () => {
-    if (isMarkedComplete) return;
-
-    if (!normalizedClassId) {
-      Alert.alert('Error', 'No se pudo identificar la clase.');
-      return;
-    }
-
-    try {
-      await apiClient.markClassCompleted(normalizedClassId);
-      setIsMarkedComplete(true);
-      Alert.alert(
-        'Clase completada',
-        nextClass
-          ? 'Buen trabajo. Puedes continuar con la siguiente clase.'
-          : 'Buen trabajo. Has completado esta clase.',
-      );
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message ||
-        error?.message ||
-        'No se pudo registrar el progreso.';
-      Alert.alert('Error', Array.isArray(message) ? message.join('\n') : String(message));
-    }
   };
 
   const handlePickAndUploadPractice = async () => {
@@ -3112,26 +3093,6 @@ export default function PlayerScreen() {
               )}
             </View>
           )}
-
-          <TouchableOpacity
-            onPress={handleMarkAsCompleted}
-            disabled={isMarkedComplete}
-            style={{
-              marginTop: 24,
-              backgroundColor: isMarkedComplete ? '#16a34a' : '#f59e0b',
-              borderRadius: 16,
-              paddingVertical: 16,
-              alignItems: 'center',
-              flexDirection: 'row',
-              justifyContent: 'center',
-              opacity: isMarkedComplete ? 0.9 : 1,
-            }}
-          >
-            <Ionicons name="checkmark-circle-outline" size={20} color="white" />
-            <Text style={{ color: '#fff', fontWeight: '700', marginLeft: 8, fontSize: 15 }}>
-              {isMarkedComplete ? 'Clase completada' : 'Marcar como completado'}
-            </Text>
-          </TouchableOpacity>
 
           {courseClasses.length > 1 && (
             <View style={{ flexDirection: 'row', marginTop: 14, gap: 10 }}>
