@@ -632,13 +632,23 @@ class ApiClient {
     } as any);
 
     const token = await SecureStore.getItemAsync(STORAGE_KEYS.AUTH_TOKEN);
-    const response = await fetch(`${BASE_URL}/class-submissions`, {
-      method: 'POST',
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: formData,
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${BASE_URL}/class-submissions`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+    } catch (error: any) {
+      const message = String(error?.message || '');
+      throw new Error(
+        message.includes('Network request failed')
+          ? 'No se pudo conectar con el servidor para subir la práctica. Revisa tu conexión y confirma que el API esté disponible para este dispositivo.'
+          : message || 'No se pudo iniciar la subida de la práctica.',
+      );
+    }
     const data = await parseResponseBody(response);
     if (!response.ok) {
       if (response.status === 413) {

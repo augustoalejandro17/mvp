@@ -62,6 +62,10 @@ export class ClassSubmissionsService {
     dto: CreateClassSubmissionDto,
     videoFile: Express.Multer.File,
   ): Promise<ClassSubmission> {
+    this.logger.log(
+      `Receiving class submission upload. student=${studentId} class=${dto.classId} file=${videoFile?.originalname || 'none'}`,
+    );
+
     if (!videoFile) {
       throw new BadRequestException('Se requiere un archivo de video');
     }
@@ -144,7 +148,12 @@ export class ClassSubmissionsService {
         submission: submission._id,
       });
 
-      return this.findOne(submission._id.toString(), studentId, role);
+      const plainSubmission = await this.classSubmissionModel
+        .findById(submission._id)
+        .lean()
+        .exec();
+
+      return (plainSubmission || submission.toObject()) as ClassSubmission;
     } catch (error) {
       this.logger.error(
         `Error subiendo entrega ${submission._id}: ${error.message}`,

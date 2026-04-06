@@ -23,9 +23,9 @@ export default {
       buildNumber: '1',
       infoPlist: {
         NSPhotoLibraryUsageDescription:
-          'Permite acceso a tus fotos para seleccionar y encuadrar portadas.',
+          'Permite acceso a tu galería para seleccionar imágenes y videos dentro de la app.',
         NSPhotoLibraryAddUsageDescription:
-          'Permite guardar temporalmente imágenes editadas para tus portadas.',
+          'Permite guardar temporalmente archivos multimedia editados dentro de la app.',
       },
       config: {
         usesNonExemptEncryption: false,
@@ -54,7 +54,8 @@ export default {
       [
         'expo-image-picker',
         {
-          photosPermission: 'Permite acceso a tus fotos para seleccionar y encuadrar portadas.',
+          photosPermission:
+            'Permite acceso a tu galería para seleccionar imágenes y videos dentro de la app.',
         },
       ],
     ],

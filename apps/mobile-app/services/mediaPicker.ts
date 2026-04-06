@@ -227,10 +227,69 @@ export async function pickImageFromDevice(): Promise<NativeUploadFile | null> {
 }
 
 export async function pickVideoFromDevice(): Promise<NativeUploadFile | null> {
+  const ImagePicker = loadImagePicker();
+  if (ImagePicker) {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission?.granted) {
+        throw new Error(
+          'Necesitamos acceso a tu galería para seleccionar un video de práctica.',
+        );
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: false,
+        quality: 1,
+        allowsMultipleSelection: false,
+        exif: false,
+      });
+
+      if (!result || result.canceled || !Array.isArray(result.assets) || !result.assets[0]) {
+        return null;
+      }
+
+      const asset = result.assets[0];
+      const name = asset.fileName || asset.name || `video-${Date.now()}.mp4`;
+      const type = resolveMimeType(name, asset.mimeType, 'video');
+      const size = typeof asset.size === 'number' ? asset.size : undefined;
+
+      if (!asset.uri || typeof asset.uri !== 'string') {
+        throw new Error('No se pudo leer el archivo de video seleccionado.');
+      }
+
+      if (!isSupportedVideo(name, type)) {
+        throw new Error(
+          'Formato no compatible. Usa MP4, WEBM, MOV, AVI, MPEG, MPG, MKV, 3GP, OGV o M4V.',
+        );
+      }
+
+      if (typeof size === 'number' && size > MAX_VIDEO_SIZE_BYTES) {
+        throw new Error('El video supera el límite de 200MB.');
+      }
+
+      return {
+        uri: asset.uri,
+        name,
+        type,
+        size,
+      };
+    } catch (error: any) {
+      const message = String(error?.message || '');
+      const nativeModuleMissing =
+        message.includes('ExponentImagePicker') ||
+        message.includes('expo-image-picker');
+
+      if (!nativeModuleMissing) {
+        throw error;
+      }
+    }
+  }
+
   const DocumentPicker = loadDocumentPicker();
   if (!DocumentPicker) {
     throw new Error(
-      'Tu app nativa actual no incluye el selector de archivos todavía. Recompila el cliente iOS/Android o reinstala el dev client.',
+      'Tu app nativa actual no incluye la galería ni el selector de archivos. Recompila el cliente iOS/Android o reinstala el dev client.',
     );
   }
   const result = await DocumentPicker.getDocumentAsync({
