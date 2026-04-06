@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,22 +8,55 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  TextInput,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiClient } from '@/services/apiClient';
-import { ISchool } from '@inti/shared-types';
+import { ISchool, IUser } from '@inti/shared-types';
 import ManageFormField from '@/components/manage/ManageFormField';
 import ManageHeader from '@/components/manage/ManageHeader';
 import ManageMediaField from '@/components/manage/ManageMediaField';
 import ManageSummaryCard from '@/components/manage/ManageSummaryCard';
 import ManageToggleField from '@/components/manage/ManageToggleField';
 import { pickImageFromDevice } from '@/services/mediaPicker';
+import { useAuth } from '@/contexts/AuthContext';
+
+const normalizeList = <T,>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  if (value && typeof value === 'object') {
+    const candidates = [
+      (value as any).items,
+      (value as any).data,
+      (value as any).results,
+      (value as any).users,
+      (value as any).schools,
+    ];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) return candidate as T[];
+    }
+  }
+  return [];
+};
+
+const getEntityId = (entity: any): string => {
+  const raw = entity?._id ?? entity?.id ?? entity;
+  if (typeof raw === 'string') return raw;
+  if (raw && typeof raw === 'object' && typeof raw.toString === 'function') {
+    const value = String(raw.toString());
+    return value === '[object Object]' ? '' : value;
+  }
+  return '';
+};
 
 export default function EditSchoolScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
   const schoolId = Array.isArray(id) ? id[0] : id;
+  const currentRole = String((user as any)?.role || '').toLowerCase();
+  const canChangeOwner =
+    currentRole === 'super_admin' || currentRole === 'admin';
 
   const [school, setSchool] = useState<ISchool | null>(null);
   const [name, setName] = useState('');
@@ -36,6 +69,10 @@ export default function EditSchoolScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [ownerSearch, setOwnerSearch] = useState('');
+  const [allUsers, setAllUsers] = useState<IUser[]>([]);
+  const [originalOwnerId, setOriginalOwnerId] = useState('');
+  const [selectedOwnerId, setSelectedOwnerId] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -46,7 +83,10 @@ export default function EditSchoolScreen() {
         return;
       }
       try {
-        const data = await apiClient.getSchoolById(schoolId);
+        const [data, usersData] = await Promise.all([
+          apiClient.getSchoolById(schoolId),
+          canChangeOwner ? apiClient.getUsers().catch(() => [] as IUser[]) : [],
+        ]);
         setSchool(data);
         setName(data.name ?? '');
         setDescription(data.description ?? '');
@@ -55,6 +95,16 @@ export default function EditSchoolScreen() {
         setPhone((data as any).phone ?? '');
         setWebsite((data as any).website ?? '');
         setIsPublic((data as any).isPublic ?? true);
+        const ownerId = getEntityId((data as any).admin);
+        setOriginalOwnerId(ownerId);
+        setSelectedOwnerId(ownerId);
+        setAllUsers(
+          canChangeOwner
+            ? normalizeList<IUser>(usersData).filter(
+                (entry) => String(entry.role || '').toLowerCase() !== 'unregistered',
+              )
+            : [],
+        );
       } catch {
         Alert.alert('Error', 'No se pudo cargar la escuela');
         router.back();
@@ -63,7 +113,18 @@ export default function EditSchoolScreen() {
       }
     };
     load();
-  }, [schoolId, router]);
+  }, [canChangeOwner, schoolId, router]);
+
+  const filteredOwnerCandidates = allUsers.filter((entry) => {
+    const term = ownerSearch.trim().toLowerCase();
+    if (!term) return true;
+    const nameValue = String(entry.name || '').toLowerCase();
+    const emailValue = String(entry.email || '').toLowerCase();
+    return nameValue.includes(term) || emailValue.includes(term);
+  });
+  const visibleOwnerCandidates = filteredOwnerCandidates.slice(0, 12);
+  const selectedOwner =
+    allUsers.find((entry) => getEntityId(entry) === selectedOwnerId) || null;
 
   const handlePickLogo = async () => {
     try {
@@ -107,6 +168,13 @@ export default function EditSchoolScreen() {
         website: website.trim(),
         isPublic,
       });
+      if (
+        canChangeOwner &&
+        selectedOwnerId &&
+        selectedOwnerId !== originalOwnerId
+      ) {
+        await apiClient.assignSchoolOwner(schoolId, selectedOwnerId);
+      }
       Alert.alert('Guardado', 'Escuela actualizada correctamente', [
         { text: 'OK', onPress: () => router.back() },
       ]);
@@ -216,6 +284,99 @@ export default function EditSchoolScreen() {
               onValueChange={setIsPublic}
             />
           </View>
+
+          {canChangeOwner && (
+            <View
+              className="bg-white rounded-2xl p-4 mb-4"
+              style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}
+            >
+              <Text className="text-gray-900 font-bold text-base mb-2">
+                Owner de la escuela
+              </Text>
+              <Text className="text-gray-500 text-sm mb-3">
+                Puedes transferir la propiedad a otro usuario desde esta pantalla.
+              </Text>
+
+              {selectedOwner ? (
+                <View className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 mb-3">
+                  <Text className="text-amber-900 font-semibold text-sm">
+                    Owner seleccionado
+                  </Text>
+                  <Text className="text-gray-900 font-bold text-base mt-1">
+                    {selectedOwner.name}
+                  </Text>
+                  <Text className="text-gray-500 text-sm mt-0.5">
+                    {selectedOwner.email}
+                  </Text>
+                </View>
+              ) : null}
+
+              <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-xl px-3 mb-3">
+                <Ionicons name="search-outline" size={18} color="#9ca3af" />
+                <TextInput
+                  value={ownerSearch}
+                  onChangeText={setOwnerSearch}
+                  placeholder="Buscar usuario por nombre o email"
+                  placeholderTextColor="#9ca3af"
+                  className="flex-1 py-3 ml-2 text-gray-900 text-base"
+                />
+              </View>
+
+              <View className="rounded-2xl overflow-hidden border border-gray-100">
+                {visibleOwnerCandidates.length === 0 ? (
+                  <View className="px-4 py-4 bg-gray-50">
+                    <Text className="text-gray-500 text-sm">
+                      No encontramos usuarios para asignar como owner.
+                    </Text>
+                  </View>
+                ) : (
+                  visibleOwnerCandidates.map((entry, index) => {
+                    const entryId = getEntityId(entry);
+                    const isActive = entryId === selectedOwnerId;
+
+                    return (
+                      <TouchableOpacity
+                        key={entryId || `${entry.email}-${index}`}
+                        onPress={() => setSelectedOwnerId(entryId)}
+                        className="px-4 py-3 bg-white"
+                        style={{
+                          borderBottomWidth:
+                            index === visibleOwnerCandidates.length - 1 ? 0 : 1,
+                          borderBottomColor: '#f3f4f6',
+                        }}
+                      >
+                        <View className="flex-row items-center">
+                          <View
+                            className="w-10 h-10 rounded-2xl items-center justify-center mr-3"
+                            style={{ backgroundColor: isActive ? '#fef3c7' : '#f3f4f6' }}
+                          >
+                            <Ionicons
+                              name={isActive ? 'checkmark-circle' : 'person-outline'}
+                              size={18}
+                              color={isActive ? '#d97706' : '#6b7280'}
+                            />
+                          </View>
+                          <View className="flex-1">
+                            <Text className="text-gray-900 font-semibold text-sm">
+                              {entry.name}
+                            </Text>
+                            <Text className="text-gray-500 text-xs mt-0.5">
+                              {entry.email}
+                            </Text>
+                          </View>
+                          {isActive && (
+                            <Text className="text-amber-700 text-xs font-bold">
+                              Seleccionado
+                            </Text>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+            </View>
+          )}
 
           <TouchableOpacity
             onPress={handleSave}

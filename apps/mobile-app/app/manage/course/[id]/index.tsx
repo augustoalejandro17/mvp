@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,17 +8,45 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  TextInput,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiClient } from '@/services/apiClient';
-import { ICourse } from '@inti/shared-types';
+import { ICourse, IUser } from '@inti/shared-types';
 import ManageFormField from '@/components/manage/ManageFormField';
 import ManageHeader from '@/components/manage/ManageHeader';
 import ManageMediaField from '@/components/manage/ManageMediaField';
 import ManageSummaryCard from '@/components/manage/ManageSummaryCard';
 import ManageToggleField from '@/components/manage/ManageToggleField';
 import { pickImageFromDevice } from '@/services/mediaPicker';
+
+const normalizeList = <T,>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  if (value && typeof value === 'object') {
+    const candidates = [
+      (value as any).items,
+      (value as any).data,
+      (value as any).results,
+      (value as any).users,
+      (value as any).teachers,
+    ];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) return candidate as T[];
+    }
+  }
+  return [];
+};
+
+const getEntityId = (entity: any): string => {
+  const raw = entity?._id ?? entity?.id ?? entity;
+  if (typeof raw === 'string') return raw;
+  if (raw && typeof raw === 'object' && typeof raw.toString === 'function') {
+    const value = String(raw.toString());
+    return value === '[object Object]' ? '' : value;
+  }
+  return '';
+};
 
 export default function EditCourseScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -35,6 +63,55 @@ export default function EditCourseScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [schoolId, setSchoolId] = useState('');
+  const [teacherOptions, setTeacherOptions] = useState<IUser[]>([]);
+  const [teacherSearch, setTeacherSearch] = useState('');
+  const [teacherId, setTeacherId] = useState('');
+  const [additionalTeacherIds, setAdditionalTeacherIds] = useState<string[]>([]);
+
+  const loadTeachersForSchool = async (
+    targetSchoolId: string,
+    mainTeacherId?: string,
+    additionalIds?: string[],
+  ) => {
+    if (!targetSchoolId) {
+      setTeacherOptions([]);
+      return;
+    }
+
+    try {
+      const teachersData = await apiClient.getTeachersBySchool(targetSchoolId);
+      const normalizedTeachers = normalizeList<IUser>(teachersData);
+      const ids = new Set<string>([
+        ...(mainTeacherId ? [mainTeacherId] : []),
+        ...((additionalIds || []).filter(Boolean)),
+      ]);
+
+      normalizedTeachers.forEach((entry) => {
+        const entryId = getEntityId(entry);
+        if (entryId) ids.add(entryId);
+      });
+
+      const nextOptions = Array.from(ids)
+        .map((entryId) => {
+          const existing = normalizedTeachers.find(
+            (entry) => getEntityId(entry) === entryId,
+          );
+          if (existing) return existing;
+          return {
+            _id: entryId,
+            name: 'Profesor asignado',
+            email: '',
+            role: 'teacher',
+          } as IUser;
+        })
+        .filter((entry) => !!getEntityId(entry));
+
+      setTeacherOptions(nextOptions);
+    } catch {
+      setTeacherOptions([]);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -55,6 +132,23 @@ export default function EditCourseScreen() {
         setIsPublic((data as any).isPublic ?? false);
         setIsActive((data as any).isActive ?? true);
         setIsFeatured((data as any).isFeatured ?? false);
+        const normalizedSchoolId = getEntityId((data as any).school);
+        const normalizedTeacherId = getEntityId((data as any).teacher);
+        const normalizedAdditionalTeacherIds = Array.isArray((data as any).teachers)
+          ? (data as any).teachers
+              .map((entry: any) => getEntityId(entry))
+              .filter((entryId: string) => entryId && entryId !== normalizedTeacherId)
+          : [];
+
+        setSchoolId(normalizedSchoolId);
+        setTeacherId(normalizedTeacherId);
+        setAdditionalTeacherIds(normalizedAdditionalTeacherIds);
+
+        await loadTeachersForSchool(
+          normalizedSchoolId,
+          normalizedTeacherId,
+          normalizedAdditionalTeacherIds,
+        );
       } catch {
         Alert.alert('Error', 'No se pudo cargar el curso');
         router.back();
@@ -64,6 +158,39 @@ export default function EditCourseScreen() {
     };
     load();
   }, [courseId, router]);
+
+  const filteredTeacherOptions = teacherOptions.filter((entry) => {
+    const term = teacherSearch.trim().toLowerCase();
+    if (!term) return true;
+    const nameValue = String(entry.name || '').toLowerCase();
+    const emailValue = String(entry.email || '').toLowerCase();
+    return nameValue.includes(term) || emailValue.includes(term);
+  });
+
+  const mainTeacher = teacherOptions.find((entry) => getEntityId(entry) === teacherId) || null;
+
+  const handleSelectMainTeacher = (nextTeacherId: string) => {
+    setTeacherId(nextTeacherId);
+    setAdditionalTeacherIds((prev) => prev.filter((entry) => entry !== nextTeacherId));
+  };
+
+  const handleToggleAdditionalTeacher = (nextTeacherId: string) => {
+    if (nextTeacherId === teacherId) {
+      Alert.alert('Profesor principal', 'Ese profesor ya está asignado como principal.');
+      return;
+    }
+
+    setAdditionalTeacherIds((prev) => {
+      if (prev.includes(nextTeacherId)) {
+        return prev.filter((entry) => entry !== nextTeacherId);
+      }
+      if (prev.length >= 4) {
+        Alert.alert('Límite alcanzado', 'Puedes agregar hasta 4 profesores adicionales.');
+        return prev;
+      }
+      return [...prev, nextTeacherId];
+    });
+  };
 
   const handlePickCoverImage = async () => {
     try {
@@ -95,6 +222,10 @@ export default function EditCourseScreen() {
       Alert.alert('Error', 'El título es requerido');
       return;
     }
+    if (!teacherId) {
+      Alert.alert('Error', 'Debes seleccionar un profesor principal.');
+      return;
+    }
     setIsSaving(true);
     try {
       const safeCoverImageUrl =
@@ -103,6 +234,8 @@ export default function EditCourseScreen() {
         title: title.trim(),
         description: description.trim(),
         coverImageUrl: safeCoverImageUrl || undefined,
+        teacher: teacherId,
+        teachers: [teacherId, ...additionalTeacherIds],
         isPublic,
         isActive,
         isFeatured,
@@ -199,6 +332,129 @@ export default function EditCourseScreen() {
               onPick={handlePickCoverImage}
               onClear={() => setCoverImageUrl('')}
             />
+
+            <Text className="text-gray-900 font-bold text-base mb-3 mt-1">Profesores</Text>
+            <Text className="text-gray-500 text-sm mb-3">
+              Edita el profesor principal y los profesores adicionales del curso.
+            </Text>
+
+            <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-xl px-3 mb-3">
+              <Ionicons name="search-outline" size={18} color="#9ca3af" />
+              <TextInput
+                value={teacherSearch}
+                onChangeText={setTeacherSearch}
+                placeholder="Buscar profesor por nombre o email"
+                placeholderTextColor="#9ca3af"
+                className="flex-1 py-3 ml-2 text-gray-900 text-base"
+              />
+            </View>
+
+            {mainTeacher ? (
+              <View className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 mb-3">
+                <Text className="text-amber-900 font-semibold text-sm">Profesor principal</Text>
+                <Text className="text-gray-900 font-bold text-base mt-1">{mainTeacher.name}</Text>
+                <Text className="text-gray-500 text-sm mt-0.5">{mainTeacher.email}</Text>
+              </View>
+            ) : (
+              <View className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 mb-3">
+                <Text className="text-red-700 text-sm font-semibold">
+                  Selecciona un profesor principal para guardar.
+                </Text>
+              </View>
+            )}
+
+            {additionalTeacherIds.length > 0 && (
+              <View className="mb-3">
+                <Text className="text-gray-700 font-semibold text-sm mb-2">
+                  Profesores adicionales
+                </Text>
+                <View className="flex-row flex-wrap">
+                  {additionalTeacherIds.map((entryId) => {
+                    const teacherEntry = teacherOptions.find(
+                      (entry) => getEntityId(entry) === entryId,
+                    );
+                    return (
+                      <View
+                        key={entryId}
+                        className="flex-row items-center bg-sky-50 border border-sky-100 rounded-full px-3 py-2 mr-2 mb-2"
+                      >
+                        <Text className="text-sky-800 text-xs font-semibold mr-2">
+                          {teacherEntry?.name || 'Profesor'}
+                        </Text>
+                        <TouchableOpacity onPress={() => handleToggleAdditionalTeacher(entryId)}>
+                          <Ionicons name="close-circle" size={16} color="#0284c7" />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
+            <View className="rounded-2xl overflow-hidden border border-gray-100 mb-1">
+              {filteredTeacherOptions.length === 0 ? (
+                <View className="px-4 py-4 bg-gray-50">
+                  <Text className="text-gray-500 text-sm">
+                    {schoolId
+                      ? 'No encontramos profesores para esta escuela.'
+                      : 'No se pudo identificar la escuela del curso.'}
+                  </Text>
+                </View>
+              ) : (
+                filteredTeacherOptions.map((entry, index) => {
+                  const entryId = getEntityId(entry);
+                  const isMain = entryId === teacherId;
+                  const isAdditional = additionalTeacherIds.includes(entryId);
+
+                  return (
+                    <View
+                      key={entryId || `${entry.email}-${index}`}
+                      className="px-4 py-3 bg-white"
+                      style={{
+                        borderBottomWidth:
+                          index === filteredTeacherOptions.length - 1 ? 0 : 1,
+                        borderBottomColor: '#f3f4f6',
+                      }}
+                    >
+                      <View className="flex-row items-center">
+                        <View className="flex-1 pr-3">
+                          <Text className="text-gray-900 font-semibold text-sm">
+                            {entry.name}
+                          </Text>
+                          <Text className="text-gray-500 text-xs mt-0.5">
+                            {entry.email}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => handleSelectMainTeacher(entryId)}
+                          className="px-3 py-2 rounded-xl mr-2"
+                          style={{ backgroundColor: isMain ? '#f59e0b' : '#f3f4f6' }}
+                        >
+                          <Text
+                            className="text-xs font-bold"
+                            style={{ color: isMain ? '#ffffff' : '#4b5563' }}
+                          >
+                            Principal
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleToggleAdditionalTeacher(entryId)}
+                          className="px-3 py-2 rounded-xl"
+                          style={{ backgroundColor: isAdditional ? '#0284c7' : '#eff6ff' }}
+                        >
+                          <Text
+                            className="text-xs font-bold"
+                            style={{ color: isAdditional ? '#ffffff' : '#1d4ed8' }}
+                          >
+                            {isAdditional ? 'Quitar' : 'Agregar'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
 
             <Text className="text-gray-900 font-bold text-base mb-3 mt-1">Configuración</Text>
             <ManageToggleField

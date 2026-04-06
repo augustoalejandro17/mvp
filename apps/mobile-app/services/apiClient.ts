@@ -963,6 +963,7 @@ class ApiClient {
     schoolId: string;
     coverImageUrl?: string;
     teacher?: string;
+    teachers?: string[];
     isPublic?: boolean;
   }): Promise<ICourse> {
     const { data } = await this.client.post<ICourse>('/courses', dto);
@@ -975,6 +976,8 @@ class ApiClient {
       title: string;
       description: string;
       coverImageUrl: string;
+      teacher: string;
+      teachers: string[];
       isPublic: boolean;
       isActive: boolean;
       isFeatured: boolean;
@@ -1012,6 +1015,13 @@ class ApiClient {
   // ─── Admin: Users ─────────────────────────────────────────────────────────
   async getUsers(): Promise<IUser[]> {
     const { data } = await this.client.get<IUser[]>('/users');
+    return data;
+  }
+
+  async getTeachersBySchool(schoolId: string): Promise<IUser[]> {
+    const { data } = await this.client.get<IUser[]>(
+      `/users/teachers-by-school/${schoolId}`,
+    );
     return data;
   }
 
