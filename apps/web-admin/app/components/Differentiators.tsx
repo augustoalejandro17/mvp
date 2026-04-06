@@ -29,9 +29,9 @@ export const Differentiators = () => {
     <section ref={ref} className="py-16 lg:py-24 bg-white">
       <Container>
         <SectionHeading
-          subtitle="¿Por qué IntiHubs?"
-          title="Lo que nos hace diferentes"
-          description="Características únicas que transforman la experiencia educativa"
+          subtitle="Por que empezar aqui"
+          title="Una base simple para vender y operar mejor"
+          description="No intentamos reemplazar una gran plataforma institucional desde el dia uno. Queremos resolver primero lo que mas le duele al profesor."
           className="mb-16"
         />
 
@@ -80,6 +80,5 @@ export const Differentiators = () => {
     </section>
   );
 };
-
 
 

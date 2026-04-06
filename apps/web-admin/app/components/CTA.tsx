@@ -64,7 +64,7 @@ export const CTA = () => {
                 className="bg-amber-50 rounded-2xl p-6 mb-8 border border-amber-200"
               >
                 <p className="text-amber-800 font-semibold text-lg">
-                  🎉 {CTA_COPY.primaryText}
+                  {CTA_COPY.primaryText}
                 </p>
               </motion.div>
 
@@ -88,20 +88,17 @@ export const CTA = () => {
                   </Link>
                 </motion.div>
                 
-                <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <button
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Link
+                    href="#pricing"
                     onClick={handleSecondaryCTA}
                     className="btn-secondary text-lg px-8 py-4 w-full sm:w-auto"
                   >
                     {CTA_COPY.secondaryButton}
-                  </button>
+                  </Link>
                 </motion.div>
               </motion.div>
 
-              {/* Trust Indicators */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={isInView ? { opacity: 1 } : { opacity: 0 }}
@@ -109,18 +106,14 @@ export const CTA = () => {
                 className="mt-12 pt-8 border-t border-gray-200"
               >
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
-                  <div>
-                    <div className="text-2xl font-bold text-gray-900 mb-1">14 días</div>
-                    <div className="text-sm text-gray-600">Prueba gratuita</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-gray-900 mb-1">Sin tarjeta</div>
-                    <div className="text-sm text-gray-600">Requerida</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-gray-900 mb-1">24/7</div>
-                    <div className="text-sm text-gray-600">Soporte incluido</div>
-                  </div>
+                  {CTA_COPY.highlights.map((item) => (
+                    <div key={item.title}>
+                      <div className="text-2xl font-bold text-gray-900 mb-1">
+                        {item.title}
+                      </div>
+                      <div className="text-sm text-gray-600">{item.description}</div>
+                    </div>
+                  ))}
                 </div>
               </motion.div>
             </div>
@@ -130,6 +123,5 @@ export const CTA = () => {
     </section>
   );
 };
-
 
 

@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { useInView } from 'framer-motion';
 import { useRef } from 'react';
+import Link from 'next/link';
 import { Container } from './ui/Container';
 import { SectionHeading } from './ui/SectionHeading';
 import { FEATURES } from '@/lib/copy';
@@ -29,9 +30,9 @@ export const Features = () => {
     <section id="features" ref={ref} className="py-16 lg:py-24 bg-gray-50">
       <Container>
         <SectionHeading
-          subtitle="Características"
-          title="Todo lo que necesitas en un solo lugar"
-          description="Herramientas completas para gestionar tu academia de manera eficiente"
+          subtitle="Caracteristicas"
+          title="Lo que ya puedes resolver hoy"
+          description="La landing ahora refleja lo que si esta mas trabajado y listo para vender: operacion mobile-first para profesores."
           className="mb-16"
         />
 
@@ -87,18 +88,14 @@ export const Features = () => {
           <p className="text-gray-600 mb-6">
             ¿Necesitas una característica específica?
           </p>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="btn-secondary"
-          >
-            Contáctanos
-          </motion.button>
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Link href="/contact" className="btn-secondary inline-block">
+              Hablemos
+            </Link>
+          </motion.div>
         </motion.div>
       </Container>
     </section>
   );
 };
-
-
 

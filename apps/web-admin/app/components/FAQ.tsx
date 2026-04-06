@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useInView } from 'framer-motion';
 import { useRef, useState } from 'react';
+import Link from 'next/link';
 import { Container } from './ui/Container';
 import { SectionHeading } from './ui/SectionHeading';
 import { FAQ_ITEMS } from '@/lib/copy';
@@ -36,7 +37,7 @@ export const FAQ = () => {
         <SectionHeading
           subtitle="FAQ"
           title="Preguntas frecuentes"
-          description="Respuestas a las dudas más comunes sobre IntiHubs"
+          description="Respuestas cortas para que sepas si esta beta hace sentido para tu operacion hoy."
           className="mb-16"
         />
 
@@ -122,23 +123,25 @@ export const FAQ = () => {
               ¿No encuentras tu respuesta?
             </h3>
             <p className="text-gray-600 mb-6">
-              Nuestro equipo está aquí para ayudarte con cualquier duda específica sobre tu academia.
+              Si quieres validar si esto encaja con tu forma de vender y ensenar, lo vemos contigo.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <motion.button
+              <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="btn-secondary"
               >
-                Enviar mensaje
-              </motion.button>
-              <motion.button
+                <Link href="/contact" className="btn-secondary inline-block">
+                  Enviar mensaje
+                </Link>
+              </motion.div>
+              <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="btn-primary"
               >
-                Agendar llamada
-              </motion.button>
+                <Link href="/signup" className="btn-primary inline-block">
+                  Solicitar acceso
+                </Link>
+              </motion.div>
             </div>
           </div>
         </motion.div>
@@ -146,6 +149,5 @@ export const FAQ = () => {
     </section>
   );
 };
-
 
 

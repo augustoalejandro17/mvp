@@ -7,7 +7,6 @@ import { SocialProof } from '../components/SocialProof';
 import { Differentiators } from '../components/Differentiators';
 import { Features } from '../components/Features';
 import { MiniDemo } from '../components/MiniDemo';
-import { AnalyticsShowcase } from '../components/AnalyticsShowcase';
 import { Pricing } from '../components/Pricing';
 import { CTA } from '../components/CTA';
 import { FAQ } from '../components/FAQ';
@@ -27,7 +26,6 @@ export default function LandingPage() {
       <Differentiators />
       <Features />
       <MiniDemo />
-      <AnalyticsShowcase />
       <Pricing />
       <CTA />
       <FAQ />

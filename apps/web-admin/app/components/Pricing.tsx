@@ -37,8 +37,8 @@ export const Pricing = () => {
       <Container>
         <SectionHeading
           subtitle="Precios"
-          title="Planes que crecen contigo"
-          description="Comienza gratis y escala según tus necesidades. Sin compromisos, sin sorpresas."
+          title="Planes fundadores para validar contigo"
+          description="En esta etapa buscamos profesores reales, no volumen artificial. Elige una capacidad acorde a tu momento y crece desde ahi."
           className="mb-16"
         />
 
@@ -46,7 +46,7 @@ export const Pricing = () => {
           variants={containerVariants}
           initial="hidden"
           animate={isInView ? 'visible' : 'hidden'}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12"
         >
           {PRICING_TIERS.map((tier, index) => (
             <motion.div
@@ -154,20 +154,22 @@ export const Pricing = () => {
               💰 {PRICING_NOTE}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <motion.button
+              <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="btn-secondary"
               >
-                Calcular ahorro anual
-              </motion.button>
-              <motion.button
+                <Link href="/contact" className="btn-secondary inline-block">
+                  Resolver dudas
+                </Link>
+              </motion.div>
+              <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="btn-primary"
               >
-                Hablar con ventas
-              </motion.button>
+                <Link href="/signup" className="btn-primary inline-block">
+                  Solicitar acceso
+                </Link>
+              </motion.div>
             </div>
           </div>
         </motion.div>
@@ -193,6 +195,4 @@ export const Pricing = () => {
     </section>
   );
 };
-
-
 

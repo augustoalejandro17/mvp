@@ -81,12 +81,13 @@ export const Hero = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <button
+              <Link
+                href="#pricing"
                 onClick={handleSecondaryCTA}
                 className="btn-secondary text-lg px-8 py-4 w-full sm:w-auto"
               >
                 {HERO.secondaryCTA}
-              </button>
+              </Link>
             </motion.div>
           </motion.div>
 
@@ -98,18 +99,20 @@ export const Hero = () => {
             className="mt-12 pt-8 border-t border-gray-200"
           >
             <p className="text-sm text-gray-500 mb-4">
-              Confiado por academias líderes
+              Enfoque claro para esta etapa
             </p>
-            <div className="flex justify-center items-center space-x-8 opacity-60">
-              {/* Placeholder logos - replace with actual client logos */}
-              {[1, 2, 3, 4].map((i) => (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {HERO.highlights.map((item) => (
                 <div
-                  key={i}
-                  className="w-24 h-12 bg-gray-200 rounded-lg flex items-center justify-center"
+                  key={item.title}
+                  className="bg-white rounded-2xl border border-gray-200 p-4 text-left shadow-sm"
                 >
-                  <span className="text-gray-400 text-xs font-medium">
-                    Logo {i}
-                  </span>
+                  <p className="text-sm font-semibold text-gray-900 mb-1">
+                    {item.title}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {item.description}
+                  </p>
                 </div>
               ))}
             </div>
@@ -119,6 +122,4 @@ export const Hero = () => {
     </section>
   );
 };
-
-
 

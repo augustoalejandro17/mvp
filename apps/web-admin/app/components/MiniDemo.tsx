@@ -3,35 +3,36 @@
 import { motion } from 'framer-motion';
 import { useInView } from 'framer-motion';
 import { useRef, useState } from 'react';
+import Link from 'next/link';
 import { Container } from './ui/Container';
 import { SectionHeading } from './ui/SectionHeading';
 
 const mockDashboardData = [
   {
-    title: 'Dashboard Principal',
-    description: 'Vista general de tu academia',
+    title: 'Crea tu curso',
+    description: 'Publica la base de tu oferta desde el celular',
     metrics: [
-      { label: 'Estudiantes activos', value: '247' },
-      { label: 'Cursos en progreso', value: '12' },
-      { label: 'Asistencia promedio', value: '87%' },
+      { label: 'Portada', value: 'Lista' },
+      { label: 'Visibilidad', value: 'Privada o publica' },
+      { label: 'Estado', value: 'Listo para publicar' },
     ],
   },
   {
-    title: 'Analítica Avanzada',
-    description: 'Métricas que impulsan decisiones',
+    title: 'Sube una clase',
+    description: 'Carga video y deja el procesamiento en background',
     metrics: [
-      { label: 'Retención', value: '92%' },
-      { label: 'Progreso promedio', value: '78%' },
-      { label: 'Satisfacción', value: '4.8/5' },
+      { label: 'Video', value: 'Desde tu movil' },
+      { label: 'Procesamiento', value: 'Automatico' },
+      { label: 'Orden', value: 'Dentro del curso' },
     ],
   },
   {
-    title: 'Gestión de Videos',
-    description: 'Contenido seguro y optimizado',
+    title: 'Revisa entregas',
+    description: 'Acompana alumnos sin saltar entre herramientas',
     metrics: [
-      { label: 'Videos subidos', value: '156' },
-      { label: 'Horas de contenido', value: '89h' },
-      { label: 'Reproducciones', value: '2.1k' },
+      { label: 'Entregas', value: 'Recibidas en la app' },
+      { label: 'Feedback', value: 'Mas ordenado' },
+      { label: 'Avisos', value: 'Todo en un flujo' },
     ],
   },
 ];
@@ -59,9 +60,9 @@ export const MiniDemo = () => {
     <section id="demo" ref={ref} className="py-16 lg:py-24 bg-white">
       <Container>
         <SectionHeading
-          subtitle="Demo en vivo"
-          title="Siente el poder de IntiHubs"
-          description="Explora las interfaces que transformarán tu academia"
+          subtitle="Demo guiada"
+          title="Asi se ve la operacion desde la app"
+          description="Una muestra simple de los flujos que hoy si estan mas listos para salir a vender."
           className="mb-16"
         />
 
@@ -116,7 +117,7 @@ export const MiniDemo = () => {
                   <div className="mb-6">
                     <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center mb-4">
                       <span className="text-white text-xl">
-                        {index === 0 ? '📊' : index === 1 ? '📈' : '🎥'}
+                        {index === 0 ? '📚' : index === 1 ? '🎬' : '✅'}
                       </span>
                     </div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">
@@ -147,7 +148,7 @@ export const MiniDemo = () => {
                   {/* Progress Bar */}
                   <div className="mt-6">
                     <div className="flex justify-between text-xs text-gray-500 mb-2">
-                      <span>Progreso</span>
+                      <span>Listo para operar</span>
                       <span>{85 + index * 5}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
@@ -177,21 +178,17 @@ export const MiniDemo = () => {
             className="text-center mt-12"
           >
             <p className="text-gray-600 mb-6">
-              ¿Quieres ver más? Solicita una demo personalizada
+              Si quieres ver como aplicaria en tu caso, te mostramos una demo guiada
             </p>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="btn-primary"
-            >
-              Solicitar demo completa
-            </motion.button>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Link href="/signup" className="btn-primary inline-block">
+                Solicitar acceso
+              </Link>
+            </motion.div>
           </motion.div>
         </div>
       </Container>
     </section>
   );
 };
-
-
 
