@@ -1,8 +1,8 @@
 export const BRAND = {
-  name: 'IntiHubs',
+  name: 'Inti',
   appName: 'Inti',
-  slogan: 'Conecta. Aprende. Crece.',
-  email: 'hola@intihubs.com',
+  slogan: 'Tu academia en el celular',
+  email: 'augustoalejandro95@gmail.com',
   url: 'https://intihubs.com',
 } as const;
 

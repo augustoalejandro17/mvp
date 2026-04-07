@@ -14,8 +14,8 @@ function MyApp({ Component, pageProps }: AppProps) {
     <SessionProvider session={pageProps.session}>
       <ToastProvider>
         <Head>
-          <title>IntiHubs</title>
-          <meta name="description" content="CRM educativo + clases híbridas para academias y profesores. Conecta. Aprende. Crece." />
+          <title>Inti</title>
+          <meta name="description" content="Plataforma mobile-first para profesores y alumnos. Cursos, clases, contenido y seguimiento desde un solo lugar." />
           <link rel="icon" href="/favicon.ico" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
           {/* Preconnect to improve performance */}

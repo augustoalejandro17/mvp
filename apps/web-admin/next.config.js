@@ -18,7 +18,7 @@ const nextConfig = {
   swcMinify: true,
   env: {
     APP_NAME: 'Inti',
-    APP_DESCRIPTION: 'Plataforma de aprendizaje en línea',
+    APP_DESCRIPTION: 'Plataforma mobile-first para profesores y alumnos.',
     APP_URL: process.env.APP_URL || 'https://intihubs.com',
   },
   images: {

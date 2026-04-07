@@ -65,6 +65,12 @@ export const Header = () => {
               Precios
             </Link>
             <Link 
+              href="/alumnos" 
+              className="text-gray-600 hover:text-gray-900 transition-colors font-medium"
+            >
+              Alumnos
+            </Link>
+            <Link 
               href="#faq" 
               className="text-gray-600 hover:text-gray-900 transition-colors font-medium"
             >
@@ -89,5 +95,4 @@ export const Header = () => {
     </motion.header>
   );
 };
-
 

@@ -12,7 +12,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Inti' }) => {
     <div className={styles.container}>
       <Head>
         <title>{title}</title>
-        <meta name="description" content="Conecta. Aprende. Crece." />
+        <meta name="description" content="Plataforma mobile-first para profesores y alumnos." />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 

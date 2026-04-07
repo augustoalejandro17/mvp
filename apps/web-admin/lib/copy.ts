@@ -275,12 +275,13 @@ export const NAVIGATION = {
 
 export const FOOTER = {
   description:
-    'La app para que profesores y microacademias operen cursos, clases y seguimiento desde el celular.',
+    'La app para que profesores y alumnos organicen cursos, clases, contenido y seguimiento desde un solo lugar.',
   links: {
     product: [
       { label: 'Características', href: '#features' },
       { label: 'Precios', href: '#pricing' },
       { label: 'Demo', href: '#demo' },
+      { label: 'Para alumnos', href: '/alumnos' },
     ],
     company: [
       { label: 'Sobre nosotros', href: '/about' },

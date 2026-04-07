@@ -4,8 +4,8 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: `${BRAND.name} — ${BRAND.slogan}`,
-  description: 'CRM educativo + plataforma de clases híbridas para academias y profesores. Gestión de alumnos, video seguro, asistencia, analítica y gamificación en un solo lugar.',
-  keywords: ['CRM educativo', 'marketplace de servicios', 'clases híbridas', 'gestión académica', 'video educativo', 'gamificación'],
+  description: 'Plataforma mobile-first para profesores y alumnos. Crea cursos, organiza contenido, recibe entregas y acompaña el aprendizaje desde un solo lugar.',
+  keywords: ['plataforma educativa', 'cursos online', 'app para profesores', 'contenido educativo', 'aprendizaje móvil', 'gestión de cursos'],
   authors: [{ name: BRAND.name }],
   creator: BRAND.name,
   publisher: BRAND.name,
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: `${BRAND.name} — ${BRAND.slogan}`,
-    description: 'CRM educativo + plataforma de clases híbridas para academias y profesores. Gestión de alumnos, video seguro, asistencia, analítica y gamificación en un solo lugar.',
+    description: 'Plataforma mobile-first para profesores y alumnos. Crea cursos, organiza contenido, recibe entregas y acompaña el aprendizaje desde un solo lugar.',
     url: BRAND.url,
     siteName: BRAND.name,
     images: [
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
         url: '/landing/og-image.jpg',
         width: 1200,
         height: 630,
-        alt: `${BRAND.name} - CRM educativo + clases híbridas`,
+        alt: `${BRAND.name} - Plataforma educativa mobile-first`,
       },
     ],
     locale: 'es_ES',
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: `${BRAND.name} — ${BRAND.slogan}`,
-    description: 'CRM educativo + plataforma de clases híbridas para academias y profesores.',
+    description: 'Plataforma mobile-first para profesores y alumnos.',
     images: ['/landing/og-image.jpg'],
     creator: '@intihubs',
   },
@@ -80,7 +80,7 @@ export default function RootLayout({
               name: BRAND.name,
               url: BRAND.url,
               logo: `${BRAND.url}/landing/logo.png`,
-              description: 'CRM educativo + plataforma de clases híbridas para academias y profesores.',
+              description: 'Plataforma mobile-first para profesores y alumnos.',
               contactPoint: {
                 '@type': 'ContactPoint',
                 email: BRAND.email,
@@ -103,7 +103,7 @@ export default function RootLayout({
               name: BRAND.name,
               applicationCategory: 'EducationalApplication',
               operatingSystem: 'Web',
-              description: 'CRM educativo + plataforma de clases híbridas para academias y profesores.',
+              description: 'Plataforma mobile-first para profesores y alumnos.',
               offers: {
                 '@type': 'Offer',
                 price: '49',
@@ -125,4 +125,3 @@ export default function RootLayout({
     </html>
   );
 }
-
