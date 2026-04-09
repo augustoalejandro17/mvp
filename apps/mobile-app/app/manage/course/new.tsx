@@ -48,6 +48,20 @@ const getEntityId = (entity: any): string => {
   return '';
 };
 
+const mergeUsersById = (left: IUser[], right: IUser[]): IUser[] => {
+  const seen = new Set<string>();
+  const merged: IUser[] = [];
+
+  for (const entry of [...left, ...right]) {
+    const entryId = getEntityId(entry);
+    if (!entryId || seen.has(entryId)) continue;
+    seen.add(entryId);
+    merged.push(entry);
+  }
+
+  return merged;
+};
+
 export default function NewCourseScreen() {
   const { schoolId } = useLocalSearchParams<{ schoolId?: string }>();
   const router = useRouter();
@@ -64,6 +78,8 @@ export default function NewCourseScreen() {
   const [teacherId, setTeacherId] = useState('');
   const [additionalTeacherIds, setAdditionalTeacherIds] = useState<string[]>([]);
   const [isLoadingTeachers, setIsLoadingTeachers] = useState(false);
+  const [isSearchingTeachers, setIsSearchingTeachers] = useState(false);
+  const [hasSearchedTeachers, setHasSearchedTeachers] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -179,6 +195,40 @@ export default function NewCourseScreen() {
     });
   };
 
+  const handleSearchTeachers = async () => {
+    const query = teacherSearch.trim();
+    if (!query || query.length < 3) {
+      Alert.alert(
+        'Búsqueda muy corta',
+        'Escribe al menos 3 caracteres del email del usuario.',
+      );
+      return;
+    }
+
+    setIsSearchingTeachers(true);
+    setHasSearchedTeachers(true);
+    try {
+      const results = await apiClient.searchUsersByEmail(query);
+      const normalizedResults = normalizeList<IUser>(results).filter((entry) => {
+        const role = String(entry.role || '').toLowerCase();
+        return !!getEntityId(entry) && role !== 'unregistered';
+      });
+
+      setTeacherOptions((prev) => mergeUsersById(prev, normalizedResults));
+    } catch (error: any) {
+      Alert.alert(
+        'Error',
+        Array.isArray(error?.response?.data?.message)
+          ? error.response.data.message.join('\n')
+          : error?.response?.data?.message ||
+              error?.message ||
+              'No se pudo buscar usuarios',
+      );
+    } finally {
+      setIsSearchingTeachers(false);
+    }
+  };
+
   const handlePickCoverImage = async () => {
     try {
       const file = await pickImageFromDevice();
@@ -213,7 +263,7 @@ export default function NewCourseScreen() {
       Alert.alert(
         'Error',
         teacherOptions.length === 0
-          ? 'Esta escuela aún no tiene profesores disponibles. Agrega o asigna un profesor primero.'
+          ? 'Busca y selecciona un profesor principal para el curso.'
           : 'Debes seleccionar un profesor principal.',
       );
       return;
@@ -307,7 +357,7 @@ export default function NewCourseScreen() {
 
             <Text className="text-gray-900 font-bold text-base mb-3 mt-1">Profesores</Text>
             <Text className="text-gray-500 text-sm mb-3">
-              Selecciona el profesor principal del curso y, si hace falta, agrega profesores adicionales.
+              Si la escuela aún no tiene profesores asociados, puedes buscar cualquier usuario por email y asignarlo al curso.
             </Text>
 
             <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-xl px-3 mb-3">
@@ -315,11 +365,32 @@ export default function NewCourseScreen() {
               <TextInput
                 value={teacherSearch}
                 onChangeText={setTeacherSearch}
-                placeholder="Buscar profesor por nombre o email"
+                placeholder="Buscar usuario por email"
                 placeholderTextColor="#9ca3af"
                 className="flex-1 py-3 ml-2 text-gray-900 text-base"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
               />
             </View>
+
+            <TouchableOpacity
+              onPress={handleSearchTeachers}
+              disabled={isSearchingTeachers}
+              className="flex-row items-center justify-center bg-sky-50 border border-sky-100 rounded-xl py-3 mb-3"
+              style={{ opacity: isSearchingTeachers ? 0.7 : 1 }}
+            >
+              {isSearchingTeachers ? (
+                <ActivityIndicator size="small" color="#0284c7" />
+              ) : (
+                <>
+                  <Ionicons name="search-outline" size={18} color="#0284c7" />
+                  <Text className="text-sky-700 font-semibold ml-2">
+                    Buscar usuario
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
 
             {mainTeacher ? (
               <View className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 mb-3">
@@ -378,9 +449,11 @@ export default function NewCourseScreen() {
               ) : filteredTeacherOptions.length === 0 ? (
                 <View className="px-4 py-4 bg-gray-50">
                   <Text className="text-gray-500 text-sm">
-                    {normalizedSchoolId
-                      ? 'No encontramos profesores para esta escuela. Agrega o asigna uno primero.'
-                      : 'No se pudo identificar la escuela del curso.'}
+                    {!normalizedSchoolId
+                      ? 'No se pudo identificar la escuela del curso.'
+                      : hasSearchedTeachers
+                        ? 'No encontramos usuarios con ese email.'
+                        : 'No encontramos profesores asociados a esta escuela. Busca un usuario para asignarlo al curso.'}
                   </Text>
                 </View>
               ) : (
