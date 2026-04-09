@@ -41,7 +41,11 @@ type CourseSubmissionSummary = {
   needsResubmission: number;
 };
 
-const ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SCHOOL_OWNER];
+const GLOBAL_ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN];
+const SCHOOL_CREATION_ROLES: UserRole[] = [
+  UserRole.SUPER_ADMIN,
+  UserRole.SCHOOL_OWNER,
+];
 
 const normalizeList = <T,>(value: unknown): T[] => {
   if (Array.isArray(value)) {
@@ -481,7 +485,12 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const isAdmin = user?.role && ADMIN_ROLES.includes(user.role as UserRole);
+  const isGlobalAdmin =
+    !!user?.role && GLOBAL_ADMIN_ROLES.includes(user.role as UserRole);
+  const canCreateSchools =
+    !!user?.role && SCHOOL_CREATION_ROLES.includes(user.role as UserRole);
+  const canLoadAllSchools =
+    isGlobalAdmin || user?.role === UserRole.SCHOOL_OWNER;
   const isTeacher = user?.role === UserRole.TEACHER;
   const isStudent = user?.role === UserRole.STUDENT;
   const currentUserId = String(
@@ -516,13 +525,15 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const canManageSelectedCourse =
     !!selectedCourse &&
-    isCourseManagedByUser(selectedCourse, currentUserId, !!isAdmin);
+    isCourseManagedByUser(selectedCourse, currentUserId, isGlobalAdmin);
   const canManageSelectedSchool = isSchoolManagedByUser(
     selectedSchool,
     user,
     currentUserId,
-    !!isAdmin,
+    isGlobalAdmin,
   );
+  const canManageSelectedCourseContent =
+    canManageSelectedSchool || canManageSelectedCourse;
   const selectedCourseSubmissionSummary = useMemo(() => {
     const submissions = Object.values(classSubmissionsMap);
     if (submissions.length === 0) {
@@ -579,7 +590,7 @@ export default function HomeScreen() {
     setError(null);
     try {
       const [schoolsData, enrolledData, teachingData, submissionsData] = await Promise.all([
-        isAdmin ? apiClient.getAllSchools() : apiClient.getPublicSchools(),
+        canLoadAllSchools ? apiClient.getAllSchools() : apiClient.getPublicSchools(),
         apiClient.getEnrolledCourses().catch(() => [] as ICourse[]),
         isTeacher ? apiClient.getTeachingCourses().catch(() => [] as ICourse[]) : [],
         isStudent ? apiClient.getMyClassSubmissions().catch(() => [] as IClassSubmission[]) : [],
@@ -607,7 +618,7 @@ export default function HomeScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [isAdmin, isStudent, isTeacher]);
+  }, [canLoadAllSchools, isStudent, isTeacher]);
 
   const handleDeleteSchool = (school: ISchool) => {
     Alert.alert(
@@ -1103,7 +1114,7 @@ export default function HomeScreen() {
                 </View>
               )}
 
-              {isAdmin && (
+              {canCreateSchools && (
                 <TouchableOpacity
                   onPress={() => router.push('/manage/school/new')}
                   className="flex-row items-center justify-center bg-amber-500 rounded-xl py-3 mb-3"
@@ -1133,7 +1144,7 @@ export default function HomeScreen() {
               </View>
 
               <Text className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 px-1">
-                {isAdmin ? 'Todas las Escuelas' : 'Escuelas Disponibles'}
+                {canLoadAllSchools ? 'Todas las Escuelas' : 'Escuelas Disponibles'}
               </Text>
             </>
           }
@@ -1164,7 +1175,12 @@ export default function HomeScreen() {
           renderItem={({ item: school }) => (
             <SchoolCard
               school={school}
-              isAdmin={!!isAdmin}
+              isAdmin={isSchoolManagedByUser(
+                school,
+                user,
+                currentUserId,
+                isGlobalAdmin,
+              )}
               onPress={() => handleSelectSchool(school)}
               onEdit={() => router.push(`/manage/school/${school._id}`)}
               onDelete={() => handleDeleteSchool(school)}
@@ -1264,8 +1280,11 @@ export default function HomeScreen() {
                   course={course}
                   isEnrolled={enrolledCourses.some((e) => e._id === course._id)}
                   submissionSummary={courseSubmissionSummaries[String(course._id || '')] ?? null}
-                  canManageCourse={isCourseManagedByUser(course, currentUserId, !!isAdmin)}
-                  canDeleteCourse={!!isAdmin}
+                  canManageCourse={
+                    canManageSelectedSchool ||
+                    isCourseManagedByUser(course, currentUserId, isGlobalAdmin)
+                  }
+                  canDeleteCourse={canManageSelectedSchool || isGlobalAdmin}
                   onPress={() => handleSelectCourse(course)}
                   onManageStudents={() => router.push(`/manage/course/${course._id}/students`)}
                   onEdit={() => router.push(`/manage/course/${course._id}`)}
@@ -1302,7 +1321,7 @@ export default function HomeScreen() {
                     <Text className="text-white text-xs font-semibold ml-1">Alumnos</Text>
                   </TouchableOpacity>
                 )}
-                {isAdmin && (
+                {canManageSelectedCourseContent && (
                   <TouchableOpacity
                     onPress={() => router.push(`/manage/class/new?courseId=${selectedCourse?._id}`)}
                     className="flex-row items-center bg-amber-500 px-3 py-2 rounded-xl"
@@ -1362,7 +1381,7 @@ export default function HomeScreen() {
               <Ionicons name="videocam-outline" size={56} color="#d97706" />
               <Text className="text-lg font-semibold text-gray-700 mt-4">Sin clases</Text>
               <Text className="text-gray-500 mt-1 text-center text-sm">
-                {isAdmin
+                {canManageSelectedCourseContent
                   ? 'Este curso no tiene clases. Toca "Nueva Clase" para agregar.'
                   : 'Este curso aún no tiene clases disponibles'}
               </Text>
@@ -1370,7 +1389,7 @@ export default function HomeScreen() {
           ) : playlists.length > 0 ? (
             /* ── Playlist-organized view ── */
             <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
-              {isAdmin && (
+              {canManageSelectedCourseContent && (
                 <TouchableOpacity
                   onPress={() => router.push(`/manage/playlist/new?courseId=${selectedCourse?._id}`)}
                   className="flex-row items-center justify-center border-2 border-dashed border-amber-300 rounded-xl py-3 mb-4"
@@ -1404,7 +1423,7 @@ export default function HomeScreen() {
                       </Text>
                     </View>
                     <View className="flex-row items-center ml-2" style={{ gap: 4 }}>
-                      {isAdmin && (
+                      {canManageSelectedCourseContent && (
                         <>
                           {/* Reorder playlist ↑↓ */}
                           <TouchableOpacity
@@ -1450,13 +1469,13 @@ export default function HomeScreen() {
                           key={classItem._id}
                           classItem={classItem}
                           submission={classSubmissionsMap[String(classItem._id || '')] ?? null}
-                          isAdmin={!!isAdmin}
+                          isAdmin={canManageSelectedCourseContent}
                           onPress={() => router.push(`/player/${classItem._id}?courseId=${selectedCourse?._id}`)}
                           onEdit={() => router.push(`/manage/class/${classItem._id}`)}
                           onDelete={() => handleDeleteClass(classItem)}
-                          onMoveUp={isAdmin && classIndex > 0 ? () => moveClassInPlaylist(playlist._id, classIndex, 'up') : undefined}
-                          onMoveDown={isAdmin && classIndex < (playlist.classes?.length ?? 0) - 1 ? () => moveClassInPlaylist(playlist._id, classIndex, 'down') : undefined}
-                          onMoveToPlaylist={isAdmin && playlists.length > 1 ? () => { setMoveModalClass(classItem); setMoveModalFromPlaylist(playlist._id); } : undefined}
+                          onMoveUp={canManageSelectedCourseContent && classIndex > 0 ? () => moveClassInPlaylist(playlist._id, classIndex, 'up') : undefined}
+                          onMoveDown={canManageSelectedCourseContent && classIndex < (playlist.classes?.length ?? 0) - 1 ? () => moveClassInPlaylist(playlist._id, classIndex, 'down') : undefined}
+                          onMoveToPlaylist={canManageSelectedCourseContent && playlists.length > 1 ? () => { setMoveModalClass(classItem); setMoveModalFromPlaylist(playlist._id); } : undefined}
                         />
                       ))}
                     </View>
@@ -1498,11 +1517,11 @@ export default function HomeScreen() {
                           key={classItem._id}
                           classItem={classItem}
                           submission={classSubmissionsMap[String(classItem._id || '')] ?? null}
-                          isAdmin={!!isAdmin}
+                          isAdmin={canManageSelectedCourseContent}
                           onPress={() => router.push(`/player/${classItem._id}?courseId=${selectedCourse?._id}`)}
                           onEdit={() => router.push(`/manage/class/${classItem._id}`)}
                           onDelete={() => handleDeleteClass(classItem)}
-                          onMoveToPlaylist={isAdmin && playlists.length > 0 ? () => { setMoveModalClass(classItem); setMoveModalFromPlaylist(null); } : undefined}
+                          onMoveToPlaylist={canManageSelectedCourseContent && playlists.length > 0 ? () => { setMoveModalClass(classItem); setMoveModalFromPlaylist(null); } : undefined}
                         />
                       ))}
                     </View>
@@ -1518,7 +1537,7 @@ export default function HomeScreen() {
               contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
               showsVerticalScrollIndicator={false}
               ListHeaderComponent={
-                isAdmin ? (
+                canManageSelectedCourseContent ? (
                   <TouchableOpacity
                     onPress={() => router.push(`/manage/playlist/new?courseId=${selectedCourse?._id}`)}
                     className="flex-row items-center justify-center border-2 border-dashed border-amber-300 rounded-xl py-3 mb-4"
@@ -1532,7 +1551,7 @@ export default function HomeScreen() {
                 <VideoCard
                   classItem={item}
                   submission={classSubmissionsMap[String(item._id || '')] ?? null}
-                  isAdmin={!!isAdmin}
+                  isAdmin={canManageSelectedCourseContent}
                   onPress={() => router.push(`/player/${item._id}?courseId=${selectedCourse?._id}`)}
                   onEdit={() => router.push(`/manage/class/${item._id}`)}
                   onDelete={() => handleDeleteClass(item)}

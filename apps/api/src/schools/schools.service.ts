@@ -682,29 +682,67 @@ export class SchoolsService {
         throw new NotFoundException(`Escuela con ID ${id} no encontrada`);
       }
 
-      // Verificar permisos (admin de la escuela o admin del sistema)
-      const isSchoolAdmin = school.admin.toString() === userId;
+      const user = await this.userModel.findById(userId);
+      if (!user) {
+        throw new UnauthorizedException(
+          'No tiene permisos para eliminar esta escuela',
+        );
+      }
 
-      if (!isSchoolAdmin) {
-        const user = await this.userModel.findById(userId);
-        if (!user || user.role !== UserRole.ADMIN) {
-          throw new UnauthorizedException(
-            'No tiene permisos para eliminar esta escuela',
-          );
-        }
+      const schoolAdminId = school.admin ? school.admin.toString() : '';
+      const isSchoolAdmin = !!schoolAdminId && schoolAdminId === userId;
+      const isGlobalAdmin = user.role === UserRole.SUPER_ADMIN;
+      const isSchoolOwner =
+        user.ownedSchools?.some((entry) => entry.toString() === id) ||
+        false;
+      const hasOwnerRoleInSchool =
+        user.schoolRoles?.some(
+          (entry) =>
+            entry.schoolId?.toString() === id &&
+            String(entry.role || '').toLowerCase() === UserRole.SCHOOL_OWNER,
+        ) || false;
+
+      if (!isSchoolAdmin && !isGlobalAdmin && !isSchoolOwner && !hasOwnerRoleInSchool) {
+        throw new UnauthorizedException(
+          'No tiene permisos para eliminar esta escuela',
+        );
       }
 
       // Remover las referencias a la escuela de todos los usuarios (admin, profesores, estudiantes)
-      const adminId = school.admin.toString();
-      await this.userModel.findByIdAndUpdate(adminId, {
-        $pull: { schools: id },
-      });
+      if (schoolAdminId) {
+        await this.userModel.findByIdAndUpdate(schoolAdminId, {
+          $pull: {
+            schools: id,
+            ownedSchools: id,
+            schoolRoles: { schoolId: new Types.ObjectId(id), role: UserRole.SCHOOL_OWNER },
+          },
+        });
+      }
 
       // Remover la escuela de los profesores
       if (school.teachers && school.teachers.length > 0) {
         await this.userModel.updateMany(
           { _id: { $in: school.teachers } },
-          { $pull: { schools: id } },
+          {
+            $pull: {
+              schools: id,
+              schoolRoles: { schoolId: new Types.ObjectId(id) },
+            },
+          },
+        );
+      }
+
+      // Remover la escuela de los administrativos
+      if (school.administratives && school.administratives.length > 0) {
+        await this.userModel.updateMany(
+          { _id: { $in: school.administratives } },
+          {
+            $pull: {
+              schools: id,
+              administratedSchools: id,
+              schoolRoles: { schoolId: new Types.ObjectId(id) },
+            },
+          },
         );
       }
 
@@ -712,7 +750,12 @@ export class SchoolsService {
       if (school.students && school.students.length > 0) {
         await this.userModel.updateMany(
           { _id: { $in: school.students } },
-          { $pull: { schools: id } },
+          {
+            $pull: {
+              schools: id,
+              schoolRoles: { schoolId: new Types.ObjectId(id) },
+            },
+          },
         );
       }
 
