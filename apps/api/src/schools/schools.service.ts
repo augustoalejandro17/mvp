@@ -89,6 +89,13 @@ export class SchoolsService {
     try {
       // Validate user permissions for creating schools
       const resolvedPlanId = await this.resolvePlanId(planId);
+      const effectiveAdminId = String(admin || userId || '').trim();
+
+      if (!effectiveAdminId || !Types.ObjectId.isValid(effectiveAdminId)) {
+        throw new BadRequestException(
+          'No se pudo determinar un propietario válido para la escuela',
+        );
+      }
 
       // Create the school
       const school = new this.schoolModel({
@@ -99,7 +106,7 @@ export class SchoolsService {
         phone,
         website,
         isPublic,
-        admin: admin, // Allow null admin - owner can be assigned later
+        admin: effectiveAdminId,
         planId: resolvedPlanId,
         sedes: sedes || [],
         timezone: timezone || 'America/Bogota', // Use provided timezone or default to Colombia
@@ -146,19 +153,10 @@ export class SchoolsService {
 
       // Save the school
       await school.save();
-      const result = await this.schoolModel.findById(school._id);
-
-      // Update the owner's (admin) document to include this school only if admin was specified
-      if (admin) {
-        await this.userModel.findByIdAndUpdate(admin, {
-          $addToSet: {
-            schools: result._id,
-            ownedSchools: result._id,
-          },
-        });
-      }
-
-      return result;
+      return this.assignOwner(
+        school._id.toString(),
+        effectiveAdminId,
+      );
     } catch (error) {
       this.logger.error(
         `Error al crear escuela: ${error.message}`,

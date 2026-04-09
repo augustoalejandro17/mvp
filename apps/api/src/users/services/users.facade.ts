@@ -85,7 +85,9 @@ export class UsersFacade {
       throw new ForbiddenException('You can only change your own password');
     }
 
-    await this.usersService.changePassword(id, changePasswordDto);
+    await this.usersService.changePassword(id, changePasswordDto, {
+      requireCurrentPassword: true,
+    });
     return { message: 'Password changed successfully' };
   }
 

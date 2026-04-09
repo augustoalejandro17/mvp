@@ -176,6 +176,52 @@ const isCourseManagedByUser = (
   return false;
 };
 
+const isSchoolManagedByUser = (
+  school: ISchool | null | undefined,
+  user: any,
+  userId: string,
+  isAdmin: boolean,
+): boolean => {
+  if (isAdmin) return true;
+  if (!school || !userId) return false;
+
+  const schoolId = getEntityId(school);
+  const schoolAdminId = getEntityId((school as any).admin);
+
+  if (schoolAdminId && schoolAdminId === userId) {
+    return true;
+  }
+
+  if (Array.isArray((school as any).teachers)) {
+    const isTeacherInSchool = (school as any).teachers.some((entry: any) => {
+      if (typeof entry === 'string') {
+        return entry === userId;
+      }
+      return getEntityId(entry) === userId;
+    });
+    if (isTeacherInSchool) {
+      return true;
+    }
+  }
+
+  if (Array.isArray(user?.ownedSchools) && user.ownedSchools.includes(schoolId)) {
+    return true;
+  }
+
+  if (Array.isArray(user?.schoolRoles)) {
+    return user.schoolRoles.some((entry: any) => {
+      const roleSchoolId = String(entry?.schoolId || '');
+      const roleValue = String(entry?.role || '').toLowerCase();
+      return (
+        roleSchoolId === schoolId &&
+        ['teacher', 'school_owner', 'administrative'].includes(roleValue)
+      );
+    });
+  }
+
+  return false;
+};
+
 // ─── School Card ──────────────────────────────────────────────────────────────
 function SchoolCard({
   school,
@@ -471,6 +517,12 @@ export default function HomeScreen() {
   const canManageSelectedCourse =
     !!selectedCourse &&
     isCourseManagedByUser(selectedCourse, currentUserId, !!isAdmin);
+  const canManageSelectedSchool = isSchoolManagedByUser(
+    selectedSchool,
+    user,
+    currentUserId,
+    !!isAdmin,
+  );
   const selectedCourseSubmissionSummary = useMemo(() => {
     const submissions = Object.values(classSubmissionsMap);
     if (submissions.length === 0) {
@@ -1138,6 +1190,41 @@ export default function HomeScreen() {
             </View>
           </View>
 
+          {!isLoadingCourses ? (
+            <View className="px-4 pt-4">
+              <View
+                className="flex-row items-center bg-white rounded-2xl px-4 py-3 mb-3 border border-gray-100"
+                style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}
+              >
+                <Ionicons name="search-outline" size={18} color="#9ca3af" />
+                <TextInput
+                  value={courseSearch}
+                  onChangeText={setCourseSearch}
+                  placeholder="Buscar cursos..."
+                  placeholderTextColor="#9ca3af"
+                  className="flex-1 ml-2 text-gray-900 text-base"
+                />
+                {courseSearch.length > 0 && (
+                  <TouchableOpacity onPress={() => setCourseSearch('')}>
+                    <Ionicons name="close-circle" size={18} color="#9ca3af" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {canManageSelectedSchool ? (
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push(`/manage/course/new?schoolId=${selectedSchool?._id}`)
+                  }
+                  className="flex-row items-center justify-center bg-amber-500 rounded-xl py-3 mb-4"
+                >
+                  <Ionicons name="add-circle-outline" size={18} color="white" />
+                  <Text className="text-white font-semibold ml-2">Nuevo Curso</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
+
           {isLoadingCourses ? (
             <View className="flex-1 justify-center items-center">
               <ActivityIndicator size="large" color="#d97706" />
@@ -1148,7 +1235,9 @@ export default function HomeScreen() {
               <Ionicons name="book-outline" size={56} color="#d97706" />
               <Text className="text-lg font-semibold text-gray-700 mt-4">Sin cursos</Text>
               <Text className="text-gray-500 mt-1 text-center text-sm">
-                Esta escuela aún no tiene cursos publicados
+                {canManageSelectedSchool
+                  ? 'Esta escuela aún no tiene cursos. Puedes crear el primero ahora.'
+                  : 'Esta escuela aún no tiene cursos publicados'}
               </Text>
             </View>
           ) : (
@@ -1157,37 +1246,6 @@ export default function HomeScreen() {
               keyExtractor={(c) => c._id || Math.random().toString()}
               contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
               showsVerticalScrollIndicator={false}
-              ListHeaderComponent={
-                <>
-                  <View
-                    className="flex-row items-center bg-white rounded-2xl px-4 py-3 mb-3 border border-gray-100"
-                    style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}
-                  >
-                    <Ionicons name="search-outline" size={18} color="#9ca3af" />
-                    <TextInput
-                      value={courseSearch}
-                      onChangeText={setCourseSearch}
-                      placeholder="Buscar cursos..."
-                      placeholderTextColor="#9ca3af"
-                      className="flex-1 ml-2 text-gray-900 text-base"
-                    />
-                    {courseSearch.length > 0 && (
-                      <TouchableOpacity onPress={() => setCourseSearch('')}>
-                        <Ionicons name="close-circle" size={18} color="#9ca3af" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  {isAdmin ? (
-                    <TouchableOpacity
-                      onPress={() => router.push(`/manage/course/new?schoolId=${selectedSchool?._id}`)}
-                      className="flex-row items-center justify-center bg-amber-500 rounded-xl py-3 mb-4"
-                    >
-                      <Ionicons name="add-circle-outline" size={18} color="white" />
-                      <Text className="text-white font-semibold ml-2">Nuevo Curso</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </>
-              }
               ListEmptyComponent={
                 courseSearch.trim() ? (
                   <View className="items-center pt-10 px-6">

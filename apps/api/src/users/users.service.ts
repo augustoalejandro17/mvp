@@ -1504,17 +1504,28 @@ export class UsersService {
   async changePassword(
     userId: string,
     changePasswordDto: ChangePasswordDto,
+    options?: { requireCurrentPassword?: boolean },
   ): Promise<User> {
     const user = await this.userModel.findById(userId);
     if (!user) {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
 
+    const storedPasswordHash =
+      typeof user.password === 'string' ? user.password.trim() : '';
+    const hasLocalPassword = storedPasswordHash.length > 0;
+
     // Only verify current password if it's provided
     if (changePasswordDto.currentPassword) {
+      if (!hasLocalPassword) {
+        throw new BadRequestException(
+          'This account does not have a local password yet',
+        );
+      }
+
       // Verify current password
       const isPasswordValid = await argon2.verify(
-        user.password,
+        storedPasswordHash,
         changePasswordDto.currentPassword,
       );
       if (!isPasswordValid) {
@@ -1527,6 +1538,14 @@ export class UsersService {
           'New password must be different from the current password',
         );
       }
+    }
+
+    if (
+      options?.requireCurrentPassword &&
+      !changePasswordDto.currentPassword &&
+      hasLocalPassword
+    ) {
+      throw new BadRequestException('Current password is required');
     }
 
     // Hash new password (either newPassword or password field)
