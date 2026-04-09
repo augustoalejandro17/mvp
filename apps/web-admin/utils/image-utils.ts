@@ -1,8 +1,24 @@
 const getImageUrl = (imagePath: string): string => {
   if (!imagePath) return '';
 
+  const trimmedPath = String(imagePath).trim();
+  if (!trimmedPath) return '';
+
+  if (
+    trimmedPath.startsWith('http://') ||
+    trimmedPath.startsWith('https://') ||
+    trimmedPath.startsWith('data:') ||
+    trimmedPath.startsWith('blob:')
+  ) {
+    return trimmedPath;
+  }
+
+  if (trimmedPath.startsWith('/img/')) {
+    return trimmedPath;
+  }
+
   // Remove leading slash if present
-  const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+  const cleanPath = trimmedPath.startsWith('/') ? trimmedPath.substring(1) : trimmedPath;
 
   const assetDomainRaw =
     process.env.NEXT_PUBLIC_ASSET_DOMAIN ||

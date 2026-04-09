@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode';
@@ -42,6 +42,34 @@ interface AuditLogItem {
   targetId?: string;
   createdAt: string;
 }
+
+interface SeatPolicyCapabilities {
+  canViewSeatManagementModule: boolean;
+  canOpenEnrollFlow: boolean;
+  canAssignCourseSeatPermit: boolean;
+  canSetOwnerQuota: boolean;
+  canReadOwnerQuota: boolean;
+  canSetOwnerQuotaForTarget: boolean;
+  canReadOwnerQuotaForTarget: boolean;
+  canEnrollStudentInCourse: boolean;
+  canUnenrollStudentFromCourse: boolean;
+  canAddStudentToCourse: boolean;
+  canRemoveStudentFromCourse: boolean;
+}
+
+const DEFAULT_SEAT_CAPABILITIES: SeatPolicyCapabilities = {
+  canViewSeatManagementModule: false,
+  canOpenEnrollFlow: false,
+  canAssignCourseSeatPermit: false,
+  canSetOwnerQuota: false,
+  canReadOwnerQuota: false,
+  canSetOwnerQuotaForTarget: false,
+  canReadOwnerQuotaForTarget: false,
+  canEnrollStudentInCourse: false,
+  canUnenrollStudentFromCourse: false,
+  canAddStudentToCourse: false,
+  canRemoveStudentFromCourse: false,
+};
 
 // Define role precedence - highest priority first
 const ROLE_PRECEDENCE = [
@@ -90,6 +118,9 @@ export default function AdminDashboard() {
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [insightsError, setInsightsError] = useState<string | null>(null);
   const [insightsForbidden, setInsightsForbidden] = useState(false);
+  const [seatCapabilities, setSeatCapabilities] = useState<SeatPolicyCapabilities>(
+    DEFAULT_SEAT_CAPABILITIES,
+  );
 
   // Fetch user schools based on role
   const fetchUserSchools = async (userId: string, userRole: string) => {
@@ -217,7 +248,39 @@ export default function AdminDashboard() {
     
     fetchStats(selectedSchool);
     fetchInsights();
+    void fetchSeatPolicy(selectedSchool);
   };
+
+  const fetchSeatPolicy = useCallback(async (schoolId: string = 'all') => {
+    try {
+      const token = Cookies.get('token');
+      if (!token) return;
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      const params = new URLSearchParams();
+      if (schoolId && schoolId !== 'all') {
+        params.set('schoolId', schoolId);
+      }
+
+      const endpoint = `${apiUrl}/api/courses/seats/policy${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await fetch(endpoint, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        setSeatCapabilities(DEFAULT_SEAT_CAPABILITIES);
+        return;
+      }
+
+      const policy = await response.json();
+      setSeatCapabilities(policy?.capabilities || DEFAULT_SEAT_CAPABILITIES);
+    } catch {
+      setSeatCapabilities(DEFAULT_SEAT_CAPABILITIES);
+    }
+  }, []);
 
   const fetchInsights = async () => {
     try {
@@ -345,10 +408,11 @@ export default function AdminDashboard() {
         setLoading(false);
         
         // Fetch schools for this user
-        fetchUserSchools(userId, 'super_admin');
+          fetchUserSchools(userId, 'super_admin');
           // Fetch stats for all schools by default
           fetchStats('all');
           fetchInsights();
+          void fetchSeatPolicy('all');
           return;
         }
         
@@ -419,6 +483,7 @@ export default function AdminDashboard() {
         // Fetch stats for all schools by default
         fetchStats('all');
         fetchInsights();
+        void fetchSeatPolicy('all');
         
         setLoading(false);
       } catch (error) {
@@ -428,7 +493,7 @@ export default function AdminDashboard() {
     };
 
     checkAuth();
-  }, [router]);
+  }, [router, fetchSeatPolicy]);
 
   if (loading) {
     return <div className={styles.loading}>Cargando panel de administración...</div>;
@@ -660,6 +725,49 @@ export default function AdminDashboard() {
                 </div>
                 <span>Ver Usuarios</span>
               </Link>
+              {seatCapabilities.canOpenEnrollFlow && (
+                <Link href="/admin/enrollment-management" className={styles.actionButton}>
+                  <div className={styles.actionIconWrapper}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="8.5" cy="7" r="4"></circle>
+                      <line x1="20" y1="8" x2="20" y2="14"></line>
+                      <line x1="17" y1="11" x2="23" y2="11"></line>
+                    </svg>
+                  </div>
+                  <span>Gestionar Matrículas</span>
+                </Link>
+              )}
+              {seatCapabilities.canViewSeatManagementModule && (
+                <Link href="/admin/seats" className={styles.actionButton}>
+                  <div className={styles.actionIconWrapper}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2v20"></path>
+                      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"></path>
+                    </svg>
+                  </div>
+                  <span>Gestión de Cupos</span>
+                </Link>
+              )}
+              {(normalizedRole === 'super_admin' || normalizedRole === 'admin') && (
+                <Link href="/admin/platform" className={styles.actionButton}>
+                  <div className={styles.actionIconWrapper}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                      <path d="M9 9h6v6H9z"></path>
+                      <path d="M9 1v2"></path>
+                      <path d="M15 1v2"></path>
+                      <path d="M9 21v2"></path>
+                      <path d="M15 21v2"></path>
+                      <path d="M21 9h2"></path>
+                      <path d="M21 14h2"></path>
+                      <path d="M1 9h2"></path>
+                      <path d="M1 14h2"></path>
+                    </svg>
+                  </div>
+                  <span>Control de Plataforma</span>
+                </Link>
+              )}
               {user?.role?.toLowerCase().includes('super_admin') && (
                 <Link href="/admin/subscriptions" className={styles.actionButton}>
                   <div className={styles.actionIconWrapper}>

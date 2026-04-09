@@ -11,6 +11,7 @@ import { Model, Types } from 'mongoose';
 import { School } from './schemas/school.schema';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { User, UserRole } from '../auth/schemas/user.schema';
+import { Plan, PlanType } from '../plans/schemas/plan.schema';
 
 @Injectable()
 export class SchoolsService {
@@ -19,31 +20,87 @@ export class SchoolsService {
   constructor(
     @InjectModel(School.name) private schoolModel: Model<School>,
     @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(Plan.name) private planModel: Model<Plan>,
   ) {}
+
+  private async resolvePlanId(planId?: string) {
+    if (planId) {
+      const existingPlan = await this.planModel
+        .findOne({
+          _id: planId,
+          isActive: true,
+        })
+        .select('_id')
+        .lean()
+        .exec();
+
+      if (!existingPlan) {
+        throw new BadRequestException('El plan seleccionado no existe o no está activo');
+      }
+
+      return existingPlan._id;
+    }
+
+    const defaultPlan =
+      (await this.planModel
+        .findOne({ isDefault: true, isActive: true })
+        .select('_id')
+        .lean()
+        .exec()) ||
+      (await this.planModel
+        .findOne({ type: PlanType.BASIC, isActive: true })
+        .sort({ isDefault: -1, createdAt: 1 })
+        .select('_id')
+        .lean()
+        .exec()) ||
+      (await this.planModel
+        .findOne({ isActive: true })
+        .sort({ isDefault: -1, createdAt: 1 })
+        .select('_id')
+        .lean()
+        .exec());
+
+    if (!defaultPlan) {
+      throw new InternalServerErrorException(
+        'No hay un plan activo configurado para nuevas escuelas',
+      );
+    }
+
+    return defaultPlan._id;
+  }
 
   async create(createSchoolDto: CreateSchoolDto, userId: string) {
     const {
       name,
       description,
       logoUrl,
+      address,
+      phone,
+      website,
       isPublic,
       admin,
       teachers,
       administratives,
       sedes,
+      planId,
       timezone,
     } = createSchoolDto;
 
     try {
       // Validate user permissions for creating schools
+      const resolvedPlanId = await this.resolvePlanId(planId);
 
       // Create the school
       const school = new this.schoolModel({
         name,
         description,
         logoUrl,
+        address,
+        phone,
+        website,
         isPublic,
         admin: admin, // Allow null admin - owner can be assigned later
+        planId: resolvedPlanId,
         sedes: sedes || [],
         timezone: timezone || 'America/Bogota', // Use provided timezone or default to Colombia
       });

@@ -33,9 +33,99 @@ interface ClassSubmission {
   videoStatus: 'UPLOADING' | 'PROCESSING' | 'READY' | 'ERROR';
   reviewStatus: 'SUBMITTED' | 'REVIEWED' | 'NEEDS_RESUBMISSION';
   videoProcessingError?: string | null;
+  annotationsCount?: number;
   submittedAt?: string | null;
   reviewedAt?: string | null;
 }
+
+const REVIEW_FILTERS = [
+  { key: 'ALL', label: 'Todas' },
+  { key: 'PENDING', label: 'Sin revisar' },
+  { key: 'NEEDS_RESUBMISSION', label: 'Reenvíos' },
+  { key: 'REVIEWED', label: 'Revisadas' },
+  { key: 'PROCESSING', label: 'Procesando' },
+] as const;
+
+type ReviewFilterKey = (typeof REVIEW_FILTERS)[number]['key'];
+
+const matchesSubmissionFilter = (
+  submission: ClassSubmission,
+  filter: ReviewFilterKey,
+): boolean => {
+  if (filter === 'ALL') {
+    return true;
+  }
+
+  if (filter === 'PENDING') {
+    return submission.reviewStatus === 'SUBMITTED';
+  }
+
+  if (filter === 'NEEDS_RESUBMISSION') {
+    return submission.reviewStatus === 'NEEDS_RESUBMISSION';
+  }
+
+  if (filter === 'REVIEWED') {
+    return submission.reviewStatus === 'REVIEWED';
+  }
+
+  if (filter === 'PROCESSING') {
+    return (
+      submission.videoStatus === 'PROCESSING' ||
+      submission.videoStatus === 'UPLOADING'
+    );
+  }
+
+  return true;
+};
+
+const getSubmissionSortWeight = (submission: ClassSubmission): number => {
+  if (submission.reviewStatus === 'SUBMITTED' && submission.videoStatus === 'READY') {
+    return 0;
+  }
+
+  if (submission.reviewStatus === 'NEEDS_RESUBMISSION') {
+    return 1;
+  }
+
+  if (
+    submission.videoStatus === 'PROCESSING' ||
+    submission.videoStatus === 'UPLOADING'
+  ) {
+    return 2;
+  }
+
+  if (submission.videoStatus === 'ERROR') {
+    return 3;
+  }
+
+  return 4;
+};
+
+const getSubmissionStatusMeta = (
+  submission: ClassSubmission,
+): { label: string; tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger' } => {
+  if (submission.videoStatus === 'ERROR') {
+    return { label: 'Error al procesar', tone: 'danger' };
+  }
+
+  if (submission.videoStatus === 'PROCESSING') {
+    return { label: 'Procesando', tone: 'warning' };
+  }
+
+  if (submission.videoStatus === 'UPLOADING') {
+    return { label: 'Subiendo', tone: 'neutral' };
+  }
+
+  if (submission.reviewStatus === 'REVIEWED') {
+    return { label: 'Feedback listo', tone: 'success' };
+  }
+
+  if (submission.reviewStatus === 'NEEDS_RESUBMISSION') {
+    return { label: 'Reenvío solicitado', tone: 'warning' };
+  }
+
+  return { label: 'Sin revisar', tone: 'info' };
+};
 
 // Interfaces
 interface Class {
@@ -73,6 +163,10 @@ interface DecodedToken {
 const ClassDetail: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
+  const requestedSubmissionId =
+    typeof router.query.submissionId === 'string' ? router.query.submissionId : '';
+  const routeCourseId =
+    typeof router.query.courseId === 'string' ? router.query.courseId : '';
   const [classData, setClassData] = useState<Class | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,16 +178,67 @@ const ClassDetail: React.FC = () => {
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const [submissionAnnotations, setSubmissionAnnotations] = useState<SubmissionAnnotation[]>([]);
   const [submissionLoading, setSubmissionLoading] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [annotationsLoading, setAnnotationsLoading] = useState(false);
   const [selectedTimestamp, setSelectedTimestamp] = useState<number>(0);
   const [annotationText, setAnnotationText] = useState('');
   const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
   const [submissionTime, setSubmissionTime] = useState(0);
   const [submissionDuration, setSubmissionDuration] = useState(0);
+  const [submissionSearch, setSubmissionSearch] = useState('');
+  const [submissionFilter, setSubmissionFilter] = useState<ReviewFilterKey>('ALL');
 
-  const selectedSubmission = submissions.find(
+  const normalizedSubmissionSearch = submissionSearch.trim().toLowerCase();
+  const submissionFilterCounts = REVIEW_FILTERS.reduce<Record<ReviewFilterKey, number>>(
+    (accumulator, filterOption) => {
+      accumulator[filterOption.key] = submissions.filter((submission) =>
+        matchesSubmissionFilter(submission, filterOption.key),
+      ).length;
+      return accumulator;
+    },
+    {
+      ALL: 0,
+      PENDING: 0,
+      NEEDS_RESUBMISSION: 0,
+      REVIEWED: 0,
+      PROCESSING: 0,
+    },
+  );
+  const visibleSubmissions = submissions
+    .filter((submission) => {
+      if (!matchesSubmissionFilter(submission, submissionFilter)) {
+        return false;
+      }
+
+      if (!normalizedSubmissionSearch) {
+        return true;
+      }
+
+      const studentLabel = (
+        submission.student?.name ||
+        submission.student?.email ||
+        'Alumno'
+      ).toLowerCase();
+
+      return studentLabel.includes(normalizedSubmissionSearch);
+    })
+    .sort((left, right) => {
+      const weightDiff = getSubmissionSortWeight(left) - getSubmissionSortWeight(right);
+      if (weightDiff !== 0) {
+        return weightDiff;
+      }
+
+      const leftDate = new Date(left.submittedAt || 0).getTime();
+      const rightDate = new Date(right.submittedAt || 0).getTime();
+      return rightDate - leftDate;
+    });
+
+  const selectedSubmission = visibleSubmissions.find(
     (submission) => submission._id === selectedSubmissionId,
   ) ?? null;
+  const courseHref = `/course/${routeCourseId || classData?.courseId || ''}`;
+  const courseTitle = classData?.course?.title || 'Curso';
+  const schoolName = classData?.course?.school?.name || 'Escuela';
 
   useEffect(() => {
     const checkAuth = () => {
@@ -268,6 +413,7 @@ const ClassDetail: React.FC = () => {
 
     try {
       setSubmissionLoading(true);
+      setSubmissionError(null);
       const response = await api.get(`/class-submissions/class/${id}`);
       const items = Array.isArray(response.data) ? response.data : [];
       setSubmissions(items);
@@ -275,16 +421,27 @@ const ClassDetail: React.FC = () => {
         if (current && items.some((item) => item._id === current)) {
           return current;
         }
+        if (
+          requestedSubmissionId &&
+          items.some((item) => item._id === requestedSubmissionId)
+        ) {
+          return requestedSubmissionId;
+        }
         return items[0]?._id ?? null;
       });
     } catch (submissionError) {
       console.error('Could not fetch class submissions:', submissionError);
+      const message =
+        (submissionError as any)?.response?.data?.message ||
+        (submissionError as Error)?.message ||
+        'No se pudieron cargar las prácticas de esta clase.';
+      setSubmissionError(Array.isArray(message) ? message.join('\n') : String(message));
       setSubmissions([]);
       setSelectedSubmissionId(null);
     } finally {
       setSubmissionLoading(false);
     }
-  }, [id, canReviewSubmissions]);
+  }, [id, canReviewSubmissions, requestedSubmissionId]);
 
   const loadSubmissionAnnotations = useCallback(async (submissionId: string) => {
     try {
@@ -322,6 +479,31 @@ const ClassDetail: React.FC = () => {
     setEditingAnnotationId(null);
     loadSubmissionAnnotations(selectedSubmissionId);
   }, [selectedSubmissionId, loadSubmissionAnnotations]);
+
+  useEffect(() => {
+    const visibleIds = visibleSubmissions
+      .map((submission) => submission._id)
+      .filter(Boolean);
+
+    if (visibleIds.length === 0) {
+      setSelectedSubmissionId(null);
+      return;
+    }
+
+    if (!selectedSubmissionId || !visibleIds.includes(selectedSubmissionId)) {
+      setSelectedSubmissionId(visibleIds[0]);
+    }
+  }, [visibleSubmissions, selectedSubmissionId]);
+
+  useEffect(() => {
+    if (!requestedSubmissionId || submissions.length === 0) {
+      return;
+    }
+
+    if (submissions.some((submission) => submission._id === requestedSubmissionId)) {
+      setSelectedSubmissionId(requestedSubmissionId);
+    }
+  }, [requestedSubmissionId, submissions]);
 
   const handleCreateAnnotation = async () => {
     if (!selectedSubmissionId || !annotationText.trim()) {
@@ -445,6 +627,34 @@ const ClassDetail: React.FC = () => {
   return (
     <Layout>
       <div className={styles.classDetail}>
+        <div className={styles.pageHeader}>
+          <div className={styles.breadcrumbs}>
+            <button
+              type="button"
+              className={styles.breadcrumbLink}
+              onClick={() => router.push(courseHref)}
+            >
+              {schoolName}
+            </button>
+            <span>/</span>
+            <button
+              type="button"
+              className={styles.breadcrumbLink}
+              onClick={() => router.push(courseHref)}
+            >
+              {courseTitle}
+            </button>
+            <span>/</span>
+            <span className={styles.breadcrumbCurrent}>{classData.title}</span>
+          </div>
+          <button
+            type="button"
+            className={styles.backButton}
+            onClick={() => router.push(courseHref)}
+          >
+            Volver al curso
+          </button>
+        </div>
         <h1 className={styles.title}>{classData.title}</h1>
         
         {classData.videoUrl && (
@@ -613,14 +823,95 @@ const ClassDetail: React.FC = () => {
 
             {submissions.length === 0 ? (
               <div className={styles.emptyState}>
-                {submissionLoading
+                {submissionError
+                  ? submissionError
+                  : submissionLoading
                   ? 'Cargando entregas...'
                   : 'Todavía no hay prácticas enviadas para esta clase.'}
               </div>
             ) : (
               <div className={styles.reviewLayout}>
                 <div className={styles.submissionList}>
-                  {submissions.map((submission) => (
+                  <div className={styles.summaryGrid}>
+                    <button
+                      type="button"
+                      className={`${styles.summaryCard} ${submissionFilter === 'ALL' ? styles.summaryCardActive : ''}`}
+                      onClick={() => setSubmissionFilter('ALL')}
+                    >
+                      <strong>{submissions.length}</strong>
+                      <span>Entregas</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.summaryCard} ${submissionFilter === 'PENDING' ? styles.summaryCardActive : ''}`}
+                      onClick={() => setSubmissionFilter('PENDING')}
+                    >
+                      <strong>{submissionFilterCounts.PENDING}</strong>
+                      <span>Sin revisar</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.summaryCard} ${submissionFilter === 'NEEDS_RESUBMISSION' ? styles.summaryCardActive : ''}`}
+                      onClick={() => setSubmissionFilter('NEEDS_RESUBMISSION')}
+                    >
+                      <strong>{submissionFilterCounts.NEEDS_RESUBMISSION}</strong>
+                      <span>Reenvíos</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.summaryCard} ${submissionFilter === 'REVIEWED' ? styles.summaryCardActive : ''}`}
+                      onClick={() => setSubmissionFilter('REVIEWED')}
+                    >
+                      <strong>{submissionFilterCounts.REVIEWED}</strong>
+                      <span>Revisadas</span>
+                    </button>
+                  </div>
+
+                  <div className={styles.searchBox}>
+                    <input
+                      type="text"
+                      value={submissionSearch}
+                      onChange={(event) => setSubmissionSearch(event.target.value)}
+                      placeholder="Buscar alumno"
+                    />
+                    {submissionSearch ? (
+                      <button
+                        type="button"
+                        className={styles.clearSearch}
+                        onClick={() => setSubmissionSearch('')}
+                      >
+                        Limpiar
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className={styles.filterRow}>
+                    {REVIEW_FILTERS.map((filterOption) => (
+                      <button
+                        key={filterOption.key}
+                        type="button"
+                        className={`${styles.filterChip} ${submissionFilter === filterOption.key ? styles.filterChipActive : ''}`}
+                        onClick={() => setSubmissionFilter(filterOption.key)}
+                      >
+                        {filterOption.label} ({submissionFilterCounts[filterOption.key] || 0})
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className={styles.listMeta}>
+                    <span>{visibleSubmissions.length} resultado(s)</span>
+                    <span>Orden: sin revisar primero</span>
+                  </div>
+
+                  {visibleSubmissions.length === 0 ? (
+                    <div className={styles.emptyState}>
+                      No encontramos entregas que coincidan con la búsqueda o el filtro.
+                    </div>
+                  ) : null}
+
+                  {visibleSubmissions.map((submission) => {
+                    const statusMeta = getSubmissionStatusMeta(submission);
+                    return (
                     <button
                       key={submission._id}
                       type="button"
@@ -629,12 +920,18 @@ const ClassDetail: React.FC = () => {
                     >
                       <div className={styles.submissionCardTop}>
                         <strong>{submission.student?.name || submission.student?.email || 'Alumno'}</strong>
-                        <span className={styles.submissionBadge}>{submission.reviewStatus}</span>
+                        <span className={`${styles.submissionBadge} ${styles[`submissionBadge${statusMeta.tone.charAt(0).toUpperCase()}${statusMeta.tone.slice(1)}`]}`}>
+                          {statusMeta.label}
+                        </span>
                       </div>
                       <p>{submission.submittedAt ? new Date(submission.submittedAt).toLocaleString() : 'Sin fecha'}</p>
-                      <small>{submission.videoStatus === 'READY' ? 'Video listo' : submission.videoStatus}</small>
+                      <small>
+                        {(submission.annotationsCount || 0)} anotación(es)
+                        {' · '}
+                        {submission.videoStatus === 'READY' ? 'Video listo' : submission.videoStatus}
+                      </small>
                     </button>
-                  ))}
+                  )})}
                 </div>
 
                 <div className={styles.submissionDetail}>
@@ -803,7 +1100,7 @@ const ClassDetail: React.FC = () => {
             </button>
             <button 
               className={styles.backButton}
-              onClick={() => router.push(`/course/${classData.courseId}`)}
+              onClick={() => router.push(courseHref)}
             >
               Back to Course
             </button>
@@ -813,7 +1110,7 @@ const ClassDetail: React.FC = () => {
         {!canModify() && (
           <button 
             className={styles.backButton}
-            onClick={() => router.push(`/course/${classData.courseId}`)}
+            onClick={() => router.push(courseHref)}
           >
             Back to Course
           </button>

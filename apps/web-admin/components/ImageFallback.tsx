@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { getImageUrl } from '../utils/image-utils';
 
 interface ImageFallbackProps {
   src: string;
@@ -16,7 +17,7 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
   placeholderClassName = '',
   style,
 }) => {
-  const [imgSrc, setImgSrc] = useState<string>(src);
+  const [imgSrc, setImgSrc] = useState<string>(getImageUrl(src));
   const [fallbackActive, setFallbackActive] = useState<boolean>(false);
   const [retriesCount, setRetriesCount] = useState<number>(0);
   const [imgError, setImgError] = useState<boolean>(false);
@@ -24,8 +25,9 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
 
   // Actualizar la fuente de la imagen cuando cambia la prop src
   useEffect(() => {
-    if (src !== imgSrc && !fallbackActive) {
-      setImgSrc(src);
+    const normalizedSrc = getImageUrl(src);
+    if (normalizedSrc !== imgSrc && !fallbackActive) {
+      setImgSrc(normalizedSrc);
       setFallbackActive(false);
       setRetriesCount(0);
       setImgError(false);
@@ -37,11 +39,15 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
     if (!url) return '';
     
     try {
-      // Crear un objeto URL para manipular la URL correctamente
-      const urlObj = new URL(url);
+      const urlObj = new URL(
+        url,
+        typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
+      );
       // Añadir o actualizar el timestamp para evitar cacheo
       urlObj.searchParams.set('t', Date.now().toString());
-      return urlObj.toString();
+      const origin =
+        typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+      return urlObj.origin === origin ? `${urlObj.pathname}${urlObj.search}${urlObj.hash}` : urlObj.toString();
     } catch (e) {
       console.error('Error parsing URL for cache busting:', e);
       // Fallback: simple string manipulation
@@ -54,7 +60,10 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
   // Función para obtener la clave S3 de una URL
   const extractS3Key = (url: string): string | null => {
     try {
-      const urlObj = new URL(url);
+      const urlObj = new URL(
+        url,
+        typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
+      );
       const pathname = urlObj.pathname;
       
       console.log('Extracting key from pathname:', pathname);
@@ -147,14 +156,14 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
     
     if (newRetryCount === 1) {
       // Primer intento: añadir cache-busting
-      const bustedUrl = cacheBustUrl(src);
+      const bustedUrl = cacheBustUrl(imgSrc || getImageUrl(src));
       console.log('Retry with cache busting:', bustedUrl);
       setImgSrc(bustedUrl);
     } else {
       // Segundo intento: refrescar la URL a través de la API
       console.log('Trying to refresh URL via API');
       
-      const refreshedUrl = await refreshImageUrl(src);
+      const refreshedUrl = await refreshImageUrl(imgSrc || getImageUrl(src));
       if (refreshedUrl) {
         console.log('Using refreshed URL:', refreshedUrl);
         setImgSrc(refreshedUrl);
@@ -193,7 +202,6 @@ const ImageFallback: React.FC<ImageFallbackProps> = ({
       className={className}
       style={style}
       onError={handleError}
-      crossOrigin="anonymous" // Importante para CloudFront
     />
   );
 };

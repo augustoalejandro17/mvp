@@ -211,6 +211,7 @@
   margin-top: 1rem;
 }
 
+.enrollButton,
 .addButton,
 .editButton,
 .deleteButton,
@@ -227,6 +228,12 @@
   font-weight: 700;
   text-decoration: none;
   transition: all 0.2s ease;
+}
+
+.enrollButton {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
 }
 
 .addButton {
@@ -251,6 +258,7 @@
   color: #1d4ed8;
 }
 
+.enrollButton:hover,
 .addButton:hover,
 .editButton:hover,
 .deleteButton:hover,
@@ -293,6 +301,176 @@
   font-size: 0.95rem;
   line-height: 1.55;
   color: #4b5563;
+}
+
+.feedbackPreview {
+  margin: 0 1.1rem 1rem;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.feedbackPreviewHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.feedbackPreviewHeader h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+  color: #111827;
+}
+
+.feedbackPreviewHeader p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #4b5563;
+}
+
+.feedbackReviewLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  border-radius: 10px;
+  padding: 0.7rem 0.95rem;
+  background: #111827;
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.feedbackReviewLink:hover {
+  background: #1f2937;
+}
+
+.feedbackSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.feedbackSummaryCard {
+  padding: 0.85rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.feedbackSummaryCard strong {
+  display: block;
+  font-size: 1.3rem;
+  color: #111827;
+}
+
+.feedbackSummaryCard span {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+
+.feedbackSubmissionList {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.feedbackSubmissionItem {
+  display: block;
+  padding: 0.85rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.feedbackSubmissionItem:hover {
+  border-color: #f59e0b;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(17, 24, 39, 0.06);
+}
+
+.feedbackSubmissionTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.feedbackSubmissionItem p,
+.feedbackSubmissionItem small {
+  display: block;
+  margin: 0;
+  color: #6b7280;
+}
+
+.feedbackSubmissionItem p {
+  font-size: 0.9rem;
+}
+
+.feedbackSubmissionItem small {
+  margin-top: 0.25rem;
+  font-size: 0.82rem;
+}
+
+.feedbackSubmissionBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.feedbackSubmissionBadgeNeutral {
+  background: #f3f4f6;
+  color: #4b5563;
+  border-color: #e5e7eb;
+}
+
+.feedbackSubmissionBadgeInfo {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-color: #93c5fd;
+}
+
+.feedbackSubmissionBadgeSuccess {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
+}
+
+.feedbackSubmissionBadgeWarning {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
+}
+
+.feedbackSubmissionBadgeDanger {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+
+.feedbackEmptyState,
+.feedbackMoreHint {
+  border-radius: 12px;
+  border: 1px dashed #d1d5db;
+  background: #f9fafb;
+  color: #4b5563;
+  padding: 0.95rem 1rem;
+  font-size: 0.9rem;
 }
 
 .noVideoSelected {
@@ -405,6 +583,14 @@
   .videoNavigation {
     flex-wrap: wrap;
     justify-content: center;
+  }
+
+  .feedbackPreviewHeader {
+    flex-direction: column;
+  }
+
+  .feedbackSummaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

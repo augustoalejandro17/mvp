@@ -70,6 +70,10 @@ export class CreateSchoolDto {
   readonly activeSubscription?: string;
 
   @IsOptional()
+  @IsMongoId({ message: 'El ID del plan debe ser un ID válido' })
+  readonly planId?: string;
+
+  @IsOptional()
   @IsString()
   readonly timezone?: string;
 }

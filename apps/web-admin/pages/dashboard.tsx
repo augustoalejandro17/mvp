@@ -8,6 +8,7 @@ import { CardSkeleton, StatsCardSkeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
 import api from '../utils/api-client';
+import { getImageUrl } from '../utils/image-utils';
 
 interface DecodedToken {
   sub: string;
@@ -118,7 +119,7 @@ const CourseCard = ({ course }: { course: Course }) => (
   <Link href={`/course/${course._id}`} className={styles.courseCard}>
     <div className={styles.courseImage}>
       {course.imageUrl ? (
-        <img src={course.imageUrl} alt={course.title} />
+        <img src={getImageUrl(course.imageUrl)} alt={course.title} />
       ) : (
         <div className={styles.coursePlaceholder}>
           <span>📚</span>

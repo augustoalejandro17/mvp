@@ -187,6 +187,32 @@
   font-weight: 600;
 }
 
+.searchRow {
+  width: 100%;
+}
+
+.searchInput {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111827;
+  padding: 0.95rem 1rem;
+  font-size: 0.96rem;
+  outline: none;
+  box-shadow: 0 10px 24px rgba(17, 24, 39, 0.06);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.searchInput::placeholder {
+  color: #9ca3af;
+}
+
+.searchInput:focus {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.12);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));

@@ -17,6 +17,7 @@ import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { PlansModule } from '../plans/plans.module';
+import { Plan, PlanSchema } from '../plans/schemas/plan.schema';
 import { PlanLimitsMiddleware } from './middleware/plan-limits.middleware';
 
 @Module({
@@ -24,6 +25,7 @@ import { PlanLimitsMiddleware } from './middleware/plan-limits.middleware';
     MongooseModule.forFeature([
       { name: School.name, schema: SchoolSchema },
       { name: User.name, schema: UserSchema },
+      { name: Plan.name, schema: PlanSchema },
     ]),
     forwardRef(() => AuthModule),
     UsersModule,

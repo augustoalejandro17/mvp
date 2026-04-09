@@ -6,6 +6,7 @@ import api from '../../utils/api-client';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/AdminDashboard.module.css';
 import AdminNavigation from '../../components/AdminNavigation';
+import { getImageUrl } from '../../utils/image-utils';
 
 interface DecodedToken {
   sub: string;
@@ -240,7 +241,7 @@ export default function SchoolsManager() {
                         <td>
                           <div className={styles.schoolName}>
                             {school.logoUrl && (
-                              <img src={school.logoUrl} alt={school.name} className={styles.schoolLogo} />
+                              <img src={getImageUrl(school.logoUrl)} alt={school.name} className={styles.schoolLogo} />
                             )}
                             <span title={school.name}>{school.name}</span>
                             {school.isPublic && <span className={styles.publicBadge}>Pública</span>}

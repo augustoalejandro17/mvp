@@ -2,7 +2,16 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosR
 import Cookies from 'js-cookie';
 import { getToken, clearAuth } from './auth';
 
-const baseURL = process.env.NEXT_PUBLIC_API_URL;
+const normalizeApiBaseUrl = (rawValue?: string): string => {
+  const trimmed = String(rawValue || '').trim();
+  if (!trimmed) {
+    return '/api';
+  }
+
+  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+};
+
+const baseURL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
 console.log('API Base URL:', baseURL); // Para debugging
 
@@ -36,6 +45,10 @@ const refreshImageUrl = async (key: string): Promise<string | null> => {
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = getToken(); // Usar getToken que verifica expiración
+
+    if (typeof config.url === 'string' && config.url.startsWith('/api/')) {
+      config.url = config.url.replace(/^\/api/, '');
+    }
     
     // Only add token if it exists, is valid, AND the request doesn't explicitly exclude it
     if (token && config.headers && !config.headers['Skip-Auth']) {

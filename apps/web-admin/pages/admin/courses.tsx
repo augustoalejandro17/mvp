@@ -6,6 +6,7 @@ import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
 import styles from '../../styles/AdminDashboard.module.css';
 import AdminNavigation from '../../components/AdminNavigation';
+import { getImageUrl } from '../../utils/image-utils';
 
 interface DecodedToken {
   sub: string;
@@ -252,7 +253,7 @@ export default function CoursesManager() {
                         <div className={styles.courseNameCell}>
                           {course.imageUrl && (
                             <img
-                              src={course.imageUrl}
+                              src={getImageUrl(course.imageUrl)}
                               alt={course.title}
                               className={styles.courseThumbnail}
                             />

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import Cookies from 'js-cookie';
@@ -43,15 +43,30 @@ export default function EnrollmentManagementPage() {
   const router = useRouter();
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
-  const [students, setStudents] = useState<User[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<string>('');
   const [selectedStudent, setSelectedStudent] = useState<string>('');
+  const [studentSearch, setStudentSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [hasSearchedStudents, setHasSearchedStudents] = useState(false);
+  const [isSearchingStudents, setIsSearchingStudents] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [isUnenrolling, setIsUnenrolling] = useState(false);
   const { handleApiError } = useApiErrorHandler();
+  const selectedCourseRecord = useMemo(
+    () => courses.find((course) => course._id === selectedCourse) || null,
+    [courses, selectedCourse],
+  );
+  const selectedStudentRecord = useMemo(
+    () => searchResults.find((student) => student._id === selectedStudent) || null,
+    [searchResults, selectedStudent],
+  );
+  const enrolledStudentIds = useMemo(
+    () => new Set(enrollments.map((enrollment) => enrollment.student._id)),
+    [enrollments],
+  );
 
   const fetchCourses = useCallback(async () => {
     try {
@@ -65,21 +80,6 @@ export default function EnrollmentManagementPage() {
       setCourses(response.data);
     } catch (error) {
       handleApiError(error, 'Error al cargar los cursos');
-    }
-  }, [handleApiError]);
-
-  const fetchStudents = useCallback(async () => {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const token = Cookies.get('token');
-      
-      const response = await axios.get(`${apiUrl}/api/users?role=student`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      setStudents(response.data);
-    } catch (error) {
-      handleApiError(error, 'Error al cargar los estudiantes');
     }
   }, [handleApiError]);
 
@@ -115,29 +115,82 @@ export default function EnrollmentManagementPage() {
     try {
       const decoded = jwtDecode<DecodedToken>(token);
       
-      // Solo los administradores pueden acceder a esta página
-      if (decoded.role !== 'admin' && decoded.role !== 'school_owner' && decoded.role !== 'super_admin') {
+      if (
+        decoded.role !== 'admin' &&
+        decoded.role !== 'school_owner' &&
+        decoded.role !== 'super_admin' &&
+        decoded.role !== 'teacher' &&
+        decoded.role !== 'administrative'
+      ) {
         router.push('/');
         return;
       }
 
       fetchCourses();
-      fetchStudents();
-      fetchEnrollments();
+      const initialCourseId =
+        typeof router.query.courseId === 'string' ? router.query.courseId : '';
+
+      if (initialCourseId) {
+        setSelectedCourse(initialCourseId);
+        fetchEnrollments(initialCourseId);
+      } else {
+        fetchEnrollments();
+      }
     } catch (error) {
       console.error('Error al decodificar token:', error);
       router.push('/login');
     }
-  }, [router, fetchCourses, fetchStudents, fetchEnrollments]);
+  }, [router, router.query.courseId, fetchCourses, fetchEnrollments]);
 
-  const handleCourseChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const courseId = e.target.value;
+  const handleCourseChange = (courseId: string) => {
     setSelectedCourse(courseId);
+    setSelectedStudent('');
+    setStudentSearch('');
+    setSearchResults([]);
+    setHasSearchedStudents(false);
     
     if (courseId) {
       fetchEnrollments(courseId);
     } else {
       fetchEnrollments();
+    }
+  };
+
+  const handleSearchStudents = async () => {
+    const query = studentSearch.trim();
+    if (!selectedCourseRecord?.school?._id) {
+      setError('Selecciona primero un curso para buscar estudiantes.');
+      return;
+    }
+    if (!query || query.length < 3) {
+      setError('Escribe al menos 3 caracteres del email para buscar.');
+      return;
+    }
+
+    try {
+      setIsSearchingStudents(true);
+      setHasSearchedStudents(true);
+      setError('');
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      const token = Cookies.get('token');
+      const response = await axios.get(`${apiUrl}/api/users/search-by-email`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          email: query,
+          schoolId: selectedCourseRecord.school._id,
+        },
+      });
+
+      const items = Array.isArray(response.data) ? response.data : [];
+      setSearchResults(
+        items.filter((candidate) => String(candidate.role || '').toLowerCase() !== 'unregistered'),
+      );
+    } catch (searchError) {
+      setSearchResults([]);
+      handleApiError(searchError, 'No se pudo buscar estudiantes');
+    } finally {
+      setIsSearchingStudents(false);
     }
   };
 
@@ -164,6 +217,9 @@ export default function EnrollmentManagementPage() {
       
       setSuccess('Estudiante inscrito correctamente');
       setSelectedStudent('');
+      setStudentSearch('');
+      setSearchResults([]);
+      setHasSearchedStudents(false);
       
       // Actualizar la lista de inscripciones
       fetchEnrollments(selectedCourse);
@@ -217,7 +273,7 @@ export default function EnrollmentManagementPage() {
               <select
                 id="courseFilter"
                 value={selectedCourse}
-                onChange={handleCourseChange}
+                onChange={(e) => handleCourseChange(e.target.value)}
                 className={styles.select}
               >
                 <option value="">Todos los cursos</option>
@@ -238,7 +294,7 @@ export default function EnrollmentManagementPage() {
                 <select
                   id="courseSelect"
                   value={selectedCourse}
-                  onChange={(e) => setSelectedCourse(e.target.value)}
+                  onChange={(e) => handleCourseChange(e.target.value)}
                   className={styles.select}
                   required
                 >
@@ -252,23 +308,92 @@ export default function EnrollmentManagementPage() {
               </div>
               
               <div className={styles.formGroup}>
-                <label htmlFor="studentSelect">Estudiante:</label>
-                <select
-                  id="studentSelect"
-                  value={selectedStudent}
-                  onChange={(e) => setSelectedStudent(e.target.value)}
-                  className={styles.select}
-                  required
-                >
-                  <option value="">Selecciona un estudiante</option>
-                  {[...students]
-                    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
-                    .map(student => (
-                      <option key={student._id} value={student._id}>
-                        {student.name} - {student.email}
-                      </option>
-                    ))}
-                </select>
+                <label htmlFor="studentSearch">Estudiante:</label>
+                <div className={styles.searchBox}>
+                  <input
+                    id="studentSearch"
+                    type="search"
+                    value={studentSearch}
+                    onChange={(e) => {
+                      setStudentSearch(e.target.value);
+                      if (!e.target.value.trim()) {
+                        setSearchResults([]);
+                        setHasSearchedStudents(false);
+                        setSelectedStudent('');
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        void handleSearchStudents();
+                      }
+                    }}
+                    placeholder="Busca un estudiante por email..."
+                    className={styles.searchInput}
+                  />
+                  <button
+                    type="button"
+                    className={styles.searchButton}
+                    onClick={() => void handleSearchStudents()}
+                    disabled={isSearchingStudents}
+                  >
+                    {isSearchingStudents ? 'Buscando...' : 'Buscar'}
+                  </button>
+                </div>
+                <p className={styles.helperText}>
+                  Búsqueda global por email, igual que en mobile.
+                </p>
+
+                {selectedStudentRecord && (
+                  <div className={styles.selectedStudentCard}>
+                    <strong>{selectedStudentRecord.name}</strong>
+                    <span>{selectedStudentRecord.email}</span>
+                  </div>
+                )}
+
+                {searchResults.length > 0 && (
+                  <div className={styles.searchResults}>
+                    {[...searchResults]
+                      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+                      .map((student) => {
+                        const alreadyEnrolled = enrolledStudentIds.has(student._id);
+                        const isSelected = selectedStudent === student._id;
+
+                        return (
+                          <button
+                            key={student._id}
+                            type="button"
+                            className={`${styles.searchResultItem} ${isSelected ? styles.searchResultItemActive : ''}`}
+                            onClick={() => {
+                              if (!alreadyEnrolled) {
+                                setSelectedStudent(student._id);
+                              }
+                            }}
+                            disabled={alreadyEnrolled}
+                          >
+                            <div className={styles.searchResultInfo}>
+                              <strong>{student.name}</strong>
+                              <span>{student.email}</span>
+                              <small>{student.role}</small>
+                            </div>
+                            {alreadyEnrolled ? (
+                              <span className={styles.resultBadgeMuted}>Ya inscrito</span>
+                            ) : isSelected ? (
+                              <span className={styles.resultBadgeActive}>Seleccionado</span>
+                            ) : (
+                              <span className={styles.resultBadge}>Elegir</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+
+                {hasSearchedStudents && !isSearchingStudents && searchResults.length === 0 && (
+                  <div className={styles.noSearchResults}>
+                    No encontramos estudiantes registrados con ese email.
+                  </div>
+                )}
               </div>
               
               <button

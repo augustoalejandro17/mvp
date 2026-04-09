@@ -4,17 +4,18 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import styles from '../../styles/Course.module.css';
-import { FaPlus, FaTrashAlt, FaEdit, FaUserCheck, FaArrowLeft } from 'react-icons/fa';
+import { FaPlus, FaTrashAlt, FaEdit, FaArrowLeft, FaUserPlus } from 'react-icons/fa';
 import { jwtDecode } from 'jwt-decode';
 import { useApiErrorHandler } from '../../utils/api-error-handler';
 import ImageFallback from '../../components/ImageFallback';
-import { canModifyClass, canManageVideos, canManageAttendance } from '../../utils/permission-utils';
+import { canModifyClass, canManageVideos } from '../../utils/permission-utils';
 import { useMediaQuery } from 'react-responsive';
 import PlaylistManager from '../../components/PlaylistManager';
 import VideoPlayerWithTracking from '../../components/VideoPlayerWithTracking';
 import LazyVideoLoader from '../../components/LazyVideoLoader';
 import VideoJSPlayer from '../../components/VideoJSPlayer';
 import SimpleVideoPlayer from '../../components/SimpleVideoPlayer';
+import api from '../../utils/api-client';
 
 interface Course {
   _id: string;
@@ -59,6 +60,73 @@ interface DecodedToken {
   role: string;
 }
 
+interface SubmissionAuthor {
+  _id?: string;
+  name?: string;
+  email?: string;
+}
+
+interface ClassSubmission {
+  _id: string;
+  student?: SubmissionAuthor;
+  videoUrl?: string | null;
+  videoStatus: 'UPLOADING' | 'PROCESSING' | 'READY' | 'ERROR';
+  reviewStatus: 'SUBMITTED' | 'REVIEWED' | 'NEEDS_RESUBMISSION';
+  videoProcessingError?: string | null;
+  annotationsCount?: number;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+}
+
+const getSubmissionSortWeight = (submission: ClassSubmission): number => {
+  if (submission.reviewStatus === 'SUBMITTED' && submission.videoStatus === 'READY') {
+    return 0;
+  }
+
+  if (submission.reviewStatus === 'NEEDS_RESUBMISSION') {
+    return 1;
+  }
+
+  if (
+    submission.videoStatus === 'PROCESSING' ||
+    submission.videoStatus === 'UPLOADING'
+  ) {
+    return 2;
+  }
+
+  if (submission.videoStatus === 'ERROR') {
+    return 3;
+  }
+
+  return 4;
+};
+
+const getSubmissionStatusMeta = (
+  submission: ClassSubmission,
+): { label: string; tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger' } => {
+  if (submission.videoStatus === 'ERROR') {
+    return { label: 'Error al procesar', tone: 'danger' };
+  }
+
+  if (submission.videoStatus === 'PROCESSING') {
+    return { label: 'Procesando', tone: 'warning' };
+  }
+
+  if (submission.videoStatus === 'UPLOADING') {
+    return { label: 'Subiendo', tone: 'neutral' };
+  }
+
+  if (submission.reviewStatus === 'REVIEWED') {
+    return { label: 'Feedback listo', tone: 'success' };
+  }
+
+  if (submission.reviewStatus === 'NEEDS_RESUBMISSION') {
+    return { label: 'Reenvío solicitado', tone: 'warning' };
+  }
+
+  return { label: 'Sin revisar', tone: 'info' };
+};
+
 export default function CourseDetail() {
   const router = useRouter();
   const { id } = router.query;
@@ -75,6 +143,9 @@ export default function CourseDetail() {
   const [videoStreamUrl, setVideoStreamUrl] = useState<string | null>(null);
   const [videoLoadError, setVideoLoadError] = useState(false);
   const [useSimplePlayer, setUseSimplePlayer] = useState(false);
+  const [classSubmissions, setClassSubmissions] = useState<ClassSubmission[]>([]);
+  const [submissionsLoading, setSubmissionsLoading] = useState(false);
+  const [submissionsError, setSubmissionsError] = useState<string | null>(null);
   const videoColumnRef = useRef<HTMLDivElement>(null);
   const { handleApiError } = useApiErrorHandler();
 
@@ -242,25 +313,12 @@ export default function CourseDetail() {
     return isTeacherOfCourse();
   }, [userRole, course, isTeacherOfCourse]);
 
-  const canTakeAttendance = useCallback((teacherId: string | undefined): boolean => {
-    if (!userRole || !teacherId || !course) return false;
-    
-    // Administradores globales pueden tomar asistencia en cualquier curso
-    if (['super_admin', 'admin'].includes(userRole)) return true;
-    
-    // School owner y administrative pueden tomar asistencia en sus escuelas
-    if (['school_owner', 'administrative'].includes(userRole) && course.school) {
-      // Necesitaríamos verificar la relación con la escuela
-      return true; // Simplificado
-    }
-    
-    // El profesor del curso siempre puede tomar asistencia
-    if (isTeacherOfCourse()) return true;
-    
-    // Verificamos si el profesor de la clase específica puede tomar asistencia
-    const hasPermission = canManageAttendance(userRole, isClassTeacher(teacherId));
-    return hasPermission;
-  }, [userRole, course, isTeacherOfCourse, isClassTeacher]);
+  const canReviewSelectedClass = useCallback((): boolean => {
+    return Boolean(
+      userRole &&
+      ['teacher', 'administrative', 'school_owner', 'admin', 'super_admin'].includes(userRole)
+    );
+  }, [userRole]);
 
   const handleDeleteCourse = async () => {
     if (!confirm('¿Estás seguro de que deseas eliminar este curso? Esta acción no se puede deshacer.')) {
@@ -441,11 +499,65 @@ export default function CourseDetail() {
     if (userRole && course) {
       const isTeacher = isClassTeacher(course.teacher._id);
       const canModify = canModifyClassItem();
-      const canAttend = canTakeAttendance(course.teacher._id);
       
       
     }
-  }, [userRole, course, isClassTeacher, canModifyClassItem, canTakeAttendance]);
+  }, [userRole, course, isClassTeacher, canModifyClassItem]);
+
+  useEffect(() => {
+    const fetchSelectedClassSubmissions = async () => {
+      if (!selectedClass?._id || !canReviewSelectedClass()) {
+        setClassSubmissions([]);
+        setSubmissionsError(null);
+        return;
+      }
+
+      try {
+        setSubmissionsLoading(true);
+        setSubmissionsError(null);
+        const response = await api.get(`/class-submissions/class/${selectedClass._id}`);
+        const nextSubmissions = (response.data || [])
+          .slice()
+          .sort((left: ClassSubmission, right: ClassSubmission) => {
+            const weightDiff = getSubmissionSortWeight(left) - getSubmissionSortWeight(right);
+            if (weightDiff !== 0) {
+              return weightDiff;
+            }
+
+            const leftDate = new Date(left.submittedAt || 0).getTime();
+            const rightDate = new Date(right.submittedAt || 0).getTime();
+            return rightDate - leftDate;
+          });
+
+        setClassSubmissions(nextSubmissions);
+      } catch (submissionError) {
+        console.error('Could not fetch class submissions from course detail:', submissionError);
+        setClassSubmissions([]);
+        setSubmissionsError(
+          (submissionError as any)?.response?.data?.message ||
+          (submissionError as Error)?.message ||
+          'No pudimos cargar las prácticas de esta clase.'
+        );
+      } finally {
+        setSubmissionsLoading(false);
+      }
+    };
+
+    void fetchSelectedClassSubmissions();
+  }, [selectedClass?._id, canReviewSelectedClass]);
+
+  const submissionSummary = {
+    total: classSubmissions.length,
+    pending: classSubmissions.filter(
+      (submission) => submission.reviewStatus === 'SUBMITTED' && submission.videoStatus === 'READY'
+    ).length,
+    resubmission: classSubmissions.filter(
+      (submission) => submission.reviewStatus === 'NEEDS_RESUBMISSION'
+    ).length,
+    reviewed: classSubmissions.filter(
+      (submission) => submission.reviewStatus === 'REVIEWED'
+    ).length,
+  };
 
   if (loading) {
     return <div className={styles.loading}>Cargando información...</div>;
@@ -512,6 +624,9 @@ export default function CourseDetail() {
             
             {canModifyThisCourse() && (
               <div className={styles.courseActions}>
+                <Link href={`/admin/enrollment-management?courseId=${course._id}`} className={styles.enrollButton}>
+                  <FaUserPlus className={styles.icon} /> Matricular estudiantes
+                </Link>
                 <Link href={`/class/create?courseId=${course._id}`} className={styles.addButton}>
                   <FaPlus className={styles.icon} /> Agregar Clase
                 </Link>
@@ -526,12 +641,6 @@ export default function CourseDetail() {
                   <FaTrashAlt className={styles.icon} /> Eliminar Curso
                 </button>
               </div>
-            )}
-
-            {course.teacher && canTakeAttendance(course.teacher._id) && (
-              <Link href={`/course/attendance/${course._id}`} className={styles.attendanceButton}>
-                <FaUserCheck className={styles.icon} /> Control de Asistencia
-              </Link>
             )}
           </div>
           
@@ -756,6 +865,85 @@ export default function CourseDetail() {
                   <h2>{selectedClass.title}</h2>
                   <p>{selectedClass.description}</p>
                 </div>
+
+                {canReviewSelectedClass() && (
+                  <div className={styles.feedbackPreview}>
+                    <div className={styles.feedbackPreviewHeader}>
+                      <div>
+                        <h3>Prácticas y feedback</h3>
+                        <p>Resumen rápido de entregas para esta clase. La revisión detallada se abre en la vista de clase.</p>
+                      </div>
+                      <Link
+                        href={`/class/${selectedClass._id}?courseId=${course._id}&from=course`}
+                        className={styles.feedbackReviewLink}
+                      >
+                        Abrir revisión completa
+                      </Link>
+                    </div>
+
+                    <div className={styles.feedbackSummaryGrid}>
+                      <div className={styles.feedbackSummaryCard}>
+                        <strong>{submissionSummary.total}</strong>
+                        <span>Entregas</span>
+                      </div>
+                      <div className={styles.feedbackSummaryCard}>
+                        <strong>{submissionSummary.pending}</strong>
+                        <span>Sin revisar</span>
+                      </div>
+                      <div className={styles.feedbackSummaryCard}>
+                        <strong>{submissionSummary.resubmission}</strong>
+                        <span>Reenvíos</span>
+                      </div>
+                      <div className={styles.feedbackSummaryCard}>
+                        <strong>{submissionSummary.reviewed}</strong>
+                        <span>Revisadas</span>
+                      </div>
+                    </div>
+
+                    {submissionsError ? (
+                      <div className={styles.feedbackEmptyState}>{submissionsError}</div>
+                    ) : submissionsLoading ? (
+                      <div className={styles.feedbackEmptyState}>Cargando prácticas...</div>
+                    ) : classSubmissions.length === 0 ? (
+                      <div className={styles.feedbackEmptyState}>
+                        Todavía no hay prácticas enviadas para esta clase.
+                      </div>
+                    ) : (
+                      <div className={styles.feedbackSubmissionList}>
+                        {classSubmissions.slice(0, 4).map((submission) => {
+                          const statusMeta = getSubmissionStatusMeta(submission);
+                          return (
+                            <Link
+                              key={submission._id}
+                              href={`/class/${selectedClass._id}?courseId=${course._id}&from=course&submissionId=${submission._id}`}
+                              className={styles.feedbackSubmissionItem}
+                            >
+                              <div className={styles.feedbackSubmissionTop}>
+                                <strong>{submission.student?.name || submission.student?.email || 'Alumno'}</strong>
+                                <span
+                                  className={`${styles.feedbackSubmissionBadge} ${styles[`feedbackSubmissionBadge${statusMeta.tone.charAt(0).toUpperCase()}${statusMeta.tone.slice(1)}`]}`}
+                                >
+                                  {statusMeta.label}
+                                </span>
+                              </div>
+                              <p>
+                                {submission.submittedAt
+                                  ? new Date(submission.submittedAt).toLocaleString()
+                                  : 'Sin fecha'}
+                              </p>
+                              <small>{submission.annotationsCount || 0} anotación(es)</small>
+                            </Link>
+                          );
+                        })}
+                        {classSubmissions.length > 4 && (
+                          <div className={styles.feedbackMoreHint}>
+                            Hay {classSubmissions.length - 4} práctica(s) más en la revisión completa.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 {/* Navigation buttons */}
                 {allClasses.length > 1 && (

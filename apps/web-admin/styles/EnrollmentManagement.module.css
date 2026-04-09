@@ -89,6 +89,155 @@
   font-weight: 500;
 }
 
+.searchBox {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.searchInput {
+  flex: 1;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  font: inherit;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 4px rgba(74, 144, 226, 0.12);
+}
+
+.searchButton {
+  padding: 12px 16px;
+  border: none;
+  border-radius: 10px;
+  background: #f59e0b;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.searchButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.helperText {
+  margin: 0.4rem 0 0;
+  color: #6b7280;
+  font-size: 0.88rem;
+}
+
+.selectedStudentCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+}
+
+.selectedStudentCard span {
+  font-size: 0.92rem;
+}
+
+.searchResults {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.searchResultItem {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  text-align: left;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.searchResultItem:hover:not(:disabled) {
+  border-color: #4a90e2;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.searchResultItem:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.searchResultItemActive {
+  border-color: #4a90e2;
+  background: #eff6ff;
+}
+
+.searchResultInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.searchResultInfo strong {
+  color: #111827;
+}
+
+.searchResultInfo span,
+.searchResultInfo small {
+  color: #6b7280;
+}
+
+.searchResultInfo small {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.resultBadge,
+.resultBadgeActive,
+.resultBadgeMuted {
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.resultBadge {
+  background: #fff7ed;
+  color: #b45309;
+  border: 1px solid #fed7aa;
+}
+
+.resultBadgeActive {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+}
+
+.resultBadgeMuted {
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+}
+
+.noSearchResults {
+  padding: 0.95rem 1rem;
+  border-radius: 12px;
+  border: 1px dashed #d1d5db;
+  background: #f9fafb;
+  color: #6b7280;
+}
+
 .enrollButton {
   padding: 10px 15px;
   background-color: #4a90e2;
@@ -252,6 +401,16 @@
   
   .formGroup {
     width: 100%;
+  }
+
+  .searchBox {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .searchResultItem {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 
