@@ -67,6 +67,10 @@ function QuickAction({ label, icon, onPress, color }: { label: string; icon: str
 export default function AdminPanelScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const currentRole = String(user?.role || '').toLowerCase();
+  const canCreateSchool =
+    currentRole === 'super_admin' || currentRole === 'school_owner';
+  const canOpenPlatformControl = currentRole === 'super_admin';
   const [stats, setStats] = useState<Record<string, any>>({});
   const [seatCapabilities, setSeatCapabilities] = useState<SeatPolicyCapabilities>(
     DEFAULT_CAPABILITIES,
@@ -190,12 +194,14 @@ export default function AdminPanelScreen() {
           color="#f59e0b"
           onPress={() => router.push('/(tabs)/home')}
         />
-        <QuickAction
-          label="Crear nueva escuela"
-          icon="add-circle-outline"
-          color="#10b981"
-          onPress={() => router.push('/manage/school/new')}
-        />
+        {canCreateSchool && (
+          <QuickAction
+            label="Crear nueva escuela"
+            icon="add-circle-outline"
+            color="#10b981"
+            onPress={() => router.push('/manage/school/new')}
+          />
+        )}
 
         {/* Manage Courses */}
         <Text className="text-gray-700 font-bold text-sm uppercase tracking-wide mb-2 mt-3 px-1">Gestión de Cursos</Text>
@@ -214,8 +220,7 @@ export default function AdminPanelScreen() {
           color="#3b82f6"
           onPress={() => router.push('/manage/users')}
         />
-        {(String(user?.role || '').toLowerCase() === 'super_admin' ||
-          String(user?.role || '').toLowerCase() === 'admin') && (
+        {canOpenPlatformControl && (
           <QuickAction
             label="Control de plataforma"
             icon="shield-checkmark-outline"

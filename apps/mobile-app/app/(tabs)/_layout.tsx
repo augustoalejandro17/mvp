@@ -7,10 +7,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@inti/shared-types';
 import { apiClient } from '@/services/apiClient';
 
-const ADMIN_ROLES: UserRole[] = [
+const PANEL_ROLES: UserRole[] = [
   UserRole.SUPER_ADMIN,
   UserRole.ADMIN,
   UserRole.SCHOOL_OWNER,
+  UserRole.ADMINISTRATIVE,
 ];
 
 function TabIcon({ name, color, size }: { name: string; color: string; size: number }) {
@@ -21,9 +22,9 @@ export default function TabsLayout() {
   const { user, isLoading } = useAuth();
   const [canViewSeatManagementModule, setCanViewSeatManagementModule] =
     useState(false);
-  const isAdminByRole =
-    !!user?.role && ADMIN_ROLES.includes(user.role as UserRole);
-  const isAdmin = isAdminByRole || canViewSeatManagementModule;
+  const canAccessPanelByRole =
+    !!user?.role && PANEL_ROLES.includes(user.role as UserRole);
+  const canAccessPanel = canAccessPanelByRole || canViewSeatManagementModule;
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 8);
   const tabBarHeight = 54 + bottomInset;
@@ -110,7 +111,7 @@ export default function TabsLayout() {
         name="admin"
         options={{
           title: 'Panel',
-          href: isAdmin ? undefined : null, // hide if not admin
+          href: canAccessPanel ? undefined : null,
           tabBarIcon: ({ color, size, focused }) => (
             <TabIcon name={focused ? 'settings' : 'settings-outline'} color={color} size={size} />
           ),
