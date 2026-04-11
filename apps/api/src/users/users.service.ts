@@ -415,12 +415,33 @@ export class UsersService {
   }
 
   async update(id: string, userData: Partial<User>): Promise<User> {
+    const sanitizedUserData = { ...userData } as Partial<User>;
+    delete (sanitizedUserData as any).canCreateSchool;
     const user = await this.userModel
-      .findByIdAndUpdate(id, userData, { new: true })
+      .findByIdAndUpdate(id, sanitizedUserData, { new: true })
       .exec();
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
+    return user;
+  }
+
+  async setCanCreateSchool(
+    userId: string,
+    canCreateSchool: boolean,
+  ): Promise<User> {
+    const user = await this.userModel
+      .findByIdAndUpdate(
+        userId,
+        { canCreateSchool: canCreateSchool === true },
+        { new: true },
+      )
+      .exec();
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
     return user;
   }
 

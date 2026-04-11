@@ -232,6 +232,16 @@ function UserRow({
             </Text>
           </View>
         )}
+        {(user as any).canCreateSchool === true && (
+          <View
+            className="px-2.5 py-1 rounded-full mb-2"
+            style={{ backgroundColor: '#fff7ed' }}
+          >
+            <Text className="text-xs font-semibold" style={{ color: '#c2410c' }}>
+              Puede crear escuelas
+            </Text>
+          </View>
+        )}
       </View>
 
       {(canEnrollUser || canOpenManageFlow) && (
@@ -295,7 +305,8 @@ export default function UsersScreen() {
   const currentRole = String((authUser as any)?.role || '').toLowerCase();
   const canManageUsers = ['super_admin', 'admin', 'school_owner', 'administrative'].includes(currentRole);
   const canChangeRoles = currentRole === 'super_admin';
-  const canOpenPlatformModule = currentRole === 'super_admin' || currentRole === 'admin';
+  const canGrantSchoolCreation = currentRole === 'super_admin';
+  const canOpenPlatformModule = currentRole === 'super_admin';
 
   const loadUsers = useCallback(async () => {
     try {
@@ -456,6 +467,49 @@ export default function UsersScreen() {
         toAlertMessage(
           error?.response?.data?.message || error?.message,
           'No se pudo actualizar el rol',
+        ),
+      );
+    } finally {
+      setIsUpdatingUser(false);
+    }
+  };
+
+  const handleToggleCreateSchoolPermission = async (enabled: boolean) => {
+    const target = manageUserTarget;
+    const targetId = getEntityId(target);
+    if (!targetId) return;
+    if (targetId === currentUserId) {
+      Alert.alert(
+        'Acción no permitida',
+        'No puedes cambiar tu propio permiso desde esta pantalla.',
+      );
+      return;
+    }
+
+    setIsUpdatingUser(true);
+    try {
+      const updated = await apiClient.setUserCreateSchoolPermission(
+        targetId,
+        enabled,
+      );
+      applyUserPatch(updated);
+      setManageUserTarget((prev) =>
+        prev && getEntityId(prev) === getEntityId(updated)
+          ? { ...prev, ...updated }
+          : prev,
+      );
+      Alert.alert(
+        'Listo',
+        enabled
+          ? 'El usuario ahora puede crear escuelas.'
+          : 'Se retiró el permiso para crear escuelas.',
+      );
+    } catch (error: any) {
+      Alert.alert(
+        'Error',
+        toAlertMessage(
+          error?.response?.data?.message || error?.message,
+          'No se pudo actualizar el permiso',
         ),
       );
     } finally {
@@ -819,6 +873,36 @@ export default function UsersScreen() {
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
+                </>
+              ) : null}
+
+              {canGrantSchoolCreation ? (
+                <>
+                  <Text className="text-gray-700 font-semibold text-sm mb-2">
+                    Permisos especiales
+                  </Text>
+                  <View className="flex-row mb-4">
+                    <TouchableOpacity
+                      disabled={isUpdatingUser}
+                      onPress={() => handleToggleCreateSchoolPermission(true)}
+                      className="px-3 py-2 rounded-xl mr-2"
+                      style={{ backgroundColor: '#fff7ed' }}
+                    >
+                      <Text style={{ color: '#c2410c', fontWeight: '600' }}>
+                        Permitir crear escuelas
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      disabled={isUpdatingUser}
+                      onPress={() => handleToggleCreateSchoolPermission(false)}
+                      className="px-3 py-2 rounded-xl"
+                      style={{ backgroundColor: '#f3f4f6' }}
+                    >
+                      <Text style={{ color: '#4b5563', fontWeight: '600' }}>
+                        Quitar permiso
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </>
               ) : null}
 

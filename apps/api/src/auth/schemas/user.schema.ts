@@ -184,6 +184,9 @@ export class User {
   @Prop({ required: true, enum: UserRole, default: UserRole.STUDENT })
   role: UserRole;
 
+  @Prop({ default: false })
+  canCreateSchool: boolean;
+
   // Roles contextuales por escuela (múltiples roles)
   @Prop({ type: [UserSchoolRoleSchema], default: [] })
   schoolRoles: UserSchoolRole[];

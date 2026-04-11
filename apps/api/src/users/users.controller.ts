@@ -134,6 +134,16 @@ export class UsersController {
     return this.usersService.update(id, updateUserDto);
   }
 
+  @Patch(':id/create-school-permission')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async setCreateSchoolPermission(
+    @Param('id') id: string,
+    @Body() body: { canCreateSchool: boolean },
+  ): Promise<AuthUser> {
+    return this.usersService.setCanCreateSchool(id, body?.canCreateSchool === true);
+  }
+
   @Delete('me')
   @UseGuards(JwtAuthGuard)
   async deleteSelf(@Req() req: Request) {

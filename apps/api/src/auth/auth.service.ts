@@ -114,6 +114,7 @@ export class AuthService {
           email: user.email,
           name: user.name,
           role: user.role,
+          canCreateSchool: user.canCreateSchool === true,
         },
         token,
       };
@@ -217,6 +218,7 @@ export class AuthService {
           email: user.email,
           name: user.name,
           role: user.role,
+          canCreateSchool: user.canCreateSchool === true,
         },
         token,
       };
@@ -265,6 +267,7 @@ export class AuthService {
           email: user.email,
           name: user.name,
           role: user.role,
+          canCreateSchool: user.canCreateSchool === true,
           provider: user.provider,
           profileImageUrl: user.profileImageUrl,
           hasOnboarded: user.hasOnboarded,
@@ -299,6 +302,7 @@ export class AuthService {
           email: user.email,
           name: user.name,
           role: user.role,
+          canCreateSchool: user.canCreateSchool === true,
           provider: user.provider,
           profileImageUrl: user.profileImageUrl,
           hasOnboarded: user.hasOnboarded,
@@ -413,6 +417,7 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role.toString(), // Convert to string to ensure consistent format
+        canCreateSchool: user.canCreateSchool === true,
         schoolRoles: user.schoolRoles || [],
         schools: user.schools || [],
         // Onboarding information

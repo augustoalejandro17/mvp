@@ -23,6 +23,7 @@ export interface LoginResponse {
     email: string;
     name: string;
     role: UserRole;
+    canCreateSchool?: boolean;
     profileImageUrl?: string;
     hasOnboarded: boolean;
   };
@@ -51,4 +52,3 @@ export interface ChangeRoleDto {
   userId: string;
   newRole: UserRole;
 }
-

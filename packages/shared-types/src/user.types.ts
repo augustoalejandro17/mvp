@@ -59,6 +59,7 @@ export interface IUser {
   bio?: string;
   profileCompletionPercentage: number;
   role: UserRole;
+  canCreateSchool?: boolean;
   schoolRoles: UserSchoolRole[];
   enrolledCourses: string[];
   schools: string[];
@@ -85,4 +86,3 @@ export interface UserStatusHistory {
   changedBy: string;
   reason?: string;
 }
-

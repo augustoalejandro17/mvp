@@ -44,7 +44,6 @@ type CourseSubmissionSummary = {
 const GLOBAL_ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN];
 const SCHOOL_CREATION_ROLES: UserRole[] = [
   UserRole.SUPER_ADMIN,
-  UserRole.SCHOOL_OWNER,
 ];
 
 const normalizeList = <T,>(value: unknown): T[] => {
@@ -488,7 +487,8 @@ export default function HomeScreen() {
   const isGlobalAdmin =
     !!user?.role && GLOBAL_ADMIN_ROLES.includes(user.role as UserRole);
   const canCreateSchools =
-    !!user?.role && SCHOOL_CREATION_ROLES.includes(user.role as UserRole);
+    (user as any)?.canCreateSchool === true ||
+    (!!user?.role && SCHOOL_CREATION_ROLES.includes(user.role as UserRole));
   const canLoadAllSchools =
     isGlobalAdmin || user?.role === UserRole.SCHOOL_OWNER;
   const isTeacher = user?.role === UserRole.TEACHER;

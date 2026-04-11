@@ -122,7 +122,16 @@ export class PermissionsGuard implements CanActivate {
     switch (permission) {
       // Permisos de escuela
       case Permission.CREATE_SCHOOL:
-        return true; // Cualquier usuario autenticado puede crear una escuela
+        const userForSchoolCreation = await this.userModel.findById(userId).select(
+          'role canCreateSchool',
+        );
+        if (!userForSchoolCreation) {
+          return false;
+        }
+        return (
+          userForSchoolCreation.role === 'super_admin' ||
+          userForSchoolCreation.canCreateSchool === true
+        );
 
       case Permission.VIEW_SCHOOL:
         return schoolId

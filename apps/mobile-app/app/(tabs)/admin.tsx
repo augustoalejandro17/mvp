@@ -69,7 +69,7 @@ export default function AdminPanelScreen() {
   const { user } = useAuth();
   const currentRole = String(user?.role || '').toLowerCase();
   const canCreateSchool =
-    currentRole === 'super_admin' || currentRole === 'school_owner';
+    currentRole === 'super_admin' || (user as any)?.canCreateSchool === true;
   const canOpenPlatformControl = currentRole === 'super_admin';
   const [stats, setStats] = useState<Record<string, any>>({});
   const [seatCapabilities, setSeatCapabilities] = useState<SeatPolicyCapabilities>(

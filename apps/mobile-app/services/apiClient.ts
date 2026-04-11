@@ -1091,6 +1091,17 @@ class ApiClient {
     return data.user;
   }
 
+  async setUserCreateSchoolPermission(
+    userId: string,
+    canCreateSchool: boolean,
+  ): Promise<IUser> {
+    const { data } = await this.client.patch<IUser>(
+      `/users/${userId}/create-school-permission`,
+      { canCreateSchool },
+    );
+    return data;
+  }
+
   async assignRoleInSchool(
     userId: string,
     schoolId: string,
