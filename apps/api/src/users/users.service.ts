@@ -794,57 +794,31 @@ export class UsersService {
       email: { $regex: email, $options: 'i' }, // Case insensitive
     };
 
-    // Restricción basada en roles
+    // Restricción basada en permisos reales sobre la escuela, no solo en el rol global
     const isSuperAdmin = requestingUserRole === UserRole.SUPER_ADMIN;
-    const isAdmin = requestingUserRole === UserRole.ADMIN;
-    const isSchoolOwner = requestingUserRole === UserRole.SCHOOL_OWNER;
-    const isAdministrative = requestingUserRole === UserRole.ADMINISTRATIVE;
-    const isTeacher = requestingUserRole === UserRole.TEACHER;
 
-    // Super admin y admin pueden hacer búsquedas globales sin restricciones
-    if (isSuperAdmin || isAdmin) {
-      // No añadir restricciones adicionales: búsqueda global.
-    }
-    // School owner y administrative pueden hacer búsquedas globales, pero cuando
-    // envían schoolId lo usamos solo para validar que tienen contexto/permisos
-    // sobre esa escuela. No filtramos resultados por escuela porque el objetivo
-    // es poder encontrar usuarios registrados del sistema y luego asignarles acceso.
-    else if (isSchoolOwner || isAdministrative) {
-      const requestingUser = await this.userModel.findById(requestingUserId);
-      if (!requestingUser) {
-        throw new NotFoundException('Usuario no encontrado');
-      }
-
-      if (schoolId) {
-        const canManageSchool = await this.canManageSchool(
+    if (isSuperAdmin) {
+      // Sin restricciones adicionales.
+    } else if (schoolId) {
+      const canManageSchool = await this.canManageSchool(
+        requestingUserId,
+        schoolId,
+      );
+      if (!canManageSchool) {
+        const canSearchInSchool = await this.canTeacherSearchUsersInSchool(
           requestingUserId,
           schoolId,
         );
-        if (!canManageSchool) {
+        if (!canSearchInSchool) {
           throw new ForbiddenException(
             'No tienes permiso para ver usuarios de esta escuela',
           );
         }
       }
-    } else if (isTeacher) {
-      if (!schoolId) {
-        throw new ForbiddenException(
-          'Los profesores deben buscar usuarios dentro de una escuela específica',
-        );
-      }
-
-      const canSearchInSchool = await this.canTeacherSearchUsersInSchool(
-        requestingUserId,
-        schoolId,
-      );
-      if (!canSearchInSchool) {
-        throw new ForbiddenException(
-          'No tienes permiso para buscar usuarios en esta escuela',
-        );
-      }
     } else {
-      // Otros roles como teacher o student solo pueden buscar en su propia escuela
-      throw new ForbiddenException('No tienes permisos para buscar usuarios');
+      throw new ForbiddenException(
+        'Debes seleccionar una escuela para buscar usuarios',
+      );
     }
 
     // Ejecutar la consulta con fields específicos para proteger datos sensibles
@@ -865,20 +839,30 @@ export class UsersService {
     // Super admin puede gestionar cualquier escuela
     if (user.role === UserRole.SUPER_ADMIN) return true;
 
-    // Admin global puede gestionar cualquier escuela
-    if (user.role === UserRole.ADMIN) return true;
-
-    // School owner puede gestionar sus propias escuelas
-    if (user.role === UserRole.SCHOOL_OWNER) {
-      return user.ownedSchools.some((id) => id.toString() === schoolId);
+    const isOwner =
+      user.ownedSchools?.some((id) => id.toString() === schoolId) || false;
+    if (isOwner) {
+      return true;
     }
 
-    // Administrative puede gestionar las escuelas que administra
-    if (user.role === UserRole.ADMINISTRATIVE) {
-      return user.administratedSchools.some((id) => id.toString() === schoolId);
+    const isAdministrative =
+      user.administratedSchools?.some((id) => id.toString() === schoolId) ||
+      false;
+    if (isAdministrative) {
+      return true;
     }
 
-    return false;
+    return (
+      user.schoolRoles?.some(
+        (entry) =>
+          entry.schoolId?.toString() === schoolId &&
+          [
+            UserRole.SCHOOL_OWNER,
+            UserRole.ADMIN,
+            UserRole.ADMINISTRATIVE,
+          ].includes(String(entry.role || '').toLowerCase() as UserRole),
+      ) || false
+    );
   }
 
   private async canTeacherSearchUsersInSchool(
@@ -1527,7 +1511,7 @@ export class UsersService {
     changePasswordDto: ChangePasswordDto,
     options?: { requireCurrentPassword?: boolean },
   ): Promise<User> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userModel.findById(userId).select('+password');
     if (!user) {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
@@ -1540,7 +1524,7 @@ export class UsersService {
     if (changePasswordDto.currentPassword) {
       if (!hasLocalPassword) {
         throw new BadRequestException(
-          'This account does not have a local password yet',
+          'Esta cuenta aún no tiene una contraseña local configurada',
         );
       }
 
@@ -1550,13 +1534,13 @@ export class UsersService {
         changePasswordDto.currentPassword,
       );
       if (!isPasswordValid) {
-        throw new UnauthorizedException('Current password is incorrect');
+        throw new UnauthorizedException('La contraseña actual es incorrecta');
       }
 
       // Check if new password is the same as the current one
       if (changePasswordDto.currentPassword === changePasswordDto.newPassword) {
         throw new BadRequestException(
-          'New password must be different from the current password',
+          'La nueva contraseña debe ser diferente a la actual',
         );
       }
     }

@@ -16,6 +16,7 @@ import { CoursesService } from '../courses/courses.service';
 import { S3Service } from '../services/s3.service';
 import { User, UserDocument, UserRole } from '../auth/schemas/user.schema';
 import { AuthService } from '../auth/auth.service';
+import { AuthorizationService } from '../auth/services/authorization.service';
 import { CloudFrontService } from '../services/cloudfront.service';
 import { RecordAttendanceDto } from './dto/record-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
@@ -71,6 +72,7 @@ export class ClassesService {
     private storageIntegrationService: StorageIntegrationService,
     private usageHooksService: UsageHooksService,
     private authService: AuthService,
+    private authorizationService: AuthorizationService,
     private notificationsService: NotificationsService,
   ) {}
 
@@ -657,14 +659,13 @@ export class ClassesService {
         throw new NotFoundException(`Usuario ${userId} no encontrado`);
       }
 
-      // Verificar si el usuario es el profesor del curso o un administrador
-      const isTeacher = String(course.teacher) === userId;
-      const isAdmin =
-        compareRole(user.role, UserRole.ADMIN) ||
-        compareRole(user.role, UserRole.SUPER_ADMIN);
+      const canModifyCourse = await this.authorizationService.canModifyCourse(
+        userId,
+        String(course._id),
+      );
 
-      if (!isTeacher && !isAdmin) {
-        throw new UnauthorizedException(
+      if (!canModifyCourse) {
+        throw new ForbiddenException(
           'No tienes permisos para eliminar esta clase',
         );
       }

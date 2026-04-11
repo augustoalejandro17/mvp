@@ -18,6 +18,28 @@ export default function ChangePasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const normalizeChangePasswordError = (message?: string | string[]) => {
+    const raw = Array.isArray(message) ? message.join('\n') : message || '';
+    const normalized = raw.trim().toLowerCase();
+
+    if (
+      normalized.includes('does not have a local password yet') ||
+      normalized.includes('aún no tiene una contraseña local')
+    ) {
+      return 'Esta cuenta aún no tiene una contraseña local configurada. Si fue creada con acceso externo o por un administrador, primero debemos habilitar el flujo para definir una contraseña.';
+    }
+
+    if (normalized.includes('current password is incorrect')) {
+      return 'La contraseña actual es incorrecta.';
+    }
+
+    if (normalized.includes('nueva contraseña debe ser diferente')) {
+      return 'La nueva contraseña debe ser diferente a la actual.';
+    }
+
+    return raw || 'Revisa tus datos e intenta nuevamente.';
+  };
+
   const validate = () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
       Alert.alert('Campos requeridos', 'Completa todos los campos.');
@@ -57,7 +79,7 @@ export default function ChangePasswordScreen() {
       const msg = error?.response?.data?.message;
       Alert.alert(
         'No se pudo actualizar',
-        Array.isArray(msg) ? msg.join('\n') : msg || 'Revisa tus datos e intenta nuevamente.',
+        normalizeChangePasswordError(msg),
       );
     } finally {
       setSaving(false);

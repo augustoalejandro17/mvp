@@ -306,16 +306,24 @@ export class AuthorizationService {
     // Super admin puede modificar cualquier curso
     if (user.role === UserRole.SUPER_ADMIN) return true;
 
+    const course = await this.courseModel.findById(courseId);
+    if (!course) return false;
+
     // Verificar si es profesor del curso
     const isTeacher = user.teachingCourses.some(
       (id) => id.toString() === courseId,
     );
     if (isTeacher) return true;
 
-    // Verificar si es admin o dueño de la escuela
-    const course = await this.courseModel.findById(courseId);
-    if (!course) return false;
+    const isPrimaryTeacher = course.teacher?.toString() === userId;
+    if (isPrimaryTeacher) return true;
 
+    const isAdditionalTeacher = Array.isArray(course.teachers)
+      ? course.teachers.some((teacherId) => teacherId?.toString() === userId)
+      : false;
+    if (isAdditionalTeacher) return true;
+
+    // Verificar si es admin o dueño de la escuela
     const schoolId = course.school.toString();
     const schoolRole = await this.getUserRoleInSchool(userId, schoolId);
 
