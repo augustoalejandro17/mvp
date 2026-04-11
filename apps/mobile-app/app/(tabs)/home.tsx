@@ -590,7 +590,7 @@ export default function HomeScreen() {
     setError(null);
     try {
       const [schoolsData, enrolledData, teachingData, submissionsData] = await Promise.all([
-        canLoadAllSchools ? apiClient.getAllSchools() : apiClient.getPublicSchools(),
+        apiClient.getAllSchools(),
         apiClient.getEnrolledCourses().catch(() => [] as ICourse[]),
         isTeacher ? apiClient.getTeachingCourses().catch(() => [] as ICourse[]) : [],
         isStudent ? apiClient.getMyClassSubmissions().catch(() => [] as IClassSubmission[]) : [],
@@ -618,7 +618,7 @@ export default function HomeScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [canLoadAllSchools, isStudent, isTeacher]);
+  }, [isStudent, isTeacher]);
 
   const handleDeleteSchool = (school: ISchool) => {
     Alert.alert(

@@ -174,20 +174,51 @@ export class SchoolsService {
       if (userId && role !== UserRole.ADMIN && role !== UserRole.SUPER_ADMIN) {
         // Necesitamos asegurarnos de que userId sea un string válido
         const safeUserId = userId.toString();
+        const user = await this.userModel
+          .findById(safeUserId)
+          .select('schools ownedSchools administratedSchools schoolRoles')
+          .lean()
+          .exec();
 
-        if (role === UserRole.TEACHER) {
-          query = {
-            $or: [
-              { isPublic: true },
-              { teachers: safeUserId },
-              { admin: safeUserId },
-            ],
-          };
-        } else {
-          query = {
-            $or: [{ isPublic: true }, { students: safeUserId }],
-          };
-        }
+        const associatedSchoolIds = new Set<string>();
+
+        const addIds = (values: any[] | undefined) => {
+          for (const value of values || []) {
+            const normalized =
+              typeof value === 'string'
+                ? value
+                : value && typeof value.toString === 'function'
+                  ? String(value.toString())
+                  : '';
+            if (normalized) {
+              associatedSchoolIds.add(normalized);
+            }
+          }
+        };
+
+        addIds((user as any)?.schools);
+        addIds((user as any)?.ownedSchools);
+        addIds((user as any)?.administratedSchools);
+        addIds(
+          Array.isArray((user as any)?.schoolRoles)
+            ? (user as any).schoolRoles.map((entry: any) => entry?.schoolId)
+            : [],
+        );
+
+        const associatedObjectIds = Array.from(associatedSchoolIds)
+          .filter((entry) => Types.ObjectId.isValid(entry))
+          .map((entry) => new Types.ObjectId(entry));
+
+        query = {
+          $or: [
+            { isPublic: true },
+            { _id: { $in: associatedObjectIds } },
+            { admin: safeUserId },
+            { teachers: safeUserId },
+            { administratives: safeUserId },
+            { students: safeUserId },
+          ],
+        };
       }
 
       const schools = await this.schoolModel
