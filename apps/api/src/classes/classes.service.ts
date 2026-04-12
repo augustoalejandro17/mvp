@@ -1141,21 +1141,14 @@ export class ClassesService {
       );
     }
 
-    // Verify teacher permissions (simplified version)
-    if (course.teacher && course.teacher.toString() !== teacherId) {
-      const user = await this.userModel.findById(teacherId);
-      const allowedRoles = [
-        UserRole.ADMIN,
-        UserRole.SUPER_ADMIN,
-        UserRole.SCHOOL_OWNER,
-        UserRole.ADMINISTRATIVE,
-      ];
-
-      if (!user || !allowedRoles.includes(user.role)) {
-        throw new ForbiddenException(
-          'You are not authorized to create a class for this course',
-        );
-      }
+    const canModifyCourse = await this.authorizationService.canModifyCourse(
+      teacherId,
+      String(course._id),
+    );
+    if (!canModifyCourse) {
+      throw new ForbiddenException(
+        'No tienes permisos para crear clases en este curso',
+      );
     }
 
     // Create class first without video
@@ -1168,10 +1161,9 @@ export class ClassesService {
       videoProcessingError: null,
     };
 
-    // Only set videoStatus if video is provided, otherwise let schema default handle it
-    if (videoFile) {
-      classData.videoStatus = VideoStatus.UPLOADING;
-    }
+    classData.videoStatus = videoFile
+      ? VideoStatus.UPLOADING
+      : VideoStatus.NO_VIDEO;
 
     const newClass = new this.classModel(classData);
 

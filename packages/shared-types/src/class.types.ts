@@ -3,6 +3,7 @@
  */
 
 export enum VideoStatus {
+  NO_VIDEO = 'NO_VIDEO',
   UPLOADING = 'UPLOADING',
   PROCESSING = 'PROCESSING',
   READY = 'READY',
@@ -50,4 +51,3 @@ export interface UpdateClassDto {
   isPublic?: boolean;
   videoStatus?: VideoStatus;
 }
-

@@ -44,7 +44,9 @@ export class ClassVideoService {
           success: false,
           status,
           message:
-            status === 'UPLOADING'
+            status === 'NO_VIDEO'
+              ? 'Todavía no se ha subido un video para esta clase'
+              : status === 'UPLOADING'
               ? 'Video siendo subido'
               : status === 'PROCESSING'
                 ? 'Video siendo procesado'
@@ -219,7 +221,9 @@ export class ClassVideoService {
       if (!classItem.videoUrl) {
         const status = classItem.videoStatus || 'NONE';
         throw new BadRequestException(
-          status === 'UPLOADING'
+          status === 'NO_VIDEO'
+            ? 'Todavía no se ha subido un video para esta clase'
+            : status === 'UPLOADING'
             ? 'Video siendo subido'
             : status === 'PROCESSING'
               ? 'Video siendo procesado'

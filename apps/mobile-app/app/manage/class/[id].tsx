@@ -47,6 +47,7 @@ const VIDEO_STATUS_CONFIG: Record<
   VideoStatus,
   { label: string; icon: string; color: string; bg: string }
 > = {
+  [VideoStatus.NO_VIDEO]: { label: 'Sin video', icon: 'videocam-off', color: '#92400e', bg: '#fff7ed' },
   [VideoStatus.READY]: { label: 'Lista', icon: 'checkmark-circle', color: '#16a34a', bg: '#f0fdf4' },
   [VideoStatus.PROCESSING]: { label: 'Procesando', icon: 'time', color: '#d97706', bg: '#fffbeb' },
   [VideoStatus.UPLOADING]: { label: 'Subiendo', icon: 'cloud-upload', color: '#6b7280', bg: '#f9fafb' },
@@ -213,10 +214,10 @@ export default function EditClassScreen() {
   }
 
   const rawVideoStatus = String(
-    classItem?.videoStatus ?? VideoStatus.UPLOADING,
+    classItem?.videoStatus ?? VideoStatus.NO_VIDEO,
   ) as VideoStatus;
   const statusConfig =
-    VIDEO_STATUS_CONFIG[rawVideoStatus] ?? VIDEO_STATUS_CONFIG[VideoStatus.UPLOADING];
+    VIDEO_STATUS_CONFIG[rawVideoStatus] ?? VIDEO_STATUS_CONFIG[VideoStatus.NO_VIDEO];
 
   return (
     <KeyboardAvoidingView

@@ -1363,7 +1363,7 @@ export default function HomeScreen() {
                   ) : null}
                 </View>
                 <View className="items-end">
-                  {canManageSelectedCourse && (
+                  {canManageSelectedCourseContent && (
                     <TouchableOpacity
                       onPress={() => router.push(`/manage/course/${selectedCourse?._id}/students`)}
                       className="flex-row items-center px-3 py-2 rounded-xl mb-2"

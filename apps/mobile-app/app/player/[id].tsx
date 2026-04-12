@@ -1020,17 +1020,29 @@ export default function PlayerScreen() {
     );
 
     try {
-      const [classData, streamData] = await Promise.race([
-        Promise.all([apiClient.getClassById(classId), apiClient.getStreamUrl(classId)]),
+      const classData = (await Promise.race([
+        apiClient.getClassById(classId),
         timeout,
-      ]) as [any, any];
+      ])) as any;
       setClassItem(classData);
       const directUrl = classData?.videoUrl;
-      const fallbackUrl = streamData?.success ? streamData?.url : null;
 
       if (directUrl) {
         setStreamUrl(directUrl);
-      } else if (fallbackUrl) {
+        return;
+      }
+
+      if (classData?.videoStatus === VideoStatus.NO_VIDEO) {
+        return;
+      }
+
+      const streamData = (await Promise.race([
+        apiClient.getStreamUrl(classId),
+        timeout,
+      ])) as any;
+      const fallbackUrl = streamData?.success ? streamData?.url : null;
+
+      if (fallbackUrl) {
         setStreamUrl(fallbackUrl);
       } else {
         setStreamError(streamData?.message || 'Video no disponible');
@@ -1146,17 +1158,27 @@ export default function PlayerScreen() {
   }, [normalizedClassId, load]);
 
   useEffect(() => {
-    if (!normalizedClassId || currentUserRole !== 'student') {
+    if (
+      !normalizedClassId ||
+      currentUserRole !== 'student' ||
+      !classItem ||
+      classItem.videoStatus === VideoStatus.NO_VIDEO
+    ) {
       setSubmission(null);
       setSubmissionAnnotations([]);
       return;
     }
 
     loadSubmission(normalizedClassId);
-  }, [normalizedClassId, currentUserRole, loadSubmission]);
+  }, [normalizedClassId, currentUserRole, classItem, loadSubmission]);
 
   useEffect(() => {
-    if (!normalizedClassId || !REVIEWER_ROLES.has(String(currentUserRole || ''))) {
+    if (
+      !normalizedClassId ||
+      !REVIEWER_ROLES.has(String(currentUserRole || '')) ||
+      !classItem ||
+      classItem.videoStatus === VideoStatus.NO_VIDEO
+    ) {
       setReviewSubmissions([]);
       setSelectedReviewSubmissionId(null);
       setReviewAnnotations([]);
@@ -1164,7 +1186,7 @@ export default function PlayerScreen() {
     }
 
     loadReviewSubmissions(normalizedClassId);
-  }, [normalizedClassId, currentUserRole, loadReviewSubmissions]);
+  }, [normalizedClassId, currentUserRole, classItem, loadReviewSubmissions]);
 
   useEffect(() => {
     const isReviewerRole = REVIEWER_ROLES.has(String(currentUserRole || ''));
@@ -1681,6 +1703,7 @@ export default function PlayerScreen() {
   const progressRatio = durationMs > 0 ? displayPositionMs / durationMs : 0;
   const isStudent = currentUserRole === 'student';
   const isReviewer = REVIEWER_ROLES.has(String(currentUserRole || ''));
+  const hasNoClassVideo = classItem.videoStatus === VideoStatus.NO_VIDEO;
   const submissionStatusConfig = getSubmissionStatusConfig(submission);
   const submissionActionCopy = getSubmissionActionCopy(submission);
   const normalizedReviewSearch = reviewSearch.trim().toLowerCase();
@@ -1928,12 +1951,34 @@ export default function PlayerScreen() {
         ) : (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }}>
             <Ionicons
-              name={classItem.videoStatus === VideoStatus.PROCESSING ? 'time-outline' : 'videocam-off-outline'}
+              name={
+                classItem.videoStatus === VideoStatus.PROCESSING
+                  ? 'time-outline'
+                  : 'videocam-off-outline'
+              }
               size={56} color="#4b5563"
             />
             <Text style={{ color: '#9ca3af', marginTop: 16, textAlign: 'center', fontSize: 15 }}>
-              {streamError || (classItem.videoStatus === VideoStatus.PROCESSING ? 'Video en procesamiento...' : 'Video no disponible')}
+              {hasNoClassVideo
+                ? 'Esta clase todavía no tiene video. Puedes dejar la estructura lista y subirlo más tarde.'
+                : streamError ||
+                  (classItem.videoStatus === VideoStatus.PROCESSING
+                    ? 'Video en procesamiento...'
+                    : 'Video no disponible')}
             </Text>
+            {hasNoClassVideo ? (
+              <Text
+                style={{
+                  color: '#6b7280',
+                  marginTop: 8,
+                  textAlign: 'center',
+                  fontSize: 13,
+                  lineHeight: 19,
+                }}
+              >
+                Cuando el profesor suba el video, aparecerá aquí automáticamente.
+              </Text>
+            ) : null}
           </View>
         )}
 
@@ -2156,12 +2201,22 @@ export default function PlayerScreen() {
             )}
             <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: classItem.videoStatus === VideoStatus.READY ? '#f0fdf4' : '#f3f4f6' }}>
               <Ionicons
-                name={classItem.videoStatus === VideoStatus.READY ? 'checkmark-circle' : 'time-outline'}
+                name={
+                  classItem.videoStatus === VideoStatus.READY
+                    ? 'checkmark-circle'
+                    : classItem.videoStatus === VideoStatus.NO_VIDEO
+                      ? 'videocam-off'
+                      : 'time-outline'
+                }
                 size={13}
                 color={classItem.videoStatus === VideoStatus.READY ? '#16a34a' : '#6b7280'}
               />
               <Text style={{ fontSize: 12, marginLeft: 4, fontWeight: '500', color: classItem.videoStatus === VideoStatus.READY ? '#15803d' : '#4b5563' }}>
-                {classItem.videoStatus === VideoStatus.READY ? 'Disponible' : classItem.videoStatus?.toLowerCase()}
+                {classItem.videoStatus === VideoStatus.READY
+                  ? 'Disponible'
+                  : classItem.videoStatus === VideoStatus.NO_VIDEO
+                    ? 'Sin video'
+                    : classItem.videoStatus?.toLowerCase()}
               </Text>
             </View>
             {rate !== 1 && (

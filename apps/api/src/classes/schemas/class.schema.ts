@@ -6,6 +6,7 @@ import { Course } from '../../courses/schemas/course.schema';
 export type ClassDocument = Class & Document;
 
 export enum VideoStatus {
+  NO_VIDEO = 'NO_VIDEO',
   UPLOADING = 'UPLOADING',
   PROCESSING = 'PROCESSING',
   READY = 'READY',
@@ -29,7 +30,7 @@ export class Class {
   @Prop()
   tempVideoKey: string;
 
-  @Prop({ type: String, enum: VideoStatus, default: VideoStatus.UPLOADING })
+  @Prop({ type: String, enum: VideoStatus, default: VideoStatus.NO_VIDEO })
   videoStatus: VideoStatus;
 
   @Prop()

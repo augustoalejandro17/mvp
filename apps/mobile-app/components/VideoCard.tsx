@@ -20,6 +20,7 @@ interface VideoCardProps {
 }
 
 const STATUS_CONFIG: Record<VideoStatus, { icon: string; label: string; color: string; bg: string }> = {
+  [VideoStatus.NO_VIDEO]: { icon: 'videocam-off', label: 'Sin video', color: '#92400e', bg: '#fff7ed' },
   [VideoStatus.READY]: { icon: 'play-circle', label: 'Ver ahora', color: '#16a34a', bg: '#f0fdf4' },
   [VideoStatus.PROCESSING]: { icon: 'time', label: 'Procesando', color: '#d97706', bg: '#fffbeb' },
   [VideoStatus.UPLOADING]: { icon: 'cloud-upload', label: 'Subiendo', color: '#6b7280', bg: '#f9fafb' },
@@ -44,7 +45,7 @@ export default function VideoCard({
   onMoveDown,
   onMoveToPlaylist,
 }: VideoCardProps) {
-  const status = STATUS_CONFIG[classItem.videoStatus] ?? STATUS_CONFIG[VideoStatus.UPLOADING];
+  const status = STATUS_CONFIG[classItem.videoStatus] ?? STATUS_CONFIG[VideoStatus.NO_VIDEO];
   const isReady = classItem.videoStatus === VideoStatus.READY;
   const duration = formatDuration(classItem.videoMetadata?.duration);
 
