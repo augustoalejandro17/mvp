@@ -98,13 +98,6 @@ export default function VideoCard({
       className="bg-white rounded-xl mb-3 overflow-hidden border border-gray-100"
       style={{ shadowColor: '#000', shadowOpacity: 0.04, shadowOffset: { width: 0, height: 2 }, shadowRadius: 8 }}
     >
-      {/* Order badge */}
-      {classItem.order != null && (
-        <View className="absolute top-3 left-3 z-10 bg-amber-500 rounded-full w-5 h-5 justify-center items-center">
-          <Text className="text-white text-xs font-bold">{classItem.order}</Text>
-        </View>
-      )}
-
       <View className="flex-row p-4">
         {/* Thumbnail */}
         <View

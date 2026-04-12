@@ -194,7 +194,7 @@ export default function EditCourseScreen() {
 
   const handlePickCoverImage = async () => {
     try {
-      const file = await pickImageFromDevice();
+      const file = await pickImageFromDevice({ aspect: [16, 9] });
       if (!file) return;
       setIsUploadingImage(true);
       const uploadedUrl = await apiClient.uploadImage(file);
@@ -329,6 +329,8 @@ export default function EditCourseScreen() {
               previewUrl={coverImageUrl || undefined}
               selectedFileName={coverImageUrl ? 'Portada cargada' : undefined}
               isUploading={isUploadingImage}
+              imagePreviewAspectRatio={16 / 9}
+              imagePreviewResizeMode="cover"
               onPick={handlePickCoverImage}
               onClear={() => setCoverImageUrl('')}
             />

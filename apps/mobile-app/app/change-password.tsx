@@ -88,7 +88,17 @@ export default function ChangePasswordScreen() {
 
   return (
     <View className="flex-1 bg-amber-50 px-4 pt-4">
-      <Stack.Screen options={{ title: 'Cambiar contraseña' }} />
+      <Stack.Screen
+        options={{
+          title: 'Cambiar contraseña',
+          headerBackVisible: false,
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} className="mr-2">
+              <Ionicons name="arrow-back" size={24} color="#111827" />
+            </TouchableOpacity>
+          ),
+        }}
+      />
 
       <View className="bg-white rounded-2xl p-4 border border-gray-100">
         <Text className="text-sm font-semibold text-gray-700 mb-1.5">Contraseña actual</Text>

@@ -254,7 +254,7 @@ function SchoolCard({
               <Image
                 source={{ uri: school.logoUrl }}
                 style={{ width: 40, height: 40, borderRadius: 8 }}
-                resizeMode="contain"
+                resizeMode="cover"
               />
             ) : (
               <Ionicons name="school" size={24} color="#d97706" />
@@ -384,11 +384,11 @@ function CourseCard({
     >
       {/* Cover image */}
       {(course as any).coverImageUrl ? (
-        <View style={{ height: 120, backgroundColor: '#ffffff' }}>
+        <View style={{ width: '100%', aspectRatio: 16 / 9, backgroundColor: '#f8fafc' }}>
           <Image
             source={{ uri: (course as any).coverImageUrl }}
-            style={{ width: '100%', height: 120 }}
-            resizeMode="contain"
+            style={{ width: '100%', height: '100%' }}
+            resizeMode="cover"
           />
           {isEnrolled && (
             <View className="absolute top-2 right-2 bg-green-500 px-2 py-1 rounded-full">
@@ -1194,8 +1194,16 @@ export default function HomeScreen() {
         <View className="flex-1">
           <View className="bg-white px-4 py-4 border-b border-amber-100">
             <View className="flex-row items-center">
-              <View className="w-10 h-10 bg-amber-50 rounded-xl justify-center items-center mr-3">
-                <Ionicons name="school" size={20} color="#d97706" />
+              <View className="w-11 h-11 bg-amber-50 rounded-full justify-center items-center mr-3 overflow-hidden border border-amber-100">
+                {selectedSchool?.logoUrl ? (
+                  <Image
+                    source={{ uri: selectedSchool.logoUrl }}
+                    style={{ width: '100%', height: '100%' }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Ionicons name="school" size={20} color="#d97706" />
+                )}
               </View>
               <View className="flex-1">
                 <Text className="text-base font-bold text-gray-900" numberOfLines={1}>
@@ -1300,36 +1308,82 @@ export default function HomeScreen() {
       {level === 'classes' && (
         <View className="flex-1">
           <View className="bg-white px-4 py-4 border-b border-amber-100">
-            <View className="flex-row items-start justify-between">
-              <View className="flex-1 mr-3">
-                <Text className="text-base font-bold text-gray-900" numberOfLines={1}>
-                  {selectedCourse?.title}
-                </Text>
-                {selectedCourse?.description ? (
-                  <Text className="text-xs text-gray-500 mt-0.5" numberOfLines={2}>
-                    {selectedCourse.description}
+            <View
+              className="rounded-[28px] overflow-hidden mb-3"
+              style={{ minHeight: 136, backgroundColor: '#92400e' }}
+            >
+              {selectedCourse?.coverImageUrl ? (
+                <>
+                  <Image
+                    source={{ uri: selectedCourse.coverImageUrl }}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      width: '100%',
+                      height: '100%',
+                    }}
+                    resizeMode="cover"
+                  />
+                  <View
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: 'rgba(15, 23, 42, 0.45)',
+                    }}
+                  />
+                </>
+              ) : (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: '#92400e',
+                  }}
+                />
+              )}
+
+              <View className="p-4 flex-row items-start justify-between" style={{ minHeight: 136 }}>
+                <View className="flex-1 mr-3 justify-end">
+                  <Text className="text-2xl font-bold text-white" numberOfLines={1}>
+                    {selectedCourse?.title}
                   </Text>
-                ) : null}
-              </View>
-              <View className="items-end">
-                {canManageSelectedCourse && (
-                  <TouchableOpacity
-                    onPress={() => router.push(`/manage/course/${selectedCourse?._id}/students`)}
-                    className="flex-row items-center bg-sky-600 px-3 py-2 rounded-xl mb-2"
-                  >
-                    <Ionicons name="people-outline" size={16} color="white" />
-                    <Text className="text-white text-xs font-semibold ml-1">Alumnos</Text>
-                  </TouchableOpacity>
-                )}
-                {canManageSelectedCourseContent && (
-                  <TouchableOpacity
-                    onPress={() => router.push(`/manage/class/new?courseId=${selectedCourse?._id}`)}
-                    className="flex-row items-center bg-amber-500 px-3 py-2 rounded-xl"
-                  >
-                    <Ionicons name="add" size={16} color="white" />
-                    <Text className="text-white text-xs font-semibold ml-1">Nueva Clase</Text>
-                  </TouchableOpacity>
-                )}
+                  {selectedCourse?.description ? (
+                    <Text className="text-white/80 text-sm mt-1" numberOfLines={2}>
+                      {selectedCourse.description}
+                    </Text>
+                  ) : null}
+                </View>
+                <View className="items-end">
+                  {canManageSelectedCourse && (
+                    <TouchableOpacity
+                      onPress={() => router.push(`/manage/course/${selectedCourse?._id}/students`)}
+                      className="flex-row items-center px-3 py-2 rounded-xl mb-2"
+                      style={{ backgroundColor: 'rgba(14, 165, 233, 0.92)' }}
+                    >
+                      <Ionicons name="people-outline" size={16} color="white" />
+                      <Text className="text-white text-xs font-semibold ml-1">Alumnos</Text>
+                    </TouchableOpacity>
+                  )}
+                  {canManageSelectedCourseContent && (
+                    <TouchableOpacity
+                      onPress={() => router.push(`/manage/class/new?courseId=${selectedCourse?._id}`)}
+                      className="flex-row items-center px-3 py-2 rounded-xl"
+                      style={{ backgroundColor: 'rgba(245, 158, 11, 0.96)' }}
+                    >
+                      <Ionicons name="add" size={16} color="white" />
+                      <Text className="text-white text-xs font-semibold ml-1">Nueva Clase</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             </View>
             {isStudent && selectedCourseSubmissionSummary && (

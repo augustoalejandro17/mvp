@@ -5,6 +5,7 @@ import {
   Logger,
   UnauthorizedException,
   InternalServerErrorException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -349,47 +350,38 @@ export class SchoolsService {
         throw new NotFoundException(`Escuela con ID ${id} no encontrada`);
       }
 
-      // Verificar permisos
-      const schoolAdminId = school.admin.toString();
+      // Verificar permisos con roles contextuales de escuela
+      const schoolAdminId = school.admin ? school.admin.toString() : '';
+      const user = await this.userModel.findById(userId);
+      if (!user) {
+        throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
+      }
 
-      if (schoolAdminId !== userId) {
-        const user = await this.userModel.findById(userId);
-        if (!user) {
-          throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
-        }
+      const isSuperAdmin = user.role === UserRole.SUPER_ADMIN;
+      const isSchoolAdmin = !!schoolAdminId && schoolAdminId === userId;
+      const isOwnedSchool =
+        user.ownedSchools?.some((schoolId) => schoolId.toString() === id) ||
+        false;
+      const isAdministratedSchool =
+        user.administratedSchools?.some(
+          (schoolId) => schoolId.toString() === id,
+        ) || false;
+      const contextualRole =
+        user.schoolRoles?.find((entry) => entry.schoolId?.toString() === id)
+          ?.role || null;
+      const canManageSchool =
+        isSuperAdmin ||
+        isSchoolAdmin ||
+        isOwnedSchool ||
+        isAdministratedSchool ||
+        contextualRole === UserRole.SCHOOL_OWNER ||
+        contextualRole === UserRole.ADMIN ||
+        contextualRole === UserRole.ADMINISTRATIVE;
 
-        if (
-          user.role !== UserRole.SUPER_ADMIN &&
-          user.role !== UserRole.SCHOOL_OWNER &&
-          user.role !== UserRole.ADMIN
-        ) {
-          throw new BadRequestException(
-            'No tiene permisos para actualizar esta escuela',
-          );
-        }
-
-        // Si es SCHOOL_OWNER, verificar que sea dueño de esta escuela
-        if (user.role === UserRole.SCHOOL_OWNER) {
-          const isOwner = user.ownedSchools.some(
-            (schoolId) => schoolId.toString() === id,
-          );
-
-          if (!isOwner) {
-            throw new BadRequestException('No es dueño de esta escuela');
-          }
-        }
-
-        // Si es ADMIN, verificar si tiene la escuela en administratedSchools
-        if (user.role === UserRole.ADMIN) {
-          const isAdmin = user.administratedSchools.some(
-            (schoolId) => schoolId.toString() === id,
-          );
-
-          if (!isAdmin) {
-            // Aunque podríamos lanzar una excepción aquí, permitimos que los admins puedan editar cualquier escuela
-          }
-        }
-      } else {
+      if (!canManageSchool) {
+        throw new ForbiddenException(
+          'No tiene permisos para actualizar esta escuela',
+        );
       }
 
       const updatedSchool = await this.schoolModel.findByIdAndUpdate(

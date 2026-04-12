@@ -122,10 +122,19 @@ const loadImagePicker = () => {
   }
 };
 
-export async function pickImageFromDevice(): Promise<NativeUploadFile | null> {
+type PickImageOptions = {
+  aspect?: [number, number];
+  quality?: number;
+};
+
+export async function pickImageFromDevice(
+  options?: PickImageOptions,
+): Promise<NativeUploadFile | null> {
   const ImagePicker = loadImagePicker();
   if (ImagePicker) {
     try {
+      const aspect = options?.aspect ?? [16, 9];
+      const quality = typeof options?.quality === 'number' ? options.quality : 1;
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission?.granted) {
         throw new Error(
@@ -136,8 +145,8 @@ export async function pickImageFromDevice(): Promise<NativeUploadFile | null> {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [16, 9],
-        quality: 1,
+        aspect,
+        quality,
         allowsMultipleSelection: false,
         exif: false,
       });

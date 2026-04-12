@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
   HttpException,
   InternalServerErrorException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -121,6 +122,81 @@ export class CoursesService {
     return (
       administratesSchool ||
       this.hasSchoolRole(requester, schoolId, UserRole.ADMINISTRATIVE)
+    );
+  }
+
+  private isAdminForSchool(requester: User, schoolId: string): boolean {
+    const administratesSchool =
+      requester.administratedSchools?.some((id) => id.toString() === schoolId) ||
+      false;
+    return (
+      administratesSchool ||
+      this.hasSchoolRole(requester, schoolId, UserRole.ADMIN)
+    );
+  }
+
+  private canCreateCourseInSchool(
+    requester: User,
+    school: School,
+    schoolId: string,
+    teacherIds: string[],
+  ): boolean {
+    const requesterId = (requester as any)._id?.toString() || '';
+    const requesterRole = String(requester.role || '').toLowerCase();
+
+    if (requesterRole === UserRole.SUPER_ADMIN) {
+      return true;
+    }
+
+    if (school.admin?.toString() === requesterId) {
+      return true;
+    }
+
+    if (
+      this.isOwnerForSchool(requester, schoolId) ||
+      this.isAdminForSchool(requester, schoolId) ||
+      this.isAdministrativeForSchool(requester, schoolId)
+    ) {
+      return true;
+    }
+
+    const isSchoolTeacher =
+      school.teachers?.some((teacherId) => teacherId?.toString() === requesterId) ||
+      this.hasSchoolRole(requester, schoolId, UserRole.TEACHER);
+
+    return isSchoolTeacher && teacherIds.includes(requesterId);
+  }
+
+  private canManageCourse(
+    requester: User,
+    school: School,
+    course: Course,
+  ): boolean {
+    const requesterId = (requester as any)._id?.toString() || '';
+    const schoolId = course.school.toString();
+    const requesterRole = String(requester.role || '').toLowerCase();
+
+    if (requesterRole === UserRole.SUPER_ADMIN) {
+      return true;
+    }
+
+    if (school.admin?.toString() === requesterId) {
+      return true;
+    }
+
+    const isCourseTeacher =
+      course.teacher?.toString() === requesterId ||
+      (course.teachers?.some((teacherId) => teacherId?.toString() === requesterId) ??
+        false);
+
+    if (isCourseTeacher) {
+      return true;
+    }
+
+    return (
+      this.isOwnerForSchool(requester, schoolId) ||
+      this.isAdminForSchool(requester, schoolId) ||
+      this.isAdministrativeForSchool(requester, schoolId)
     );
   }
 
@@ -405,6 +481,11 @@ export class CoursesService {
       throw new NotFoundException(`School with ID ${schoolId} not found`);
     }
 
+    const requester = await this.userModel.findById(teacherId);
+    if (!requester) {
+      throw new NotFoundException(`User with ID ${teacherId} not found`);
+    }
+
     // Validate Sede if provided
     if (sede) {
       if (!school.sedes || school.sedes.length === 0) {
@@ -462,6 +543,19 @@ export class CoursesService {
 
       // Convertir el Set a un array para asignar a teachersArray
       teachersArray = Array.from(uniqueTeachers);
+    }
+
+    const canCreateCourse = this.canCreateCourseInSchool(
+      requester,
+      school,
+      schoolId,
+      teachersArray.map(String),
+    );
+
+    if (!canCreateCourse) {
+      throw new ForbiddenException(
+        'No tienes permisos para crear cursos en esta escuela',
+      );
     }
 
     // Crear el curso con los profesores
@@ -676,8 +770,6 @@ export class CoursesService {
       throw new NotFoundException(`Course with ID ${id} not found`);
     }
 
-    // Basic permission check (user must be admin or teacher of the course or school admin)
-    // This should be expanded with more granular role-based access control
     const school = await this.schoolModel
       .findById(course.school)
       .populate('admin');
@@ -685,17 +777,14 @@ export class CoursesService {
       throw new NotFoundException(`School for course with ID ${id} not found`);
     }
 
-    const isAdmin =
-      school.admin && (school.admin as any)._id.toString() === userId;
-    const isCourseTeacher =
-      course.teacher.toString() === userId ||
-      (course.teachers && course.teachers.some((t) => t.toString() === userId));
     const user = await this.userModel.findById(userId);
-    const isSuperAdmin = user && user.role === UserRole.SUPER_ADMIN;
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
 
-    if (!isAdmin && !isCourseTeacher && !isSuperAdmin) {
-      throw new UnauthorizedException(
-        'You do not have permission to update this course',
+    if (!this.canManageCourse(user, school as School, course)) {
+      throw new ForbiddenException(
+        'No tienes permisos para actualizar este curso',
       );
     }
 

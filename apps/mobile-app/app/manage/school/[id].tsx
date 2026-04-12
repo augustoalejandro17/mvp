@@ -128,7 +128,7 @@ export default function EditSchoolScreen() {
 
   const handlePickLogo = async () => {
     try {
-      const file = await pickImageFromDevice();
+      const file = await pickImageFromDevice({ aspect: [1, 1] });
       if (!file) return;
       setIsUploadingImage(true);
       const uploadedUrl = await apiClient.uploadImage(file);
@@ -247,6 +247,8 @@ export default function EditSchoolScreen() {
               previewUrl={logoUrl || undefined}
               selectedFileName={logoUrl ? 'Logo cargado' : undefined}
               isUploading={isUploadingImage}
+              imagePreviewAspectRatio={1}
+              imagePreviewResizeMode="cover"
               onPick={handlePickLogo}
               onClear={() => setLogoUrl('')}
             />

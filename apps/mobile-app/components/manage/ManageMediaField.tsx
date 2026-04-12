@@ -8,6 +8,8 @@ interface ManageMediaFieldProps {
   previewUrl?: string;
   selectedFileName?: string;
   isUploading?: boolean;
+  imagePreviewAspectRatio?: number;
+  imagePreviewResizeMode?: 'cover' | 'contain' | 'stretch' | 'center';
   onPick: () => void;
   onClear?: () => void;
 }
@@ -19,6 +21,8 @@ export default function ManageMediaField({
   previewUrl,
   selectedFileName,
   isUploading,
+  imagePreviewAspectRatio = 16 / 9,
+  imagePreviewResizeMode = 'cover',
   onPick,
   onClear,
 }: ManageMediaFieldProps) {
@@ -59,8 +63,14 @@ export default function ManageMediaField({
         {mediaType === 'image' && normalizedPreviewUrl ? (
           <Image
             source={{ uri: normalizedPreviewUrl }}
-            className="w-full h-40 rounded-lg mt-3 bg-white"
-            resizeMode="contain"
+            style={{
+              width: '100%',
+              aspectRatio: imagePreviewAspectRatio,
+              borderRadius: 12,
+              marginTop: 12,
+              backgroundColor: '#ffffff',
+            }}
+            resizeMode={imagePreviewResizeMode}
           />
         ) : null}
 

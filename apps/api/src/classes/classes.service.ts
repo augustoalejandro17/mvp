@@ -81,21 +81,14 @@ export class ClassesService {
     classItem: ClassDocument,
     userId: string,
   ): Promise<void> {
-    // Check if the user is the teacher of the class or has admin role
-    const user = await this.userModel.findById(userId);
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
+    const canModifyCourse = await this.authorizationService.canModifyCourse(
+      userId,
+      String(classItem.course),
+    );
 
-    // If user is admin or super_admin, always allow
-    if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) {
-      return;
-    }
-
-    // Check if user is the teacher of the class
-    if (classItem.teacher.toString() !== userId) {
-      throw new UnauthorizedException(
-        'You are not authorized to update this class',
+    if (!canModifyCourse) {
+      throw new ForbiddenException(
+        'No tienes permisos para actualizar esta clase',
       );
     }
   }
@@ -144,31 +137,14 @@ export class ClassesService {
         }
       }
 
-      // Verificar permisos para crear clase
-      const user = await this.userModel.findById(teacherId);
-      const allowedRoles = [
-        UserRole.ADMIN,
-        UserRole.SUPER_ADMIN,
-        UserRole.SCHOOL_OWNER,
-        UserRole.ADMINISTRATIVE,
-      ];
-      // Si es admin, super_admin, school_owner o administrative, permitir
-      if (user && allowedRoles.includes(user.role)) {
-        // permitido
-      } else {
-        // Si es teacher principal o está en el array teachers del curso, permitir
-        const isMainTeacher = teacherIdFromCourse === teacherId;
-        let isAdditionalTeacher = false;
-        if (Array.isArray(course.teachers)) {
-          isAdditionalTeacher = course.teachers
-            .map(String)
-            .includes(String(teacherId));
-        }
-        if (!isMainTeacher && !isAdditionalTeacher) {
-          throw new BadRequestException(
-            'No tienes permisos para crear clases en este curso',
-          );
-        }
+      const canModifyCourse = await this.authorizationService.canModifyCourse(
+        teacherId,
+        String(course._id),
+      );
+      if (!canModifyCourse) {
+        throw new ForbiddenException(
+          'No tienes permisos para crear clases en este curso',
+        );
       }
 
       // Procesar y subir el video a S3

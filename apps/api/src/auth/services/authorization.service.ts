@@ -328,7 +328,9 @@ export class AuthorizationService {
     const schoolRole = await this.getUserRoleInSchool(userId, schoolId);
 
     return (
-      schoolRole === UserRole.SCHOOL_OWNER || schoolRole === UserRole.ADMIN
+      schoolRole === UserRole.SCHOOL_OWNER ||
+      schoolRole === UserRole.ADMIN ||
+      schoolRole === UserRole.ADMINISTRATIVE
     );
   }
 

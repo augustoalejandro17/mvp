@@ -86,7 +86,13 @@ export class CoursesController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.TEACHER, UserRole.SCHOOL_OWNER, UserRole.SUPER_ADMIN)
+  @Roles(
+    UserRole.TEACHER,
+    UserRole.ADMIN,
+    UserRole.ADMINISTRATIVE,
+    UserRole.SCHOOL_OWNER,
+    UserRole.SUPER_ADMIN,
+  )
   async create(@Body() createCourseDto: CreateCourseDto, @Req() req) {
     return this.coursesFacade.create(req, createCourseDto);
   }

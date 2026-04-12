@@ -194,7 +194,7 @@ export class GoogleOAuthService {
   }
 
   async unlinkGoogleAccount(userId: string): Promise<any> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userModel.findById(userId).select('+password');
     if (!user) {
       throw new BadRequestException('User not found');
     }
