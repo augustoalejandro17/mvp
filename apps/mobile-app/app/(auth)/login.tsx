@@ -207,9 +207,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   input: {
-    minHeight: 22,
-    lineHeight: 22,
-    paddingTop: 0,
-    paddingBottom: 0,
+    minHeight: Platform.OS === 'ios' ? 24 : 22,
+    paddingVertical: 0,
   },
 });

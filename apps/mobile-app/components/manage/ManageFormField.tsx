@@ -1,4 +1,4 @@
-import { Text, TextInput, TextInputProps, View } from 'react-native';
+import { Platform, Text, TextInput, TextInputProps, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 interface ManageFormFieldProps {
@@ -39,7 +39,11 @@ export default function ManageFormField({
           keyboardType={keyboardType}
           numberOfLines={multiline ? 4 : 1}
           className="flex-1 py-3 text-gray-900 text-base"
-          style={multiline ? { minHeight: 108, textAlignVertical: 'top' } : undefined}
+          style={
+            multiline
+              ? { minHeight: 108, textAlignVertical: 'top' }
+              : { minHeight: Platform.OS === 'ios' ? 24 : 22, paddingVertical: 0 }
+          }
         />
       </View>
     </View>
