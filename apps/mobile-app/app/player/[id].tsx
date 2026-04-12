@@ -1703,7 +1703,7 @@ export default function PlayerScreen() {
   const progressRatio = durationMs > 0 ? displayPositionMs / durationMs : 0;
   const isStudent = currentUserRole === 'student';
   const isReviewer = REVIEWER_ROLES.has(String(currentUserRole || ''));
-  const hasNoClassVideo = classItem.videoStatus === VideoStatus.NO_VIDEO;
+  const hasNoClassVideo = classItem?.videoStatus === VideoStatus.NO_VIDEO;
   const submissionStatusConfig = getSubmissionStatusConfig(submission);
   const submissionActionCopy = getSubmissionActionCopy(submission);
   const normalizedReviewSearch = reviewSearch.trim().toLowerCase();

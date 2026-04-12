@@ -726,7 +726,7 @@ export class SchoolsService {
         ) || false;
 
       if (!isSchoolAdmin && !isGlobalAdmin && !isSchoolOwner && !hasOwnerRoleInSchool) {
-        throw new UnauthorizedException(
+        throw new ForbiddenException(
           'No tiene permisos para eliminar esta escuela',
         );
       }
@@ -1082,61 +1082,69 @@ export class SchoolsService {
         throw new NotFoundException(`Escuela con ID ${schoolId} no encontrada`);
       }
 
-      // Extraer los IDs de profesores asignados a la escuela
-      const teacherIds = school.teachers.map((teacher) =>
-        typeof teacher === 'object' && teacher !== null
-          ? (teacher as any)._id
-          : teacher,
-      );
+      const collectedIds = new Set<string>();
+      const addId = (value: any) => {
+        if (!value) return;
+        const normalized =
+          typeof value === 'string'
+            ? value
+            : value && typeof value.toString === 'function'
+              ? String(value.toString())
+              : '';
+        if (normalized && Types.ObjectId.isValid(normalized)) {
+          collectedIds.add(normalized);
+        }
+      };
 
-      // Agregar el admin de la escuela a la lista
-      const adminId =
-        typeof school.admin === 'object' && school.admin !== null
-          ? (school.admin as any)._id
-          : school.admin;
+      (school.teachers || []).forEach(addId);
+      (school.administratives || []).forEach(addId);
+      (school.students || []).forEach(() => undefined);
+      addId(school.admin);
 
-      if (adminId) {
-        teacherIds.push(adminId);
-      }
-
-      // Buscar school_owners que tengan esta escuela
-      const schoolOwners = await this.userModel
-        .find({
-          role: UserRole.SCHOOL_OWNER,
-          ownedSchools: schoolId,
-        })
-        .select('_id')
-        .lean();
-
-      const schoolOwnerIds = schoolOwners.map((owner) => owner._id);
-      teacherIds.push(...schoolOwnerIds);
-
-      // Buscar administrativos de la escuela
-      const administrativeIds = school.administratives || [];
-      teacherIds.push(...administrativeIds);
-
-      // Eliminar duplicados convirtiendo a Set y volviendo a array
-      const uniqueTeacherIds = [...new Set(teacherIds.map((id) => String(id)))];
-
-      // Buscar todos los usuarios que pueden enseñar (todos los roles excepto estudiantes)
-      const allTeachers = await this.userModel
+      const contextualUsers = await this.userModel
         .find({
           $or: [
-            { _id: { $in: uniqueTeacherIds } },
-            {
-              role: {
-                $in: [
-                  UserRole.TEACHER,
-                  UserRole.ADMIN,
-                  UserRole.SUPER_ADMIN,
-                  UserRole.SCHOOL_OWNER,
-                ],
-              },
-              schools: schoolId,
-            },
+            { schools: new Types.ObjectId(schoolId) },
+            { ownedSchools: new Types.ObjectId(schoolId) },
+            { administratedSchools: new Types.ObjectId(schoolId) },
+            { 'schoolRoles.schoolId': new Types.ObjectId(schoolId) },
           ],
         })
-        .select('name email role')
+        .select('_id role schoolRoles ownedSchools administratedSchools schools')
+        .lean();
+
+      contextualUsers.forEach((user: any) => {
+        const contextualRole = Array.isArray(user.schoolRoles)
+          ? user.schoolRoles.find(
+              (entry: any) =>
+                entry?.schoolId?.toString?.() === schoolId ||
+                String(entry?.schoolId || '') === schoolId,
+            )?.role
+          : null;
+
+        const effectiveRole = String(contextualRole || user.role || '').toLowerCase();
+        if (
+          [
+            UserRole.TEACHER,
+            UserRole.ADMIN,
+            UserRole.ADMINISTRATIVE,
+            UserRole.SCHOOL_OWNER,
+            UserRole.SUPER_ADMIN,
+          ].includes(effectiveRole as UserRole)
+        ) {
+          addId(user._id);
+        }
+      });
+
+      const uniqueTeacherIds = Array.from(collectedIds).map(
+        (id) => new Types.ObjectId(id),
+      );
+
+      const allTeachers = await this.userModel
+        .find({
+          _id: { $in: uniqueTeacherIds },
+        })
+        .select('name email role schoolRoles ownedSchools administratedSchools')
         .lean();
 
       return allTeachers;

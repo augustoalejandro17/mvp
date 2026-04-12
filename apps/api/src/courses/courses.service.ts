@@ -61,45 +61,34 @@ export class CoursesService {
   ): boolean {
     const requesterRole = String(requester.role || '').toLowerCase();
     const requesterId = (requester as any)._id?.toString();
+
+    if (requesterRole === UserRole.SUPER_ADMIN) {
+      return true;
+    }
+
+    if (this.isOwnerForSchool(requester, schoolId)) {
+      return true;
+    }
+
     if (
-      requesterRole === UserRole.SUPER_ADMIN ||
-      requesterRole === UserRole.ADMIN
+      this.isAdminForSchool(requester, schoolId) ||
+      this.isAdministrativeForSchool(requester, schoolId)
     ) {
       return true;
     }
 
-    if (requesterRole === UserRole.TEACHER) {
-      const isMainTeacher =
-        !!requesterId && course.teacher?.toString() === requesterId;
-      const isSecondaryTeacher =
-        course.teachers?.some(
-          (teacherId) => !!requesterId && teacherId?.toString() === requesterId,
-        ) || false;
-      return isMainTeacher || isSecondaryTeacher;
-    }
+    const isMainTeacher = !!requesterId && course.teacher?.toString() === requesterId;
+    const isSecondaryTeacher =
+      course.teachers?.some(
+        (teacherId) => !!requesterId && teacherId?.toString() === requesterId,
+      ) || false;
+    const hasTeacherContextRole = this.hasSchoolRole(
+      requester,
+      schoolId,
+      UserRole.TEACHER,
+    );
 
-    if (requesterRole === UserRole.SCHOOL_OWNER) {
-      const ownsSchool =
-        requester.ownedSchools?.some((id) => id.toString() === schoolId) ||
-        false;
-      return (
-        ownsSchool ||
-        this.hasSchoolRole(requester, schoolId, UserRole.SCHOOL_OWNER)
-      );
-    }
-
-    if (requesterRole === UserRole.ADMINISTRATIVE) {
-      const administratesSchool =
-        requester.administratedSchools?.some(
-          (id) => id.toString() === schoolId,
-        ) || false;
-      return (
-        administratesSchool ||
-        this.hasSchoolRole(requester, schoolId, UserRole.ADMINISTRATIVE)
-      );
-    }
-
-    return false;
+    return isMainTeacher || isSecondaryTeacher || hasTeacherContextRole;
   }
 
   private isOwnerForSchool(requester: User, schoolId: string): boolean {
@@ -212,14 +201,6 @@ export class CoursesService {
 
     const requesterRole = String(requester.role || '').toLowerCase();
     const isSuperAdmin = requesterRole === UserRole.SUPER_ADMIN;
-    const isAdmin = requesterRole === UserRole.ADMIN;
-    const isSchoolOwner = requesterRole === UserRole.SCHOOL_OWNER;
-    const canOpenEnrollFlow =
-      isSuperAdmin ||
-      isAdmin ||
-      isSchoolOwner ||
-      requesterRole === UserRole.ADMINISTRATIVE ||
-      requesterRole === UserRole.TEACHER;
 
     let resolvedSchoolId = schoolId || '';
     let canManageSelectedCourseEnrollment = false;
@@ -241,20 +222,33 @@ export class CoursesService {
         course,
         resolvedSchoolId,
       );
-    } else if (resolvedSchoolId) {
-      if (isSuperAdmin || isAdmin) {
-        canManageSelectedCourseEnrollment = true;
-      } else if (isSchoolOwner) {
-        canManageSelectedCourseEnrollment = this.isOwnerForSchool(
-          requester,
-          resolvedSchoolId,
-        );
-      } else if (requesterRole === UserRole.ADMINISTRATIVE) {
-        canManageSelectedCourseEnrollment = this.isAdministrativeForSchool(
-          requester,
-          resolvedSchoolId,
-        );
-      }
+    }
+
+    const hasContextOwner =
+      !!resolvedSchoolId && this.isOwnerForSchool(requester, resolvedSchoolId);
+    const hasContextAdmin =
+      !!resolvedSchoolId && this.isAdminForSchool(requester, resolvedSchoolId);
+    const hasContextAdministrative =
+      !!resolvedSchoolId &&
+      this.isAdministrativeForSchool(requester, resolvedSchoolId);
+    const hasContextTeacher =
+      !!resolvedSchoolId &&
+      this.hasSchoolRole(requester, resolvedSchoolId, UserRole.TEACHER);
+
+    const canOpenEnrollFlow =
+      isSuperAdmin ||
+      hasContextOwner ||
+      hasContextAdmin ||
+      hasContextAdministrative ||
+      hasContextTeacher ||
+      canManageSelectedCourseEnrollment;
+
+    if (!courseId && resolvedSchoolId) {
+      canManageSelectedCourseEnrollment =
+        isSuperAdmin ||
+        hasContextOwner ||
+        hasContextAdmin ||
+        hasContextAdministrative;
     }
 
     let canSetOwnerQuotaForTarget = false;
@@ -270,15 +264,14 @@ export class CoursesService {
       canSetOwnerQuotaForTarget = isSuperAdmin && targetIsOwner;
       canReadOwnerQuotaForTarget =
         isSuperAdmin ||
-        isAdmin ||
-        (isSchoolOwner && ownerId === requesterId && targetIsOwner);
+        hasContextAdmin ||
+        (hasContextOwner && ownerId === requesterId && targetIsOwner);
     }
 
     const canAssignCourseSeatPermitBase =
-      isSuperAdmin || isAdmin || isSchoolOwner;
+      isSuperAdmin || hasContextAdmin || hasContextOwner;
     const canAssignCourseSeatPermit = resolvedSchoolId
-      ? canAssignCourseSeatPermitBase &&
-        (!isSchoolOwner || this.isOwnerForSchool(requester, resolvedSchoolId))
+      ? canAssignCourseSeatPermitBase
       : canAssignCourseSeatPermitBase;
 
     return {
@@ -290,11 +283,13 @@ export class CoursesService {
         ownerId: ownerId || null,
       },
       capabilities: {
-        canViewSeatManagementModule: isSuperAdmin || isAdmin || isSchoolOwner,
+        canViewSeatManagementModule:
+          isSuperAdmin || hasContextAdmin || hasContextOwner,
         canOpenEnrollFlow,
         canAssignCourseSeatPermit,
         canSetOwnerQuota: isSuperAdmin,
-        canReadOwnerQuota: isSuperAdmin || isAdmin || isSchoolOwner,
+        canReadOwnerQuota:
+          isSuperAdmin || hasContextAdmin || hasContextOwner,
         canSetOwnerQuotaForTarget,
         canReadOwnerQuotaForTarget,
         canEnrollStudentInCourse:

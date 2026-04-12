@@ -207,17 +207,43 @@ const isSchoolManagedByUser = (
     }
   }
 
-  if (Array.isArray(user?.ownedSchools) && user.ownedSchools.includes(schoolId)) {
+  if (
+    Array.isArray(user?.ownedSchools) &&
+    user.ownedSchools.some((entry: any) =>
+      (typeof entry === 'string' ? entry : getEntityId(entry)) === schoolId,
+    )
+  ) {
     return true;
+  }
+
+  if (
+    Array.isArray(user?.administratedSchools) &&
+    user.administratedSchools.some((entry: any) =>
+      (typeof entry === 'string' ? entry : getEntityId(entry)) === schoolId,
+    )
+  ) {
+    return true;
+  }
+
+  if (Array.isArray((school as any).administratives)) {
+    const isAdministrativeInSchool = (school as any).administratives.some((entry: any) => {
+      if (typeof entry === 'string') {
+        return entry === userId;
+      }
+      return getEntityId(entry) === userId;
+    });
+    if (isAdministrativeInSchool) {
+      return true;
+    }
   }
 
   if (Array.isArray(user?.schoolRoles)) {
     return user.schoolRoles.some((entry: any) => {
-      const roleSchoolId = String(entry?.schoolId || '');
+      const roleSchoolId = getEntityId(entry?.schoolId) || String(entry?.schoolId || '');
       const roleValue = String(entry?.role || '').toLowerCase();
       return (
         roleSchoolId === schoolId &&
-        ['teacher', 'school_owner', 'administrative'].includes(roleValue)
+        ['teacher', 'school_owner', 'administrative', 'admin'].includes(roleValue)
       );
     });
   }

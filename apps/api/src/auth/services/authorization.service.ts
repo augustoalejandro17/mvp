@@ -354,12 +354,22 @@ export class AuthorizationService {
   async canDeleteSchool(userId: string, schoolId: string): Promise<boolean> {
     if (!userId || !schoolId) return false;
 
-    // Solo super admin y dueños de escuela pueden eliminar escuelas
-    const schoolRole = await this.getUserRoleInSchool(userId, schoolId);
-    return (
-      schoolRole === UserRole.SUPER_ADMIN ||
-      schoolRole === UserRole.SCHOOL_OWNER
-    );
+    const [user, school] = await Promise.all([
+      this.userModel.findById(userId),
+      this.schoolModel.findById(schoolId).select('admin'),
+    ]);
+
+    if (!user) return false;
+
+    if (user.role === UserRole.SUPER_ADMIN) {
+      return true;
+    }
+
+    if (school?.admin?.toString() === userId) {
+      return true;
+    }
+
+    return await this.isSchoolOwner(userId, schoolId);
   }
 
   /**

@@ -435,6 +435,20 @@ export class ClassesService {
 
       // If user is authenticated
       if (userId) {
+        const canModifyCourse = await this.authorizationService.canModifyCourse(
+          userId,
+          String((classItem.course as any)?._id || classItem.course),
+        );
+        if (canModifyCourse) {
+          if (classItem.videoKey) {
+            const streamingUrl = await this.getVideoStreamingUrl(
+              classItem.videoKey,
+            );
+            classItem.videoUrl = streamingUrl;
+          }
+          return classItem;
+        }
+
         // Teacher can see their own classes
         if (
           userRole === UserRole.TEACHER &&
