@@ -84,11 +84,17 @@ export class AuthorizationService {
   async isSchoolOwner(userId: string, schoolId: string): Promise<boolean> {
     if (!userId || !schoolId) return false;
 
-    const user = await this.userModel.findById(userId);
+    const [user, school] = await Promise.all([
+      this.userModel.findById(userId),
+      this.schoolModel.findById(schoolId).select('admin'),
+    ]);
     if (!user) return false;
 
     // Super admin tiene acceso a todas las escuelas
     if (user.role === UserRole.SUPER_ADMIN) return true;
+
+    // Compatibilidad directa con el owner/admin almacenado en la escuela
+    if (school?.admin?.toString() === userId) return true;
 
     // Verificar rol específico en la escuela
     const schoolRole = await this.getUserRoleInSchool(userId, schoolId);
@@ -109,13 +115,21 @@ export class AuthorizationService {
       return false;
     }
 
-    const user = await this.userModel.findById(userId);
+    const [user, school] = await Promise.all([
+      this.userModel.findById(userId),
+      this.schoolModel.findById(schoolId).select('admin'),
+    ]);
     if (!user) {
       return false;
     }
 
     // Super admin siempre tiene permisos administrativos
     if (user.role === UserRole.SUPER_ADMIN) {
+      return true;
+    }
+
+    // Compatibilidad directa con el admin/owner almacenado en la escuela
+    if (school?.admin?.toString() === userId) {
       return true;
     }
 

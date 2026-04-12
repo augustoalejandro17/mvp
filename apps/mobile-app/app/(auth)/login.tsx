@@ -119,8 +119,8 @@ export default function LoginScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 spellCheck={false}
-                autoComplete="email"
-                textContentType="emailAddress"
+                autoComplete="username"
+                textContentType="username"
                 returnKeyType="next"
                 value={formData.email}
                 onChangeText={(text) => setFormData({ ...formData, email: text })}
